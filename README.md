@@ -7,6 +7,7 @@ The question is not "does it work". The question is **who does it work for**.
 - `KONCEPCJA.md` — product concept (Polish)
 - `AGENTS.md` — decisions, rationale, the name
 - `docs/PLAN.md` — requirements, architecture, stack
+- `docs/KICKOFF.md` — how the four of us start, and the rules for running agents in parallel
 - `docs/RULES.md` — filter pipeline, every rule with its source, persona bundles
 - `docs/STACK.md` — exact library picks, ports, import rules
 - `docs/CONVENTIONS.md` — layout, naming, determinism rules, Definition of Done

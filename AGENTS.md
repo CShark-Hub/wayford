@@ -12,6 +12,7 @@ Planning phase. **Not a line of code written yet.** Four people, one month, up t
 Planning docs:
 
 - `docs/PLAN.md` — goal, requirements F1–F12 with acceptance criteria, UI, architecture, stack, locked decisions, assumptions.
+- `docs/KICKOFF.md` — week 1 assignment, how to run a task, rules for parallel agents.
 - `docs/RULES.md` — the filter pipeline, every rule with its source id, the three persona bundles. Draft, under review.
 - `docs/STACK.md` — exact library picks and package import rules. `docs/CONVENTIONS.md` — layout, determinism rules, Definition of Done.
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.

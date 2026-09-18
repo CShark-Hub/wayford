@@ -15,7 +15,8 @@ Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you gr
 | m0-07 | API and web skeleton with SSE echo | M | m0-01, m0-05 | | todo |
 | m0-08 | Week 2 backlog and owners | M | m0-02..05 | | todo |
 
-Suggested order: m0-01 first, alone, merged within two days. Then m0-02, m0-03, m0-04, m0-06 in parallel. Then m0-05, m0-07, m0-08.
+Wave 1, all four start at once (see `docs/KICKOFF.md`): `m0-03` Dev 1, `m0-02` Dev 2, `m0-06` Dev 3, `m0-04` Dev 4.
+Wave 2, after wave 1 merges: `m0-05` Dev 2, `m0-07` Dev 3 (web) and Dev 4 (API), `m0-08` Dev 1 with Dev 4.
 
 ## Week 2 — M1, M2
 
