@@ -64,9 +64,17 @@ Probability works **at run level**, not step level: 10 seeds → "3/10 success" 
 
 ### A profile is a capability bundle, not a job title
 
-"Plumber" carries no information — the model doesn't know how a plumber thinks, only the stereotype. The engine reads dimensions (vision, motor precision, digital literacy, vocabulary, patience, device). The job title stays as a **UI label**, because it presents well.
+"Plumber" carries no information — the model doesn't know how a plumber thinks, only the stereotype. The engine reads dimensions (vision, motor precision, digital literacy, vocabulary, patience, device). A profile carries a bare **name** as its label and a one-line **description** of the bundle; no job title, no diagnosis, no "impaired" or "able-bodied" wording anywhere.
 
 Payoff: we defend "someone with a 3:1 contrast threshold", not "this is how plumbers behave". The first has standards behind it.
+
+### English only, no locales
+
+The whole application is English: UI copy, API, schemas, identifiers, comments, fixtures, descriptions, reports. There is no i18n layer, no locale switch and no translated strings, and none are planned for the hackathon.
+
+Persona **names** are the one exception, and only because a name is a proper noun: Ryszard and Genowefa sit next to Anna and Marek and nothing else about them is Polish. Polish prose belongs in `KONCEPCJA.md` alone.
+
+Why: a locale layer is a week of work that wins no point in the pitch, and half-translated UI is worse than an English one. If the demo needs Polish, it needs a translated target app, not a translated tool.
 
 ### Provenance on every threshold
 

@@ -111,13 +111,21 @@ A persona is a bundle. Reference points for calibrating bundles, not for labelli
 - **WCAG 2.2** anchors for perception thresholds.
 - **PersonaLayer** taxonomy of 45 profiles as a checklist of dimensions we do or do not model.
 
-Three hackathon personas, as bundles:
+Four hackathon personas, as bundles. Anna and Genowefa are the two ends of the
+scale: Anna is what the engine looks like with nothing switched on, Genowefa is
+every dimension at once. Ryszard and Marek are the two interesting middles.
 
 | Persona | Perception | Knowledge | Attention and memory | Behaviour |
 |---|---|---|---|---|
 | Ryszard | contrast 3.0 soft, font 16, target 32, `blurredVision` | unknown: hamburger, kebab, breadcrumb | `maxElements` 12, `memorySteps` 3 | doubleClick 0.8, budget 120 s |
 | Anna | none | all known | unlimited | budget 120 s |
 | Marek | mobile device, target 44, no contrast rule | all known | `maxElements` 20, `memorySteps` 6 | scrollWhenStuck 0.9, budget 90 s |
+| Genowefa | contrast 7.0 soft, font 24, target 48, `reducedContrast` | nothing known, every pattern unknown | `maxElements` 5, `maxOptions` 4, `memorySteps` 2 | doubleClick 0.9, scrollWhenStuck 0.3, budget 180 s |
+
+Genowefa is the persona the calibration row below expects to score 0/10 on a
+low-contrast path. A persona nobody can argue is exaggerated is the one that
+makes the boundary sweep readable: the question stops being "is she real" and
+becomes "at which value does the path come back".
 
 ## Source registry
 

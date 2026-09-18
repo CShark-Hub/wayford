@@ -1,7 +1,9 @@
 # Bundle: docs/RULES.md, "Persona composition".
-# Weak sight, low digital proficiency, desktop.
 id: prof_ryszard
-label: "Ryszard, 36, hydraulik"
+label: Ryszard
+description: >-
+  Weak sight and little practice with interfaces, on a desktop. Contrast, font
+  and target thresholds, blurred vision, hidden navigation unknown.
 seed: 8814
 device: desktop
 

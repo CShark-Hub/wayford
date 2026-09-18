@@ -51,6 +51,20 @@ describe("Profile schema", () => {
     expect(Profile.safeParse(anna).success).toBe(false);
   });
 
+  test("a label is a bare name, not a sentence", () => {
+    const anna = rawFixture("anna") as Record<string, unknown>;
+    anna.label = "Anna, 29, graphic designer";
+    expect(Profile.safeParse(anna).success).toBe(false);
+    anna.label = "Anna";
+    expect(Profile.safeParse(anna).success).toBe(true);
+  });
+
+  test("a description is mandatory", () => {
+    const anna = rawFixture("anna") as Record<string, unknown>;
+    delete anna.description;
+    expect(Profile.safeParse(anna).success).toBe(false);
+  });
+
   test("a Polish field name does not pass as an extra key", () => {
     const anna = rawFixture("anna") as Record<string, unknown>;
     anna.percepcja = { emulation: "none" };
@@ -81,12 +95,36 @@ describe("Profile schema", () => {
 });
 
 describe("fixtures", () => {
-  test("there are three of them and each one validates", () => {
-    expect(profileFixtures).toHaveLength(3);
+  test("there are four of them and each one validates", () => {
+    expect(profileFixtures).toHaveLength(4);
     for (const fixture of profileFixtures) {
       expect(Profile.safeParse(fixture).success).toBe(true);
     }
-    expect(profileFixtures.map((p) => p.id)).toEqual(["prof_anna", "prof_marek", "prof_ryszard"]);
+    expect(profileFixtures.map((p) => p.id)).toEqual([
+      "prof_anna",
+      "prof_genowefa",
+      "prof_marek",
+      "prof_ryszard",
+    ]);
+  });
+
+  test("each one is a name and an English line about the bundle", () => {
+    for (const fixture of profileFixtures) {
+      expect(fixture.label).toMatch(/^\p{Lu}\p{L}+$/u);
+      expect(fixture.description.length).toBeGreaterThan(20);
+      expect(fixture.id).toBe(`prof_${fixture.label.toLowerCase()}`);
+    }
+  });
+
+  test("every persona appears in the bundle table of docs/RULES.md", () => {
+    const doc = readFileSync(RULES_MD, "utf8");
+    const table = doc.slice(
+      doc.indexOf("## Persona composition"),
+      doc.indexOf("## Source registry"),
+    );
+    for (const fixture of profileFixtures) {
+      expect(table).toContain(`| ${fixture.label} |`);
+    }
   });
 
   test("each one round-trips through YAML", () => {
@@ -150,6 +188,37 @@ describe("fixtures", () => {
     expect(marek.behaviour.memorySteps).toBe(6);
     expect(marek.behaviour.scrollWhenStuck).toBe(0.9);
     expect(marek.behaviour.budgetSeconds).toBe(90);
+  });
+
+  test("Genowefa is the lower boundary: nothing known, everything capped", () => {
+    const genowefa = profileFixture("prof_genowefa");
+    expect(genowefa.perception.contrast?.threshold).toBe(7.0);
+    expect(genowefa.perception.fontPx?.threshold).toBe(24);
+    expect(genowefa.perception.targetPx?.threshold).toBe(48);
+    expect(genowefa.perception.emulation).toBe("reducedContrast");
+    expect(genowefa.knowledge.knownPatterns).toEqual([]);
+    expect([...genowefa.knowledge.unknownPatterns].sort()).toEqual([...UI_PATTERNS].sort());
+    expect(genowefa.behaviour.maxElements).toBe(5);
+    expect(genowefa.behaviour.maxOptions).toBe(4);
+    expect(genowefa.behaviour.memorySteps).toBe(2);
+  });
+
+  test("Genowefa is stricter than every other persona on every threshold she shares", () => {
+    const genowefa = profileFixture("prof_genowefa");
+    for (const other of profileFixtures) {
+      if (other.id === genowefa.id) continue;
+      for (const metric of METRIC_NAMES) {
+        const theirs = other.perception[metric];
+        if (!theirs) continue;
+        expect(genowefa.perception[metric]?.threshold).toBeGreaterThanOrEqual(theirs.threshold);
+      }
+    }
+  });
+
+  test("no fixture describes a persona as able-bodied or impaired", () => {
+    const banned = ["sprawn", "niesprawn", "impaired", "disabled", "able-bodied", "handicap"];
+    const source = JSON.stringify(profileFixtures).toLowerCase();
+    for (const word of banned) expect(source).not.toContain(word);
   });
 
   test("no fixture carries vocabulary from one industry", () => {

@@ -117,8 +117,10 @@ export type Knowledge = z.infer<typeof Knowledge>;
 export const Profile = z
   .object({
     id: ProfileId,
-    /** Shown in the UI. Polish is fine here and nowhere else. */
-    label: z.string().min(1),
+    /** The persona's name and nothing else. A name may be Polish; prose is not. */
+    label: z.string().regex(/^\p{Lu}\p{L}+$/u, "a label is one capitalised name"),
+    /** One English line: what this bundle is and which limits define it. */
+    description: z.string().min(1),
     /** Every run is reproducible or it is an anecdote. */
     seed: Seed,
     /** Drives real device emulation, rule V1. */

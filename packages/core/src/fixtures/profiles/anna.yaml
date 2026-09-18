@@ -1,8 +1,10 @@
 # Bundle: docs/RULES.md, "Persona composition".
-# The calibration persona: no thresholds, nothing unknown, nothing capped.
-# If Anna fails the target app, the Actor or the app is broken, not the filter.
 id: prof_anna
-label: "Anna, 29, sprawna i biegła"
+label: Anna
+description: >-
+  The calibration persona. Sees everything, knows every pattern, nothing
+  capped. If she fails the target app, the Actor or the app is broken, not the
+  filter.
 seed: 4211
 device: desktop
 

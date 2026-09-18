@@ -1,7 +1,8 @@
 # Bundle: docs/RULES.md, "Persona composition".
-# Proficient, in a hurry, on a phone. Motor threshold, no contrast rule.
 id: prof_marek
-label: "Marek, 41, sprawny, na telefonie"
+label: Marek
+description: >-
+  Proficient, in a hurry, on a phone. Motor threshold, no contrast rule.
 seed: 9302
 device: mobile
 
