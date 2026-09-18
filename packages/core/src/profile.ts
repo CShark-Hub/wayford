@@ -117,7 +117,7 @@ export type Knowledge = z.infer<typeof Knowledge>;
 export const Profile = z
   .object({
     id: ProfileId,
-    /** The persona's name and nothing else. A name may be Polish; prose is not. */
+    /** The persona's name and nothing else. One word, English like the rest. */
     label: z.string().regex(/^\p{Lu}\p{L}+$/u, "a label is one capitalised name"),
     /** One English line: what this bundle is and which limits define it. */
     description: z.string().min(1),
@@ -136,4 +136,27 @@ export type Profile = z.infer<typeof Profile>;
 export function conflictingPatterns(profile: Profile): UiPattern[] {
   const unknown = new Set(profile.knowledge.unknownPatterns);
   return profile.knowledge.knownPatterns.filter((p) => unknown.has(p));
+}
+
+/**
+ * How many dimensions of the filter a persona switches on: perception
+ * thresholds, attention and memory caps, and patterns it does not recognise.
+ *
+ * Not a severity score and not comparable across metrics — a 44 px target
+ * threshold and a 3:1 contrast threshold constrain different things and cannot
+ * be added up. This counts switches, which is enough to sort a dashboard and
+ * to keep the fixture set ordered from the control persona to the boundary.
+ */
+export function constraintCount(profile: Profile): number {
+  const thresholds = [
+    profile.perception.contrast,
+    profile.perception.fontPx,
+    profile.perception.targetPx,
+  ].filter(Boolean).length;
+  const caps = [
+    profile.behaviour.maxElements,
+    profile.behaviour.maxOptions,
+    profile.behaviour.memorySteps,
+  ].filter((cap) => cap !== undefined).length;
+  return thresholds + caps + profile.knowledge.unknownPatterns.length;
 }

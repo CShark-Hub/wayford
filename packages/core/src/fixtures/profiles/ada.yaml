@@ -1,9 +1,9 @@
 # Bundle: docs/RULES.md, "Persona composition".
-id: prof_anna
-label: Anna
+id: prof_ada
+label: Ada
 description: >-
   The calibration persona. Sees everything, knows every pattern, nothing
-  capped. If she fails the target app, the Actor or the app is broken, not the
+  capped. If Ada fails the target app, the Actor or the app is broken, not the
   filter.
 seed: 4211
 device: desktop

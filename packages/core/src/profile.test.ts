@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { parse, stringify } from "yaml";
 import { profileFixture, profileFixtures, profilesFixtureDir } from "./fixtures/index.js";
 import { METRIC_NAMES, UI_PATTERNS } from "./primitives.js";
-import { Behaviour, conflictingPatterns, Perception, Profile } from "./profile.js";
+import { Behaviour, conflictingPatterns, constraintCount, Perception, Profile } from "./profile.js";
 
 const RULES_MD = new URL("../../../docs/RULES.md", import.meta.url);
 
@@ -18,63 +18,63 @@ describe("Profile schema", () => {
   });
 
   test("a threshold without provenance is rejected", () => {
-    const ryszard = rawFixture("ryszard") as {
+    const vera = rawFixture("vera") as {
       perception: { contrast: Record<string, unknown> };
     };
-    delete ryszard.perception.contrast.provenance;
-    const result = Profile.safeParse(ryszard);
+    delete vera.perception.contrast.provenance;
+    const result = Profile.safeParse(vera);
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain("provenance");
   });
 
   test("an unsourced threshold is allowed, but has to say so", () => {
-    const ryszard = rawFixture("ryszard") as {
+    const vera = rawFixture("vera") as {
       perception: { contrast: Record<string, unknown> };
     };
-    ryszard.perception.contrast.provenance = "folk";
-    expect(Profile.safeParse(ryszard).success).toBe(true);
-    ryszard.perception.contrast.provenance = "vibes";
-    expect(Profile.safeParse(ryszard).success).toBe(false);
+    vera.perception.contrast.provenance = "folk";
+    expect(Profile.safeParse(vera).success).toBe(true);
+    vera.perception.contrast.provenance = "vibes";
+    expect(Profile.safeParse(vera).success).toBe(false);
   });
 
   test("softness is a probability", () => {
-    const ryszard = rawFixture("ryszard") as {
+    const vera = rawFixture("vera") as {
       perception: { contrast: Record<string, unknown> };
     };
-    ryszard.perception.contrast.softness = 1.5;
-    expect(Profile.safeParse(ryszard).success).toBe(false);
+    vera.perception.contrast.softness = 1.5;
+    expect(Profile.safeParse(vera).success).toBe(false);
   });
 
   test("seed is an integer", () => {
-    const anna = rawFixture("anna") as Record<string, unknown>;
-    anna.seed = 4211.5;
-    expect(Profile.safeParse(anna).success).toBe(false);
+    const ada = rawFixture("ada") as Record<string, unknown>;
+    ada.seed = 4211.5;
+    expect(Profile.safeParse(ada).success).toBe(false);
   });
 
   test("a label is a bare name, not a sentence", () => {
-    const anna = rawFixture("anna") as Record<string, unknown>;
-    anna.label = "Anna, 29, graphic designer";
-    expect(Profile.safeParse(anna).success).toBe(false);
-    anna.label = "Anna";
-    expect(Profile.safeParse(anna).success).toBe(true);
+    const ada = rawFixture("ada") as Record<string, unknown>;
+    ada.label = "Ada, 29, graphic designer";
+    expect(Profile.safeParse(ada).success).toBe(false);
+    ada.label = "Ada";
+    expect(Profile.safeParse(ada).success).toBe(true);
   });
 
   test("a description is mandatory", () => {
-    const anna = rawFixture("anna") as Record<string, unknown>;
-    delete anna.description;
-    expect(Profile.safeParse(anna).success).toBe(false);
+    const ada = rawFixture("ada") as Record<string, unknown>;
+    delete ada.description;
+    expect(Profile.safeParse(ada).success).toBe(false);
   });
 
   test("a Polish field name does not pass as an extra key", () => {
-    const anna = rawFixture("anna") as Record<string, unknown>;
-    anna.percepcja = { emulation: "none" };
-    expect(Profile.safeParse(anna).success).toBe(false);
+    const ada = rawFixture("ada") as Record<string, unknown>;
+    ada.percepcja = { emulation: "none" };
+    expect(Profile.safeParse(ada).success).toBe(false);
   });
 
   test("behaviour stays open for the rules week 2 adds", () => {
-    const marek = rawFixture("marek") as { behaviour: Record<string, unknown> };
-    marek.behaviour.misclick = 0.3;
-    const parsed = Profile.safeParse(marek);
+    const milo = rawFixture("milo") as { behaviour: Record<string, unknown> };
+    milo.behaviour.misclick = 0.3;
+    const parsed = Profile.safeParse(milo);
     expect(parsed.success).toBe(true);
     expect(parsed.data?.behaviour.misclick).toBe(0.3);
   });
@@ -88,9 +88,9 @@ describe("Profile schema", () => {
   });
 
   test("an unknown ui pattern is rejected", () => {
-    const anna = rawFixture("anna") as { knowledge: { unknownPatterns: string[] } };
-    anna.knowledge.unknownPatterns = ["wizard"];
-    expect(Profile.safeParse(anna).success).toBe(false);
+    const ada = rawFixture("ada") as { knowledge: { unknownPatterns: string[] } };
+    ada.knowledge.unknownPatterns = ["wizard"];
+    expect(Profile.safeParse(ada).success).toBe(false);
   });
 });
 
@@ -101,10 +101,10 @@ describe("fixtures", () => {
       expect(Profile.safeParse(fixture).success).toBe(true);
     }
     expect(profileFixtures.map((p) => p.id)).toEqual([
-      "prof_anna",
-      "prof_genowefa",
-      "prof_marek",
-      "prof_ryszard",
+      "prof_ada",
+      "prof_milo",
+      "prof_vera",
+      "prof_zoya",
     ]);
   });
 
@@ -150,69 +150,88 @@ describe("fixtures", () => {
     }
   });
 
-  test("Ryszard is the bundle in docs/RULES.md", () => {
-    const ryszard = profileFixture("prof_ryszard");
-    expect(ryszard.perception.contrast?.threshold).toBe(3.0);
-    expect(ryszard.perception.contrast?.softness).toBeGreaterThan(0);
-    expect(ryszard.perception.fontPx?.threshold).toBe(16);
-    expect(ryszard.perception.targetPx?.threshold).toBe(32);
-    expect(ryszard.perception.emulation).toBe("blurredVision");
-    expect(ryszard.knowledge.unknownPatterns).toEqual(["hamburger", "kebab", "breadcrumb"]);
-    expect(ryszard.behaviour.maxElements).toBe(12);
-    expect(ryszard.behaviour.memorySteps).toBe(3);
-    expect(ryszard.behaviour.doubleClick).toBe(0.8);
-    expect(ryszard.behaviour.budgetSeconds).toBe(120);
+  test("Vera is the bundle in docs/RULES.md", () => {
+    const vera = profileFixture("prof_vera");
+    expect(vera.perception.contrast?.threshold).toBe(3.0);
+    expect(vera.perception.contrast?.softness).toBeGreaterThan(0);
+    expect(vera.perception.fontPx?.threshold).toBe(16);
+    expect(vera.perception.targetPx?.threshold).toBe(32);
+    expect(vera.perception.emulation).toBe("blurredVision");
+    expect(vera.knowledge.unknownPatterns).toEqual(["hamburger", "kebab", "breadcrumb"]);
+    expect(vera.behaviour.maxElements).toBe(12);
+    expect(vera.behaviour.memorySteps).toBe(3);
+    expect(vera.behaviour.doubleClick).toBe(0.8);
+    expect(vera.behaviour.budgetSeconds).toBe(120);
   });
 
-  test("Anna has no thresholds, knows everything and is uncapped", () => {
-    const anna = profileFixture("prof_anna");
-    expect(anna.perception.contrast).toBeUndefined();
-    expect(anna.perception.fontPx).toBeUndefined();
-    expect(anna.perception.targetPx).toBeUndefined();
-    expect(anna.perception.emulation).toBe("none");
-    expect([...anna.knowledge.knownPatterns].sort()).toEqual([...UI_PATTERNS].sort());
-    expect(anna.knowledge.unknownPatterns).toEqual([]);
-    expect(anna.behaviour.maxElements).toBeUndefined();
-    expect(anna.behaviour.maxOptions).toBeUndefined();
-    expect(anna.behaviour.memorySteps).toBeUndefined();
-    expect(anna.behaviour.budgetSeconds).toBe(120);
+  test("Ada has no thresholds, knows everything and is uncapped", () => {
+    const ada = profileFixture("prof_ada");
+    expect(ada.perception.contrast).toBeUndefined();
+    expect(ada.perception.fontPx).toBeUndefined();
+    expect(ada.perception.targetPx).toBeUndefined();
+    expect(ada.perception.emulation).toBe("none");
+    expect([...ada.knowledge.knownPatterns].sort()).toEqual([...UI_PATTERNS].sort());
+    expect(ada.knowledge.unknownPatterns).toEqual([]);
+    expect(ada.behaviour.maxElements).toBeUndefined();
+    expect(ada.behaviour.maxOptions).toBeUndefined();
+    expect(ada.behaviour.memorySteps).toBeUndefined();
+    expect(ada.behaviour.budgetSeconds).toBe(120);
   });
 
-  test("Marek is mobile, motor threshold only", () => {
-    const marek = profileFixture("prof_marek");
-    expect(marek.device).toBe("mobile");
-    expect(marek.perception.targetPx?.threshold).toBe(44);
-    expect(marek.perception.contrast).toBeUndefined();
-    expect(marek.knowledge.unknownPatterns).toEqual([]);
-    expect(marek.behaviour.maxElements).toBe(20);
-    expect(marek.behaviour.memorySteps).toBe(6);
-    expect(marek.behaviour.scrollWhenStuck).toBe(0.9);
-    expect(marek.behaviour.budgetSeconds).toBe(90);
+  test("Milo is mobile, motor threshold only", () => {
+    const milo = profileFixture("prof_milo");
+    expect(milo.device).toBe("mobile");
+    expect(milo.perception.targetPx?.threshold).toBe(44);
+    expect(milo.perception.contrast).toBeUndefined();
+    expect(milo.knowledge.unknownPatterns).toEqual([]);
+    expect(milo.behaviour.maxElements).toBe(20);
+    expect(milo.behaviour.memorySteps).toBe(6);
+    expect(milo.behaviour.scrollWhenStuck).toBe(0.9);
+    expect(milo.behaviour.budgetSeconds).toBe(90);
   });
 
-  test("Genowefa is the lower boundary: nothing known, everything capped", () => {
-    const genowefa = profileFixture("prof_genowefa");
-    expect(genowefa.perception.contrast?.threshold).toBe(7.0);
-    expect(genowefa.perception.fontPx?.threshold).toBe(24);
-    expect(genowefa.perception.targetPx?.threshold).toBe(48);
-    expect(genowefa.perception.emulation).toBe("reducedContrast");
-    expect(genowefa.knowledge.knownPatterns).toEqual([]);
-    expect([...genowefa.knowledge.unknownPatterns].sort()).toEqual([...UI_PATTERNS].sort());
-    expect(genowefa.behaviour.maxElements).toBe(5);
-    expect(genowefa.behaviour.maxOptions).toBe(4);
-    expect(genowefa.behaviour.memorySteps).toBe(2);
+  test("Zoya is the lower boundary: nothing known, everything capped", () => {
+    const zoya = profileFixture("prof_zoya");
+    expect(zoya.perception.contrast?.threshold).toBe(7.0);
+    expect(zoya.perception.fontPx?.threshold).toBe(24);
+    expect(zoya.perception.targetPx?.threshold).toBe(48);
+    expect(zoya.perception.emulation).toBe("reducedContrast");
+    expect(zoya.knowledge.knownPatterns).toEqual([]);
+    expect([...zoya.knowledge.unknownPatterns].sort()).toEqual([...UI_PATTERNS].sort());
+    expect(zoya.behaviour.maxElements).toBe(5);
+    expect(zoya.behaviour.maxOptions).toBe(4);
+    expect(zoya.behaviour.memorySteps).toBe(2);
   });
 
-  test("Genowefa is stricter than every other persona on every threshold she shares", () => {
-    const genowefa = profileFixture("prof_genowefa");
+  test("Zoya is at least as strict as every other persona on every threshold they share", () => {
+    const zoya = profileFixture("prof_zoya");
     for (const other of profileFixtures) {
-      if (other.id === genowefa.id) continue;
+      if (other.id === zoya.id) continue;
       for (const metric of METRIC_NAMES) {
         const theirs = other.perception[metric];
         if (!theirs) continue;
-        expect(genowefa.perception[metric]?.threshold).toBeGreaterThanOrEqual(theirs.threshold);
+        expect(zoya.perception[metric]?.threshold).toBeGreaterThanOrEqual(theirs.threshold);
       }
     }
+  });
+
+  test("alphabetical order is the order of how much filter each persona switches on", () => {
+    const counts = profileFixtures.map(constraintCount);
+    expect(counts).toEqual([...counts].sort((a, b) => a - b));
+    expect(new Set(counts).size).toBe(counts.length);
+    expect(counts[0]).toBe(0);
+  });
+
+  test("the control persona switches nothing on and the boundary switches everything on", () => {
+    const first = profileFixtures.at(0);
+    const last = profileFixtures.at(-1);
+    expect(first?.id).toBe("prof_ada");
+    expect(last?.id).toBe("prof_zoya");
+    for (const metric of METRIC_NAMES) {
+      expect(first?.perception[metric]).toBeUndefined();
+      expect(last?.perception[metric]).toBeDefined();
+    }
+    expect(constraintCount(last as never)).toBe(Math.max(...profileFixtures.map(constraintCount)));
   });
 
   test("no fixture describes a persona as able-bodied or impaired", () => {

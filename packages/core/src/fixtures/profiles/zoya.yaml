@@ -1,8 +1,8 @@
 # Bundle: docs/RULES.md, "Persona composition".
 # The lower boundary. A path this persona can walk is a path almost anyone can
-# walk; a path she cannot is where the sweep in F9 starts looking.
-id: prof_genowefa
-label: Genowefa
+# walk; a path this persona cannot is where the sweep in F9 starts looking.
+id: prof_zoya
+label: Zoya
 description: >-
   The worst case. Every perception threshold strict, no interface vocabulary at
   all, five elements of attention and two steps of memory.

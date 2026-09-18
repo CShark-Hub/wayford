@@ -26,7 +26,7 @@ No `utils.ts`, no `helpers/`. If a function has no feature, it has no home yet.
 - Event types: `camelCase` verbs in past tense, `stepObserved`, `runFinished`.
 - Database tables: `snake_case`, plural. Columns `snake_case`. Drizzle maps to `camelCase` in code.
 - Ids: prefixed ULIDs, see `docs/STACK.md`.
-- English everywhere in code, identifiers, comments, fixtures and UI copy. No locales, no i18n layer (see `AGENTS.md`). Polish is fine in `KONCEPCJA.md` and in a persona name, which is a proper noun and nothing more.
+- English everywhere in code, identifiers, comments, fixtures, persona names and UI copy. No locales, no i18n layer (see `AGENTS.md`). Polish is fine in `KONCEPCJA.md` and nowhere else.
 - No domain jargon from any specific industry in code or fixtures. The tool is domain-agnostic.
 
 ## Errors

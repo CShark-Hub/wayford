@@ -17,9 +17,11 @@ Read first, in this order:
 
 ## Goal
 
-A zod schema for `Profile` and four fixtures (Ryszard, Anna, Marek, Genowefa) that every other package can import, so the filter, the frontend and the database agree on what a persona is.
+A zod schema for `Profile` and four fixtures (Ada, Milo, Vera, Zoya) that every other package can import, so the filter, the frontend and the database agree on what a persona is.
 
-Genowefa was added to the task after the three were written: the set needed a lower boundary, a persona with every dimension switched on at once, so the boundary sweep has two ends to run between. `docs/RULES.md` carries her bundle alongside the other three.
+Zoya was added to the task after the first three were written: the set needed a lower boundary, a persona with every dimension switched on at once, so the boundary sweep has two ends to run between. `docs/RULES.md` carries all four bundles.
+
+The names are a system, not decoration. The initial is the dimension the persona is defined by (all clear, mobile and motor, vision, and the far end of the scale), so alphabetical order is the order of how much filter each one switches on and `profileFixtures` needs no sorting.
 
 ## Interface
 
