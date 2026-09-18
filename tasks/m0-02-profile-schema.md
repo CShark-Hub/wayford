@@ -45,10 +45,10 @@ The names are a system, not decoration. The initial is the dimension the persona
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes and includes `profile.test.ts`
-- [ ] The test validates all four fixtures and fails on a fixture missing `provenance`
-- [ ] The test round-trips each fixture through YAML and asserts deep equality
-- [ ] Fixtures match the four bundles in `docs/RULES.md` section "Persona composition"
+- [x] `pnpm --filter @wayford/core test` passes and includes `profile.test.ts` — 42 tests in `core`, 49 across the workspace, with `pnpm lint` and `pnpm typecheck` clean
+- [x] The test validates all four fixtures and fails on a fixture missing `provenance` — `a threshold without provenance is rejected` deletes the field from a real fixture and asserts the failure names it
+- [x] The test round-trips each fixture through YAML and asserts deep equality — `each one round-trips through YAML`
+- [x] Fixtures match the four bundles in `docs/RULES.md` section "Persona composition" — one test per persona pinning every documented number, plus `every persona appears in the bundle table of docs/RULES.md`, so the document and the fixtures cannot drift apart
 
 ## Out of scope
 
