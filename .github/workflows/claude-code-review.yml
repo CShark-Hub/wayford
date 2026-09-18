@@ -17,10 +17,12 @@ concurrency:
 
 jobs:
   claude-review:
-    # Only review PRs opened by the org/repo team. Note that fork PRs on the
-    # `pull_request` event never receive secrets anyway, so this is future-proofing
-    # for if this repo goes public or takes outside contributors.
-    if: contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    # Only auto-review PRs from branches in this repo, never from forks.
+    # Deliberately NOT gated on author_association: this org has private
+    # membership, so the webhook payload reports members as CONTRIBUTOR and an
+    # OWNER/MEMBER/COLLABORATOR allowlist silently skips every real PR.
+    # claude-code-action separately enforces that the triggering user has write access.
+    if: github.event.pull_request.head.repo.full_name == github.repository
 
     runs-on: ubuntu-latest
     permissions:
