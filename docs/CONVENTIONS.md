@@ -17,6 +17,8 @@ packages/<name>/
 
 No `utils.ts`, no `helpers/`. If a function has no feature, it has no home yet.
 
+`index.ts` is a barrel and nothing else: one `export * from "./<module>.js";` line per module, alphabetical. Add your line, never rewrite the file. Three people edit it in the same week and a one-line diff is the difference between a trivial merge and a three-way conflict.
+
 ## Naming
 
 - Files: `kebab-case.ts`. Types and schemas: `PascalCase`. Functions and variables: `camelCase`.

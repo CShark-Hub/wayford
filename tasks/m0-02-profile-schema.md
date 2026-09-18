@@ -13,6 +13,7 @@ Read first, in this order:
 - `KONCEPCJA.md` section "Profil = wiązka zdolności, nie zawód" (the YAML example is the starting point)
 - `docs/PLAN.md` F1 and assumptions A11, A12
 - `docs/RULES.md` — the pipeline, the rule ids and the source registry the profile refers to
+- `packages/core/src/primitives.ts` — `ProvenanceId`, `MetricName`, `Seed`, `DeviceKind`, `VisionDeficiency`, `UiPattern`, `ProfileId` already exist (from `m0-00`). Import them, do not redefine them.
 
 ## Goal
 
@@ -29,7 +30,7 @@ A zod schema for `Profile` and three fixtures (Ryszard, Anna, Marek) that every 
 - Field names in English. The YAML in `KONCEPCJA.md` is Polish and is a sketch, not the contract.
 - Three sections: `perception`, `behaviour`, `knowledge`. Plus `id`, `label`, `seed`, `device`.
 - Perception thresholds: `contrast` (ratio, WCAG 2.2), `fontPx`, `targetPx`, each with `threshold` and optional `softness` in 0..1. Plus `emulation` from the CDP vision deficiency enum.
-- Every threshold object carries `provenance`: a source id from the registry in `docs/RULES.md`, validated against that list, exported as a const array from `core` so the list has one home.
+- Every threshold object carries `provenance`, typed as `ProvenanceId` from `packages/core/src/primitives.ts`. That list already exists; do not redefine it.
 - Behaviour: `doubleClick`, `scrollWhenStuck`, `budgetSeconds` (RULES B1 to B3). Leave room for more via an open record, but do not add more.
 - Attention and memory: `maxElements`, `maxOptions`, `memorySteps`, all optional integers (RULES A1, A3, M1).
 - Perception state is three-valued in the filter (visible, degraded, invisible). The profile only carries `threshold` and `softness`; the band logic lives in `filter`.

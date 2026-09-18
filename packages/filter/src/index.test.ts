@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { packageName } from "./index.js";
+import { measuredMetrics } from "./index.js";
 
-test("filter exports its name and sees core", () => {
-  expect(packageName()).toBe("@wayford/filter (on @wayford/core)");
+test("filter measures the metrics a profile sets thresholds on", () => {
+  expect(measuredMetrics()).toEqual(["contrast", "fontPx", "targetPx"]);
 });

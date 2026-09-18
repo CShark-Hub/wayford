@@ -15,6 +15,10 @@ All three must pass before you start. If they do not, say so in the channel; do 
 
 Read, in this order: `AGENTS.md`, `docs/PLAN.md`, `docs/RULES.md`, `docs/STACK.md`, `docs/CONVENTIONS.md`. About twenty minutes. `docs/ROADMAP.md` is the calendar, `tasks/BOARD.md` is who does what.
 
+## What is already there
+
+`m0-01` (skeleton) and `m0-00` (shared primitives) are merged. `packages/core/src/primitives.ts` holds the vocabulary your schema will need: provenance ids, rule ids, metric names, perception states, geometry, device and vision-deficiency enums, interface patterns and prefixed id schemas. Import from it. If you catch yourself defining a name that another task will also need, stop and say so in the channel.
+
 ## Week 1 assignment
 
 One task each, all four start at once. They touch different files, so nobody waits.
