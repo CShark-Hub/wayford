@@ -1,0 +1,130 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "ignoreUnknown": true },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "javascript": { "formatter": { "quoteStyle": "double" } },
+  "linter": { "enabled": true, "rules": { "preset": "recommended" } },
+  "assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } },
+  "overrides": [
+    {
+      "includes": ["packages/core/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@wayford/filter": "core imports nothing from the workspace (docs/STACK.md)",
+                  "@wayford/agent": "core imports nothing from the workspace (docs/STACK.md)",
+                  "@wayford/io": "core imports nothing from the workspace (docs/STACK.md)",
+                  "@wayford/web": "core imports nothing from the workspace (docs/STACK.md)",
+                  "@wayford/target-app": "core imports nothing from the workspace (docs/STACK.md)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/filter/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@wayford/agent": "filter imports core only (docs/STACK.md)",
+                  "@wayford/io": "filter imports core only (docs/STACK.md)",
+                  "@wayford/web": "filter imports core only (docs/STACK.md)",
+                  "@wayford/target-app": "filter imports core only (docs/STACK.md)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/agent/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@wayford/io": "agent imports core and filter only, never io (docs/STACK.md)",
+                  "@wayford/web": "agent imports core and filter only (docs/STACK.md)",
+                  "@wayford/target-app": "agent imports core and filter only (docs/STACK.md)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/io/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@wayford/web": "io never imports web (docs/STACK.md)",
+                  "@wayford/target-app": "io never imports target-app (docs/STACK.md)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/web/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@wayford/filter": "web imports core only, talks to io over HTTP (docs/STACK.md)",
+                  "@wayford/agent": "web imports core only, talks to io over HTTP (docs/STACK.md)",
+                  "@wayford/io": "web imports core only, talks to io over HTTP (docs/STACK.md)",
+                  "@wayford/target-app": "web imports core only (docs/STACK.md)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/target-app/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@wayford/core": "target-app imports nothing (docs/STACK.md)",
+                  "@wayford/filter": "target-app imports nothing (docs/STACK.md)",
+                  "@wayford/agent": "target-app imports nothing (docs/STACK.md)",
+                  "@wayford/io": "target-app imports nothing (docs/STACK.md)",
+                  "@wayford/web": "target-app imports nothing (docs/STACK.md)"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

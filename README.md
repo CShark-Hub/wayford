@@ -12,3 +12,17 @@ The question is not "does it work". The question is **who does it work for**.
 - `docs/CONVENTIONS.md` — layout, naming, determinism rules, Definition of Done
 - `docs/ROADMAP.md` — four weeks, kickoff, cut order
 - `tasks/` — agent-ready work items and `BOARD.md`
+
+## Development
+
+Requires Node 24 or newer and pnpm (`npm install -g pnpm`).
+
+```
+pnpm install
+pnpm test        # vitest across all packages
+pnpm lint        # Biome, also enforces package import rules
+pnpm typecheck   # tsc --noEmit in every package
+pnpm dev         # io on 3000, web on 5173, target-app on 5174
+```
+
+Copy `.env.example` to `.env` before running `io`.

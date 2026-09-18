@@ -6,7 +6,7 @@ Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you gr
 
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
-| m0-01 | Repository skeleton | M | — | | todo |
+| m0-01 | Repository skeleton | M | — | Tomasz | review |
 | m0-02 | Profile schema and fixtures | M | m0-01 | | todo |
 | m0-03 | Observation and Action schemas | L | m0-01 | | todo |
 | m0-04 | Task and Finding schemas | M | m0-01 | | todo |

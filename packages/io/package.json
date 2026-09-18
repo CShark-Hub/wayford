@@ -1,0 +1,23 @@
+{
+  "name": "@wayford/io",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wayford/agent": "workspace:*",
+    "@wayford/core": "workspace:*",
+    "@wayford/filter": "workspace:*",
+    "dotenv": "^17.4.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.13"
+  }
+}
