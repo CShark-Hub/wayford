@@ -30,7 +30,7 @@ function readProfiles(): Profile[] {
     });
 }
 
-/** The three personas of `docs/RULES.md`, alphabetical by file name. */
+/** The personas of `docs/RULES.md`, alphabetical by file name. */
 export const profileFixtures: Profile[] = readProfiles();
 
 export function profileFixture(id: string): Profile {

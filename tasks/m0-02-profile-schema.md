@@ -1,4 +1,4 @@
-# m0-02 — Profile schema and three fixtures
+# m0-02 — Profile schema and four fixtures
 
 Stream: m0
 Milestone: week 1
@@ -17,18 +17,21 @@ Read first, in this order:
 
 ## Goal
 
-A zod schema for `Profile` and three fixtures (Ryszard, Anna, Marek) that every other package can import, so the filter, the frontend and the database agree on what a persona is.
+A zod schema for `Profile` and four fixtures (Ryszard, Anna, Marek, Genowefa) that every other package can import, so the filter, the frontend and the database agree on what a persona is.
+
+Genowefa was added to the task after the three were written: the set needed a lower boundary, a persona with every dimension switched on at once, so the boundary sweep has two ends to run between. `docs/RULES.md` carries her bundle alongside the other three.
 
 ## Interface
 
 - In: nothing
-- Out: `Profile` schema and type, `profileFixtures` array, exported from `@wayford/core`
-- Files expected to change: `packages/core/src/profile.ts`, `packages/core/src/fixtures/profiles/*.yaml`, `packages/core/src/fixtures/index.ts`, `packages/core/src/profile.test.ts`
+- Out: `Profile` schema and type from `@wayford/core`; the `profileFixtures` array from `@wayford/core/fixtures`, which is a separate entry point because it reads the YAML from disk and a `node:fs` import in the barrel breaks the typecheck of `filter`, `agent`, `web` and `target-app`
+- Files expected to change: `packages/core/src/profile.ts`, `packages/core/src/fixtures/profiles/*.yaml`, `packages/core/src/fixtures/index.ts`, `packages/core/src/profile.test.ts`, `packages/core/package.json` (the `yaml` dependency and the `./fixtures` entry point)
 
 ## Constraints
 
 - Field names in English. The YAML in `KONCEPCJA.md` is Polish and is a sketch, not the contract.
-- Three sections: `perception`, `behaviour`, `knowledge`. Plus `id`, `label`, `seed`, `device`.
+- Three sections: `perception`, `behaviour`, `knowledge`. Plus `id`, `label`, `description`, `seed`, `device`.
+- `label` is the persona's bare name, nothing else. The sentence describing the bundle lives in `description`, in English. No job title, no "able-bodied" or "impaired" wording (see `AGENTS.md`, "English only, no locales").
 - Perception thresholds: `contrast` (ratio, WCAG 2.2), `fontPx`, `targetPx`, each with `threshold` and optional `softness` in 0..1. Plus `emulation` from the CDP vision deficiency enum.
 - Every threshold object carries `provenance`, typed as `ProvenanceId` from `packages/core/src/primitives.ts`. That list already exists; do not redefine it.
 - Behaviour: `doubleClick`, `scrollWhenStuck`, `budgetSeconds` (RULES B1 to B3). Leave room for more via an open record, but do not add more.
@@ -41,9 +44,9 @@ A zod schema for `Profile` and three fixtures (Ryszard, Anna, Marek) that every 
 ## Acceptance
 
 - [ ] `pnpm --filter @wayford/core test` passes and includes `profile.test.ts`
-- [ ] The test validates all three fixtures and fails on a fixture missing `provenance`
+- [ ] The test validates all four fixtures and fails on a fixture missing `provenance`
 - [ ] The test round-trips each fixture through YAML and asserts deep equality
-- [ ] Fixtures match the three bundles in `docs/RULES.md` section "Persona composition"
+- [ ] Fixtures match the four bundles in `docs/RULES.md` section "Persona composition"
 
 ## Out of scope
 
@@ -53,5 +56,6 @@ A zod schema for `Profile` and three fixtures (Ryszard, Anna, Marek) that every 
 
 ## Notes for the reviewer
 
-- Confirm no Polish field names leaked in.
+- Confirm no Polish field names leaked in, and that `label` holds a name and nothing else.
+- `maxElements`, `maxOptions` and `memorySteps` sit inside `behaviour`, because the profile has three sections and they had nowhere else to go. They are consumed by pipeline stages 5 and 6, not by stage 7.
 - Confirm no energy-sector vocabulary in fixtures (see `AGENTS.md`, rejected domain context).
