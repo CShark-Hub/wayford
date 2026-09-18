@@ -11,6 +11,7 @@ Read first, in this order:
 
 - `AGENTS.md` sections "A task must not contain the solution" and "Every verdict clickable through to evidence"
 - `docs/PLAN.md` F3, F8, assumption A9
+- `packages/core/src/primitives.ts` — ids, provenance, shared enums (from `m0-00`)
 - `KONCEPCJA.md` section "Przykład działania"
 
 ## Goal
@@ -36,7 +37,31 @@ Zod schemas for `Task` (goal plus deterministic success condition) and `Finding`
 - [ ] `pnpm --filter @wayford/core test` passes and includes `task.test.ts` and `finding.test.ts`
 - [ ] A test proves a `Finding` with empty `evidence` fails validation
 - [ ] A test proves a `Task` fixture goal contains none of: `click`, `menu`, `settings`, `->`, `→`, `tab`, `button`
-- [ ] Two task fixtures exist, both aimed at the target app described in m0-06
+- [ ] Two task fixtures exist, matching the URL contract below. This task does not need the target app to exist.
+
+
+## Target app URL contract (fixed here, do not invent)
+
+Both this task and its counterpart are written against this list. Neither waits for the other.
+
+| Path | What it is |
+|---|---|
+| `/` | home |
+| `/account` | obvious, well-labelled section |
+| `/account/address` | **easy goal page** |
+| `/deliveries` | misleadingly labelled section; holds the low-contrast link to the archive |
+| `/deliveries/archive` | **hard goal page**, reached only through the low-contrast link |
+| `/settings` | a plausible wrong turn |
+
+Success conditions, both `urlMatches`:
+
+- easy goal: `**/account/address`
+- hard goal: `**/deliveries/archive`
+
+Goal sentences, already free of path words:
+
+- easy: `you want to know where your next parcel is going`
+- hard: `you want to see what you ordered three months ago`
 
 ## Out of scope
 

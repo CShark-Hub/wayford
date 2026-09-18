@@ -13,6 +13,7 @@ Read first, in this order:
 - `docs/PLAN.md` sections "Filter internals" and "Contracts frozen in M0", assumption A16
 - `docs/RULES.md` — three perception states, salience ordering, "N more below" counts
 - `KONCEPCJA.md` section "Architektura"
+- `packages/core/src/primitives.ts` — `Bbox`, `Viewport`, `MetricName`, `PerceptionState`, `RuleId` already exist (from `m0-00`). Import them, do not redefine them.
 
 ## Goal
 

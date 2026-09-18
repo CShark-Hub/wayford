@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3"
   }
 }

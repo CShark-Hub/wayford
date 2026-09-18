@@ -37,8 +37,32 @@ A small static web app with a handful of pages and one intentional wayfinding pr
 
 - [ ] `pnpm --filter @wayford/target-app dev` serves the app on the documented port
 - [ ] Opening `/?contrast=2` renders the hard link with a contrast ratio near 2:1 and `/?contrast=7` near 7:1, verified by a vitest test that computes contrast from the CSS variables
-- [ ] The two task fixtures from m0-04 point at this app and their `urlMatches` conditions match the goal pages
+- [ ] Every path in the URL contract below resolves, and the two goal pages are reachable. This task does not need the task fixtures to exist.
 - [ ] A short `README.md` in the package lists pages, goals and parameters
+
+
+## Target app URL contract (fixed here, do not invent)
+
+Both this task and its counterpart are written against this list. Neither waits for the other.
+
+| Path | What it is |
+|---|---|
+| `/` | home |
+| `/account` | obvious, well-labelled section |
+| `/account/address` | **easy goal page** |
+| `/deliveries` | misleadingly labelled section; holds the low-contrast link to the archive |
+| `/deliveries/archive` | **hard goal page**, reached only through the low-contrast link |
+| `/settings` | a plausible wrong turn |
+
+Success conditions, both `urlMatches`:
+
+- easy goal: `**/account/address`
+- hard goal: `**/deliveries/archive`
+
+Goal sentences, already free of path words:
+
+- easy: `you want to know where your next parcel is going`
+- hard: `you want to see what you ordered three months ago`
 
 ## Out of scope
 
