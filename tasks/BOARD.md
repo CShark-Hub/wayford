@@ -8,7 +8,7 @@ Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you gr
 |---|---|---|---|---|---|
 | m0-01 | Repository skeleton | M | — | Tomasz | done |
 | m0-00 | Shared primitives | S | m0-01 | Tomasz | review |
-| m0-02 | Profile schema and fixtures | M | m0-01 | | todo |
+| m0-02 | Profile schema and fixtures | M | m0-01 | Tomasz | review |
 | m0-03 | Observation and Action schemas | L | m0-01 | | todo |
 | m0-04 | Task and Finding schemas | M | m0-01 | | todo |
 | m0-05 | RunEvent and RunResult schemas | M | m0-03 | | todo |

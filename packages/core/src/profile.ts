@@ -1,0 +1,137 @@
+/**
+ * `Profile` is a capability bundle, never a job title. The engine reads the
+ * dimensions below; the job title lives in `label` and is shown to users only.
+ *
+ * The schema describes thresholds. It never applies them: the band logic that
+ * turns a threshold plus a softness into `visible | degraded | invisible`
+ * lives in `filter`. See `docs/RULES.md` for the pipeline and the rule ids.
+ */
+import { z } from "zod";
+import {
+  ContrastRatio,
+  DeviceKind,
+  Probability,
+  ProfileId,
+  ProvenanceId,
+  Seed,
+  UiPattern,
+  VisionDeficiency,
+} from "./primitives.js";
+
+// ---------------------------------------------------------------------------
+// Thresholds
+// ---------------------------------------------------------------------------
+
+/**
+ * One measurable limit. `provenance` is mandatory: a number we cannot cite is
+ * still allowed, but it has to say `folk` or `llm` out loud, because the report
+ * repeats it (see `docs/RULES.md`, source registry).
+ *
+ * `softness` widens the threshold into a band. Zero, or absent, is a hard cut.
+ */
+function threshold<T extends z.ZodType<number>>(value: T) {
+  return z
+    .object({
+      threshold: value,
+      softness: Probability.optional(),
+      provenance: ProvenanceId,
+    })
+    .strict();
+}
+
+/** WCAG 2.2 contrast ratio, rules P1 and P2. */
+export const ContrastThreshold = threshold(ContrastRatio);
+export type ContrastThreshold = z.infer<typeof ContrastThreshold>;
+
+/** CSS pixels: font size (P3) and target size (P4). */
+export const PixelThreshold = threshold(z.number().positive());
+export type PixelThreshold = z.infer<typeof PixelThreshold>;
+
+// ---------------------------------------------------------------------------
+// Sections
+// ---------------------------------------------------------------------------
+
+/**
+ * What the persona can see. Every key matches a `MetricName`, so the filter
+ * looks a threshold up by the name of the metric it just measured.
+ *
+ * An absent threshold means the metric does not gate this persona at all.
+ * `emulation` only drives the screenshot layer (rule P6); the decision is P1.
+ */
+export const Perception = z
+  .object({
+    contrast: ContrastThreshold.optional(),
+    fontPx: PixelThreshold.optional(),
+    targetPx: PixelThreshold.optional(),
+    emulation: VisionDeficiency.default("none"),
+  })
+  .strict();
+export type Perception = z.infer<typeof Perception>;
+
+/**
+ * What the persona does with what reached it, plus the caps on how much reaches
+ * it at all. The dice (B1 to B3) are rolled per action; the caps are
+ * deterministic truncation applied by stages 5 and 6. They share a section
+ * because a profile has three sections, not five.
+ *
+ * The record is open on purpose: week 2 adds rules here (B4 misclick is next).
+ * Values are numbers — every knob in `docs/RULES.md` is a probability or a
+ * budget.
+ */
+export const Behaviour = z
+  .object({
+    /** B1: probability a click becomes a double click. */
+    doubleClick: Probability.optional(),
+    /** B2: probability a scroll is injected when the Actor is stuck. */
+    scrollWhenStuck: Probability.optional(),
+    /** B3: wall-clock budget for the run, after which it ends `budget_exceeded`. */
+    budgetSeconds: z.number().int().positive(),
+    /** A1: how many elements survive the salience ordering. Absent is unlimited. */
+    maxElements: z.number().int().positive().optional(),
+    /** A3: how many entries of a list or menu are passed. Absent is unlimited. */
+    maxOptions: z.number().int().positive().optional(),
+    /** M1: how many steps of history the Actor keeps. Absent is unlimited. */
+    memorySteps: z.number().int().positive().optional(),
+  })
+  .catchall(z.number());
+export type Behaviour = z.infer<typeof Behaviour>;
+
+/**
+ * What the persona understands. Fully deterministic, no dice (rules K1 to K4).
+ * Patterns are the shared `UiPattern` vocabulary so a typo fails validation
+ * instead of silently making a persona that knows nothing.
+ */
+export const Knowledge = z
+  .object({
+    knownPatterns: z.array(UiPattern),
+    unknownPatterns: z.array(UiPattern),
+    domainVocabulary: z.array(z.string()).optional(),
+  })
+  .strict();
+export type Knowledge = z.infer<typeof Knowledge>;
+
+// ---------------------------------------------------------------------------
+// Profile
+// ---------------------------------------------------------------------------
+
+export const Profile = z
+  .object({
+    id: ProfileId,
+    /** Shown in the UI. Polish is fine here and nowhere else. */
+    label: z.string().min(1),
+    /** Every run is reproducible or it is an anecdote. */
+    seed: Seed,
+    /** Drives real device emulation, rule V1. */
+    device: DeviceKind,
+    perception: Perception,
+    behaviour: Behaviour,
+    knowledge: Knowledge,
+  })
+  .strict();
+export type Profile = z.infer<typeof Profile>;
+
+/** A pattern the persona knows cannot also be one it does not know. */
+export function conflictingPatterns(profile: Profile): UiPattern[] {
+  const unknown = new Set(profile.knowledge.unknownPatterns);
+  return profile.knowledge.knownPatterns.filter((p) => unknown.has(p));
+}

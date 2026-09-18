@@ -1,0 +1,36 @@
+# Bundle: docs/RULES.md, "Persona composition".
+# Proficient, in a hurry, on a phone. Motor threshold, no contrast rule.
+id: prof_marek
+label: "Marek, 41, sprawny, na telefonie"
+seed: 9302
+device: mobile
+
+perception:
+  targetPx:
+    threshold: 44
+    provenance: hig
+  emulation: none
+
+behaviour:
+  scrollWhenStuck: 0.9
+  budgetSeconds: 90
+  maxElements: 20
+  memorySteps: 6
+
+knowledge:
+  knownPatterns:
+    [
+      hamburger,
+      kebab,
+      breadcrumb,
+      carousel,
+      tabs,
+      accordion,
+      fab,
+      infiniteScroll,
+      swipe,
+      search,
+      cart,
+      backLink,
+    ]
+  unknownPatterns: []

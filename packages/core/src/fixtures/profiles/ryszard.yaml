@@ -1,0 +1,29 @@
+# Bundle: docs/RULES.md, "Persona composition".
+# Weak sight, low digital proficiency, desktop.
+id: prof_ryszard
+label: "Ryszard, 36, hydraulik"
+seed: 8814
+device: desktop
+
+perception:
+  contrast:
+    threshold: 3.0
+    softness: 0.5
+    provenance: wcag22
+  fontPx:
+    threshold: 16
+    provenance: legge2011
+  targetPx:
+    threshold: 32
+    provenance: folk
+  emulation: blurredVision
+
+behaviour:
+  doubleClick: 0.8
+  budgetSeconds: 120
+  maxElements: 12
+  memorySteps: 3
+
+knowledge:
+  knownPatterns: [search, cart, backLink]
+  unknownPatterns: [hamburger, kebab, breadcrumb]

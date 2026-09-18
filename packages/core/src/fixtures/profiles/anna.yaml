@@ -1,0 +1,31 @@
+# Bundle: docs/RULES.md, "Persona composition".
+# The calibration persona: no thresholds, nothing unknown, nothing capped.
+# If Anna fails the target app, the Actor or the app is broken, not the filter.
+id: prof_anna
+label: "Anna, 29, sprawna i biegła"
+seed: 4211
+device: desktop
+
+perception:
+  emulation: none
+
+behaviour:
+  budgetSeconds: 120
+
+knowledge:
+  knownPatterns:
+    [
+      hamburger,
+      kebab,
+      breadcrumb,
+      carousel,
+      tabs,
+      accordion,
+      fab,
+      infiniteScroll,
+      swipe,
+      search,
+      cart,
+      backLink,
+    ]
+  unknownPatterns: []
