@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "vite build",
+    "dev": "vite",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
