@@ -1,0 +1,204 @@
+# AGENTS.md — Wayford project context
+
+For any AI agent (Claude Code, Codex, other) picking up work on this repo.
+The product description lives in `KONCEPCJA.md`. **This file holds what that one doesn't: why these choices and not others.**
+
+---
+
+## Current state
+
+Planning phase. **Not a line of code written yet.** Four people, one month, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
+
+Planning docs:
+
+- `docs/PLAN.md` — goal, requirements F1–F12 with acceptance criteria, UI, architecture, stack, locked decisions, assumptions.
+- `docs/RULES.md` — the filter pipeline, every rule with its source id, the three persona bundles. Draft, under review.
+- `docs/STACK.md` — exact library picks and package import rules. `docs/CONVENTIONS.md` — layout, determinism rules, Definition of Done.
+- `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
+- `tasks/` — agent-sized task files, `BOARD.md` for ownership and status, `TEMPLATE.md` for new tasks.
+
+Next move: week 1 tasks `m0-01` … `m0-08`. They freeze seven contracts in `packages/core`: `Profile`, `Task`, `RunResult`, `Finding` (data at rest) and `Observation`, `Action`, `RunEvent` (data in motion). Until those are merged, nobody works in parallel.
+
+If you are an agent picking up a task: read `AGENTS.md`, then `docs/PLAN.md`, then the task file. Do only what the task file says.
+
+---
+
+## What this is, in one sentence
+
+A tool that walks a web application within the limits of a declared user-capability profile and shows where that user got stuck. The question is **"who does it work for"**, not "does it work".
+
+---
+
+## Untouchable core
+
+Three mechanisms. Research confirmed **no existing tool has them**. Drop any one and what's left is a copy of UXAgent with nicer UI — the project loses its point.
+
+1. **Perception filter enforced in code.** A deterministic layer between Playwright and the model's context. Elements below threshold (contrast, font size, target size) **never reach the model**. Zero LLM in this layer.
+2. **Seed.** Every run reproducible down to the perception decision. Without it a result is an anecdote, not a bug report.
+3. **Capability-axis sweep.** Automatically finding the boundary value at which a path breaks. A `while` loop, one slide, the strongest point of the pitch.
+
+---
+
+## Decisions and rationale
+
+### Persona is a filter, not a prompt
+
+The most important decision in the project. A persona is **never** an instruction like "pretend you have poor eyesight". A persona is a set of thresholds applied to the observation before the model sees it.
+
+Why: it's the only answer to "how do you know this means anything". That answer is: *we don't claim Ryszard will behave this way — we claim that under these assumptions the button is unreachable; check the assumptions, the rest follows.*
+
+Architectural consequence: the Actor **must** be our own loop. Anything that hands off control of the context (MCP as foundation, agent CLIs) is rejected for this reason.
+
+### Randomness follows three different rules
+
+| layer | rule |
+|---|---|
+| **perception** | resolved **once per element**, deterministic within a run |
+| **behaviour** | rolled **on every action** (`double_click: 0.8`) |
+| **knowledge** | fully deterministic |
+
+Why, for perception: rolling per step produces a person with "flickering vision" — the same button visible one moment, gone the next. No such human exists, the report is undebuggable, the bug irreproducible.
+
+Probability works **at run level**, not step level: 10 seeds → "3/10 success" is a result, not noise.
+
+### A profile is a capability bundle, not a job title
+
+"Plumber" carries no information — the model doesn't know how a plumber thinks, only the stereotype. The engine reads dimensions (vision, motor precision, digital literacy, vocabulary, patience, device). The job title stays as a **UI label**, because it presents well.
+
+Payoff: we defend "someone with a 3:1 contrast threshold", not "this is how plumbers behave". The first has standards behind it.
+
+### Provenance on every threshold
+
+Every rule carries its source: `WCAG 2.2`, `fitts`, `pisarek`. Rules without one (e.g. "older people double-click everything") get `provenance: folk`. A prompt-generated profile gets `provenance: llm`.
+
+Why: it lets us say "these findings are hard, these are hypotheses" instead of dumping everything in one bucket. Without it, the first prompt-generated persona wipes out the project's entire defensibility.
+
+### Scout is mandatory
+
+A separate unconstrained run, full vision, building ground truth (where the target actually is, minimum path length). Cached per application version.
+
+Why: without it you can't tell "the feature is broken" from "the feature works but Ryszard couldn't find it". It's the only proof that the report is about UX and not an ordinary bug.
+
+**The Actor has no access to Scout's output.**
+
+### Separated LLM roles
+
+The actor never grades its own work — the Analyst is a separate pass over collected evidence. The Analyst sees **all** runs across **all** personas at once, not one.
+
+Why: a model that just did something will confirm it did it well. And variance plus cross-persona contrast are only visible at series level.
+
+### A task must not contain the solution
+
+```
+❌ "click Settings → Tariff → select G12w"
+✅ "you want to pay less for electricity at night — sort it out"
+```
+
+The Extractor must **actively strip paths** out of user stories, since those are full of screen names. A task containing the path measures instruction-following, not wayfinding.
+
+Every task has a deterministic success condition (URL / DOM element / request), not "the agent says it worked".
+
+### Every verdict clickable through to evidence
+
+No evidence → don't show it at all. The report visually separates: measurement / deterministic / hypothesis.
+
+### Stack: TypeScript throughout
+
+Playwright and CDP live natively in Node. A .NET (orchestration) + Node (executor) split was considered and **rejected** — this tool is a standalone product, not an add-on to an existing backend. The split would cost hours of integration.
+
+### AI through one OpenAI-compatible API
+
+One adapter, config per role (extractor / scout / actor / analyst). The Actor runs × N and drives the bill — cheap model there. The Analyst runs once — strong model there.
+
+At the hackathon it'll be one key anyway. The adapter exists so there's no `if (provider)` scattered across five files.
+
+---
+
+## Rejected — do not resurrect
+
+**Separate product: Confluence oracle + regression diff.**
+Considered at length and dropped. It read user stories, extracted acceptance criteria, tested against them and compared runs ("worked Friday, broken Monday"). Good idea, **different product**, different buyer (QA/PO vs product team), different competition. Shares an engine but not a story. **Do not merge two products into one.** Material for a "what's next" slide.
+
+**Persona as an add-on to a regression tool.**
+The original version of the idea. Cut as "soft and hard to defend". It only came back once it became the *whole* product — and then it started holding up.
+
+**MCP as the foundation.**
+The host holds the context → the perception filter stops working. On top of that the tool would only run while a human sits in an agent session — no CI, no nightly runs. MCP goes on **as a thin layer on top** (submit a job, get a run ID), last, if there's time.
+
+**Claude Code / Codex CLI as the Actor backend.**
+Black box — no way to inject the filter between steps. Considered as a way to "use your subscription instead of an API key"; attractive, but incompatible with the core.
+
+**Domain context (energy cooperatives / MSE).**
+Present for a long time as the proving ground. **Removed on request** — the tool is meant to be domain-agnostic. Any energy-sector jargon left in code or docs is a leftover and should go.
+
+**Playwright as "the thing we're avoiding".**
+The original worry ("we don't want a Playwright wrapper") is resolved: Playwright sits underneath and that's correct. A wrapper is something with neither a perception filter nor ground truth.
+
+**API testing, mobile, multi-project, accounts, export.**
+Out of hackathon scope.
+
+---
+
+## Traps already identified
+
+- **The agent's narration is confabulated after the fact.** "I clicked twice because I thought I had to" is produced *after* the click. That's fine (real test subjects do the same), but behaviour must be measured deterministically and the model left only with interpretation.
+- **A model with reduced input ≠ a person with an impairment.** It behaves like an able reasoner with worse input. A real person compensates (leans in, zooms, calls their daughter) — the model won't, unless we add that as a rule.
+- **Claim less than you'd like to.** This is a hypothesis generator and a boundary measurement, **not** a prediction of real user behaviour. Claim prediction and you lose the Q&A regardless of code quality.
+- **An empty dashboard looks like a prototype.** Generate run history before the pitch.
+- **The agent can hang for four minutes in front of the judges.** A backup recording is mandatory.
+
+---
+
+## Prior art (verified research)
+
+- **[UXAgent](https://github.com/neuhai/UXAgent)** (MIT, arXiv 2504.09407, ~111★, 7 commits) — closest match. Personas + Playwright + batch + SUS questionnaire + screenshots + metrics. **Persona there is a pure prompt** (demographics + a paragraph of text). No capability model, no thresholds, no perception filtering, no seed. Research prototype, not a live product.
+- **[PersonaLayer](https://github.com/PersonaLayer)** — 45 UX profiles (visual, motor, cognitive, behavioural), WCAG 2.2 aligned. Used to **adapt** pages (Chrome extension), not to test them. Good taxonomy source, not a competitor.
+- **Aximo / QA.tech / Momentic / testRigor / Applitools Autonomous** — testing agents. Input: scenario, output: pass/fail. No persona, no recommendations.
+- **axe-core, A11y Machine, wcag-contrast-guard** — static scanners. Code and colour analysis, no agent loop.
+- **agentest, attest, orq.ai** — simulated users for testing chatbots, not interfaces.
+
+**Found nowhere:** enforced perception filtering inside an agent loop, seeding of perception decisions, capability-axis sweeping.
+
+Team decision: **we build our own**, UXAgent is inspiration, not a base.
+
+---
+
+## Open questions
+
+- [x] **Project name** — **Wayford**. See "On the name" below.
+- [ ] **Schemas** — seven contracts defined as week 1 tasks `m0-02` … `m0-05`. Blocking everyone until merged.
+- [ ] **Stream assignment** — the four-stream split is in `KONCEPCJA.md`, the names aren't. Filled in by task `m0-08`.
+- [ ] **Hackathon rules** — whether existing frameworks / forks are permitted.
+- [ ] Profile taxonomy: take PersonaLayer's or write our own.
+
+---
+
+## On the name
+
+Wayford is a real place, a village on the River Axe in Somerset. The name comes from Old English *weġ* ("way, road") and *ford*: the point where a road crosses water.
+
+A ford is the oldest capability threshold there is. The current is the same for everyone; whether you cross depends on your height, your footing, your nerve. Some walk through dry. Some turn back. Nobody changes the river. What changes is who is trying to cross it.
+
+That is what Wayford measures. There is one interface. The question is who gets across it.
+
+The name also carries the two ideas the tool is built on: **wayfinding**, how people orient themselves and reach a destination, and **affordance**, what an interface offers relative to the capabilities of the person in front of it.
+
+It reads like a surname, which is a gift in the reports:
+
+```
+Wayford couldn't find your tariff settings.
+Wayford gave up after 1:50.
+Wayford clicked twice. Twice.
+```
+
+Usage: product name **Wayford**, workspace scope `@wayford/*`, repo may keep its current name. In narration and report copy the persona name is used, not "Wayford", unless the report speaks about the tool itself.
+
+## Note to the agent
+
+Three sentences repeat deliberately across this file and `KONCEPCJA.md`:
+
+> The persona is a filter, not a prompt.
+> The Actor must be our own loop.
+> Claim less than you'd like to.
+
+That isn't redundancy. Those are the only three things separating this project from existing tools, and every technical decision is worth checking against them.

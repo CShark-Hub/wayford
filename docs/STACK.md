@@ -1,0 +1,104 @@
+# Wayford — STACK: exact library picks
+
+`docs/PLAN.md` names the stack by category. This file names the library, and why, so no task has to decide it again. Versions are not listed here; the lockfile from `m0-01` is the source of truth, always current stable at install time.
+
+## Workspace and tooling
+
+| Need | Pick | Why, and what was rejected |
+|---|---|---|
+| Package manager | pnpm workspaces | Strict node_modules, fast. No Turborepo yet; six packages do not need a task graph. |
+| Language | TypeScript, strict, ESM only | `moduleResolution: bundler`. No CommonJS anywhere. |
+| Runner for scripts | tsx | No build step for CLIs and the server in development. |
+| Tests | vitest | One runner for unit, browser-backed and API tests. `@playwright/test` rejected to avoid two runners. |
+| Lint and format | Biome | One tool. ESLint and Prettier rejected. |
+| Env | `dotenv` plus a zod-validated `config` object | Fail at boot with a readable message, never `undefined` at runtime. |
+| Logging | `pino` | One logger, JSON lines, `runId` on every line from a run. |
+| Ids | ULID with prefix: `prof_`, `task_`, `run_`, `step_`, `fnd_`, `swp_` | Sortable, readable in logs and URLs. |
+
+## Core and filter
+
+| Need | Pick | Why |
+|---|---|---|
+| Schemas | zod | Runtime validation, TypeScript types, JSON Schema for structured LLM output, one source. |
+| YAML | `yaml` | Profiles on disk are YAML, everything else JSON. |
+| Seeded random | own `mulberry32` | About ten lines. Identical output in Node and browser, no dependency, easy to explain to a jury. |
+| Stable hashing | own FNV-1a 32-bit | For `hash(seed, elementKey)`. Same reason. |
+| Colour parsing and CVD simulation | `culori` | Parses any CSS colour from computed styles. Ships colour-vision-deficiency filters based on Machado et al. 2009, the same model Chrome uses. Lets the filter compute contrast *after* simulated deficiency, deterministically. |
+| Contrast | own WCAG 2.2 relative luminance and ratio | Fifteen lines. We defend this number in front of people, so we own the code. Tested against published examples. |
+| Browser | Playwright (library, not test runner) | CDP access through `page.context().newCDPSession(page)`. |
+| Accessibility scan | `axe-core` injected through `@axe-core/playwright` | Sidecar measurements for the report. |
+
+## Agent
+
+| Need | Pick | Why |
+|---|---|---|
+| LLM client | plain `fetch` to an OpenAI-compatible `/chat/completions`, response parsed with zod | The adapter is about 150 lines. The `openai` SDK and the Vercel AI SDK were rejected because they hide the request body and we must control exactly what the Actor receives. |
+| Structured output | JSON schema derived from zod (`zod-to-json-schema`), `response_format: json_schema` where supported, JSON-mode fallback with zod repair loop | Works on OpenRouter, OpenAI, Anthropic-compatible proxies and Ollama. |
+| Retries | own, exponential, max 3, logged | No library. |
+| Cost | own table `models.yaml` with price per million tokens per model id | Stored on every step. |
+
+## API
+
+| Need | Pick | Why |
+|---|---|---|
+| HTTP | Hono | Small, typed, `streamSSE` helper built in. Express and Fastify rejected. |
+| SSE | Hono `streamSSE` | Run events. |
+| WebSocket | Hono `ws` helper (Node adapter) | Binary screencast frames for the hero persona only. SSE is text and cannot carry JPEG frames efficiently. |
+| Database | Drizzle ORM over SQLite (`better-sqlite3`) | Schema is written Postgres-compatible. Switching is the driver import and the connection string. |
+| Migrations | `drizzle-kit` | Generated, committed. |
+| Validation at the edge | `@hono/zod-validator` with the same `core` schemas | No second set of DTOs. |
+
+## Web
+
+| Need | Pick | Why |
+|---|---|---|
+| Build | Vite | |
+| UI | React 19 | |
+| Routing | TanStack Router | Type-safe routes and search params. Sliders live in the URL so a preview state is a link. React Router rejected for weaker typing. |
+| Server state | TanStack Query | |
+| Live events | native `EventSource` for SSE, native `WebSocket` for screencast | No wrapper library. |
+| Styling | Tailwind | |
+| Components | shadcn/ui | Copied into the repo, so the sober report side can be adjusted freely. Radix underneath gives keyboard and screen-reader behaviour, which matters for a tool about accessibility. |
+| Icons | `lucide-react` | Comes with shadcn. Every icon-only control in our own UI gets an `aria-label`. |
+| Forms | `react-hook-form` with `@hookform/resolvers/zod` | Profile builder validates with the same `Profile` schema as the API. |
+| Animation | Framer Motion | Avatar states and ring movement. |
+| Charts | Recharts | Sweep chart and success-rate bars. One chart library. |
+| Avatars | own SVG parts, no library | DiceBear rejected: its parts do not map to capability dimensions. Ours do: glasses thickness follows contrast threshold, device follows `device`, posture follows patience. |
+| Fonts | Inter for UI, JetBrains Mono for seeds, measurements and evidence | Loaded locally, no CDN, so the demo works offline. |
+
+## Target app
+
+Plain HTML, CSS variables, one small script for query parameters. Vite for serving only. No framework, no router.
+
+## Recording and evidence
+
+| Need | Pick | Why |
+|---|---|---|
+| Video | Playwright `recordVideo` on the context | webm out of the box, no ffmpeg. |
+| Trace | Playwright `context.tracing` with screenshots and snapshots | `trace.zip` opens in the Playwright trace viewer, which is the developer-facing reproduction tool. |
+| Live video | CDP `Page.startScreencast`, JPEG, quality 60, every second frame | Hero persona only. |
+| Fake cursor | own `addInitScript` that draws a cursor `div` and moves it before each click | Shows intent in video and screenshots. |
+| Screenshots | Playwright `page.screenshot` per step, PNG | Evidence rows. |
+
+## Ports
+
+| Process | Port |
+|---|---|
+| io (API, SSE, WS) | 3000 |
+| web | 5173 |
+| target-app | 5174 |
+
+## Package import rules
+
+Enforced with Biome `noRestrictedImports` in each package, later `dependency-cruiser` if needed.
+
+```
+core        imports nothing from the workspace
+filter      imports core
+agent       imports core, filter
+io          imports core, filter, agent
+web         imports core only (types and schemas), talks to io over HTTP
+target-app  imports nothing
+```
+
+`agent` never imports `io`. The Actor code path never imports Scout output (see `m0-03` and `docs/PLAN.md` F4).
