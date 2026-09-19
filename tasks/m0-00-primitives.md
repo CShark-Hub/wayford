@@ -31,10 +31,12 @@ One file holding every name that two or more of `m0-02`, `m0-03`, `m0-04` would 
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes and includes `primitives.test.ts`
-- [ ] A test compares `PROVENANCE_IDS` against the registry table in `docs/RULES.md` and fails on a mismatch
-- [ ] A test compares `RULE_IDS` against the rule tables in `docs/RULES.md` and fails on a mismatch
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+- [x] `pnpm --filter @wayford/core test` passes and includes `primitives.test.ts` — 15 tests in `primitives.test.ts`
+- [x] A test compares `PROVENANCE_IDS` against the registry table in `docs/RULES.md` and fails on a mismatch — `every id in the registry table of docs/RULES.md is in PROVENANCE_IDS`, which parses the table out of the document
+- [x] A test compares `RULE_IDS` against the rule tables in `docs/RULES.md` and fails on a mismatch — `every rule id in docs/RULES.md is in RULE_IDS`
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass
+
+Merged in PR #5.
 
 ## Out of scope
 

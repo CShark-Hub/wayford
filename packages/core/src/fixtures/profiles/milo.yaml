@@ -1,0 +1,37 @@
+# Bundle: docs/RULES.md, "Persona composition".
+id: prof_milo
+label: Milo
+description: >-
+  Proficient, in a hurry, on a phone. Motor threshold, no contrast rule.
+seed: 9302
+device: mobile
+
+perception:
+  targetPx:
+    threshold: 44
+    provenance: hig
+  emulation: none
+
+behaviour:
+  scrollWhenStuck: 0.9
+  budgetSeconds: 90
+  maxElements: 20
+  memorySteps: 6
+
+knowledge:
+  knownPatterns:
+    [
+      hamburger,
+      kebab,
+      breadcrumb,
+      carousel,
+      tabs,
+      accordion,
+      fab,
+      infiniteScroll,
+      swipe,
+      search,
+      cart,
+      backLink,
+    ]
+  unknownPatterns: []

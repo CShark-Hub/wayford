@@ -46,7 +46,7 @@ Three mechanisms. Research confirmed **no existing tool has them**. Drop any one
 
 The most important decision in the project. A persona is **never** an instruction like "pretend you have poor eyesight". A persona is a set of thresholds applied to the observation before the model sees it.
 
-Why: it's the only answer to "how do you know this means anything". That answer is: *we don't claim Ryszard will behave this way — we claim that under these assumptions the button is unreachable; check the assumptions, the rest follows.*
+Why: it's the only answer to "how do you know this means anything". That answer is: *we don't claim Vera will behave this way — we claim that under these assumptions the button is unreachable; check the assumptions, the rest follows.*
 
 Architectural consequence: the Actor **must** be our own loop. Anything that hands off control of the context (MCP as foundation, agent CLIs) is rejected for this reason.
 
@@ -64,9 +64,17 @@ Probability works **at run level**, not step level: 10 seeds → "3/10 success" 
 
 ### A profile is a capability bundle, not a job title
 
-"Plumber" carries no information — the model doesn't know how a plumber thinks, only the stereotype. The engine reads dimensions (vision, motor precision, digital literacy, vocabulary, patience, device). The job title stays as a **UI label**, because it presents well.
+"Plumber" carries no information — the model doesn't know how a plumber thinks, only the stereotype. The engine reads dimensions (vision, motor precision, digital literacy, vocabulary, patience, device). A profile carries a bare **name** as its label and a one-line **description** of the bundle; no job title, no diagnosis, no "impaired" or "able-bodied" wording anywhere.
 
 Payoff: we defend "someone with a 3:1 contrast threshold", not "this is how plumbers behave". The first has standards behind it.
+
+### English only, no locales
+
+The whole application is English: UI copy, API, schemas, identifiers, comments, fixtures, descriptions, reports. There is no i18n layer, no locale switch and no translated strings, and none are planned for the hackathon.
+
+Persona names are English too: Ada, Milo, Vera, Zoya. The initial names the dimension the persona is defined by, so the set sorts from the control persona to the boundary on its own. Polish belongs in `KONCEPCJA.md` alone.
+
+Why: a locale layer is a week of work that wins no point in the pitch, and half-translated UI is worse than an English one. If the demo needs Polish, it needs a translated target app, not a translated tool.
 
 ### Provenance on every threshold
 
@@ -78,7 +86,7 @@ Why: it lets us say "these findings are hard, these are hypotheses" instead of d
 
 A separate unconstrained run, full vision, building ground truth (where the target actually is, minimum path length). Cached per application version.
 
-Why: without it you can't tell "the feature is broken" from "the feature works but Ryszard couldn't find it". It's the only proof that the report is about UX and not an ordinary bug.
+Why: without it you can't tell "the feature is broken" from "the feature works but Vera couldn't find it". It's the only proof that the report is about UX and not an ordinary bug.
 
 **The Actor has no access to Scout's output.**
 

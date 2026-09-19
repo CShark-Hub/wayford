@@ -1,0 +1,49 @@
+# Bundle: docs/RULES.md, "Persona composition".
+# The lower boundary. A path this persona can walk is a path almost anyone can
+# walk; a path this persona cannot is where the sweep in F9 starts looking.
+id: prof_zoya
+label: Zoya
+description: >-
+  The worst case. Every perception threshold strict, no interface vocabulary at
+  all, five elements of attention and two steps of memory.
+seed: 1337
+device: desktop
+
+perception:
+  contrast:
+    threshold: 7.0
+    softness: 0.3
+    provenance: wcag22
+  fontPx:
+    threshold: 24
+    provenance: legge2011
+  targetPx:
+    threshold: 48
+    provenance: material
+  emulation: reducedContrast
+
+behaviour:
+  doubleClick: 0.9
+  scrollWhenStuck: 0.3
+  budgetSeconds: 180
+  maxElements: 5
+  maxOptions: 4
+  memorySteps: 2
+
+knowledge:
+  knownPatterns: []
+  unknownPatterns:
+    [
+      hamburger,
+      kebab,
+      breadcrumb,
+      carousel,
+      tabs,
+      accordion,
+      fab,
+      infiniteScroll,
+      swipe,
+      search,
+      cart,
+      backLink,
+    ]

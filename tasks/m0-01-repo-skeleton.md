@@ -39,12 +39,14 @@ A pnpm monorepo where every package builds, tests and lints with one command, so
 
 ## Acceptance
 
-- [ ] `pnpm install` completes without warnings about peer dependencies
-- [ ] `pnpm test` runs vitest across all six packages and passes
-- [ ] `pnpm lint` runs Biome and passes
-- [ ] `pnpm typecheck` runs `tsc --noEmit` in every package and passes
-- [ ] `pnpm --filter @wayford/web dev` and `pnpm --filter @wayford/target-app dev` start on ports 5173 and 5174 as in `docs/STACK.md`
-- [ ] A test file in `web` importing from `@wayford/agent` fails `pnpm lint`
+- [x] `pnpm install` completes without warnings about peer dependencies
+- [x] `pnpm test` runs vitest across all six packages and passes
+- [x] `pnpm lint` runs Biome and passes
+- [x] `pnpm typecheck` runs `tsc --noEmit` in every package and passes
+- [x] `pnpm --filter @wayford/web dev` and `pnpm --filter @wayford/target-app dev` start on ports 5173 and 5174 as in `docs/STACK.md` — both answered 200, `strictPort` is on for each
+- [x] A test file in `web` importing from `@wayford/agent` fails `pnpm lint` — a throwaway file importing `@wayford/agent` was rejected by `lint/style/noRestrictedImports`, then deleted
+
+Merged in PR #2. Boxes re-run and ticked while closing `m0-02`.
 
 ## Out of scope
 

@@ -97,7 +97,7 @@ Not how we know the personas are right. We do not claim that.
 
 | Check | Expectation |
 |---|---|
-| Persona with no thresholds (Anna) on the target app | success at or near 10/10, short path. If not, the Actor or the target app is broken, not the persona. |
+| Persona with no thresholds (Ada) on the target app | success at or near 10/10, short path. If not, the Actor or the target app is broken, not the persona. |
 | Persona with a contrast threshold above the hard link's contrast | 0/10 on the hard goal. The filter removed the only path. |
 | axe-core violations on the target app | every P1 to P4 removal on a page corresponds to at least one axe finding on the same page, or the rule is stricter than WCAG and says so in provenance |
 | Same seed twice | identical observations per step, identical dice rolls |
@@ -111,13 +111,30 @@ A persona is a bundle. Reference points for calibrating bundles, not for labelli
 - **WCAG 2.2** anchors for perception thresholds.
 - **PersonaLayer** taxonomy of 45 profiles as a checklist of dimensions we do or do not model.
 
-Three hackathon personas, as bundles:
+Four hackathon personas, as bundles, listed in the order they are numbered
+here and stored on disk. Ada and Zoya are the two ends of the scale: Ada is
+what the engine looks like with nothing switched on, Zoya is every dimension at
+once. Milo and Vera are the two interesting middles.
 
 | Persona | Perception | Knowledge | Attention and memory | Behaviour |
 |---|---|---|---|---|
-| Ryszard | contrast 3.0 soft, font 16, target 32, `blurredVision` | unknown: hamburger, kebab, breadcrumb | `maxElements` 12, `memorySteps` 3 | doubleClick 0.8, budget 120 s |
-| Anna | none | all known | unlimited | budget 120 s |
-| Marek | mobile device, target 44, no contrast rule | all known | `maxElements` 20, `memorySteps` 6 | scrollWhenStuck 0.9, budget 90 s |
+| Ada | none | all known | unlimited | budget 120 s |
+| Milo | mobile device, target 44, no contrast rule | all known | `maxElements` 20, `memorySteps` 6 | scrollWhenStuck 0.9, budget 90 s |
+| Vera | contrast 3.0 soft, font 16, target 32, `blurredVision` | unknown: hamburger, kebab, breadcrumb | `maxElements` 12, `memorySteps` 3 | doubleClick 0.8, budget 120 s |
+| Zoya | contrast 7.0 soft, font 24, target 48, `reducedContrast` | nothing known, every pattern unknown | `maxElements` 5, `maxOptions` 4, `memorySteps` 2 | doubleClick 0.9, scrollWhenStuck 0.3, budget 180 s |
+
+The initial is the dimension the persona is defined by: **A**ll clear, **M**obile
+and motor, **V**ision, and **Z** for the far end of the scale. Alphabetical order
+is therefore the order of how much filter each one switches on, so a dashboard
+and a sweep both read left to right without sorting anything. Thresholds across
+different metrics are not comparable — Milo's 44 px target is stricter than
+Vera's 32 px — so what is ordered is the number of dimensions switched on, not a
+severity score.
+
+Zoya is the persona the calibration row below expects to score 0/10 on a
+low-contrast path. A persona nobody can argue is exaggerated is the one that
+makes the boundary sweep readable: the question stops being "is this persona
+real" and becomes "at which value does the path come back".
 
 ## Source registry
 
