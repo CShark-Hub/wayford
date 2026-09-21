@@ -1,0 +1,42 @@
+[
+  {
+    "id": "fnd_archive-link-target-size",
+    "taskId": "task_past-order",
+    "type": "measurement",
+    "title": "The link to the archive is smaller than the WCAG 2.2 minimum target",
+    "detail": "The link measures 42 by 17 CSS pixels, so its smaller side is 17. WCAG 2.2 Target Size (Minimum) asks for 24. Every other link in the same section measures at least 40.",
+    "evidence": [
+      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0t", "stepIndex": 3 },
+      { "runId": "run_01jbqk7t2ec5vh9w0p6skn3rj", "stepIndex": 2 }
+    ],
+    "recommendation": "Give the link the same padding as the other links in the section, so its smaller side reaches 24 pixels.",
+    "personaIds": ["prof_milo", "prof_vera", "prof_zoya"],
+    "axeRuleId": "target-size"
+  },
+  {
+    "id": "fnd_archive-link-below-contrast",
+    "taskId": "task_past-order",
+    "type": "deterministic",
+    "title": "At a 3:1 contrast threshold the link to the archive is not in the observation at all",
+    "detail": "The link renders at 2.4:1 against its background. Vera's threshold is 3:1 and Zoya's is 7:1, so rule P1 drops the element before either Actor is asked to choose an action: neither of them failed to notice it, it was never offered. Ada and Milo set no contrast threshold and both reached the archive on every run.",
+    "evidence": [
+      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0t", "stepIndex": 3 },
+      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6h", "stepIndex": 5 }
+    ],
+    "recommendation": "Raise the link to at least 4.5:1 against its background, or lift the archive out of the body text into a labelled entry in the section.",
+    "personaIds": ["prof_vera", "prof_zoya"]
+  },
+  {
+    "id": "fnd_deliveries-label-reads-as-current-only",
+    "taskId": "task_past-order",
+    "type": "hypothesis",
+    "title": "The section label reads as what is on its way, so nobody looks there for what already arrived",
+    "detail": "In four of six runs the Actor opened the section, read the list, left within two steps and did not return, then spent the rest of the budget elsewhere. The narration each time described the section as a list of what is still coming. This is the Actor's account of its own behaviour and was produced after the fact, so it is a reading of the runs, not a measurement.",
+    "evidence": [
+      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6h", "stepIndex": 7 },
+      { "runId": "run_01jbqn4h6bq8s3y1e7k2mtd9p", "stepIndex": 6 }
+    ],
+    "recommendation": "Say in the label, or in the first line of the section, that it also holds what has already arrived.",
+    "personaIds": ["prof_vera", "prof_zoya"]
+  }
+]

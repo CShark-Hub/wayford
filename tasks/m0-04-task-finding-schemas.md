@@ -34,10 +34,10 @@ Zod schemas for `Task` (goal plus deterministic success condition) and `Finding`
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes and includes `task.test.ts` and `finding.test.ts`
-- [ ] A test proves a `Finding` with empty `evidence` fails validation
-- [ ] A test proves a `Task` fixture goal contains none of: `click`, `menu`, `settings`, `->`, `→`, `tab`, `button`
-- [ ] Two task fixtures exist, matching the URL contract below. This task does not need the target app to exist.
+- [x] `pnpm --filter @wayford/core test` passes and includes `task.test.ts` and `finding.test.ts`
+- [x] A test proves a `Finding` with empty `evidence` fails validation
+- [x] A test proves a `Task` fixture goal contains none of: `click`, `menu`, `settings`, `->`, `→`, `tab`, `button`
+- [x] Two task fixtures exist, matching the URL contract below. This task does not need the target app to exist.
 
 
 ## Target app URL contract (fixed here, do not invent)
