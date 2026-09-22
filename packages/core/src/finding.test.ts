@@ -6,7 +6,12 @@ import {
   HARD_FINDING_TYPES,
   isHardFinding,
 } from "./finding.js";
-import { findingFixtures, profileFixtures, taskFixtures } from "./fixtures/index.js";
+import {
+  findingFixtures,
+  observationFixture,
+  profileFixtures,
+  taskFixtures,
+} from "./fixtures/index.js";
 
 function fixture(id: string): Finding {
   const found = findingFixtures.find((f) => f.id === id);
@@ -27,6 +32,7 @@ describe("FindingType", () => {
   test("a hypothesis is the only soft one", () => {
     const hard = FINDING_TYPES.filter((type) => HARD_FINDING_TYPES.includes(type));
     expect(hard).toEqual(["measurement", "deterministic"]);
+    expect(isHardFinding(fixture("fnd_archive-link-contrast-ratio"))).toBe(true);
     expect(isHardFinding(fixture("fnd_archive-link-below-contrast"))).toBe(true);
     expect(isHardFinding(fixture("fnd_deliveries-label-reads-as-current-only"))).toBe(false);
   });
@@ -42,11 +48,17 @@ describe("EvidenceRef", () => {
     expect(EvidenceRef.safeParse({ runId: "run_01jbqk3v9x", stepIndex: 1.5 }).success).toBe(false);
     expect(EvidenceRef.safeParse({ runId: "01jbqk3v9x", stepIndex: 0 }).success).toBe(false);
   });
+
+  test("a pointer carries nothing but the pointer", () => {
+    expect(
+      EvidenceRef.safeParse({ runId: "run_01jbqk3v9x", stepIndex: 0, screenshot: "a.png" }).success,
+    ).toBe(false);
+  });
 });
 
 describe("Finding schema", () => {
   test("a finding with no evidence does not validate", () => {
-    const finding = rawFixture("fnd_archive-link-target-size");
+    const finding = rawFixture("fnd_archive-link-contrast-ratio");
     finding.evidence = [];
     const result = Finding.safeParse(finding);
     expect(result.success).toBe(false);
@@ -54,7 +66,7 @@ describe("Finding schema", () => {
   });
 
   test("a finding with no recommendation does not validate", () => {
-    const finding = rawFixture("fnd_archive-link-target-size");
+    const finding = rawFixture("fnd_archive-link-contrast-ratio");
     delete finding.recommendation;
     expect(Finding.safeParse(finding).success).toBe(false);
     finding.recommendation = "";
@@ -62,17 +74,35 @@ describe("Finding schema", () => {
   });
 
   test("a finding has to say which kind of claim it is", () => {
-    const finding = rawFixture("fnd_archive-link-target-size");
+    const finding = rawFixture("fnd_archive-link-contrast-ratio");
     delete finding.type;
     expect(Finding.safeParse(finding).success).toBe(false);
   });
 
-  test("affecting nobody in particular is allowed, naming a persona that does not exist is not", () => {
-    const finding = rawFixture("fnd_archive-link-target-size");
+  test("a finding without a claim or without its reasoning does not validate", () => {
+    for (const field of ["title", "detail"]) {
+      const finding = rawFixture("fnd_archive-link-contrast-ratio");
+      delete finding[field];
+      expect(Finding.safeParse(finding).success).toBe(false);
+      finding[field] = "   ";
+      expect(Finding.safeParse(finding).success).toBe(false);
+    }
+  });
+
+  test("affecting nobody in particular is allowed, an id without its prefix is not", () => {
+    const finding = rawFixture("fnd_archive-link-contrast-ratio");
     finding.personaIds = [];
     expect(Finding.safeParse(finding).success).toBe(true);
     finding.personaIds = ["vera"];
     expect(Finding.safeParse(finding).success).toBe(false);
+  });
+
+  test("the schema checks the shape of a persona id, not that the persona exists", () => {
+    // Deliberate: `core` holds no registry to check against. The fixture-level
+    // cross-check below is what catches an id that is well formed but unknown.
+    const finding = rawFixture("fnd_archive-link-contrast-ratio");
+    finding.personaIds = ["prof_nobody"];
+    expect(Finding.safeParse(finding).success).toBe(true);
   });
 
   test("the axe rule id is optional", () => {
@@ -81,8 +111,20 @@ describe("Finding schema", () => {
     expect(Finding.safeParse(finding).success).toBe(true);
   });
 
+  test("only a hard finding may cite an axe rule (F10 AC2)", () => {
+    const hypothesis = rawFixture("fnd_deliveries-label-reads-as-current-only");
+    hypothesis.axeRuleId = "color-contrast";
+    const result = Finding.safeParse(hypothesis);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain("axeRuleId");
+
+    const deterministic = rawFixture("fnd_archive-link-below-contrast");
+    deterministic.axeRuleId = "color-contrast";
+    expect(Finding.safeParse(deterministic).success).toBe(true);
+  });
+
   test("an extra key does not pass", () => {
-    const finding = rawFixture("fnd_archive-link-target-size");
+    const finding = rawFixture("fnd_archive-link-contrast-ratio");
     finding.severity = "high";
     expect(Finding.safeParse(finding).success).toBe(false);
   });
@@ -110,6 +152,45 @@ describe("fixtures", () => {
     for (const fixture of findingFixtures) {
       expect(taskIds).toContain(fixture.taskId);
       for (const personaId of fixture.personaIds) expect(profileIds).toContain(personaId);
+    }
+  });
+
+  test("every contrast ratio a finding quotes is grounded in another fixture", () => {
+    // The finding fixtures and the observation fixture describe the same
+    // element of the same page. Nothing but this test stops them drifting,
+    // and a `measurement` whose numbers are not in evidence is the one thing
+    // the type is supposed to rule out.
+    const WCAG_ANCHORS = [3, 4.5, 7];
+    const measured = observationFixture.elements
+      .map((element) => element.metrics.contrast)
+      .filter((value): value is number => value !== undefined);
+    const thresholds = profileFixtures
+      .map((profile) => profile.perception.contrast?.threshold)
+      .filter((value): value is number => value !== undefined);
+    const grounded = new Set([...measured, ...thresholds, ...WCAG_ANCHORS]);
+
+    const quoted = findingFixtures.flatMap((finding) =>
+      [...`${finding.title} ${finding.detail}`.matchAll(/(\d+(?:\.\d+)?):1/g)].map((match) =>
+        Number(match[1]),
+      ),
+    );
+    expect(quoted.length).toBeGreaterThan(0);
+    for (const ratio of quoted) expect(grounded).toContain(ratio);
+  });
+
+  test("a finding names only personas the claim can hold for", () => {
+    // `fnd_archive-link-below-contrast` says the link never reaches the Actor.
+    // That is only deterministic for a persona whose threshold sits above the
+    // softness band, so it must not name one whose outcome is a dice roll.
+    const archive = observationFixture.elements.find((e) => e.key === "main//link:Archive");
+    const contrast = archive?.metrics.contrast;
+    if (contrast === undefined) throw new Error("the observation fixture no longer has the link");
+
+    for (const personaId of fixture("fnd_archive-link-below-contrast").personaIds) {
+      const perception = profileFixtures.find((p) => p.id === personaId)?.perception.contrast;
+      if (!perception) throw new Error(`${personaId} sets no contrast threshold to be below`);
+      const bandFloor = perception.threshold * (1 - (perception.softness ?? 0));
+      expect(contrast).toBeLessThan(bandFloor);
     }
   });
 

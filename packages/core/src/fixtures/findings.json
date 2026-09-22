@@ -1,40 +1,40 @@
 [
   {
-    "id": "fnd_archive-link-target-size",
+    "id": "fnd_archive-link-contrast-ratio",
     "taskId": "task_past-order",
     "type": "measurement",
-    "title": "The link to the archive is smaller than the WCAG 2.2 minimum target",
-    "detail": "The link measures 42 by 17 CSS pixels, so its smaller side is 17. WCAG 2.2 Target Size (Minimum) asks for 24. Every other link in the same section measures at least 40.",
+    "title": "The link to the archive is at 2.1:1, below the WCAG 2.2 minimum for body text",
+    "detail": "The link renders at 2.1:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at this font size. The four links in the main navigation on the same page all measure 12.6:1, so the archive link is the outlier and not a page-wide colour choice.",
     "evidence": [
-      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0t", "stepIndex": 3 },
-      { "runId": "run_01jbqk7t2ec5vh9w0p6skn3rj", "stepIndex": 2 }
+      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0tp", "stepIndex": 2 },
+      { "runId": "run_01jbqk7t2ec5vh9w0p6skn3rjm", "stepIndex": 2 }
     ],
-    "recommendation": "Give the link the same padding as the other links in the section, so its smaller side reaches 24 pixels.",
-    "personaIds": ["prof_milo", "prof_vera", "prof_zoya"],
-    "axeRuleId": "target-size"
+    "recommendation": "Raise the link to at least 4.5:1 against its background, or lift the archive out of the body text into a labelled entry in the section.",
+    "personaIds": [],
+    "axeRuleId": "color-contrast"
   },
   {
     "id": "fnd_archive-link-below-contrast",
     "taskId": "task_past-order",
     "type": "deterministic",
-    "title": "At a 3:1 contrast threshold the link to the archive is not in the observation at all",
-    "detail": "The link renders at 2.4:1 against its background. Vera's threshold is 3:1 and Zoya's is 7:1, so rule P1 drops the element before either Actor is asked to choose an action: neither of them failed to notice it, it was never offered. Ada and Milo set no contrast threshold and both reached the archive on every run.",
+    "title": "At a 7:1 contrast threshold the link to the archive is never offered to the Actor",
+    "detail": "The link renders at 2.1:1. Zoya's contrast threshold is 7:1, and 2.1 is far below the softness band under it, so rule P1 removes the element outright with no roll: she did not fail to notice the link, it was never in her observation. This does not extend to Vera. Her threshold is 3:1 with a softness of 0.5, which puts 2.1 inside her band, so the outcome is resolved per run from the seed — in the stored observation the roll came out at 0.37 and the link survived as degraded, shown to her as Ar▒▒ive. Ada and Milo set no contrast threshold.",
     "evidence": [
-      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0t", "stepIndex": 3 },
-      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6h", "stepIndex": 5 }
+      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0tp", "stepIndex": 2 },
+      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6hk", "stepIndex": 5 }
     ],
-    "recommendation": "Raise the link to at least 4.5:1 against its background, or lift the archive out of the body text into a labelled entry in the section.",
-    "personaIds": ["prof_vera", "prof_zoya"]
+    "recommendation": "Raise the link to at least 7:1 against its background, or lift the archive out of the body text into a labelled entry in the section so reaching it does not depend on reading it.",
+    "personaIds": ["prof_zoya"]
   },
   {
     "id": "fnd_deliveries-label-reads-as-current-only",
     "taskId": "task_past-order",
     "type": "hypothesis",
-    "title": "The section label reads as what is on its way, so nobody looks there for what already arrived",
-    "detail": "In four of six runs the Actor opened the section, read the list, left within two steps and did not return, then spent the rest of the budget elsewhere. The narration each time described the section as a list of what is still coming. This is the Actor's account of its own behaviour and was produced after the fact, so it is a reading of the runs, not a measurement.",
+    "title": "The section label may read as what is still on its way, so what has arrived is not looked for there",
+    "detail": "In four of six runs the Actor opened the section, read the list, left within two steps and did not return, then spent the rest of the budget elsewhere. The narration each time described the section as a list of what is still coming. This is the Actor's account of its own behaviour and was produced after the fact, so it is a reading of the runs, not a measurement, and it is not a claim about what people outside these runs would do.",
     "evidence": [
-      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6h", "stepIndex": 7 },
-      { "runId": "run_01jbqn4h6bq8s3y1e7k2mtd9p", "stepIndex": 6 }
+      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6hk", "stepIndex": 7 },
+      { "runId": "run_01jbqn4h6bq8s3y1e7k2mtd9pw", "stepIndex": 6 }
     ],
     "recommendation": "Say in the label, or in the first line of the section, that it also holds what has already arrived.",
     "personaIds": ["prof_vera", "prof_zoya"]

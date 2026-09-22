@@ -7,7 +7,9 @@ function rawFixture(id: string): Record<string, unknown> {
 }
 
 describe("path words", () => {
-  test("the list is the one docs/PLAN.md F3 AC1 names", () => {
+  test("the list is the one the acceptance criterion of tasks/m0-04 names", () => {
+    // docs/PLAN.md F3 AC1 is the requirement, but it names categories, not
+    // these seven words. The task file is the authority for the list itself.
     expect([...PATH_WORDS].sort()).toEqual(
       ["->", "→", "button", "click", "menu", "settings", "tab"].sort(),
     );
@@ -77,21 +79,88 @@ describe("SuccessCondition", () => {
     ).toBe(false);
   });
 
-  test("a member does not take extra keys", () => {
+  test("no member takes extra keys", () => {
     expect(
       SuccessCondition.safeParse({ type: "urlMatches", pattern: "**/x", selector: "#x" }).success,
     ).toBe(false);
+    expect(
+      SuccessCondition.safeParse({ type: "selectorPresent", selector: "#x", pattern: "**/x" })
+        .success,
+    ).toBe(false);
+    expect(
+      SuccessCondition.safeParse({
+        type: "requestObserved",
+        method: "GET",
+        urlPattern: "**/x",
+        status: 200,
+      }).success,
+    ).toBe(false);
+  });
+
+  test("no member takes an empty or blank payload", () => {
+    for (const blank of ["", "   "]) {
+      expect(SuccessCondition.safeParse({ type: "urlMatches", pattern: blank }).success).toBe(
+        false,
+      );
+      expect(SuccessCondition.safeParse({ type: "selectorPresent", selector: blank }).success).toBe(
+        false,
+      );
+      expect(
+        SuccessCondition.safeParse({ type: "requestObserved", method: "GET", urlPattern: blank })
+          .success,
+      ).toBe(false);
+    }
   });
 });
 
 describe("Task schema", () => {
   test("a start url has to be one Playwright can navigate to", () => {
     const task = rawFixture("task_next-parcel");
-    for (const bad of ["localhost:5174", "file:///tmp/index.html", "/account", ""]) {
+    for (const bad of [
+      "localhost:5174",
+      "file:///tmp/index.html",
+      "/account",
+      "",
+      // One slash too many: `account` is then read as the host, not the path.
+      "http:///account",
+      "ws://localhost:5174/",
+    ]) {
       task.startUrl = bad;
       expect(Task.safeParse(task).success).toBe(false);
     }
-    task.startUrl = "https://example.com/start";
+    for (const good of [
+      "https://example.com/start",
+      "http://localhost:5174/",
+      "http://127.0.0.1:5174/deliveries",
+    ]) {
+      task.startUrl = good;
+      expect(Task.safeParse(task).success).toBe(true);
+    }
+  });
+
+  test("a task without a success condition does not validate", () => {
+    const task = rawFixture("task_next-parcel");
+    delete task.success;
+    expect(Task.safeParse(task).success).toBe(false);
+  });
+
+  test("a goal that is only whitespace does not validate", () => {
+    const task = rawFixture("task_next-parcel");
+    task.goal = "   ";
+    expect(Task.safeParse(task).success).toBe(false);
+  });
+
+  test("a goal cannot name the screens the task says were stripped from it", () => {
+    const task = rawFixture("task_next-parcel");
+    task.strippedPaths = ["Account", "Address"];
+
+    task.goal = "you want to reach the Address page under Account";
+    const result = Task.safeParse(task);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain("Account");
+
+    // Whole terms only, so a stripped "Account" does not outlaw "accounting".
+    task.goal = "you want to check what the accounting team billed you";
     expect(Task.safeParse(task).success).toBe(true);
   });
 
@@ -135,8 +204,12 @@ describe("fixtures", () => {
   });
 
   test("no fixture goal contains a path word", () => {
+    // Checked literally, not through pathWordsIn: the acceptance criterion is
+    // about the words being absent from the text, so running it through the
+    // matcher under test would hide every false negative the matcher has.
     for (const fixture of taskFixtures) {
-      expect(pathWordsIn(fixture.goal)).toEqual([]);
+      const goal = fixture.goal.toLowerCase();
+      for (const word of PATH_WORDS) expect(goal).not.toContain(word);
     }
   });
 

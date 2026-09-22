@@ -144,6 +144,26 @@ export const Probability = z.number().min(0).max(1);
 /** Seed for the run's random stream. Integer so it survives a URL and a filename. */
 export const Seed = z.number().int().nonnegative();
 
+/**
+ * A step's position in its run. Referenced by the stored observation, by an
+ * evidence pointer and by every `RunEvent` (`m0-05`), so it is defined once.
+ */
+export const StepIndex = z.number().int().nonnegative();
+
+/**
+ * A URL Playwright can actually navigate to.
+ *
+ * Two traps a bare `z.url()` walks into: `localhost:5174` parses with `localhost`
+ * read as the scheme, and `http:///account` — one slash too many, the likeliest
+ * typo of a real start URL — parses with `account` read as the host. The
+ * protocol check catches the first; the host has to be a dotted name, an
+ * address or literally `localhost` to catch the second.
+ */
+const HTTP_HOST =
+  /^localhost$|^(\d{1,3}\.){3}\d{1,3}$|^\[[0-9a-f:]+\]$|^([a-z0-9-]+\.)+[a-z0-9-]+$/i;
+
+export const HttpUrl = z.url({ protocol: /^https?$/, hostname: HTTP_HOST });
+
 // ---------------------------------------------------------------------------
 // Geometry
 // ---------------------------------------------------------------------------

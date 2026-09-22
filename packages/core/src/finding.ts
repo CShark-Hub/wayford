@@ -9,7 +9,7 @@
  * is clickable through to the step it came from.
  */
 import { z } from "zod";
-import { FindingId, ProfileId, RunId, TaskId } from "./primitives.js";
+import { FindingId, ProfileId, RunId, StepIndex, TaskId } from "./primitives.js";
 
 // ---------------------------------------------------------------------------
 // Type
@@ -39,7 +39,7 @@ export const HARD_FINDING_TYPES: readonly FindingType[] = ["measurement", "deter
 export const EvidenceRef = z
   .object({
     runId: RunId,
-    stepIndex: z.number().int().nonnegative(),
+    stepIndex: StepIndex,
   })
   .strict();
 export type EvidenceRef = z.infer<typeof EvidenceRef>;
@@ -54,13 +54,13 @@ export const Finding = z
     taskId: TaskId,
     type: FindingType,
     /** One line, the claim itself. */
-    title: z.string().min(1),
+    title: z.string().trim().min(1),
     /** The claim with its numbers, or the reasoning behind the guess. */
-    detail: z.string().min(1),
+    detail: z.string().trim().min(1),
     /** Non-empty at the schema level: a finding we cannot point at is not shown. */
     evidence: z.array(EvidenceRef).min(1),
     /** What to change. Mandatory, so the report never stops at a complaint. */
-    recommendation: z.string().min(1),
+    recommendation: z.string().trim().min(1),
     /**
      * Who this bit. May be empty: a measurement holds whoever is looking, and
      * saying it affects everyone by naming everyone would be a lie the first
@@ -68,9 +68,22 @@ export const Finding = z
      */
     personaIds: z.array(ProfileId),
     /** Set when the finding repeats something axe-core already reported (F10 AC2). */
-    axeRuleId: z.string().min(1).optional(),
+    axeRuleId: z.string().trim().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((finding, ctx) => {
+    // F10 AC2 lets the report cite an axe violation as a hard finding. A
+    // hypothesis is the Analyst reading the narration, so hanging a machine
+    // check's rule id on one would put the strongest provenance signal we have
+    // on the one claim that cannot carry it.
+    if (finding.axeRuleId !== undefined && !HARD_FINDING_TYPES.includes(finding.type)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["axeRuleId"],
+        message: `only ${HARD_FINDING_TYPES.join(" and ")} findings cite an axe rule; this one is a ${finding.type}`,
+      });
+    }
+  });
 export type Finding = z.infer<typeof Finding>;
 
 export function isHardFinding(finding: Finding): boolean {

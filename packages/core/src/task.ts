@@ -9,20 +9,25 @@
  * against the page (`docs/PLAN.md` F3 AC2).
  */
 import { z } from "zod";
-import { TaskId } from "./primitives.js";
+import { HttpUrl, TaskId } from "./primitives.js";
 
 // ---------------------------------------------------------------------------
 // Path words
 // ---------------------------------------------------------------------------
 
 /**
- * The path words of `docs/PLAN.md` F3 AC1. Each one names a piece of interface
- * or a step through it, so a goal containing one is describing the solution.
+ * The path words named by the acceptance criterion of
+ * `tasks/m0-04-task-finding-schemas.md`. `docs/PLAN.md` F3 AC1 is the
+ * requirement behind it, but it names categories — screen names, "click",
+ * arrows — and not this list; the seven words are the task file's reading of
+ * it. Each one names a piece of interface or a step through it, so a goal
+ * containing one is describing the solution.
  *
  * Frozen here rather than in the Extractor (M1, `io`) so that the component
  * stripping these and the schema refusing them cannot drift apart. Screen names
  * are the other half of F3 AC1 and cannot be enumerated: those the Extractor
- * finds per application and records in `strippedPaths`.
+ * finds per application and records in `strippedPaths`, and `Task` below checks
+ * the goal against them.
  */
 export const PATH_WORDS = ["button", "click", "menu", "settings", "tab", "->", "→"] as const;
 
@@ -44,12 +49,25 @@ export function pathWordsIn(sentence: string): PathWord[] {
 }
 
 /**
+ * A screen name as it appears in a sentence. The boundary is only asserted on
+ * the ends that are word characters, so "Account" does not match "accounting"
+ * and "/deliveries" still matches at the start of a phrase.
+ */
+function wholeTerm(term: string): RegExp {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const lead = /^\w/u.test(term) ? "\\b" : "";
+  const tail = /\w$/u.test(term) ? "\\b" : "";
+  return new RegExp(`${lead}${escaped}${tail}`, "iu");
+}
+
+/**
  * The user-facing sentence, in the user's terms. Rejecting path words here
  * rather than only in the Extractor means a task that measures the wrong thing
  * cannot be stored, typed into the builder or posted to the API.
  */
 export const Goal = z
   .string()
+  .trim()
   .min(1)
   .superRefine((sentence, ctx) => {
     const found = pathWordsIn(sentence);
@@ -59,6 +77,7 @@ export const Goal = z
       message: `a goal states an intent, not a route through the interface; remove ${found.join(", ")}`,
     });
   });
+export type Goal = z.infer<typeof Goal>;
 
 // ---------------------------------------------------------------------------
 // Success
@@ -79,21 +98,21 @@ export const SuccessCondition = z.discriminatedUnion("type", [
     .object({
       type: z.literal("urlMatches"),
       /** Glob in the Playwright `page.waitForURL` dialect. See `fixtures/tasks.json`. */
-      pattern: z.string().min(1),
+      pattern: z.string().trim().min(1),
     })
     .strict(),
   z
     .object({
       type: z.literal("selectorPresent"),
       /** CSS selector, evaluated on the page the run ended on. */
-      selector: z.string().min(1),
+      selector: z.string().trim().min(1),
     })
     .strict(),
   z
     .object({
       type: z.literal("requestObserved"),
       method: HttpMethod,
-      urlPattern: z.string().min(1),
+      urlPattern: z.string().trim().min(1),
     })
     .strict(),
 ]);
@@ -107,21 +126,31 @@ export const Task = z
   .object({
     id: TaskId,
     goal: Goal,
-    /**
-     * Where every run of this task starts, so two personas begin level.
-     * Restricted to what Playwright can navigate to: bare `z.url()` accepts
-     * `localhost:5174`, reading the host as a scheme.
-     */
-    startUrl: z.url({ protocol: /^https?$/ }),
+    /** Where every run of this task starts, so two personas begin level. */
+    startUrl: HttpUrl,
     success: SuccessCondition,
     /**
      * The story the goal was extracted from, kept verbatim. It is full of screen
-     * names and that is correct: it is the evidence for what was stripped, and
-     * the only field of this schema the path-word rule does not apply to.
+     * names and that is correct: it is the evidence for what was stripped, so
+     * the path-word check deliberately does not run over it.
      */
-    sourceStory: z.string().min(1).optional(),
+    sourceStory: z.string().trim().min(1).optional(),
     /** What the Extractor removed, so a reviewer can check it removed the right things. */
-    strippedPaths: z.array(z.string().min(1)).optional(),
+    strippedPaths: z.array(z.string().trim().min(1)).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((task, ctx) => {
+    // The generic seven words are only half of F3 AC1. The other half is screen
+    // names, which cannot be enumerated in advance — but a task that says it
+    // stripped one has just told us what it is, so the goal is checked against
+    // the list it carries. Whole terms only: stripping "Account" must not
+    // outlaw a goal about accounting.
+    const kept = (task.strippedPaths ?? []).filter((path) => wholeTerm(path).test(task.goal));
+    if (kept.length === 0) return;
+    ctx.addIssue({
+      code: "custom",
+      path: ["goal"],
+      message: `a goal cannot name the screens it says were stripped from it; remove ${kept.join(", ")}`,
+    });
+  });
 export type Task = z.infer<typeof Task>;
