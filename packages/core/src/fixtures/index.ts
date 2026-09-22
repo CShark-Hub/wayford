@@ -12,7 +12,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import type { ZodType } from "zod";
+import { Action } from "../action.js";
 import { Finding } from "../finding.js";
+import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
 import { Task } from "../task.js";
 
@@ -42,20 +44,32 @@ export function profileFixture(id: string): Profile {
   return found;
 }
 
-/** Everything that is not a profile is JSON, and validated the same way. */
-function readJsonFixtures<T>(file: string, schema: ZodType<T>): T[] {
-  const source = readFileSync(fileURLToPath(new URL(`./${file}`, import.meta.url)), "utf8");
-  return (JSON.parse(source) as unknown[]).map((item, index) => {
-    const parsed = schema.safeParse(item);
-    if (!parsed.success) {
-      throw new Error(`Fixture ${file}[${index}] does not match its schema:\n${parsed.error}`);
-    }
-    return parsed.data;
-  });
+// ---------------------------------------------------------------------------
+// JSON fixtures: everything that is not a profile (docs/STACK.md)
+// ---------------------------------------------------------------------------
+
+function readJson<T>(name: string, schema: ZodType<T>): T {
+  const source = readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), "utf8");
+  const parsed = schema.safeParse(JSON.parse(source));
+  if (!parsed.success) {
+    throw new Error(`Fixture ${name} does not match its schema:
+${parsed.error}`);
+  }
+  return parsed.data;
 }
 
+/** One action per member of `ACTION_TYPES`, in that order. */
+export const actionFixtures: Action[] = readJson("actions.json", Action.array());
+
+/**
+ * The `/deliveries` page of the target app (URL contract in `m0-04`) as the
+ * filter saw it for a persona with a 3:1 soft contrast threshold: the archive
+ * link degraded, two elements removed, the rest visible.
+ */
+export const observationFixture: FullObservation = readJson("observation.json", FullObservation);
+
 /** The two goals of the target app, easy first. See `tasks/m0-06-target-app.md`. */
-export const taskFixtures: Task[] = readJsonFixtures("tasks.json", Task);
+export const taskFixtures: Task[] = readJson("tasks.json", Task.array());
 
 export function taskFixture(id: string): Task {
   const found = taskFixtures.find((t) => t.id === id);
@@ -63,5 +77,5 @@ export function taskFixture(id: string): Task {
   return found;
 }
 
-/** One per finding type, all about the hard goal. */
-export const findingFixtures: Finding[] = readJsonFixtures("findings.json", Finding);
+/** One per member of `FINDING_TYPES`, in that order, all about the hard goal. */
+export const findingFixtures: Finding[] = readJson("findings.json", Finding.array());

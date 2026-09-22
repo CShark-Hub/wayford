@@ -3,7 +3,7 @@
     "id": "task_next-parcel",
     "goal": "you want to know where your next parcel is going",
     "startUrl": "http://localhost:5174/",
-    "success": { "kind": "urlMatches", "pattern": "**/account/address" },
+    "success": { "type": "urlMatches", "pattern": "**/account/address" },
     "sourceStory": "As a customer I want to open Account -> Address so that I can check where my next parcel is being sent.",
     "strippedPaths": ["Account", "Address"]
   },
@@ -11,7 +11,7 @@
     "id": "task_past-order",
     "goal": "you want to see what you ordered three months ago",
     "startUrl": "http://localhost:5174/",
-    "success": { "kind": "urlMatches", "pattern": "**/deliveries/archive" },
+    "success": { "type": "urlMatches", "pattern": "**/deliveries/archive" },
     "sourceStory": "As a customer I want to click through to the archive from the Deliveries tab so that I can look up something I ordered months ago.",
     "strippedPaths": ["Deliveries", "archive"]
   }

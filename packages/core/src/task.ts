@@ -74,24 +74,24 @@ export type HttpMethod = z.infer<typeof HttpMethod>;
  * by asking a model whether it went well, which is the failure mode the Scout
  * and this union exist to rule out.
  */
-export const SuccessCondition = z.discriminatedUnion("kind", [
+export const SuccessCondition = z.discriminatedUnion("type", [
   z
     .object({
-      kind: z.literal("urlMatches"),
+      type: z.literal("urlMatches"),
       /** Glob in the Playwright `page.waitForURL` dialect. See `fixtures/tasks.json`. */
       pattern: z.string().min(1),
     })
     .strict(),
   z
     .object({
-      kind: z.literal("selectorPresent"),
+      type: z.literal("selectorPresent"),
       /** CSS selector, evaluated on the page the run ended on. */
       selector: z.string().min(1),
     })
     .strict(),
   z
     .object({
-      kind: z.literal("requestObserved"),
+      type: z.literal("requestObserved"),
       method: HttpMethod,
       urlPattern: z.string().min(1),
     })

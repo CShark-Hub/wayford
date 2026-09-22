@@ -53,33 +53,33 @@ describe("Goal", () => {
 
 describe("SuccessCondition", () => {
   test("the three conditions of F3 AC2 parse", () => {
-    expect(SuccessCondition.safeParse({ kind: "urlMatches", pattern: "**/x" }).success).toBe(true);
-    expect(SuccessCondition.safeParse({ kind: "selectorPresent", selector: "#x" }).success).toBe(
+    expect(SuccessCondition.safeParse({ type: "urlMatches", pattern: "**/x" }).success).toBe(true);
+    expect(SuccessCondition.safeParse({ type: "selectorPresent", selector: "#x" }).success).toBe(
       true,
     );
     expect(
-      SuccessCondition.safeParse({ kind: "requestObserved", method: "GET", urlPattern: "**/x" })
+      SuccessCondition.safeParse({ type: "requestObserved", method: "GET", urlPattern: "**/x" })
         .success,
     ).toBe(true);
   });
 
   test("the union is closed, so a run cannot be graded by free text", () => {
-    expect(SuccessCondition.safeParse({ kind: "actorSaysSo", note: "looked fine" }).success).toBe(
+    expect(SuccessCondition.safeParse({ type: "actorSaysSo", note: "looked fine" }).success).toBe(
       false,
     );
-    expect(SuccessCondition.safeParse({ kind: "urlMatches", pattern: "" }).success).toBe(false);
+    expect(SuccessCondition.safeParse({ type: "urlMatches", pattern: "" }).success).toBe(false);
   });
 
   test("an unknown method is rejected", () => {
     expect(
-      SuccessCondition.safeParse({ kind: "requestObserved", method: "FETCH", urlPattern: "**/x" })
+      SuccessCondition.safeParse({ type: "requestObserved", method: "FETCH", urlPattern: "**/x" })
         .success,
     ).toBe(false);
   });
 
   test("a member does not take extra keys", () => {
     expect(
-      SuccessCondition.safeParse({ kind: "urlMatches", pattern: "**/x", selector: "#x" }).success,
+      SuccessCondition.safeParse({ type: "urlMatches", pattern: "**/x", selector: "#x" }).success,
     ).toBe(false);
   });
 });
@@ -151,11 +151,11 @@ describe("fixtures", () => {
 
   test("both match the url contract of tasks/m0-04-task-finding-schemas.md", () => {
     expect(taskFixture("task_next-parcel").success).toEqual({
-      kind: "urlMatches",
+      type: "urlMatches",
       pattern: "**/account/address",
     });
     expect(taskFixture("task_past-order").success).toEqual({
-      kind: "urlMatches",
+      type: "urlMatches",
       pattern: "**/deliveries/archive",
     });
   });

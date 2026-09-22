@@ -1,0 +1,101 @@
+{
+  "url": "http://localhost:5174/deliveries",
+  "title": "Deliveries",
+  "stepIndex": 2,
+  "viewport": { "width": 1280, "height": 800, "deviceScaleFactor": 1, "isMobile": false },
+  "hiddenCount": 3,
+  "belowFoldCount": 5,
+  "elements": [
+    {
+      "ref": "e1",
+      "key": "banner//link:Home",
+      "role": "link",
+      "name": "Home",
+      "bbox": { "x": 24, "y": 16, "width": 64, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "visible",
+      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+    },
+    {
+      "ref": "e2",
+      "key": "banner/navigation:Main//link:Account",
+      "role": "link",
+      "name": "Account",
+      "bbox": { "x": 104, "y": 16, "width": 72, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "visible",
+      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+    },
+    {
+      "ref": "e3",
+      "key": "banner/navigation:Main//link:Deliveries",
+      "role": "link",
+      "name": "Deliveries",
+      "bbox": { "x": 192, "y": 16, "width": 88, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "visible",
+      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+    },
+    {
+      "ref": "e4",
+      "key": "banner/navigation:Main//link:Settings",
+      "role": "link",
+      "name": "Settings",
+      "bbox": { "x": 296, "y": 16, "width": 76, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "visible",
+      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+    },
+    {
+      "ref": "e5",
+      "key": "main//heading:Your deliveries",
+      "role": "heading",
+      "name": "Your deliveries",
+      "bbox": { "x": 120, "y": 96, "width": 320, "height": 40 },
+      "metrics": { "contrast": 15.2, "fontPx": 28 },
+      "state": "visible",
+      "decision": { "rule": "P1", "metric": "contrast", "value": 15.2, "threshold": 3 }
+    },
+    {
+      "key": "main//button:Sort by date",
+      "role": "button",
+      "name": "Sort by date",
+      "bbox": { "x": 720, "y": 100, "width": 96, "height": 32 },
+      "metrics": { "contrast": 4.8, "fontPx": 11, "targetPx": 32 },
+      "state": "invisible",
+      "decision": { "rule": "P3", "metric": "fontPx", "value": 11, "threshold": 16 }
+    },
+    {
+      "ref": "e6",
+      "key": "main//link:Archive",
+      "role": "link",
+      "name": "Archive",
+      "bbox": { "x": 640, "y": 412, "width": 120, "height": 36 },
+      "metrics": { "contrast": 2.1, "fontPx": 16, "targetPx": 36 },
+      "state": "degraded",
+      "maskedName": "Ar▒▒ive",
+      "decision": {
+        "rule": "P1",
+        "metric": "contrast",
+        "value": 2.1,
+        "threshold": 3,
+        "rolled": 0.37
+      }
+    },
+    {
+      "key": "contentinfo//link:Help",
+      "role": "link",
+      "name": "Help",
+      "bbox": { "x": 24, "y": 760, "width": 40, "height": 36 },
+      "metrics": { "contrast": 1.8, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decision": {
+        "rule": "P1",
+        "metric": "contrast",
+        "value": 1.8,
+        "threshold": 3,
+        "rolled": 0.91
+      }
+    }
+  ]
+}

@@ -22,8 +22,8 @@ Two zod schemas that define the boundary between the perception filter and the A
 ## Interface
 
 - In: nothing
-- Out: `Observation`, `ObservedElement`, `Action` schemas and types, `observationFixture`, `actionFixtures`, exported from `@wayford/core`
-- Files expected to change: `packages/core/src/observation.ts`, `packages/core/src/action.ts`, `packages/core/src/fixtures/observation.json`, `packages/core/src/fixtures/actions.json`, tests next to each
+- Out: `Observation`, `ObservedElement`, `Action` schemas and types from `@wayford/core`, alongside `FullObservation` (the evidence record), `ActorElement`, `ElementRef`, `elementKey`, `toActorObservation` and `renderObservationForModel`; `observationFixture` and `actionFixtures` from `@wayford/core/fixtures`, the disk-reading entry point established by `m0-02`
+- Files expected to change: `packages/core/src/observation.ts`, `packages/core/src/action.ts`, `packages/core/src/fixtures/observation.json`, `packages/core/src/fixtures/actions.json`, `packages/core/src/fixtures/index.ts`, tests next to each
 
 ## Constraints
 
@@ -31,16 +31,19 @@ Two zod schemas that define the boundary between the perception filter and the A
 - `ObservedElement` has: `ref` (short stable id the model uses to point at things), `key` (stable structural key used by the filter, derived from role, name and path, never DOM index), `role`, `name`, `bbox`, `metrics` (`contrast`, `fontPx`, `targetPx`), `state` (`visible | degraded | invisible`, the filter decision), `decision` (which rule id decided, the metric value, the threshold, and the rolled value if softness applied), `maskedName` when degraded.
 - `Observation` also carries `hiddenCount` and `belowFoldCount` so the Actor knows something exists without knowing what (RULES V2, A1).
 - The filter emits only elements with state `visible` or `degraded` to the Actor. The full list including hidden ones is kept for evidence. Model this as two exports or a flag, but the type the Actor receives must not carry hidden elements.
+- Shipped as two exports. `FullObservation` holds `ObservedElement[]` in all three states. `Observation` holds `ActorElement[]`: `ref`, `role`, `name`, `bbox`, `state` limited to `visible | degraded`, and nothing else. `key`, `metrics`, `decision` and the real name of a degraded element never leave the evidence side. `toActorObservation` is the only projection between them.
+- `hiddenCount` counts what the attention cap cut (A1), `belowFoldCount` what lies outside the viewport (V2). Elements removed by perception (P1 to P4) are counted nowhere the Actor can see.
+- Shown elements are numbered `e1..eN` in order, without gaps; invisible elements carry no `ref`. Enforced on the array, because a gap between `e1` and `e3` tells the Actor how many elements were removed.
 - `Action` is a closed union: `click`, `doubleClick`, `type`, `scroll`, `back`, `wait`, `giveUp`. Each with the minimal payload. `click` and `type` point at a `ref`.
 - Include a `renderObservationForModel(observation): string` helper that produces the exact text the Actor sees. This is what the seed test compares.
 - No persona or impairment words anywhere in the rendered text. Add a test that greps for a banned list.
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes and includes `observation.test.ts` and `action.test.ts`
-- [ ] Fixture observation validates and `renderObservationForModel` output is snapshot-tested
-- [ ] A test proves that an element with `visible: false` cannot appear in the Actor-facing type (type-level or runtime, both accepted)
-- [ ] A test proves the banned word list is absent from the rendered text
+- [x] `pnpm --filter @wayford/core test` passes and includes `observation.test.ts` and `action.test.ts`
+- [x] Fixture observation validates and `renderObservationForModel` output is snapshot-tested
+- [x] A test proves that an element with state `invisible` cannot appear in the Actor-facing type (type-level or runtime, both accepted)
+- [x] A test proves the banned word list is absent from the rendered text
 
 ## Out of scope
 
