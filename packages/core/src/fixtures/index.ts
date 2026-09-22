@@ -16,6 +16,7 @@ import { Action } from "../action.js";
 import { Finding } from "../finding.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
+import { RunEvent, RunResult } from "../run.js";
 import { Task } from "../task.js";
 
 /** Directory holding the persona YAML files. */
@@ -79,3 +80,16 @@ export function taskFixture(id: string): Task {
 
 /** One per member of `FINDING_TYPES`, in that order, all about the hard goal. */
 export const findingFixtures: Finding[] = readJson("findings.json", Finding.array());
+
+/**
+ * One recorded run of the persona with a 3:1 soft contrast threshold against
+ * the hard goal (`/deliveries/archive`, `m0-04`): four steps that never reach
+ * the archive because its link stays degraded, ending in `gave_up`.
+ */
+export const runResultFixture: RunResult = readJson("run-result.json", RunResult);
+
+/**
+ * The same run as a live stream. `runResultFromEvents(runEventFixtures)` folds
+ * to `runResultFixture`; that equality is the ring-and-dashboard contract.
+ */
+export const runEventFixtures: RunEvent[] = readJson("run-events.json", RunEvent.array());
