@@ -11,6 +11,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
+import type { ZodType } from "zod";
+import { Action } from "../action.js";
+import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
 
 /** Directory holding the persona YAML files. */
@@ -38,3 +41,27 @@ export function profileFixture(id: string): Profile {
   if (!found) throw new Error(`No profile fixture ${id}`);
   return found;
 }
+
+// ---------------------------------------------------------------------------
+// JSON fixtures: everything that is not a profile (docs/STACK.md)
+// ---------------------------------------------------------------------------
+
+function readJson<T>(name: string, schema: ZodType<T>): T {
+  const source = readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), "utf8");
+  const parsed = schema.safeParse(JSON.parse(source));
+  if (!parsed.success) {
+    throw new Error(`Fixture ${name} does not match its schema:
+${parsed.error}`);
+  }
+  return parsed.data;
+}
+
+/** One action per member of `ACTION_TYPES`, in that order. */
+export const actionFixtures: Action[] = readJson("actions.json", Action.array());
+
+/**
+ * The `/deliveries` page of the target app (URL contract in `m0-04`) as the
+ * filter saw it for a persona with a 3:1 soft contrast threshold: the archive
+ * link degraded, two elements removed, the rest visible.
+ */
+export const observationFixture: FullObservation = readJson("observation.json", FullObservation);

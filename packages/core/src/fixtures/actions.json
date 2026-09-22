@@ -1,0 +1,9 @@
+[
+  { "type": "click", "ref": "e2" },
+  { "type": "doubleClick", "ref": "e2" },
+  { "type": "type", "ref": "e5", "text": "archive" },
+  { "type": "scroll", "direction": "down" },
+  { "type": "back" },
+  { "type": "wait", "ms": 500 },
+  { "type": "giveUp" }
+]
