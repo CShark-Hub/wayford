@@ -1,0 +1,42 @@
+[
+  {
+    "id": "fnd_archive-link-contrast-ratio",
+    "taskId": "task_past-order",
+    "type": "measurement",
+    "title": "The link to the archive is at 2.1:1, below the WCAG 2.2 minimum for body text",
+    "detail": "The link renders at 2.1:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at this font size. The four links in the main navigation on the same page all measure 12.6:1, so the archive link is the outlier and not a page-wide colour choice.",
+    "evidence": [
+      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0tp", "stepIndex": 2 },
+      { "runId": "run_01jbqk7t2ec5vh9w0p6skn3rjm", "stepIndex": 2 }
+    ],
+    "recommendation": "Raise the link to at least 4.5:1 against its background, or lift the archive out of the body text into a labelled entry in the section.",
+    "personaIds": [],
+    "axeRuleId": "color-contrast"
+  },
+  {
+    "id": "fnd_archive-link-below-contrast",
+    "taskId": "task_past-order",
+    "type": "deterministic",
+    "title": "At a 7:1 contrast threshold the link to the archive is never offered to the Actor",
+    "detail": "The link renders at 2.1:1. Zoya's contrast threshold is 7:1, and 2.1 is far below the softness band under it, so rule P1 removes the element outright with no roll: she did not fail to notice the link, it was never in her observation. This does not extend to Vera. Her threshold is 3:1 with a softness of 0.5, which puts 2.1 inside her band, so the outcome is resolved per run from the seed — in the stored observation the roll came out at 0.37 and the link survived as degraded, shown to her as Ar▒▒ive. Ada and Milo set no contrast threshold.",
+    "evidence": [
+      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0tp", "stepIndex": 2 },
+      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6hk", "stepIndex": 5 }
+    ],
+    "recommendation": "Raise the link to at least 7:1 against its background, or lift the archive out of the body text into a labelled entry in the section so reaching it does not depend on reading it.",
+    "personaIds": ["prof_zoya"]
+  },
+  {
+    "id": "fnd_deliveries-label-reads-as-current-only",
+    "taskId": "task_past-order",
+    "type": "hypothesis",
+    "title": "The section label may read as what is still on its way, so what has arrived is not looked for there",
+    "detail": "In four of six runs the Actor opened the section, read the list, left within two steps and did not return, then spent the rest of the budget elsewhere. The narration each time described the section as a list of what is still coming. This is the Actor's account of its own behaviour and was produced after the fact, so it is a reading of the runs, not a measurement, and it is not a claim about what people outside these runs would do.",
+    "evidence": [
+      { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6hk", "stepIndex": 7 },
+      { "runId": "run_01jbqn4h6bq8s3y1e7k2mtd9pw", "stepIndex": 6 }
+    ],
+    "recommendation": "Say in the label, or in the first line of the section, that it also holds what has already arrived.",
+    "personaIds": ["prof_vera", "prof_zoya"]
+  }
+]

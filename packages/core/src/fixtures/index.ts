@@ -13,8 +13,10 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import type { ZodType } from "zod";
 import { Action } from "../action.js";
+import { Finding } from "../finding.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
+import { Task } from "../task.js";
 
 /** Directory holding the persona YAML files. */
 export const profilesFixtureDir = fileURLToPath(new URL("./profiles/", import.meta.url));
@@ -65,3 +67,15 @@ export const actionFixtures: Action[] = readJson("actions.json", Action.array())
  * link degraded, two elements removed, the rest visible.
  */
 export const observationFixture: FullObservation = readJson("observation.json", FullObservation);
+
+/** The two goals of the target app, easy first. See `tasks/m0-06-target-app.md`. */
+export const taskFixtures: Task[] = readJson("tasks.json", Task.array());
+
+export function taskFixture(id: string): Task {
+  const found = taskFixtures.find((t) => t.id === id);
+  if (!found) throw new Error(`No task fixture ${id}`);
+  return found;
+}
+
+/** One per member of `FINDING_TYPES`, in that order, all about the hard goal. */
+export const findingFixtures: Finding[] = readJson("findings.json", Finding.array());

@@ -18,10 +18,12 @@ import { ElementRef } from "./action.js";
 import {
   Bbox,
   ContrastRatio,
+  HttpUrl,
   MetricName,
   PerceptionState,
   Probability,
   RuleId,
+  StepIndex,
   Viewport,
 } from "./primitives.js";
 
@@ -147,9 +149,9 @@ export type ObservedElement = z.infer<typeof ObservedElement>;
  * does not know how many things they failed to see.
  */
 const header = {
-  url: z.url(),
+  url: HttpUrl,
   title: z.string(),
-  stepIndex: z.number().int().nonnegative(),
+  stepIndex: StepIndex,
   viewport: Viewport,
   hiddenCount: z.number().int().nonnegative(),
   belowFoldCount: z.number().int().nonnegative(),

@@ -21,8 +21,8 @@ Zod schemas for `Task` (goal plus deterministic success condition) and `Finding`
 ## Interface
 
 - In: nothing
-- Out: `Task`, `SuccessCondition`, `Finding`, `FindingType` schemas and types, `taskFixtures`, `findingFixtures`, exported from `@wayford/core`
-- Files expected to change: `packages/core/src/task.ts`, `packages/core/src/finding.ts`, fixtures and tests next to them
+- Out: `Task`, `SuccessCondition`, `Goal`, `Finding`, `FindingType`, `EvidenceRef` schemas and types, plus `PATH_WORDS` and `pathWordsIn`, from `@wayford/core`; `taskFixtures`, `taskFixture` and `findingFixtures` from `@wayford/core/fixtures`, the disk-reading entry point established by `m0-02` — a `node:fs` import in the barrel breaks the typecheck of `filter`, `agent`, `web` and `target-app`
+- Files expected to change: `packages/core/src/task.ts`, `packages/core/src/finding.ts`, fixtures and tests next to them, `packages/core/src/index.ts` and `packages/core/src/fixtures/index.ts`
 
 ## Constraints
 
@@ -34,10 +34,10 @@ Zod schemas for `Task` (goal plus deterministic success condition) and `Finding`
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes and includes `task.test.ts` and `finding.test.ts`
-- [ ] A test proves a `Finding` with empty `evidence` fails validation
-- [ ] A test proves a `Task` fixture goal contains none of: `click`, `menu`, `settings`, `->`, `→`, `tab`, `button`
-- [ ] Two task fixtures exist, matching the URL contract below. This task does not need the target app to exist.
+- [x] `pnpm --filter @wayford/core test` passes and includes `task.test.ts` and `finding.test.ts` — `Test Files 12 passed`, `Tests 133 passed` across the workspace; `pnpm typecheck` and `biome check .` clean
+- [x] A test proves a `Finding` with empty `evidence` fails validation — `finding.test.ts`, "a finding with no evidence does not validate"
+- [x] A test proves a `Task` fixture goal contains none of: `click`, `menu`, `settings`, `->`, `→`, `tab`, `button` — `task.test.ts`, "no fixture goal contains a path word", checked as literal substrings against `PATH_WORDS` rather than through the matcher
+- [x] Two task fixtures exist, matching the URL contract below. This task does not need the target app to exist. — `task.test.ts`, "both match the url contract of tasks/m0-04-task-finding-schemas.md"
 
 
 ## Target app URL contract (fixed here, do not invent)
