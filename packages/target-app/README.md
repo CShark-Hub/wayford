@@ -2,6 +2,10 @@
 
 Quillmere, a small, domain-neutral and fictional "my account" shop to walk. It has one easy goal and one hard one, and query parameters tune the hard link, so the filter, the preview and the sweep all have a stable target.
 
+![Deliveries, with the faint Order archive link outlined](docs/screenshots/04b-deliveries-annotated.png)
+
+![The hard link at contrast 2, 3, 4.5 and 7](docs/screenshots/07-contrast-strip.png)
+
 ```bash
 pnpm --filter @wayford/target-app dev
 ```
@@ -21,7 +25,7 @@ The URL contract from `tasks/m0-06-target-app.md`, also defined in `src/pages.ts
 | `/deliveries/archive` | `deliveries/archive.html` | **hard goal page**, linked only from `/deliveries` |
 | `/settings` | `settings.html` | a plausible wrong turn ("order history" is mentioned, not linked) |
 
-A path that matches no page or file returns 404 (`appType: "mpa"`), never the home page. The dev server also serves files as they are (`/deliveries/archive.html`, `/package.json`), so the goal globs below match only the extensionless page paths.
+A path that matches no page or file returns 404 (`appType: "mpa"`), never the home page. The dev server also serves the files themselves (`/deliveries/archive.html` returns the archive page), but the goal globs below match only the extensionless paths, so reaching a `.html` file is not success.
 
 ## Goals
 
@@ -51,8 +55,9 @@ Missing or unparsable values fall back to the defaults, and out-of-range values,
 - A URL that sets any parameter decides alone. Parameters it omits take their defaults, and the result is saved to `sessionStorage` under `wayford-target-params`.
 - Once saved, the script removes them from the address bar (`history.replaceState`), so the Actor never reads `?contrast=` in a URL. If saving fails they stay, so a reload still renders the same page.
 - A URL without parameters uses what the tab saved. So links stay plain paths, goal globs such as `**/deliveries/archive` match after navigation, and the setting survives reloads.
-- Because of this, `page.url()` never shows the parameters, even right after `goto`. A harness records the URL it passed to `goto` as the run's parameters. To change one parameter, pass all three: omitted ones reset to their defaults.
-- A fresh browser context starts from the defaults, so give every run its own context. PLAN F6 AC1 already does this for the parallel ring runs.
+- Because they leave the address bar, after a `goto` that waits for `load` (the default) or `domcontentloaded`, `page.url()` no longer shows the parameters. A harness records the URL it passed to `goto` as the run's parameters.
+- Omitted parameters reset to their defaults, not to what the tab saved, so repeat any non-default value you want to keep.
+- Saved parameters belong to the tab, not the browser context: a new tab starts from the defaults. Start every run from a URL that carries all three parameters, so no run depends on what its tab saved and the recorded URL is the whole setting.
 
 ## Other properties
 
