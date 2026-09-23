@@ -3,7 +3,7 @@
  * variables, so a parameter change moves exactly one element across a threshold.
  */
 :root {
-  --fg: #999999;
+  --fg: #b7b7b7;
   --bg: #ffffff;
   --font-size: 13px;
   --target-size: 20px;

@@ -19,7 +19,7 @@ export type ParamName = keyof TargetParams;
 export const PARAM_NAMES: readonly ParamName[] = ["contrast", "fontPx", "targetPx"];
 
 /** Below Vera's 3:1, 16 px and 32 px thresholds on purpose: the hard link fails by default. */
-export const DEFAULT_PARAMS: TargetParams = { contrast: 2.5, fontPx: 13, targetPx: 20 };
+export const DEFAULT_PARAMS: TargetParams = { contrast: 2, fontPx: 13, targetPx: 20 };
 
 const LIMITS: Record<ParamName, readonly [number, number]> = {
   contrast: [1, 21],

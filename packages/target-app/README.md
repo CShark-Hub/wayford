@@ -36,7 +36,7 @@ These are exported as `GOALS`. Both succeed on URL alone:
 
 | Parameter | Default | Range | Sets | Effect |
 |---|---|---|---|---|
-| `contrast` | `2.5` | 1–21 | `--fg` (against `--bg`) | WCAG contrast of the hard link text. The grey chosen is the lightest one that reaches the ratio, never below it. |
+| `contrast` | `2` | 1–21 | `--fg` (against `--bg`) | WCAG contrast of the hard link text. The grey chosen is the lightest one that reaches the ratio, never below it. |
 | `fontPx` | `13` | 6–72 | `--font-size` | font size of the hard link |
 | `targetPx` | `20` | 8–96 | `--target-size` | height of the hard link's box, its smaller side |
 

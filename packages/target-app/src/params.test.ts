@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { DEFAULT_PARAMS, hasParams, parseParams, themeVariables } from "./params.js";
 
@@ -44,8 +46,18 @@ describe("contrast from the CSS variables", () => {
     }
   });
 
-  test("the default is below the 3:1 anchor", () => {
+  // Checked by eye: 3:1 is findable if you look, 2:1 is genuinely hard to notice.
+  test("the default is 2:1, below the 3:1 anchor", () => {
+    expect(contrastFor("")).toBeCloseTo(2, 1);
     expect(contrastFor("")).toBeLessThan(3);
+  });
+
+  test("the CSS fallback matches the default, so the page looks the same before the script runs", () => {
+    const css = readFileSync(fileURLToPath(new URL("./style.css", import.meta.url)), "utf8");
+    const vars = themeVariables(DEFAULT_PARAMS);
+    for (const [name, value] of Object.entries(vars)) {
+      expect(css).toContain(`${name}: ${value};`);
+    }
   });
 });
 
