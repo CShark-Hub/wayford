@@ -5,8 +5,8 @@
 :root {
   --fg: #b7b7b7;
   --bg: #ffffff;
-  --font-size: 13px;
-  --target-size: 20px;
+  --font-size: 16px;
+  --target-size: 36px;
 
   --page-bg: #ffffff;
   --text: #1f2328;
@@ -68,7 +68,7 @@ a {
 }
 
 .site-nav a:hover,
-.site-nav a[aria-current="page"] {
+.site-nav a[aria-current] {
   background: #e7ecf0;
 }
 
@@ -172,13 +172,13 @@ h1 {
 .section-footer {
   margin-top: 32px;
   padding-top: 8px;
-  background: var(--bg);
 }
 
-/* The one tunable element. Its box height is `--target-size` whenever the font fits in it. */
+/* The one tunable element. Its smaller side is `--target-size` whenever the font fits in it. */
 .hard-link {
   display: inline-flex;
   align-items: center;
+  min-width: var(--target-size);
   min-height: var(--target-size);
   padding: 0;
   font-size: var(--font-size);
@@ -193,7 +193,6 @@ h1 {
   margin: 0 auto;
   padding: 24px;
   color: var(--muted);
-  font-size: 14px;
 }
 
 @media (max-width: 640px) {

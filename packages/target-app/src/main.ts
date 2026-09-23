@@ -1,30 +1,39 @@
 import "./style.css";
-import { hasParams, parseParams, type TargetParams, themeVariables } from "./params.js";
+import {
+  hasParams,
+  PARAM_NAMES,
+  type ParamStore,
+  resolveParams,
+  STORAGE_KEY,
+  themeVariables,
+} from "./params.js";
 
-// Parameters set on the first page are kept for the rest of the tab, so links stay plain
-// paths and `urlMatches` globs like `**/deliveries/archive` still match after navigation.
-const STORAGE_KEY = "wayford-target-params";
-
-function storedParams(): Partial<TargetParams> {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Partial<TargetParams>) : {};
-  } catch {
-    return {};
-  }
+let store: ParamStore | undefined;
+try {
+  store = window.sessionStorage;
+} catch {
+  // Storage blocked: each page renders its own query, or the defaults.
 }
 
-const params = parseParams(window.location.search, storedParams());
-if (hasParams(window.location.search)) {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(params));
-  } catch {
-    // Storage blocked: the parameters still apply to this page.
-  }
-}
-
+const params = resolveParams(window.location.search, store);
 for (const [name, value] of Object.entries(themeVariables(params))) {
   document.documentElement.style.setProperty(name, value);
+}
+
+// Once stored, the parameters leave the address bar, so the Actor never reads `?contrast=` in a
+// URL. If storing failed they stay, so a reload still renders the same page.
+function stored(): boolean {
+  try {
+    return store?.getItem(STORAGE_KEY) === JSON.stringify(params);
+  } catch {
+    return false;
+  }
+}
+
+if (hasParams(window.location.search) && stored()) {
+  const url = new URL(window.location.href);
+  for (const name of PARAM_NAMES) url.searchParams.delete(name);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 const toggle = document.querySelector<HTMLButtonElement>("#menu-toggle");

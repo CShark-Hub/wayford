@@ -20,6 +20,7 @@ export const PAGES: readonly Page[] = [
 
 export interface Goal {
   id: "easy" | "hard";
+  /** Documentation only: the goal sentence from the contract, mirrored in core `tasks.json`. */
   sentence: string;
   /** Playwright glob for `urlMatches`. */
   pattern: string;

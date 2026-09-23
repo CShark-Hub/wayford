@@ -4,20 +4,41 @@ import { describe, expect, test } from "vitest";
 import { GOALS, PAGES } from "./pages.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const html = (file: string): string => readFileSync(`${root}${file}`, "utf8");
+const source = (file: string): string => readFileSync(`${root}${file}`, "utf8");
+/** Page markup without comments, so a commented-out link never counts as a route. */
+const html = (file: string): string => source(file).replace(/<!--[\s\S]*?-->/g, "");
 const paths = PAGES.map((page) => page.path);
+
+/** Text a reader or the accessibility tree gets: tags and `aria-hidden` decoration removed. */
+function visibleText(markup: string): string {
+  return markup
+    .replace(/<span aria-hidden="true">[^<]*<\/span>/g, "")
+    .replace(/<[^>]*>/g, "")
+    .trim();
+}
+
+/** Whole-token class match: `hard-link` is not `no-hard-link`, and `data-class` is ignored. */
+function hasClass(attrs: string, name: string): boolean {
+  const value = /(?:^|\s)class=["']([^"']*)["']/.exec(attrs)?.[1] ?? "";
+  return value.split(/\s+/).includes(name);
+}
 
 /** Every `<a href>` on a page as `{ href, attrs, text }`. Plain regex: the markup is ours. */
 function links(file: string): { href: string; attrs: string; text: string }[] {
   return [...html(file).matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((m) => {
     const attrs = m[1] ?? "";
     return {
-      href: /href="([^"]*)"/.exec(attrs)?.[1] ?? "",
+      href: /href=["']([^"']*)["']/.exec(attrs)?.[1] ?? "",
       attrs,
-      text: (m[2] ?? "").replace(/<[^>]*>/g, "").trim(),
+      text: visibleText(m[2] ?? ""),
     };
   });
 }
+
+const bigLinks = (file: string): string[] =>
+  links(file)
+    .filter((l) => hasClass(l.attrs, "big-link"))
+    .map((l) => l.href);
 
 /** Breadth-first walk from `/` over links, optionally skipping one class. */
 function reachable(skipClass?: string): Set<string> {
@@ -28,7 +49,7 @@ function reachable(skipClass?: string): Set<string> {
     const page = PAGES.find((p) => p.path === current);
     if (!page) continue;
     for (const link of links(page.file)) {
-      if (skipClass && link.attrs.includes(`class="${skipClass}"`)) continue;
+      if (skipClass && hasClass(link.attrs, skipClass)) continue;
       if (!seen.has(link.href)) {
         seen.add(link.href);
         queue.push(link.href);
@@ -56,52 +77,77 @@ describe("URL contract", () => {
     for (const goal of GOALS) expect(seen).toContain(goal.path);
   });
 
-  test("the easy goal is two clicks from home", () => {
-    const fromHome = links("index.html").map((l) => l.href);
-    const fromAccount = links("account.html").map((l) => l.href);
-    expect(fromHome).toContain("/account");
-    expect(fromAccount).toContain("/account/address");
+  test("the easy goal is two clicks from home through large links", () => {
+    expect(bigLinks("index.html")).toContain("/account");
+    expect(bigLinks("account.html")).toContain("/account/address");
   });
 
-  test("the hard goal is reached only through the hard link", () => {
+  test("deliveries, where 'parcel' pulls people first, also has a large link to the easy goal", () => {
+    expect(bigLinks("deliveries.html")).toContain("/account/address");
+  });
+
+  test("the hard goal is reached only through the one hard link, on deliveries", () => {
     expect(reachable("hard-link")).not.toContain("/deliveries/archive");
     const hardLinks = PAGES.flatMap((p) =>
       links(p.file)
-        .filter((l) => l.attrs.includes('class="hard-link"'))
-        .map((l) => ({ ...l, file: p.file })),
+        .filter((l) => hasClass(l.attrs, "hard-link"))
+        .map((l) => ({ href: l.href, file: p.file })),
     );
-    expect(hardLinks).toEqual([expect.objectContaining({ file: "deliveries.html" })]);
-    expect(hardLinks[0]?.href).toBe("/deliveries/archive");
+    expect(hardLinks).toEqual([{ href: "/deliveries/archive", file: "deliveries.html" }]);
   });
 
-  test("goal patterns match their own path and nothing else", () => {
+  test("goal patterns are `**` plus their path, and no other contract path ends that way", () => {
     for (const goal of GOALS) {
-      const suffix = goal.pattern.replace("**", "");
-      expect(paths.filter((p) => p.endsWith(suffix))).toEqual([goal.path]);
+      expect(goal.pattern).toBe(`**${goal.path}`);
+      expect(paths.filter((p) => p.endsWith(goal.path))).toEqual([goal.path]);
     }
   });
 });
 
-describe("accessible names", () => {
+describe("markup", () => {
+  test.each(PAGES)("$file ships no HTML comments and no inline styles", ({ file }) => {
+    expect(source(file)).not.toContain("<!--");
+    expect(source(file)).not.toMatch(/\sstyle\s*=/i);
+  });
+
+  test.each(PAGES)("$file is branded as the fictional Quillmere", ({ file }) => {
+    const markup = html(file);
+    expect(markup).toMatch(/<title>[^<]+ · Quillmere<\/title>/);
+    expect(markup).toContain(
+      '<footer class="site-footer">Quillmere is a fictional demo shop. Not a real service.</footer>',
+    );
+  });
+
   test.each(PAGES)("$file: every link and button has visible text", ({ file }) => {
     for (const link of links(file)) expect(link.text, link.href).not.toBe("");
     for (const m of html(file).matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/g)) {
-      const text = (m[1] ?? "").replace(/<span aria-hidden="true">[^<]*<\/span>/g, "");
-      expect(text.replace(/<[^>]*>/g, "").trim()).not.toBe("");
+      expect(visibleText(m[1] ?? "")).not.toBe("");
     }
   });
 
-  test.each(PAGES)("$file: every checkbox sits inside a label", ({ file }) => {
-    const source = html(file);
-    const inputs = source.match(/<input\b/g)?.length ?? 0;
-    const labelled = source.match(/<label\b[^>]*>\s*<input\b/g)?.length ?? 0;
-    expect(labelled).toBe(inputs);
+  test.each(PAGES)("$file: every checkbox sits inside a label with text", ({ file }) => {
+    const markup = html(file);
+    const inputs = markup.match(/<input\b/g)?.length ?? 0;
+    const labels = [...markup.matchAll(/<label\b[^>]*>\s*<input\b[^>]*>([\s\S]*?)<\/label>/g)];
+    expect(labels).toHaveLength(inputs);
+    for (const label of labels) expect(visibleText(label[1] ?? "")).not.toBe("");
   });
 
   test.each(PAGES)("$file: one mobile menu toggle, wired to the nav", ({ file }) => {
-    const source = html(file);
-    expect(source.match(/id="menu-toggle"/g)).toHaveLength(1);
-    expect(source).toContain('aria-controls="site-nav"');
-    expect(source).toContain('id="site-nav"');
+    const markup = html(file);
+    expect(markup.match(/id="menu-toggle"/g)).toHaveLength(1);
+    expect(markup).toContain('aria-controls="site-nav"');
+    expect(markup).toContain('id="site-nav"');
   });
+
+  test.each(PAGES)(
+    "$file: the nav marks its own section, `location` on sub-pages",
+    ({ path, file }) => {
+      const section = `/${path.split("/")[1] ?? ""}`;
+      const marked = links(file).filter((l) => /aria-current=/.test(l.attrs));
+      expect(marked.map((l) => l.href)).toEqual([section]);
+      const kind = path === section ? "page" : "location";
+      expect(marked[0]?.attrs).toContain(`aria-current="${kind}"`);
+    },
+  );
 });
