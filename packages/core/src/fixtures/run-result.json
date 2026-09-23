@@ -1,0 +1,404 @@
+{
+  "id": "run_vera-hard-1",
+  "taskId": "task_older-orders",
+  "profileId": "prof_vera",
+  "seed": 424242,
+  "runIndex": 1,
+  "steps": [
+    {
+      "stepIndex": 0,
+      "fullObservation": {
+        "url": "http://localhost:5174/",
+        "title": "Home",
+        "stepIndex": 0,
+        "viewport": {
+          "width": 1280,
+          "height": 800,
+          "deviceScaleFactor": 1,
+          "isMobile": false
+        },
+        "hiddenCount": 0,
+        "belowFoldCount": 0,
+        "elements": [
+          {
+            "ref": "e1",
+            "key": "banner//link:Home",
+            "role": "link",
+            "name": "Home",
+            "bbox": {
+              "x": 24,
+              "y": 16,
+              "width": 64,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e2",
+            "key": "banner/navigation:Main//link:Account",
+            "role": "link",
+            "name": "Account",
+            "bbox": {
+              "x": 104,
+              "y": 16,
+              "width": 72,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e3",
+            "key": "banner/navigation:Main//link:Deliveries",
+            "role": "link",
+            "name": "Deliveries",
+            "bbox": {
+              "x": 192,
+              "y": 16,
+              "width": 88,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e4",
+            "key": "banner/navigation:Main//link:Settings",
+            "role": "link",
+            "name": "Settings",
+            "bbox": {
+              "x": 296,
+              "y": 16,
+              "width": 76,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          }
+        ]
+      },
+      "actorObservationText": "Page: Home\nURL: http://localhost:5174/\nViewport: 1280 x 800\n[e1] link \"Home\" at 24,16\n[e2] link \"Account\" at 104,16\n[e3] link \"Deliveries\" at 192,16\n[e4] link \"Settings\" at 296,16",
+      "action": {
+        "type": "click",
+        "ref": "e3"
+      },
+      "narration": "I want to see something I ordered a while back. Deliveries sounds like the place.",
+      "screenshotPath": "runs/run_vera-hard-1/step-0.png",
+      "urlBefore": "http://localhost:5174/",
+      "urlAfter": "http://localhost:5174/deliveries"
+    },
+    {
+      "stepIndex": 1,
+      "fullObservation": {
+        "url": "http://localhost:5174/deliveries",
+        "title": "Deliveries",
+        "stepIndex": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 800,
+          "deviceScaleFactor": 1,
+          "isMobile": false
+        },
+        "hiddenCount": 1,
+        "belowFoldCount": 2,
+        "elements": [
+          {
+            "ref": "e1",
+            "key": "banner/navigation:Main//link:Home",
+            "role": "link",
+            "name": "Home",
+            "bbox": {
+              "x": 24,
+              "y": 16,
+              "width": 64,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e2",
+            "key": "banner/navigation:Main//link:Deliveries",
+            "role": "link",
+            "name": "Deliveries",
+            "bbox": {
+              "x": 192,
+              "y": 16,
+              "width": 88,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e3",
+            "key": "banner/navigation:Main//link:Settings",
+            "role": "link",
+            "name": "Settings",
+            "bbox": {
+              "x": 296,
+              "y": 16,
+              "width": 76,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "key": "main//button:Sort by date",
+            "role": "button",
+            "name": "Sort by date",
+            "bbox": {
+              "x": 720,
+              "y": 100,
+              "width": 96,
+              "height": 32
+            },
+            "metrics": {
+              "contrast": 4.8,
+              "fontPx": 11,
+              "targetPx": 32
+            },
+            "state": "invisible",
+            "decision": {
+              "rule": "P3",
+              "metric": "fontPx",
+              "value": 11,
+              "threshold": 16
+            }
+          },
+          {
+            "ref": "e4",
+            "key": "main//link:Archive",
+            "role": "link",
+            "name": "Archive",
+            "bbox": {
+              "x": 640,
+              "y": 412,
+              "width": 120,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 2.1,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "degraded",
+            "decision": {
+              "rule": "P1",
+              "metric": "contrast",
+              "value": 2.1,
+              "threshold": 3,
+              "rolled": 0.37
+            },
+            "maskedName": "Ar▒▒ive"
+          }
+        ]
+      },
+      "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Home\" at 24,16\n[e2] link \"Deliveries\" at 192,16\n[e3] link \"Settings\" at 296,16\n[e4] link \"Ar▒▒ive\" at 640,412, partly legible\n1 more elements not shown\n2 more below, scroll to see them",
+      "action": {
+        "type": "scroll",
+        "direction": "down"
+      },
+      "narration": "There is a faint link down the page I can barely make out. Let me look further before touching it.",
+      "screenshotPath": "runs/run_vera-hard-1/step-1.png",
+      "urlBefore": "http://localhost:5174/deliveries",
+      "urlAfter": "http://localhost:5174/deliveries"
+    },
+    {
+      "stepIndex": 2,
+      "fullObservation": {
+        "url": "http://localhost:5174/deliveries",
+        "title": "Deliveries",
+        "stepIndex": 2,
+        "viewport": {
+          "width": 1280,
+          "height": 800,
+          "deviceScaleFactor": 1,
+          "isMobile": false
+        },
+        "hiddenCount": 1,
+        "belowFoldCount": 0,
+        "elements": [
+          {
+            "ref": "e1",
+            "key": "banner/navigation:Main//link:Deliveries",
+            "role": "link",
+            "name": "Deliveries",
+            "bbox": {
+              "x": 192,
+              "y": 16,
+              "width": 88,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e2",
+            "key": "banner/navigation:Main//link:Settings",
+            "role": "link",
+            "name": "Settings",
+            "bbox": {
+              "x": 296,
+              "y": 16,
+              "width": 76,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e3",
+            "key": "main//link:Archive",
+            "role": "link",
+            "name": "Archive",
+            "bbox": {
+              "x": 640,
+              "y": 300,
+              "width": 120,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 2.1,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "degraded",
+            "decision": {
+              "rule": "P1",
+              "metric": "contrast",
+              "value": 2.1,
+              "threshold": 3,
+              "rolled": 0.44
+            },
+            "maskedName": "Ar▒▒ive"
+          }
+        ]
+      },
+      "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Deliveries\" at 192,16\n[e2] link \"Settings\" at 296,16\n[e3] link \"Ar▒▒ive\" at 640,300, partly legible\n1 more elements not shown",
+      "action": {
+        "type": "click",
+        "ref": "e2"
+      },
+      "diceRoll": 0.62,
+      "narration": "Still can't read that faint one. Settings probably keeps my order history.",
+      "screenshotPath": "runs/run_vera-hard-1/step-2.png",
+      "urlBefore": "http://localhost:5174/deliveries",
+      "urlAfter": "http://localhost:5174/settings"
+    },
+    {
+      "stepIndex": 3,
+      "fullObservation": {
+        "url": "http://localhost:5174/settings",
+        "title": "Settings",
+        "stepIndex": 3,
+        "viewport": {
+          "width": 1280,
+          "height": 800,
+          "deviceScaleFactor": 1,
+          "isMobile": false
+        },
+        "hiddenCount": 0,
+        "belowFoldCount": 0,
+        "elements": [
+          {
+            "ref": "e1",
+            "key": "banner/navigation:Main//link:Deliveries",
+            "role": "link",
+            "name": "Deliveries",
+            "bbox": {
+              "x": 192,
+              "y": 16,
+              "width": 88,
+              "height": 36
+            },
+            "metrics": {
+              "contrast": 12.6,
+              "fontPx": 16,
+              "targetPx": 36
+            },
+            "state": "visible"
+          },
+          {
+            "ref": "e2",
+            "key": "main//heading:Settings",
+            "role": "heading",
+            "name": "Settings",
+            "bbox": {
+              "x": 120,
+              "y": 96,
+              "width": 220,
+              "height": 40
+            },
+            "metrics": {
+              "contrast": 15.2,
+              "fontPx": 28
+            },
+            "state": "visible"
+          }
+        ]
+      },
+      "actorObservationText": "Page: Settings\nURL: http://localhost:5174/settings\nViewport: 1280 x 800\n[e1] link \"Deliveries\" at 192,16\n[e2] heading \"Settings\" at 120,96",
+      "action": {
+        "type": "giveUp"
+      },
+      "narration": "Nothing here about past orders either. I've looked everywhere I can read. I give up.",
+      "screenshotPath": "runs/run_vera-hard-1/step-3.png",
+      "urlBefore": "http://localhost:5174/settings",
+      "urlAfter": "http://localhost:5174/settings"
+    }
+  ],
+  "outcome": "gave_up",
+  "durationMs": 12500,
+  "videoPath": "runs/run_vera-hard-1/video.webm",
+  "tracePath": "runs/run_vera-hard-1/trace.zip",
+  "cost": {
+    "tokensIn": 5120,
+    "tokensOut": 880,
+    "usd": 0.0143
+  },
+  "modelIds": {
+    "extractor": "gpt-4o-mini",
+    "scout": "gpt-4o",
+    "actor": "gpt-4o-mini",
+    "analyst": "gpt-4o"
+  }
+}

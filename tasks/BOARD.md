@@ -13,7 +13,7 @@ Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you gr
 | m0-02 | Profile schema and fixtures | M | m0-01 | Tomasz | review |
 | m0-03 | Observation and Action schemas | L | m0-01 | Dawid | review |
 | m0-04 | Task and Finding schemas | M | m0-01 | Marcin | review |
-| m0-05 | RunEvent and RunResult schemas | M | m0-03 | | todo |
+| m0-05 | RunEvent and RunResult schemas | M | m0-03 | Grzegorz | review |
 | m0-06 | Demo target app | L | m0-01 | | todo |
 | m0-07 | API and web skeleton with SSE echo | M | m0-01, m0-05 | | todo |
 | m0-08 | Week 2 backlog and owners | M | m0-02..05 | | todo |

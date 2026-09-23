@@ -33,9 +33,9 @@ A zod schema for the live stream (`RunEvent`) and for the stored result (`RunRes
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes and includes `run.test.ts`
-- [ ] A test replays fixture events into a reducer and obtains a `RunResult` equal to the fixture result
-- [ ] Fixture serializes to JSON under 200 KB
+- [x] `pnpm --filter @wayford/core test` passes and includes `run.test.ts` — 96 tests across 5 files pass
+- [x] A test replays fixture events into a reducer and obtains a `RunResult` equal to the fixture result — `runResultFromEvents(runEventFixtures)` deep-equals `runResultFixture`
+- [x] Fixture serializes to JSON under 200 KB — `run-result.json` is ~11.5 KB
 
 ## Out of scope
 
