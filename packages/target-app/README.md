@@ -10,7 +10,7 @@ Quillmere, a small, domain-neutral and fictional "my account" shop to walk. It h
 pnpm --filter @wayford/target-app dev
 ```
 
-Serves on **http://localhost:5174** (`strictPort`, so it fails rather than moving). `vite preview` uses the same port.
+Serves on **http://localhost:5174** (`strictPort`, so it fails rather than moving). There is no `preview` script: to serve a production build on the same port, stop `dev`, then run `pnpm --filter @wayford/target-app build` and `pnpm --filter @wayford/target-app exec vite preview`.
 
 ## Pages
 
@@ -50,7 +50,7 @@ With the defaults, the font meets Vera's 16 px exactly (P3 compares with `>=`) a
 
 Missing or unparsable values fall back to the defaults, and out-of-range values, infinities included, are clamped.
 
-**Parameters live for the tab.** Put them on the start URL, e.g. `/?contrast=4.5`:
+**Parameters live for the tab.** Put all three on the start URL, e.g. `/?contrast=4.5&fontPx=16&targetPx=36`:
 
 - A URL that sets any parameter decides alone. Parameters it omits take their defaults, and the result is saved to `sessionStorage` under `wayford-target-params`.
 - Once saved, the script removes them from the address bar (`history.replaceState`), so the Actor never reads `?contrast=` in a URL. If saving fails they stay, so a reload still renders the same page.
@@ -68,3 +68,5 @@ Missing or unparsable values fall back to the defaults, and out-of-range values,
 - Other elements are below Vera's and Milo's target cuts whatever the parameters: the brand link (about 27 px tall), the plain text links such as "Go to deliveries" and "Back to deliveries" (about 21 px), and the 22 px checkboxes. Both goals stay reachable through the nav and the big links.
 - Three buttons ("Change delivery address", "Request a copy of my data", "Close my account") do nothing. Neither goal needs them.
 - `target-app` imports nothing from the workspace.
+
+Decisions, deviations from the task and open follow-ups: `tasks/m0-06-target-app.md`, sections Outcome and Follow-ups.

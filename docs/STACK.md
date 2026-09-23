@@ -68,7 +68,9 @@
 
 ## Target app
 
-Plain HTML, CSS variables, one small script for query parameters. Vite for serving only. No framework, no router.
+Plain HTML, CSS variables, one small script for the query parameters and the mobile menu. Vite for serving only. No framework, no router.
+
+Using it from a harness, preview or sweep: put all three parameters (`contrast`, `fontPx`, `targetPx`) on the start URL of every run, e.g. `http://localhost:5174/?contrast=3&fontPx=16&targetPx=36`. `Task.startUrl` in the core fixtures is the bare `http://localhost:5174/`, so the harness appends the run's parameters instead of calling `goto(task.startUrl)` unchanged. The page keeps them in `sessionStorage` for the tab and removes them from the address bar, so links stay plain paths and the `urlMatches` goal globs match. Record the URL passed to `goto`, not `page.url()`. Full contract: `packages/target-app/README.md`.
 
 ## Recording and evidence
 
