@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deliveries · Homebase</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Homebase</a>
+      <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span aria-hidden="true">☰</span> Menu
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/account">Your account</a></li>
+          <li><a href="/deliveries" aria-current="page">Deliveries</a></li>
+          <li><a href="/settings">Settings</a></li>
+        </ul>
+      </nav>
+    </header>
+    <main>
+      <h1>Deliveries</h1>
+      <p class="lead">Parcels on the way and how you like to receive them.</p>
+      <h2>On the way</h2>
+      <ul class="plain-list">
+        <li>1 parcel in transit, expected Friday between 10:00 and 14:00.</li>
+      </ul>
+      <h2>Delivery preferences</h2>
+      <label class="field"><input type="checkbox" checked /> Leave with a neighbour if I am out</label>
+      <label class="field"><input type="checkbox" /> Text me on the day of delivery</label>
+      <!-- The only way to the hard goal. It alone reads --fg, --bg, --font-size, --target-size. -->
+      <div class="section-footer">
+        <a class="hard-link" href="/deliveries/archive">Order archive</a>
+      </div>
+    </main>
+    <footer class="site-footer">Homebase demo app. Not a real service.</footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

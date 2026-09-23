@@ -35,10 +35,10 @@ A small static web app with a handful of pages and one intentional wayfinding pr
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/target-app dev` serves the app on the documented port
-- [ ] Opening `/?contrast=2` renders the hard link with a contrast ratio near 2:1 and `/?contrast=7` near 7:1, verified by a vitest test that computes contrast from the CSS variables
-- [ ] Every path in the URL contract below resolves, and the two goal pages are reachable. This task does not need the task fixtures to exist.
-- [ ] A short `README.md` in the package lists pages, goals and parameters
+- [x] `pnpm --filter @wayford/target-app dev` serves the app on the documented port — 5174, `strictPort`
+- [x] Opening `/?contrast=2` renders the hard link with a contrast ratio near 2:1 and `/?contrast=7` near 7:1, verified by a vitest test that computes contrast from the CSS variables — `params.test.ts`; measured in the browser at 2.006 and 7.005
+- [x] Every path in the URL contract below resolves, and the two goal pages are reachable. This task does not need the task fixtures to exist. — `pages.test.ts`; all six return 200 from the dev server, unknown paths 404
+- [x] A short `README.md` in the package lists pages, goals and parameters
 
 
 ## Target app URL contract (fixed here, do not invent)

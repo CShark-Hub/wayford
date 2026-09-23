@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings · Homebase</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Homebase</a>
+      <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span aria-hidden="true">☰</span> Menu
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/account">Your account</a></li>
+          <li><a href="/deliveries">Deliveries</a></li>
+          <li><a href="/settings" aria-current="page">Settings</a></li>
+        </ul>
+      </nav>
+    </header>
+    <main>
+      <h1>Settings</h1>
+      <p class="lead">Choose how we contact you and what we keep.</p>
+      <h2>Notifications</h2>
+      <label class="field"><input type="checkbox" checked /> Email me about my orders</label>
+      <label class="field"><input type="checkbox" /> Email me offers and news</label>
+      <h2>Privacy and data</h2>
+      <p>We keep your order history for as long as your account is open.</p>
+      <p><button class="button" type="button">Request a copy of my data</button></p>
+      <p><button class="button" type="button">Close my account</button></p>
+    </main>
+    <footer class="site-footer">Homebase demo app. Not a real service.</footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
