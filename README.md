@@ -24,6 +24,7 @@ pnpm test        # vitest across all packages
 pnpm lint        # Biome, also enforces package import rules
 pnpm typecheck   # tsc --noEmit in every package
 pnpm dev         # io on 3000, web on 5173, target-app on 5174
+pnpm --filter @wayford/io db:migrate   # creates packages/io/wayford.sqlite
 ```
 
-Copy `.env.example` to `.env` before running `io`.
+Copy `.env.example` to `.env`, both at the repository root, before running `io`.
