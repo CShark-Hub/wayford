@@ -3,10 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Target app</title>
+    <title>Home · Quillmere</title>
   </head>
   <body>
-    <main id="app"></main>
+    <header class="site-header">
+      <a class="brand" href="/">Quillmere</a>
+      <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span aria-hidden="true">☰</span> Menu
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="/" aria-current="page">Home</a></li>
+          <li><a href="/account">Your account</a></li>
+          <li><a href="/deliveries">Deliveries</a></li>
+          <li><a href="/settings">Settings</a></li>
+        </ul>
+      </nav>
+    </header>
+    <main>
+      <h1>Welcome back, Sam</h1>
+      <p class="lead">Everything about your account in one place.</p>
+      <ul class="cards">
+        <li class="card">
+          <h2>Your account</h2>
+          <p>Personal details, contact information and addresses.</p>
+          <a class="big-link" href="/account">Your account</a>
+        </li>
+        <li class="card">
+          <h2>Deliveries</h2>
+          <p>Parcels on the way and delivery preferences.</p>
+          <a href="/deliveries">Go to deliveries</a>
+        </li>
+        <li class="card">
+          <h2>Settings</h2>
+          <p>Notifications, privacy and your data.</p>
+          <a href="/settings">Open settings</a>
+        </li>
+      </ul>
+    </main>
+    <footer class="site-footer">Quillmere is a fictional demo shop. Not a real service.</footer>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

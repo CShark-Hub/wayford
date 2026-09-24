@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your account · Quillmere</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Quillmere</a>
+      <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span aria-hidden="true">☰</span> Menu
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/account" aria-current="page">Your account</a></li>
+          <li><a href="/deliveries">Deliveries</a></li>
+          <li><a href="/settings">Settings</a></li>
+        </ul>
+      </nav>
+    </header>
+    <main>
+      <h1>Your account</h1>
+      <p class="lead">Keep your details up to date.</p>
+      <ul class="cards">
+        <li class="card">
+          <h2>Delivery address</h2>
+          <p>Where your parcels are sent.</p>
+          <a class="big-link" href="/account/address">Delivery address</a>
+        </li>
+        <li class="card">
+          <h2>Personal details</h2>
+          <p>Name: Sam Taylor<br />Email: sam@example.com</p>
+        </li>
+        <li class="card">
+          <h2>Recent activity</h2>
+          <p>Signed in from a new browser 2 days ago.</p>
+        </li>
+      </ul>
+    </main>
+    <footer class="site-footer">Quillmere is a fictional demo shop. Not a real service.</footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

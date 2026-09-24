@@ -10,6 +10,7 @@ Depends on: m0-02, m0-03, m0-04, m0-05
 Read first, in this order:
 
 - `docs/ROADMAP.md` week 2 exit criteria
+- `tasks/m0-06-target-app.md` section Follow-ups, and the items raised by `m0-06` under "Open decisions that need the team" in `docs/KICKOFF.md`: week 1 carry-overs that need a week 2 task or a team decision
 - `tasks/TEMPLATE.md` and `tasks/README.md`
 - All merged schemas in `packages/core`
 
