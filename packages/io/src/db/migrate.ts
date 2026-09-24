@@ -1,0 +1,11 @@
+/**
+ * `pnpm --filter @wayford/io db:migrate`: create the SQLite file `DATABASE_URL`
+ * names, if it is missing, and apply every pending migration.
+ */
+import { resolve } from "node:path";
+import { loadConfigFromEnvFile } from "../config.js";
+import { migrateDatabase, sqliteFilePath } from "./database.js";
+
+const { DATABASE_URL } = loadConfigFromEnvFile();
+migrateDatabase(DATABASE_URL);
+console.log(`migrated ${resolve(sqliteFilePath(DATABASE_URL))}`);
