@@ -35,7 +35,7 @@ Second wave, after the first merges: `m0-05` (Dev 2), `m0-07` (Dev 3 takes web, 
 ## How to run a task
 
 1. Claim it: put your name in `tasks/BOARD.md`, status `doing`, commit straight to `main`. Ten seconds, prevents two people on one task.
-2. Branch: `git checkout -b m0-03-observation` (branch name starts with the task id).
+2. Branch: `git checkout -b feature/s2-01-llm-adapter` (`feature/`, the task id, a short slug).
 3. Start your agent with this, and nothing else:
 
    ```

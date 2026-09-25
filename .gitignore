@@ -4,5 +4,6 @@ dist/
 .env
 *.tsbuildinfo
 coverage/
+.claude/worktrees/
 *.sqlite
 *.sqlite-*

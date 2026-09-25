@@ -49,7 +49,7 @@ One error class per package boundary, `WayfordError` in `core` with a `code` str
 
 ## Git
 
-- Branch per task, named after the task id: `m0-03-observation`.
+- Branch per task, `feature/<task-id>-<slug>`: `feature/s2-01-llm-adapter`. Week 1 branches predate the prefix.
 - Commit messages: imperative, one line under 72 characters, body if the why is not obvious.
 - One PR per task. Title starts with the task id. Body links the task file.
 - Reviewer from a different stream. Two reviewers for `packages/core`.
