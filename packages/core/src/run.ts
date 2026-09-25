@@ -22,7 +22,7 @@
 import { z } from "zod";
 import { Action } from "./action.js";
 import { FullObservation, renderObservationForModel, toActorObservation } from "./observation.js";
-import { Probability, ProfileId, RunId, Seed, TaskId } from "./primitives.js";
+import { HttpUrl, Probability, ProfileId, RunId, Seed, TaskId } from "./primitives.js";
 
 // ---------------------------------------------------------------------------
 // Roles, cost, outcome
@@ -108,8 +108,8 @@ export type RunStep = z.infer<typeof RunStep>;
 // ---------------------------------------------------------------------------
 
 /**
- * The record at rest. `seed`, `runIndex` and the ids make one run reproducible
- * and addressable; `videoPath` and `tracePath` are the recording (`F12`);
+ * The record at rest. `seed`, `runIndex`, `startUrl` and the ids make one run
+ * reproducible and addressable; `videoPath` and `tracePath` are the recording (`F12`);
  * `cost` and `modelIds` are the provenance the report needs.
  */
 export const RunResult = z
@@ -119,6 +119,12 @@ export const RunResult = z
     profileId: ProfileId,
     seed: Seed,
     runIndex: z.number().int().nonnegative(),
+    /** Exactly the URL passed to `goto`, target parameters included. Not
+     *  `page.url()`: the target app strips its parameters from the address bar
+     *  (`packages/target-app/README.md`), so the first observation's URL is not
+     *  it. Not `Task.startUrl` either: the harness appends the run's target
+     *  parameters to it (`s2-02`). */
+    startUrl: HttpUrl,
     steps: z.array(RunStep),
     outcome: RunOutcome,
     durationMs: z.number().int().nonnegative(),
@@ -160,7 +166,8 @@ const eventBase = {
 };
 
 export const RunEvent = z.discriminatedUnion("type", [
-  /** The run opens. Carries everything the result is keyed by. */
+  /** The run opens. Carries everything the result is keyed by, and the inputs
+   *  fixed before the first step (`seed`, `startUrl`). */
   z
     .object({
       ...eventBase,
@@ -169,6 +176,7 @@ export const RunEvent = z.discriminatedUnion("type", [
       profileId: ProfileId,
       seed: Seed,
       runIndex: z.number().int().nonnegative(),
+      startUrl: HttpUrl,
       modelIds: ModelIds,
     })
     .strict(),
@@ -337,6 +345,7 @@ export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
     profileId: start.profileId,
     seed: start.seed,
     runIndex: start.runIndex,
+    startUrl: start.startUrl,
     steps,
     outcome: terminal.type === "runFailed" ? "error" : terminal.outcome,
     durationMs: terminal.durationMs,

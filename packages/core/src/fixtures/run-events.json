@@ -8,6 +8,7 @@
     "profileId": "prof_vera",
     "seed": 424242,
     "runIndex": 1,
+    "startUrl": "http://localhost:5174/?contrast=2&fontPx=16&targetPx=36",
     "modelIds": {
       "extractor": "gpt-4o-mini",
       "scout": "gpt-4o",

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { runEventFixtures, runResultFixture } from "./fixtures/index.js";
+import { runEventFixtures, runResultFixture, taskFixtures } from "./fixtures/index.js";
 import {
   RUN_EVENT_TYPES,
   RUN_OUTCOMES,
@@ -77,6 +77,24 @@ describe("RunResult and RunEvent schemas", () => {
     ).toBe(false);
   });
 
+  test("startUrl is required on runStarted and on RunResult", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    const { startUrl: _eventUrl, ...startedWithout } = started;
+    const { startUrl: _resultUrl, ...resultWithout } = runResultFixture;
+    expect(RunEvent.safeParse(startedWithout).success).toBe(false);
+    expect(RunResult.safeParse(resultWithout).success).toBe(false);
+  });
+
+  test("startUrl must be an http(s) URL", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    expect(RunEvent.safeParse({ ...started, startUrl: "localhost:5174" }).success).toBe(false);
+    expect(RunEvent.safeParse({ ...started, startUrl: "http:///account" }).success).toBe(false);
+  });
+
   test("a step's diceRoll is a probability when present", () => {
     const withRoll = runResultFixture.steps.find((s) => s.diceRoll !== undefined);
     expect(withRoll).toBeDefined();
@@ -100,6 +118,14 @@ describe("the fixture run", () => {
     const invisible = step.fullObservation.elements.filter((e) => e.state === "invisible");
     expect(invisible.length).toBeGreaterThan(0);
     expect(step.actorObservationText).not.toContain(invisible[0]?.name ?? "");
+  });
+
+  test("the start URL is the goto URL, all three target parameters included", () => {
+    expect(runResultFixture.startUrl).toBe(
+      "http://localhost:5174/?contrast=2&fontPx=16&targetPx=36",
+    );
+    // Not a task's bare start URL: the harness appends the run's parameters.
+    expect(taskFixtures.map((t) => t.startUrl)).not.toContain(runResultFixture.startUrl);
   });
 
   test("serializes to JSON well under 200 KB", () => {
@@ -129,6 +155,16 @@ describe("runResultFromEvents", () => {
     }
   });
 
+  test("carries startUrl from runStarted, not from the first observation", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    const result = runResultFromEvents(runEventFixtures);
+    expect(result.startUrl).toBe(started.startUrl);
+    // The first observation's URL is page.url(), with the parameters stripped.
+    expect(result.startUrl).not.toBe(result.steps[0]?.urlBefore);
+  });
+
   test("a stream must open with runStarted", () => {
     const withoutStart = runEventFixtures.slice(1);
     expect(() => runResultFromEvents(withoutStart)).toThrow(/runStarted/);
@@ -143,7 +179,8 @@ describe("runResultFromEvents", () => {
 
   test("a runFailed stream reduces to outcome error", () => {
     const started = runEventFixtures[0];
-    if (!started) throw new Error("the fixture stream must have a runStarted");
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
     const failed: RunEvent[] = [
       started,
       {
@@ -159,6 +196,7 @@ describe("runResultFromEvents", () => {
     const result = runResultFromEvents(failed);
     expect(result.outcome).toBe("error");
     expect(result.steps).toHaveLength(0);
+    expect(result.startUrl).toBe(started.startUrl);
   });
 
   test("RUN_EVENT_TYPES lists exactly the union members", () => {

@@ -55,7 +55,7 @@ Missing or unparsable values fall back to the defaults, and out-of-range values,
 - A URL that sets any parameter decides alone. Parameters it omits take their defaults, and the result is saved to `sessionStorage` under `wayford-target-params`.
 - Once saved, the script removes them from the address bar (`history.replaceState`), so the Actor never reads `?contrast=` in a URL. If saving fails they stay, so a reload still renders the same page.
 - A URL without parameters uses what the tab saved. So links stay plain paths, goal globs such as `**/deliveries/archive` match after navigation, and the setting survives reloads.
-- Because they leave the address bar, after a `goto` that waits for `load` (the default) or `domcontentloaded`, `page.url()` no longer shows the parameters. A harness records the URL it passed to `goto` as the run's parameters.
+- Because they leave the address bar, after a `goto` that waits for `load` (the default) or `domcontentloaded`, `page.url()` no longer shows the parameters. A harness records the URL it passed to `goto` as the run's parameters, in `startUrl` on `runStarted` and `RunResult` (`@wayford/core`).
 - Omitted parameters reset to their defaults, not to what the tab saved, so repeat any non-default value you want to keep.
 - Saved parameters belong to the tab, not the browser context: a new tab starts from the defaults. Start every run from a URL that carries all three parameters, so no run depends on what its tab saved and the recorded URL is the whole setting.
 
