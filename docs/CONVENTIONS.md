@@ -54,6 +54,7 @@ One error class per package boundary, `WayfordError` in `core` with a `code` str
 - One PR per task. Title starts with the task id. Body links the task file.
 - Reviewer from a different stream. Two reviewers for `packages/core`.
 - Squash merge. `main` is always green.
+- CI (`.github/workflows/ci.yml`) runs `pnpm lint`, `pnpm typecheck` and `pnpm test` on every PR and every push to `main`.
 
 ## Definition of Done
 

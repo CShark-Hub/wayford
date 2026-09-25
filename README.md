@@ -28,3 +28,5 @@ pnpm --filter @wayford/io db:migrate   # creates wayford.sqlite at the repositor
 ```
 
 Copy `.env.example` to `.env`, both at the repository root, before running `io`.
+
+CI (`.github/workflows/ci.yml`) runs `pnpm lint`, `pnpm typecheck` and `pnpm test` on every pull request and every push to `main`.
