@@ -13,7 +13,8 @@ const MIGRATIONS_FOLDER = fileURLToPath(new URL("../../drizzle/", import.meta.ur
  * The file better-sqlite3 opens for a `DATABASE_URL`: `file:<path>`, a
  * `file://` URL, a bare path, or `:memory:`. A relative path resolves from the
  * repository root, where `.env` lives, so one value names one file whichever
- * directory a script starts in.
+ * directory a script starts in. SQLite URI extras such as `file::memory:` or a
+ * `?mode=ro` query are not supported and would be read as part of the path.
  */
 export function sqliteFilePath(databaseUrl: string): string {
   if (databaseUrl === ":memory:") return databaseUrl;

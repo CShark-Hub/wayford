@@ -34,7 +34,9 @@ export const ENV_FILE = fileURLToPath(new URL("../../../.env", import.meta.url))
 /**
  * For entry points: read an `.env` file into `env`, then validate. The file
  * only fills in what `env` leaves unset, and a missing file is no error, so a
- * real environment variable always wins.
+ * real environment variable always wins. This is the only place `.env` is
+ * read. Keep this module free of side effects on import: the db layer imports
+ * it, and its tests must not pick up a developer's real `.env`.
  */
 export function loadConfigFromEnvFile(
   path: string = ENV_FILE,
