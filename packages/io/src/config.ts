@@ -2,12 +2,29 @@ import { fileURLToPath } from "node:url";
 import { config as readEnvFile } from "dotenv";
 import { z } from "zod";
 
+/** Hosts allowed plain `http`, so a local Ollama works. Anything else gets the key only over https. */
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+// `abort: true` stops an invalid URL here, so the refine never calls `new URL` on it.
+const LlmBaseUrl = z.url({ protocol: /^https?$/, abort: true }).refine((value) => {
+  const { protocol, hostname } = new URL(value);
+  return protocol === "https:" || LOOPBACK_HOSTS.has(hostname);
+}, "must use https; plain http is allowed only for localhost");
+
 const ConfigSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   DATABASE_URL: z.string().min(1).default("file:./wayford.sqlite"),
-  LLM_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
-  LLM_API_KEY: z.string().default(""),
+  LLM_BASE_URL: LlmBaseUrl.default("https://openrouter.ai/api/v1"),
+  // Optional until the LLM adapter lands (tasks/s2-01-llm-adapter.md). s2-01
+  // moves these settings to @wayford/agent, whose parser fails at boot when the
+  // key is missing. Nothing in io reads the key today, so requiring it here would
+  // break `pnpm dev` and every test without buying anything. An empty value, as
+  // `.env.example` ships it, counts as unset.
+  LLM_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
