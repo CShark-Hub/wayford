@@ -93,6 +93,9 @@ describe("RunResult and RunEvent schemas", () => {
       throw new Error("the fixture stream must open with runStarted");
     expect(RunEvent.safeParse({ ...started, startUrl: "localhost:5174" }).success).toBe(false);
     expect(RunEvent.safeParse({ ...started, startUrl: "http:///account" }).success).toBe(false);
+    expect(RunResult.safeParse({ ...runResultFixture, startUrl: "localhost:5174" }).success).toBe(
+      false,
+    );
   });
 
   test("a step's diceRoll is a probability when present", () => {
