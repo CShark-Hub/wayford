@@ -60,7 +60,10 @@ function EventLog({ runId }: { runId: string }) {
 export function App() {
   const health = useHealth();
   const [replays, setReplays] = useState(0);
-  const ioUp = health.data === true;
+  // A failed check turns isSuccess off but keeps the last good data, so Replay
+  // follows the latest check while the log keeps what io already sent.
+  const ioUp = health.isSuccess;
+  const ioAnswered = health.data === true;
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
@@ -80,7 +83,7 @@ export function App() {
           </Button>
         </div>
         {/* A new key remounts the log, which resubscribes from the first event. */}
-        {ioUp ? <EventLog key={replays} runId="fixture" /> : null}
+        {ioAnswered ? <EventLog key={replays} runId="fixture" /> : null}
       </section>
     </main>
   );
