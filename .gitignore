@@ -7,3 +7,8 @@ coverage/
 .claude/worktrees/
 *.sqlite
 *.sqlite-*
+test-results/
+playwright-report/
+# Run output. Anchored: a bare runs/ would also hide source folders named runs.
+/runs/
+packages/*/runs/
