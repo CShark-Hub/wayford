@@ -9,7 +9,7 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const LlmBaseUrl = z.url({ protocol: /^https?$/, abort: true }).refine((value) => {
   const { protocol, hostname } = new URL(value);
   return protocol === "https:" || LOOPBACK_HOSTS.has(hostname);
-}, "must use https; plain http is allowed only for localhost");
+}, "must use https; plain http is allowed only for localhost, 127.0.0.1 and [::1]");
 
 const ConfigSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),

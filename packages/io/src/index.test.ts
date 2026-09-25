@@ -6,22 +6,26 @@ import { afterEach, expect, test, vi } from "vitest";
 afterEach(() => {
   vi.doUnmock("dotenv");
   vi.doUnmock("dotenv/config");
+  vi.doUnmock("@hono/node-server");
   vi.resetModules();
 });
 
 test("importing @wayford/io reads no .env file and starts no server", async () => {
   const readEnvFile = vi.fn();
   const sideEffectImport = vi.fn();
+  const serve = vi.fn();
   vi.resetModules();
   vi.doMock("dotenv", () => ({ config: readEnvFile, default: { config: readEnvFile } }));
   vi.doMock("dotenv/config", () => {
     sideEffectImport();
     return {};
   });
+  vi.doMock("@hono/node-server", () => ({ serve }));
   const before = { ...process.env };
   const io = await import("./index.js");
   expect(readEnvFile).not.toHaveBeenCalled();
   expect(sideEffectImport).not.toHaveBeenCalled();
+  expect(serve).not.toHaveBeenCalled();
   expect(process.env).toEqual(before);
   expect(typeof io.createApp).toBe("function");
 });
