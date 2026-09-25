@@ -45,6 +45,10 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
+          # Exactly the allowed-tools of the plugin's command (plugins/code-review/commands/code-review.md
+          # in anthropics/claude-code): it reads the PR and posts its summary with gh. With only the
+          # inline-comment tool listed, every review since Claude Code 2.1.281 (2026-09-23) ran green
+          # and posted nothing.
+          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
