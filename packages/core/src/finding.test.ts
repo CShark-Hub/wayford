@@ -3,12 +3,14 @@ import {
   EvidenceRef,
   FINDING_TYPES,
   Finding,
+  FindingBasis,
   HARD_FINDING_TYPES,
   isHardFinding,
 } from "./finding.js";
 import {
   findingFixtures,
   observationFixture,
+  profileFixture,
   profileFixtures,
   taskFixtures,
 } from "./fixtures/index.js";
@@ -29,12 +31,51 @@ describe("FindingType", () => {
     expect(Finding.shape.type.safeParse("opinion").success).toBe(false);
   });
 
-  test("a hypothesis is the only soft one", () => {
+  test("a hypothesis is soft by type", () => {
     const hard = FINDING_TYPES.filter((type) => HARD_FINDING_TYPES.includes(type));
     expect(hard).toEqual(["measurement", "deterministic"]);
     expect(isHardFinding(fixture("fnd_archive-link-contrast-ratio"))).toBe(true);
     expect(isHardFinding(fixture("fnd_archive-link-below-contrast"))).toBe(true);
     expect(isHardFinding(fixture("fnd_deliveries-label-reads-as-current-only"))).toBe(false);
+  });
+
+  test("a finding resting on a folk or llm threshold is soft whatever its type", () => {
+    // Vera's target threshold has no citation behind it. A P4 filter decision
+    // about her is deterministic in how it was made, not in how far it holds.
+    const provenance = profileFixture("prof_vera").perception.targetPx?.provenance;
+    expect(provenance).toBe("folk");
+
+    const deterministic = rawFixture("fnd_archive-link-below-contrast");
+    deterministic.personaIds = ["prof_vera"];
+    deterministic.basis = [{ rule: "P4", provenance }];
+    expect(isHardFinding(Finding.parse(deterministic))).toBe(false);
+
+    deterministic.basis = [{ rule: "P4", provenance: "llm" }];
+    expect(isHardFinding(Finding.parse(deterministic))).toBe(false);
+
+    deterministic.basis = [
+      { rule: "P1", provenance: "wcag22" },
+      { rule: "P4", provenance: "folk" },
+    ];
+    expect(isHardFinding(Finding.parse(deterministic))).toBe(false);
+
+    deterministic.basis = [{ rule: "P1", provenance: "wcag22" }];
+    expect(isHardFinding(Finding.parse(deterministic))).toBe(true);
+
+    const measurement = rawFixture("fnd_archive-link-contrast-ratio");
+    measurement.basis = [{ rule: "P4", provenance: "folk" }];
+    expect(isHardFinding(Finding.parse(measurement))).toBe(false);
+  });
+});
+
+describe("FindingBasis", () => {
+  test("a basis entry is a rule id and a source id, nothing else", () => {
+    expect(FindingBasis.safeParse({ rule: "P4", provenance: "folk" }).success).toBe(true);
+    expect(FindingBasis.safeParse({ rule: "Z9", provenance: "folk" }).success).toBe(false);
+    expect(FindingBasis.safeParse({ rule: "P4", provenance: "vibes" }).success).toBe(false);
+    expect(FindingBasis.safeParse({ rule: "P4", provenance: "folk", threshold: 32 }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -123,6 +164,29 @@ describe("Finding schema", () => {
     expect(Finding.safeParse(deterministic).success).toBe(true);
   });
 
+  test("a deterministic finding with no basis does not validate", () => {
+    const finding = rawFixture("fnd_archive-link-below-contrast");
+    finding.basis = [];
+    const result = Finding.safeParse(finding);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain("basis");
+    delete finding.basis;
+    expect(Finding.safeParse(finding).success).toBe(false);
+  });
+
+  test("a measurement or a hypothesis may rest on no rule, but still carries the key", () => {
+    for (const id of [
+      "fnd_archive-link-contrast-ratio",
+      "fnd_deliveries-label-reads-as-current-only",
+    ]) {
+      const finding = rawFixture(id);
+      finding.basis = [];
+      expect(Finding.safeParse(finding).success).toBe(true);
+      delete finding.basis;
+      expect(Finding.safeParse(finding).success).toBe(false);
+    }
+  });
+
   test("an extra key does not pass", () => {
     const finding = rawFixture("fnd_archive-link-contrast-ratio");
     finding.severity = "high";
@@ -191,6 +255,33 @@ describe("fixtures", () => {
       if (!perception) throw new Error(`${personaId} sets no contrast threshold to be below`);
       const bandFloor = perception.threshold * (1 - (perception.softness ?? 0));
       expect(contrast).toBeLessThan(bandFloor);
+    }
+  });
+
+  test("a finding's basis agrees with the profiles it names", () => {
+    // Only the threshold rules whose provenance is set per profile are checked
+    // here. A fixture resting on any other rule fails the first assertion, so
+    // the map gets extended instead of the entry going unchecked.
+    const METRIC_OF_RULE = {
+      P1: "contrast",
+      P3: "fontPx",
+      P4: "targetPx",
+    } as const;
+    for (const finding of findingFixtures) {
+      for (const entry of finding.basis) {
+        expect(Object.keys(METRIC_OF_RULE)).toContain(entry.rule);
+        const metric = METRIC_OF_RULE[entry.rule as keyof typeof METRIC_OF_RULE];
+        const held = finding.personaIds.map((personaId) => {
+          const threshold = profileFixture(personaId).perception[metric];
+          if (!threshold) throw new Error(`${personaId} sets no ${metric} threshold`);
+          expect(finding.basis).toContainEqual({
+            rule: entry.rule,
+            provenance: threshold.provenance,
+          });
+          return threshold.provenance;
+        });
+        expect(held).toContain(entry.provenance);
+      }
     }
   });
 
