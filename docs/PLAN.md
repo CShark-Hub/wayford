@@ -19,7 +19,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A9 | Report is structured findings rendered by the UI. The Analyst fills recommendation and hypothesis fields, never free prose. | default |
 | A10 | Avatars are procedural SVG derived from the profile seed and dimensions. No generated images. | default |
 | A11 | Three hand-written personas. PersonaLayer is cited as provenance where thresholds match. | default |
-| A12 | Perception dimension in full. Behaviour: one dice (double click). Knowledge: vocabulary list passed to the Actor prompt only. | default |
+| A12 | Perception dimension in full. Behaviour: one dice (double click). Knowledge: observation only, never in the Actor prompt (`docs/RULES.md` pipeline, F5 AC6). Pattern rules K1 and K4 are a week 4 stretch (`s1-03`). Vocabulary is K2 masking (`[unfamiliar term]`, `docs/RULES.md` stage 4): week 4 or the "what next" slide. | default, issue #19 |
 | A13 | LLM access through OpenRouter with one key and a 50 USD cap. Adapter is OpenAI-compatible so any key works. | default |
 | A14 | Whole team works in TypeScript. | default |
 | A15 | SQLite through Drizzle at start. Postgres is one config change later. | default |
