@@ -15,7 +15,7 @@ A human picks it, points their agent at it, reviews the result, opens a PR.
    ```
 
 5. Review the diff yourself. Run the acceptance commands from the task file.
-6. Open a PR titled with the task id. Link the task file. One reviewer, two if `packages/core` changed.
+6. Open a PR titled with the task id. Link the task file. One reviewer, two if the filter contract (`observation.ts`, `measurement.ts`, `docs/RULES.md`) changed.
 7. Tick every acceptance box **in the task file**, each with the evidence that satisfied it, and commit that with the work. The PR body is read once; the task file is what the next person reads.
 8. After merge, set the task to `done` in `BOARD.md`.
 

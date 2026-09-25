@@ -7,7 +7,9 @@ The product description lives in `KONCEPCJA.md`. **This file holds what that one
 
 ## Current state
 
-Planning phase. **Not a line of code written yet.** Four people, one month, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
+Week 1 done, week 2 planned. Four people, one month, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
+
+What exists: the seven contracts in `packages/core` with fixtures, the demo target app in `packages/target-app`, and an io and web skeleton with an SSE echo of the fixture run. `packages/filter` and `packages/agent` are still placeholders.
 
 Planning docs:
 
@@ -18,7 +20,7 @@ Planning docs:
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
 - `tasks/` — agent-sized task files, `BOARD.md` for ownership and status, `TEMPLATE.md` for new tasks.
 
-Next move: week 1 tasks `m0-01` … `m0-08`. They freeze seven contracts in `packages/core`: `Profile`, `Task`, `RunResult`, `Finding` (data at rest) and `Observation`, `Action`, `RunEvent` (data in motion). Until those are merged, nobody works in parallel.
+Next move: the week 2 table in `tasks/BOARD.md`: the perception filter (`s1-01`, `s1-02`), the LLM adapter and evidence capture (`s2-01`, `s2-02`), the personas and preview screens (`s3-01`, `s3-02`), the Extractor and the database (`s4-01`, `s4-02`). The week 1 review is filed as issues #13 to #51; the critical ones (#13 to #16) change the contracts and are fixed before week 2 starts. The seven contracts (`Profile`, `Task`, `RunResult`, `Finding` at rest; `Observation`, `Action`, `RunEvent` in motion) count as frozen once those are merged.
 
 If you are an agent picking up a task: read `AGENTS.md`, then `docs/PLAN.md`, then the task file. Do only what the task file says.
 
@@ -175,8 +177,8 @@ Team decision: **we build our own**, UXAgent is inspiration, not a base.
 ## Open questions
 
 - [x] **Project name** — **Wayford**. See "On the name" below.
-- [ ] **Schemas** — seven contracts defined as week 1 tasks `m0-02` … `m0-05`. Blocking everyone until merged.
-- [ ] **Stream assignment** — the four-stream split is in `KONCEPCJA.md`, the names aren't. Filled in by task `m0-08`.
+- [x] **Schemas** — seven contracts merged in week 1 (`m0-02` … `m0-05`). The critical review issues (#13 to #16) are fixed before week 2 starts.
+- [x] **Stream assignment** — streams are areas of the code, not people. `tasks/BOARD.md` suggests four slots per week; anyone takes any task whose dependencies are merged (`m0-08`).
 - [ ] **Hackathon rules** — whether existing frameworks / forks are permitted.
 - [ ] Profile taxonomy: take PersonaLayer's or write our own.
 

@@ -9,8 +9,9 @@ Milestones are weekly. Exit criteria are commands or clicks, never sentences.
 ## Working model
 
 - Every task is a file in `tasks/`. One task, one branch, one PR, one reviewer.
+- Streams are areas of the code, not people. Nobody has to continue what they did the week before. From week 2, `tasks/BOARD.md` groups the week's tasks into four slots of about 4 h each; anyone takes any unowned task whose dependencies are merged.
 - A human grabs a task by writing their name into `tasks/BOARD.md`, runs their agent on it, reviews the result, opens the PR.
-- Schema and contract changes in `packages/core` require two approvals within 48 h. Everything else needs one.
+- Changes to the filter contract (`packages/core/src/observation.ts`, `measurement.ts`, and `docs/RULES.md`) require two approvals within 48 h. Everything else needs one, the rest of `packages/core` included.
 - One 30 minute sync per week. Everything else asynchronous, status in `tasks/BOARD.md`.
 - Anything not merged by Friday of week 4 does not exist for the demo.
 
@@ -54,26 +55,35 @@ Exit criteria:
 
 ## Week 2 — M1 filter standalone, M2 frontend on fixtures
 
-Streams split. Nothing here needs an LLM key except the adapter smoke test.
+Monday 2026-09-28 to Sunday 2026-10-04. Streams split. Nothing here needs an LLM key except the adapter smoke test and the Extractor's manual check.
+
+Before it starts: the critical issues from the week 1 review (#13 to #16) are fixed, because they change the contracts every week 2 task builds on. `s1-01` and `s3-02` also need `rng` and `hash` in core, which issue #26 asks for, and `pnpm lint` must pass on `main` again (#55), because every task's acceptance runs it. Everything else the review found stays in its issue and is not a week 2 task.
 
 Exit criteria:
 
-- Filter: Playwright page in, `Observation` out. Two runs with the same seed produce identical output on the target app. Elements below threshold are absent. Tests run without an LLM.
-- Frontend: Preview screen with sliders renders fixture `Observation` and re-renders under 500 ms. Persona cards render fixture profiles with procedural avatars.
+- Filter: Playwright page in, `PageMeasurement` out; `PageMeasurement`, profile and seed in, `FullObservation` out. Two runs with the same seed produce identical output on the target app. Elements below a hard threshold are absent from the Actor's view and present in the evidence. Raising a threshold never makes an element more visible. Tests run without an LLM.
+- Frontend: the preview screen runs `perceive` in the browser on the measurement fixture and redraws under 500 ms when a slider moves. Persona cards render fixture profiles with procedural avatars.
 - LLM adapter: `complete()` returns a parsed object for a trivial schema through OpenRouter, cost logged.
+- Evidence: one persona on the target app gets a browser context with its device, a fake cursor, a screenshot per step, a `webm` and a `trace.zip` named after persona, seed and run id.
 - Extractor: rejects a task with a path in it, accepts a clean one, produces a `Task`.
-- Database: Drizzle schema for profiles, tasks, runs, steps, findings, migrations run.
+- Database: Drizzle tables for profiles, tasks and runs; migrations run; runs and tasks round-trip.
 
 ## Week 3 — M3 the product exists
 
 Meeting point one: Actor with a real filtered observation, result on disk and in the database.
 
+Tasks: `tasks/BOARD.md`, week 3, written in `m0-08`. Six tasks, cut to what the demo needs: the Actor loop (`s2-03`), Scout (`s2-04`), the runs API (`s4-03`), the ring, the dashboard and the live preview (`s3-03`, `s3-04`, `s3-05`). The knowledge and attention stages (`s1-03`) moved to week 4 as a stretch; live video was cut.
+
+Issues to fix before week 3 starts, because `s2-03` waits on them: #19 (knowledge never in the Actor prompt) and #31 (`ActorResponse`). Before the first real runs, also #38, so traces with cookies cannot be committed.
+
+Watch during the first real runs, from `tasks/m0-06-target-app.md` Follow-ups: dead buttons that may produce noisy findings, and the hamburger that never triggers K1 for a desktop persona. The calibration table in `docs/RULES.md` is the first check that the engine works: Ada near 10/10, a hard contrast cut above 2:1 at 0/10 on the hard goal, and Vera's hard-goal successes never more than the seeds where the link reached her degraded.
+
 Exit criteria:
 
 - One command runs one persona on one task against the target app and writes a `RunResult`, a `webm` and a `trace.zip`.
 - Same seed twice gives identical filtered observations per step.
-- Scout produces and caches ground truth. The Actor package has no import from Scout output, enforced by a test.
-- Ring shows 3 runs in parallel over SSE, avatars change state, hero persona has live video.
+- Scout produces ground truth for both target-app goals. The Actor package has no import from Scout output, enforced by a test.
+- Ring shows 3 runs in parallel over SSE, avatars change state, each tile shows its latest step screenshot.
 - Dashboard lists real runs with filters and opens run detail with replay.
 - Preview switches from fixtures to the live filter on the target app.
 
@@ -90,6 +100,8 @@ Exit criteria:
 - Backup video of the full 90 second demo exists in the repo or a shared drive.
 - One credibility run against a real public site is recorded.
 
+Stretch, if the above is done: `s1-03`, the knowledge and attention stages of the filter.
+
 ## Cut order if time runs out
 
 Cut from the bottom, never from the top.
@@ -98,8 +110,8 @@ Cut from the bottom, never from the top.
 2. Actor loop, run evidence, dashboard.
 3. Boundary sweep on contrast.
 4. Analyst report.
-5. Ring with live video (fall back to step screenshots).
-6. Scout cache (fall back to a hand-written ground truth per task).
+5. Ring. Live video is already cut (`m0-08`); next the animation, then the ring itself in favour of the dashboard.
+6. Scout (fall back to a hand-written ground truth per task).
 7. axe-core sidecar.
 8. Procedural avatar animation (fall back to static SVG).
 9. Real public site run.

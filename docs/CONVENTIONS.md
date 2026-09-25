@@ -52,7 +52,7 @@ One error class per package boundary, `WayfordError` in `core` with a `code` str
 - Branch per task, `feature/<task-id>-<slug>`: `feature/s2-01-llm-adapter`. Week 1 branches predate the prefix.
 - Commit messages: imperative, one line under 72 characters, body if the why is not obvious.
 - One PR per task. Title starts with the task id. Body links the task file.
-- Reviewer from a different stream. Two reviewers for `packages/core`.
+- Reviewer: someone who did not work on the task. Two reviewers for the filter contract (`packages/core/src/observation.ts`, `measurement.ts`, and `docs/RULES.md`); one for everything else, the rest of `packages/core` included (decided in `m0-08` to keep a hackathon's review load small).
 - Squash merge. `main` is always green.
 
 ## Definition of Done

@@ -1,6 +1,6 @@
 # Wayford — RULES: what the filter does and where each rule comes from
 
-Status: **draft for grilling**. Every rule here is a claim the team must be able to defend in Q&A. If a rule has no source, it says `folk` and the report says `folk`. If a rule cannot be made deterministic, it does not belong in the filter; it belongs in the "what next" slide.
+Status: **frozen for week 2.** The objections the week 2 filter tasks depend on (issues #22, #23 and #49) were decided in `m0-08`, and the decisions are written where they apply. From here on a change to this file is a PR with two approvals, like any change to the filter contract. Every rule here is a claim the team must be able to defend in Q&A. If a rule has no source, it says `folk` and the report says `folk`. If a rule cannot be made deterministic, it does not belong in the filter; it belongs in the "what next" slide.
 
 This document is the domain model behind `Profile`, `Observation` and `Finding`. The `provenance` field in a profile refers to a source id from the registry at the bottom.
 
@@ -20,6 +20,34 @@ Order is fixed and matters. Each stage takes the observation from the previous o
 
 Stages 1 to 6 shape the `Observation`. Stage 7 shapes the `Action`. The Actor prompt is identical for every persona. Only the observation and the action post-processing differ.
 
+## Thresholds, bands and the roll
+
+Decided in `m0-08` (issues #22 and #23). This is the arithmetic `perceive` implements; the tables below follow from it.
+
+Every perception rule compares a value the filter measured with a threshold from the profile. `>=` passes: a value exactly on the threshold is visible.
+
+**Hard cut** (`softness` absent or 0). At or above the threshold the element is `visible`, below it `invisible`. A hard cut never degrades.
+
+**Soft cut.** The band runs from its floor, `threshold × (1 − softness)`, up to the threshold.
+
+| Measured value | State |
+|---|---|
+| `>= threshold` | `visible` |
+| `< floor` | `invisible` |
+| in the band | `degraded` when `rolled < position`, otherwise `invisible` |
+
+`position = (value − floor) / (threshold − floor)`, from 0 at the floor towards 1 at the threshold. An element just under the threshold is usually seen but misread; one near the floor is usually missed.
+
+**The roll.** `rolled` is one number in `[0, 1)` per element per run, taken from `hash(run seed, element key)`. The run seed decides, not the profile seed (`docs/PLAN.md` A20). Every soft rule on the element uses the same `rolled`, and every decision stores it, so a reviewer can see why an element was degraded in run 7 and missing in run 8.
+
+**Several rules.** Every rule an element fails is recorded. The state is the worst of them: `invisible` over `degraded` over `visible`.
+
+**Monotone by construction.** For a fixed seed and element, and with softness held fixed, raising a threshold never makes the element more visible: `rolled` does not move and `position` only falls. Changing softness can move an element back from invisible to degraded, so a sweep keeps it constant. The boundary sweep (F9) relies on this, and the calibration table checks it.
+
+**Worked example.** Vera's contrast cut is 3.0 with softness 0.5, so her band runs from 1.5 to 3.0. The target app's hard link measures 2.006:1 at its defaults, which is position 0.337. Across seeds the link reaches her degraded in about one run in three and not at all in the rest. It never reaches her whole.
+
+**What is measured.** Controls, and text blocks: headings, paragraphs, list items, labels (issue #49). The cues that tell a person where to go are mostly text, so P1 and P3 apply to text blocks too. P4 applies to controls only.
+
 ## Stage 2 and 3: perception and degradation
 
 Three states per element, not two. Binary removal makes every failure "did not see it". Degradation makes "saw it, misread it" possible, which is where real wrong clicks come from.
@@ -34,16 +62,16 @@ Rules that decide the state. Metric is computed by the filter from the DOM, thre
 
 | Id | Metric | Visible when | Degraded when | Source |
 |---|---|---|---|---|
-| P1 | text contrast ratio, after colour-vision simulation if the profile sets one | `>= threshold` | within `softness` band below threshold | WCAG 2.2 1.4.3 for the 4.5:1 and 3:1 anchors; Machado 2009 for the simulation |
+| P1 | text contrast ratio, after colour-vision simulation if the profile sets one | `>= threshold` | in the band, by roll (see above) | WCAG 2.2 1.4.3 for the 4.5:1 and 3:1 anchors; Machado 2009 for the simulation |
 | P2 | non-text contrast of controls, borders, icons | `>= threshold` (WCAG anchor 3:1) | band | WCAG 2.2 1.4.11 |
 | P3 | font size in CSS px, scaled by page zoom | `>= threshold` | band | Legge and Bigelow 2011 for the acuity to print-size relation; WCAG 1.4.4 for the 200% zoom anchor |
 | P4 | target size, smaller side of the bounding box | `>= threshold` (anchors 24 px AA, 44 px AAA) | band | WCAG 2.2 2.5.8 and 2.5.5; Parhi 2006 for the 9.2 mm touch anchor; Apple HIG 44 pt; Material 48 dp |
 | P5 | colour-only distinction: two adjacent siblings whose names are identical and which differ only in colour | n/a | both degraded to the same name after simulation | WCAG 1.4.1 |
 | P6 | contrast under `reducedContrast` or `blurredVision` CDP emulation | as P1 but on the emulated screenshot | | CDP `Emulation.setEmulatedVisionDeficiency`; illustration only, decision is P1 |
 
-Softness: a threshold with `softness > 0` turns the band into a probability. Resolved once per element per run. The rolled value is stored in the evidence so a reviewer can see why element X was degraded in run 7 and not in run 8.
+Softness and the roll work the same for every rule in this table: see "Thresholds, bands and the roll" above.
 
-Open: P3 threshold should be derived from a declared acuity (Snellen 20/40, 20/70) and a nominal viewing distance, not typed as px. Then the profile says "20/70" and the px falls out with a source attached. Recommended for week 2, stream 1.
+Open: P3 threshold should be derived from a declared acuity (Snellen 20/40, 20/70) and a nominal viewing distance, not typed as px. Then the profile says "20/70" and the px falls out with a source attached. Not in the week 2 plan; a candidate for week 3 or the "what next" slide.
 
 ## Stage 4: knowledge
 
@@ -86,7 +114,7 @@ Dice per action, from the seeded stream, every roll logged.
 |---|---|---|---|
 | B1 | `doubleClick` | a `click` becomes `doubleClick` | `folk` |
 | B2 | `scrollWhenStuck` | when the Actor emits `giveUp` or repeats an action, with probability p a `scroll` is injected first | NN/g scrolling data for the anchor; the probability itself is `folk` |
-| B3 | `budgetSeconds` | run ends `budget_exceeded` | Nielsen response-time and abandonment literature for the order of magnitude; the exact number is `folk` |
+| B3 | `budgetSeconds` | run ends `budget_exceeded`. Wall-clock, so model latency counts: the one behaviour rule a seed does not reproduce, and the run records its elapsed time | Nielsen response-time and abandonment literature for the order of magnitude; the exact number is `folk` |
 | B4 | `misclick` | for targets smaller than the persona's motor threshold, with probability from the effective-width model the click lands on the nearest neighbour | ISO 9241-9 effective width, Fitts's law for the time penalty; MacKenzie 1992 |
 
 B4 is the only behaviour rule with real science behind it. B1 and B2 are folk and say so.
@@ -98,10 +126,12 @@ Not how we know the personas are right. We do not claim that.
 | Check | Expectation |
 |---|---|
 | Persona with no thresholds (Ada) on the target app | success at or near 10/10, short path. If not, the Actor or the target app is broken, not the persona. |
-| Persona with a contrast threshold above the hard link's contrast | 0/10 on the hard goal. The filter removed the only path. |
+| Persona with a hard contrast cut above the hard link's contrast | 0/10 on the hard goal. The filter removed the only path. |
+| Vera at the target app's defaults: soft cut 3.0, band from 1.5, hard link at 2.006:1 | the link reaches her degraded in about one seed in three (checked over 1000 seeds in `s1-01`) and never whole. For a fixed seed list the number of seeds where it is degraded is fixed, and hard-goal successes never exceed it. Ten seeds are too few to judge the share: at a true third, 4/10 or more happens almost half the time. |
+| Zoya at the target app's defaults | 0/10 on both goals. Her hard 24 px font cut removes every link in the app (16 and 18 px), so no route leaves the home page. That is the far end of the scale, not a broken engine (decided in `m0-08`, issue #23). |
 | axe-core violations on the target app | every P1 to P4 removal on a page corresponds to at least one axe finding on the same page, or the rule is stricter than WCAG and says so in provenance |
 | Same seed twice | identical observations per step, identical dice rolls |
-| Sweep on contrast | monotone: once a value fails, all stricter values fail |
+| Sweep on contrast | monotone per seed: once a value fails, all stricter values fail. Over the fixed seed set the success rate never rises as the threshold does. |
 
 ## Persona composition
 
@@ -131,10 +161,15 @@ different metrics are not comparable — Milo's 44 px target is stricter than
 Vera's 32 px — so what is ordered is the number of dimensions switched on, not a
 severity score.
 
-Zoya is the persona the calibration row below expects to score 0/10 on a
-low-contrast path. A persona nobody can argue is exaggerated is the one that
-makes the boundary sweep readable: the question stops being "is this persona
-real" and becomes "at which value does the path come back".
+Zoya is the far end on purpose. At the target app's defaults the calibration
+table above expects her at 0/10 on both goals: her 24 px font cut alone removes
+every link. That is a finding about the app, and it stays (decided in `m0-08`,
+issue #23).
+
+The contrast sweep runs on Vera. At the app's defaults contrast is the only
+metric that gates her (`tasks/m0-06-target-app.md`), so sweeping her contrast
+threshold asks the question the sweep exists for: at which value does the path
+come back.
 
 ## Source registry
 

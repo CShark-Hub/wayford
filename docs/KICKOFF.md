@@ -51,7 +51,7 @@ Second wave, after the first merges: `m0-05` (Dev 2), `m0-07` (Dev 3 takes web, 
    ```
 
 4. Review the diff yourself before the PR. You are responsible for it, not the agent.
-5. PR against `main`, title starts with the task id, body from the template. One reviewer from a different stream. `packages/core` needs two.
+5. PR against `main`, title starts with the task id, body from the template. One reviewer who did not work on the task. The filter contract (`observation.ts`, `measurement.ts`, `docs/RULES.md`) needs two.
 6. After merge, set the task to `done` in `tasks/BOARD.md`.
 
 ## Rules that keep four agents from fighting
@@ -73,11 +73,40 @@ Async. One 30 minute sync per week. Status lives in `tasks/BOARD.md`, not in cha
 
 Budget is 4 h per person per week. That is roughly two task files. If a task is eating more than three hours of agent time, it was too big: stop, split it, say so.
 
+## Week 2
+
+Week 1 is done: `m0-00` to `m0-07` merged, `m0-08` planned week 2. The week 2 table in `tasks/BOARD.md` is the plan: eight tasks in two waves and four suggested slots.
+
+- Streams are areas, not people. Take any unowned task whose dependencies are merged, whatever you did in week 1.
+- Fixes from the week 1 review live in GitHub issues #13 to #51, not in task files. Fixed before Monday: the critical ones (#13 to #16), the `rng` and `hash` part of #26, and the lint failure on `main` (#55). A task that needs another issue fixed first lists it under "Depends on".
+- Wave 1 on Monday: `s1-01`, `s2-01`, `s2-02`, `s3-02`, and `s4-02` once #13 to #15 are merged. Everything else follows once those merge.
+- The same opening line for your agent as above, with the week 2 task file.
+- `s1-01` changes the filter contract: two reviewers within 48 h. Everything else needs one. `s1-01` is on the critical path, so review it before your own next task.
+
+No refinement session. The task files follow the week 1 template, and a task that turns out unclear mid-week stops and asks in its PR. Two things replace refinement instead.
+
+**Before the sync, asynchronously.** Read the task file you expect to take and leave any question as a comment on the `m0-08` PR (#56). The files were written without a developer reading them; this is where a wrong assumption surfaces cheaply.
+
+**One 15-minute session on #16, before it merges.** #16 defines how an element records its decisions, including one from a rule without a metric (V2 below the fold, later A1 and K1); `s1-01` fills that shape and adds `PageMeasurement`, and `s1-02` and `s3-01` read both. That is the filter contract, the one contract worth a live conversation. Whoever fixes #16 and whoever expects to take `s1-01`, `s1-02` or `s3-01` sketch it together once.
+
+**Week 2 kickoff: the weekly 30-minute sync, before Monday.**
+
+1. Claim slots in `tasks/BOARD.md`, names in the Owner column. (5 min)
+2. Settle any objection to the decisions in the `m0-08` PR, then merge it. The soft-band rule, Zoya and the seed rule are there; a change after Monday moves `s1-01` mid-flight. (10 min)
+3. Walk through the #16 decision shape with the stream 1 and preview developers, or confirm the 15-minute session happened. (10 min)
+4. Name the OpenRouter key holder, and confirm #13 to #16, the `rng` and `hash` part of #26, and #55 merge by Sunday. (5 min)
+
 ## Open decisions that need the team
 
-- `docs/RULES.md` is a draft. If nobody objects by the end of week 1, it is frozen and `m0-02` and `m0-03` are built on it. Objections go in a PR comment on the file, not in chat.
-- Who holds the OpenRouter key and the 50 USD cap. Needed in week 2, not before.
+Decided in `m0-08`, written into `docs/RULES.md` and `docs/PLAN.md`. Object in a comment on the `m0-08` PR:
+
+- Soft thresholds: in the band below a soft threshold, an element is degraded when its roll falls below its position in the band, and invisible otherwise. The band floor is `threshold × (1 − softness)`. A hard cut never degrades. (`docs/RULES.md`, "Thresholds, bands and the roll"; issue #23.)
+- Zoya stays as she is and scores 0/10 on both goals at the target app's defaults. Vera is the persona for the contrast sweep. (Issue #23.)
+- The run seed drives perception and dice; the profile seed draws the avatar (`docs/PLAN.md` A20; issue #22).
+- The boundary sweep moves a profile threshold, never a target-app parameter (`docs/PLAN.md` F9; issue #18).
+- Text blocks are measured, and P1 and P3 apply to them (`docs/RULES.md`; issue #49).
+
+Still open:
+
+- Who holds the OpenRouter key and the 50 USD cap. `s2-01` cannot tick its smoke-test box without it, so it is needed on Monday of week 2.
 - Hackathon rules: are existing frameworks and pre-existing repos allowed. Someone must ask.
-- Zoya on the target app (raised by `m0-06`). Her 24 px font cut has no softness and is above the text of every link and button in the app (16 px; 18 px for the brand and the large links), so she loses every route off the home page, easy path included. No parameter brings a path back: `fontPx` 24 and `targetPx` 48 make the hard link big enough for her, but every route to `/deliveries` is a 16 px link. Her sweep is flat, while `docs/RULES.md` names her as the persona for "at which value does the path come back". Recalibrate Zoya in `docs/RULES.md`, or accept 0/10 on both goals and say so in the calibration table.
-- Soft thresholds in the `docs/RULES.md` calibration table (raised by `m0-06`). The row "Persona with a contrast threshold above the hard link's contrast", which expects "0/10 on the hard goal", assumes a hard cut. Vera's contrast cut is soft (3.0, softness 0.5), and the target app's default 2:1 link sits in her band, so the seed decides and 0/10 is no longer guaranteed. The band floor, threshold × (1 − softness), is defined only in `packages/core/src/finding.test.ts`, and RULES is ambiguous about what the in-band roll picks between: the P1 row says degraded, the softness paragraph and `docs/PLAN.md` say a visibility probability, and the core fixtures roll degraded or invisible. Write both into `docs/RULES.md`, then restate the row for soft cuts.
-- Both items above are objections to the `docs/RULES.md` draft, so by the first item they also need a PR comment on that file before it freezes.

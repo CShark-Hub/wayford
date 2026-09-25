@@ -14,7 +14,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A4 | Planning docs and an empty repo skeleton may exist before the hackathon starts. Frameworks and libraries are allowed. | default, verify rules |
 | A5 | Demo target is our own small target app with tunable CSS variables. One real public site is used for a single credibility run. | default |
 | A6 | Preview runs the real filter code on the live target app, with a stored-snapshot fallback. | default |
-| A7 | Ring shows 3 to 5 personas. One hero persona gets live video, the rest get the event stream and per-step screenshots. | default |
+| A7 | Ring shows 3 to 5 personas, each with the event stream and per-step screenshots. No live video: cut to keep the hackathon scope small. | m0-08 |
 | A8 | Boundary sweep covers one axis (contrast) with the axis selector present but disabled. | default |
 | A9 | Report is structured findings rendered by the UI. The Analyst fills recommendation and hypothesis fields, never free prose. | default |
 | A10 | Avatars are procedural SVG derived from the profile seed and dimensions. No generated images. | default |
@@ -27,6 +27,8 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A17 | Tasks live as files in `tasks/`. Status in `tasks/BOARD.md`. | default |
 | A18 | Team members run different coding agents (Claude Code, Codex, Cursor). Task files follow the `AGENTS.md` convention that all of them read. | default |
 | A19 | Project name is **Wayford**. Workspace scope `@wayford/*`. Rationale in `AGENTS.md`, section "On the name". | Tomasz, 2026-09-17 |
+| A20 | The run seed drives every perception decision and every dice roll. The profile seed only draws the avatar. A run set uses the same seed list for every persona, so personas are compared on the same dice. | m0-08, issue #22 |
+| A21 | Streams are areas of the code, not people. Anyone may claim any task whose dependencies are merged; `tasks/BOARD.md` suggests a split into four slots so nobody waits. | Tomasz, 2026-09-25 |
 
 ## Goal
 
@@ -61,7 +63,7 @@ Compose a profile from blocks: perception, behaviour, knowledge.
 - AC1 Three profiles can be built from blocks and saved.
 - AC2 Saved profile validates against the `Profile` schema and round-trips through YAML unchanged.
 - AC3 Every threshold carries `provenance` (`wcag22`, `fitts`, `pisarek`, `personalayer`, `folk`, `llm`).
-- AC4 Every profile has a `seed`.
+- AC4 Every profile has a `seed`. It draws the avatar; runs take their own seed (A20).
 
 ### F2 Live preview
 
@@ -69,9 +71,9 @@ Page rendered as the persona perceives it. This is the hero screen.
 
 - AC1 Slider change re-renders the preview in under 500 ms on the target app.
 - AC2 Elements below the contrast, font size or target size threshold are removed or dimmed according to the filter decision.
-- AC3 Preview uses the same filter package as the Actor. There is no second visual approximation.
+- AC3 Preview uses the same filter package as the Actor. There is no second visual approximation. The browser runs `perceive` from `@wayford/filter/perceive` on a `PageMeasurement`, the same function the Actor's observation comes from.
 - AC4 CDP vision-deficiency emulation applies to the screenshot layer and is labelled as illustration, not decision.
-- AC5 Fallback: with the target app unavailable the preview renders from a stored DOM snapshot.
+- AC5 Fallback: with the target app unavailable the preview renders from a stored `PageMeasurement`.
 
 ### F3 Task input
 
@@ -86,7 +88,7 @@ One sentence goal plus a deterministic success condition.
 Unconstrained run that produces ground truth.
 
 - AC1 Produces shortest observed path and target element location for a task.
-- AC2 Cached by target URL plus DOM hash. Second request returns cached result.
+- AC2 Stored per task and rerun by hand when the target app changes. No cache: we own the app and know when it changes.
 - AC3 The Actor code path has no read access to Scout output. Verified by a test that fails if the import appears.
 
 ### F5 Actor runs
@@ -108,7 +110,7 @@ Several personas on the same task, live.
 - AC1 3 to 5 runs start in parallel, one browser context each.
 - AC2 Avatar state follows run events: idle, moving, stuck, done, gave up.
 - AC3 Finish order and elapsed time are visible.
-- AC4 Hero persona shows live video through CDP screencast. Others show latest step screenshot.
+- AC4 Every persona shows its latest step screenshot. No live video (A7); the `webm` in run detail is the recording.
 
 ### F7 Dashboard
 
@@ -132,9 +134,11 @@ Analyst output per task.
 
 One axis, one path.
 
-- AC1 Input: axis, range, step. Output: table of value and outcome, first failing value marked.
+- AC1 Input: axis, range, step. Output: table of value and success rate, boundary value marked.
 - AC2 Chart with a marker on the boundary value.
 - AC3 Sweep runs reuse the same seed set for every value.
+- AC4 The swept value is a profile threshold, a capability, never a target-app parameter, and its softness stays fixed for the whole sweep. App parameters stay fixed for the whole sweep and are recorded on every run in its start URL. That is what makes a sweep work on a site we cannot tune.
+- AC5 The boundary is the first value whose success rate over the seed set falls below 50%. The chart states the rate. For a fixed seed an element's state only worsens as the threshold rises (`docs/RULES.md`), so the success rate is monotone up to the Actor's own variance.
 
 ### F10 axe-core sidecar
 
@@ -175,7 +179,7 @@ Single Node process: HTTP API, in-process job runner, Playwright. No queue, no w
 ```
 POST /tasks            Extractor: sentence -> Task
 POST /runs             { taskId, profileIds, seeds, n } -> runIds
-   job runner: Scout (cached) -> for each persona x seed: Actor loop
+   job runner: for each persona x seed: Actor loop (Scout runs per task, by hand)
    Actor step: page -> DOM metrics -> filter(profile, seed) -> Observation
                -> LLM -> Action -> behaviour dice -> Playwright -> evidence + RunEvent
 GET  /runs/:id/events  SSE stream of RunEvent
@@ -187,9 +191,10 @@ POST /sweeps           axis, range, step -> loop of runs -> boundary
 
 The full rule catalogue with sources is `docs/RULES.md`. Summary:
 
-- Playwright `evaluate` collects per interactive element: stable key, role, name, bounding box, computed font size, foreground colour, effective background colour (walk ancestors, composite alpha).
-- Contrast by the WCAG 2.2 formula. Target size and font size compared to profile thresholds.
-- Softness: a threshold with `softness > 0` becomes a visibility probability. Resolved once per element by `hash(seed, elementKey)` and cached for the run.
+- The collector (`collect`) uses Playwright `evaluate` to measure every control and every text block: stable key, role, name, bounding box, computed font size, contrast against the effective background (walk ancestors, composite alpha). Its output is a `PageMeasurement`, with no decision in it.
+- `perceive(measurement, profile, seed)` turns the measurement into the step's `FullObservation`. Pure, browser-safe, no clock and no randomness of its own: the Actor, the preview and the sweep all call it.
+- Contrast by the WCAG 2.2 formula. Target size and font size compared to profile thresholds with `>=`.
+- Softness: a threshold with `softness > 0` gets a band below it, where the element is degraded or invisible by a roll resolved once per element by `hash(run seed, elementKey)`. The arithmetic is in `docs/RULES.md`, "Thresholds, bands and the roll".
 - Element key is derived from role, name and structural path, never from DOM index, so re-renders do not change the decision.
 - CDP vision deficiency changes the screenshot only. The filter decides, emulation illustrates.
 
@@ -198,7 +203,9 @@ The full rule catalogue with sources is `docs/RULES.md`. Summary:
 Data at rest: `Profile`, `Task`, `RunResult`, `Finding`.
 Data in motion: `Observation` (filter output, Actor input), `Action` (Actor output), `RunEvent` (stream).
 
-All seven live in `packages/core` as zod schemas with one full fixture each. A schema without a fixture is not frozen.
+All seven live in `packages/core` as zod schemas with one full fixture each. A schema without a fixture is not frozen. `PageMeasurement`, the filter's input, belongs to the `Observation` contract and follows the same rule.
+
+The week 1 review filed its findings as issues #13 to #51. The critical ones (#13 to #16) change these contracts and are fixed before week 2 starts; the contracts count as frozen once they are merged.
 
 ## Repository structure
 
@@ -247,7 +254,7 @@ API key, not a subscription. Subscription tools are for building the project, no
 | Risk | Mitigation |
 |---|---|
 | 64 human hours is small. Integration eats time. | Contracts frozen in week 1, fixtures everywhere, each task ends in a merged PR. |
-| Asynchronous team, nobody in one room. | Schema changes go through PR with two approvals within 48 h. Weekly 30 minute sync. |
+| Asynchronous team, nobody in one room. | Filter-contract changes go through PR with two approvals within 48 h, other changes with one. Weekly 30 minute sync. |
 | Agent hangs during demo. | Backup video is mandatory, produced in week 4. |
 | Filter decisions flicker between re-renders. | Stable element key, decision cached per run, tested. |
 | Scope creep into behaviour and knowledge dimensions. | A12 fixes the scope. Extra dimensions go to the "what next" slide. |
