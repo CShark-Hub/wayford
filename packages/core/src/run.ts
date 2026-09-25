@@ -87,20 +87,41 @@ export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
  * reviewer can read the same lines the Actor read without re-deriving them.
  * `urlBefore` is the page the step observed; `urlAfter` is where the action
  * landed. `diceRoll` is present only when a behaviour rule rolled one.
+ *
+ * A step is complete unless the run stopped partway through it: a crash
+ * (`runFailed`) or the budget running out (`budget_exceeded`) after the
+ * observation but before the action landed. That step, and only the last one,
+ * is stored as `IncompleteRunStep`: `incomplete: true`, with `action` and
+ * `urlAfter` present only if their events arrived. `RunResult` enforces the
+ * "last step, those two endings" rule. A complete step has no `incomplete`
+ * key, so narrow with `"incomplete" in step`, not `step.incomplete`.
  */
-export const RunStep = z
+const stepBase = {
+  stepIndex: z.number().int().nonnegative(),
+  fullObservation: FullObservation,
+  actorObservationText: z.string(),
+  diceRoll: Probability.optional(),
+  narration: z.string(),
+  screenshotPath: z.string().min(1).optional(),
+  urlBefore: z.url(),
+};
+
+export const CompleteRunStep = z
+  .object({ ...stepBase, action: Action, urlAfter: z.url() })
+  .strict();
+export type CompleteRunStep = z.infer<typeof CompleteRunStep>;
+
+export const IncompleteRunStep = z
   .object({
-    stepIndex: z.number().int().nonnegative(),
-    fullObservation: FullObservation,
-    actorObservationText: z.string(),
-    action: Action,
-    diceRoll: Probability.optional(),
-    narration: z.string(),
-    screenshotPath: z.string().min(1).optional(),
-    urlBefore: z.url(),
-    urlAfter: z.url(),
+    ...stepBase,
+    action: Action.optional(),
+    urlAfter: z.url().optional(),
+    incomplete: z.literal(true),
   })
   .strict();
+export type IncompleteRunStep = z.infer<typeof IncompleteRunStep>;
+
+export const RunStep = z.union([CompleteRunStep, IncompleteRunStep]);
 export type RunStep = z.infer<typeof RunStep>;
 
 // ---------------------------------------------------------------------------
@@ -111,6 +132,11 @@ export type RunStep = z.infer<typeof RunStep>;
  * The record at rest. `seed`, `runIndex` and the ids make one run reproducible
  * and addressable; `videoPath` and `tracePath` are the recording (`F12`);
  * `cost` and `modelIds` are the provenance the report needs.
+ *
+ * At most the last step is incomplete, and only when the outcome is `error` or
+ * `budget_exceeded`. That rule is a refine, so `.omit`, `.pick` and `.partial`
+ * throw on this schema (`.extend` still works); derive a summary schema some
+ * other way.
  */
 export const RunResult = z
   .object({
@@ -127,7 +153,26 @@ export const RunResult = z
     cost: Cost,
     modelIds: ModelIds,
   })
-  .strict();
+  .strict()
+  .superRefine((run, ctx) => {
+    const last = run.steps.length - 1;
+    run.steps.forEach((step, i) => {
+      if (!("incomplete" in step)) return;
+      if (i !== last) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["steps", i],
+          message: `step ${step.stepIndex} is incomplete but is not the last step`,
+        });
+      } else if (run.outcome !== "error" && run.outcome !== "budget_exceeded") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["steps", i],
+          message: `step ${step.stepIndex} is incomplete but the run ended ${run.outcome}; only error or budget_exceeded may leave the last step incomplete`,
+        });
+      }
+    });
+  });
 export type RunResult = z.infer<typeof RunResult>;
 
 // ---------------------------------------------------------------------------
@@ -186,7 +231,11 @@ export const RunEvent = z.discriminatedUnion("type", [
       diceRoll: Probability.optional(),
     })
     .strict(),
-  /** The action ran. Carries where it landed and the post-action screenshot. */
+  /** The action ran. Carries where it landed and the post-action screenshot.
+   *  Every action emits it, `giveUp` included: a give-up is a step whose
+   *  action is `giveUp`, and `urlAfter` is the page the person gave up on. A
+   *  missing `actionPerformed` means the run stopped mid-step, never that the
+   *  action was `giveUp`. */
   z
     .object({
       ...eventBase,
@@ -247,6 +296,10 @@ type StepDraft = {
  * a `runFinished` or `runFailed` — so the same stream always folds to the same
  * record. Each step's Actor-facing text is recomputed from its evidence here,
  * so it can never drift from what the filter would have shown.
+ *
+ * A step missing its action or `urlAfter` is stored as incomplete; `RunResult`
+ * then rejects it unless it is the last step of a run that failed or ran out
+ * of budget.
  */
 export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
   const start = events[0];
@@ -309,23 +362,26 @@ export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
   const steps: RunStep[] = [...drafts.values()]
     .sort((a, b) => a.stepIndex - b.stepIndex)
     .map((draft) => {
-      if (
-        draft.fullObservation === undefined ||
-        draft.action === undefined ||
-        draft.urlBefore === undefined ||
-        draft.urlAfter === undefined
-      ) {
-        throw new Error(`step ${draft.stepIndex} is missing an observation, action or url`);
+      if (draft.fullObservation === undefined || draft.urlBefore === undefined) {
+        throw new Error(`step ${draft.stepIndex} is missing an observation`);
       }
-      const step: RunStep = {
+      const base = {
         stepIndex: draft.stepIndex,
         fullObservation: draft.fullObservation,
         actorObservationText: renderObservationForModel(toActorObservation(draft.fullObservation)),
-        action: draft.action,
         narration: draft.narration,
         urlBefore: draft.urlBefore,
-        urlAfter: draft.urlAfter,
       };
+      let step: RunStep;
+      if (draft.action !== undefined && draft.urlAfter !== undefined) {
+        step = { ...base, action: draft.action, urlAfter: draft.urlAfter };
+      } else {
+        // The run stopped mid-step. RunResult.parse below decides whether that is allowed.
+        const partial: IncompleteRunStep = { ...base, incomplete: true };
+        if (draft.action !== undefined) partial.action = draft.action;
+        if (draft.urlAfter !== undefined) partial.urlAfter = draft.urlAfter;
+        step = partial;
+      }
       if (draft.diceRoll !== undefined) step.diceRoll = draft.diceRoll;
       if (draft.screenshotPath !== undefined) step.screenshotPath = draft.screenshotPath;
       return step;
