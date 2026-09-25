@@ -120,6 +120,19 @@ describe("RunResult and RunEvent schemas", () => {
         true,
       );
     }
+
+    const unplanned = runResultFixture.steps.map((s, j) => {
+      if (j !== last) return s;
+      const { action: _action, ...partial } = s;
+      return { ...partial, incomplete: true };
+    });
+    const landedUnplanned = RunResult.safeParse({
+      ...runResultFixture,
+      outcome: "error",
+      steps: unplanned,
+    });
+    expect(landedUnplanned.success).toBe(false);
+    expect(landedUnplanned.error?.issues[0]?.message).toMatch(/never planned/);
   });
 
   test("giveUp still emits actionPerformed", () => {
@@ -335,6 +348,13 @@ describe("a run that stops mid-step", () => {
     const narration = stepEvents(0).filter((e) => e.type === "narration");
     expect(() => runResultFromEvents([started, ...narration, failedAt(0)])).toThrow(
       /missing an observation/,
+    );
+  });
+
+  test("an action performed but never planned throws, even last under runFailed", () => {
+    const noPlan = stepEvents(0).filter((e) => e.type !== "actionPlanned");
+    expect(() => runResultFromEvents([started, ...noPlan, failedAt(0)])).toThrow(
+      /step 0 performed an action it never planned/,
     );
   });
 });

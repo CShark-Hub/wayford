@@ -91,9 +91,9 @@ export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
  * A step is complete unless the run stopped partway through it: a crash
  * (`runFailed`) or the budget running out (`budget_exceeded`) after the
  * observation but before the action landed. That step, and only the last one,
- * is stored as `IncompleteRunStep`: `incomplete: true`, with `action` and
- * `urlAfter` present only if their events arrived. `RunResult` enforces the
- * "last step, those two endings" rule. A complete step has no `incomplete`
+ * is stored as `IncompleteRunStep`: `incomplete: true`, with `action` present
+ * only if it was planned, `urlAfter` only if it also landed. `RunResult`
+ * enforces the "last step, those two endings" rule. A complete step has no `incomplete`
  * key, so narrow with `"incomplete" in step`, not `step.incomplete`.
  */
 const stepBase = {
@@ -106,11 +106,13 @@ const stepBase = {
   urlBefore: z.url(),
 };
 
+/** A step whose action landed: `action` and `urlAfter` both present. See `RunStep`. */
 export const CompleteRunStep = z
   .object({ ...stepBase, action: Action, urlAfter: z.url() })
   .strict();
 export type CompleteRunStep = z.infer<typeof CompleteRunStep>;
 
+/** The last step of a run that crashed or ran out of budget mid-step. See `RunStep`. */
 export const IncompleteRunStep = z
   .object({
     ...stepBase,
@@ -121,6 +123,11 @@ export const IncompleteRunStep = z
   .strict();
 export type IncompleteRunStep = z.infer<typeof IncompleteRunStep>;
 
+/**
+ * One stored step: `CompleteRunStep`, or `IncompleteRunStep` for the last
+ * step of a crashed or timed-out run (details above `stepBase`). Narrow with
+ * `"incomplete" in step`, not `step.incomplete`.
+ */
 export const RunStep = z.union([CompleteRunStep, IncompleteRunStep]);
 export type RunStep = z.infer<typeof RunStep>;
 
@@ -135,7 +142,8 @@ export type RunStep = z.infer<typeof RunStep>;
  *
  * At most the last step is incomplete, and only when the outcome is `error` or
  * `budget_exceeded`. That rule is a refine, so `.omit`, `.pick` and `.partial`
- * throw on this schema (`.extend` still works); derive a summary schema some
+ * throw on this schema (`.extend` with new keys still works; overwriting a
+ * key needs `.safeExtend`); derive a summary schema some
  * other way.
  */
 export const RunResult = z
@@ -158,6 +166,13 @@ export const RunResult = z
     const last = run.steps.length - 1;
     run.steps.forEach((step, i) => {
       if (!("incomplete" in step)) return;
+      if (step.urlAfter !== undefined && step.action === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["steps", i],
+          message: `step ${step.stepIndex} performed an action it never planned`,
+        });
+      }
       if (i !== last) {
         ctx.addIssue({
           code: "custom",
@@ -372,6 +387,9 @@ export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
         narration: draft.narration,
         urlBefore: draft.urlBefore,
       };
+      if (draft.urlAfter !== undefined && draft.action === undefined) {
+        throw new Error(`step ${draft.stepIndex} performed an action it never planned`);
+      }
       let step: RunStep;
       if (draft.action !== undefined && draft.urlAfter !== undefined) {
         step = { ...base, action: draft.action, urlAfter: draft.urlAfter };
