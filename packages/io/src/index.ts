@@ -1,14 +1,5 @@
-import "dotenv/config";
-import { loadConfig } from "./config.js";
-
-export { loadConfig } from "./config.js";
-
-/** Placeholder until m0-07 lands the Hono server. */
-export function packageName(): string {
-  return "@wayford/io";
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const cfg = loadConfig();
-  console.log(`${packageName()} configured for port ${cfg.PORT}. Server arrives in m0-07.`);
-}
+// One export line per module, alphabetical. Add a line, never rewrite the file.
+export * from "./app.js";
+export * from "./config.js";
+export * from "./db/database.js";
+export * from "./db/schema.js";
