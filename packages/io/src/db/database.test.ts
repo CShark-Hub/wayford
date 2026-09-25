@@ -1,10 +1,35 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { profileFixtures } from "@wayford/core/fixtures";
-import { afterEach, beforeEach, expect, test } from "vitest";
-import { migrateDatabase, openDatabase } from "./database.js";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { migrateDatabase, openDatabase, sqliteFilePath } from "./database.js";
 import { profiles } from "./schema.js";
+
+// Four levels up from packages/io/src/db: the directory that holds `.env`.
+const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+
+describe("sqliteFilePath", () => {
+  test("a relative path resolves from the repository root, where .env lives", () => {
+    expect(sqliteFilePath("file:./wayford.sqlite")).toBe(join(repoRoot, "wayford.sqlite"));
+    expect(sqliteFilePath("file:data/x.sqlite")).toBe(join(repoRoot, "data", "x.sqlite"));
+  });
+
+  test("an absolute path is kept as it is", () => {
+    const file = join(tmpdir(), "absolute.sqlite");
+    expect(sqliteFilePath(`file:${file}`)).toBe(file);
+  });
+
+  test("a file:// URL becomes its path, drive letter and all", () => {
+    const file = join(tmpdir(), "url.sqlite");
+    expect(sqliteFilePath(pathToFileURL(file).href)).toBe(file);
+  });
+
+  test(":memory: stays in memory", () => {
+    expect(sqliteFilePath(":memory:")).toBe(":memory:");
+  });
+});
 
 let dir: string;
 beforeEach(() => {

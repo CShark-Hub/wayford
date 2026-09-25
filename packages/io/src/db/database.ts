@@ -1,19 +1,24 @@
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { ENV_FILE } from "../config.js";
 import * as schema from "./schema.js";
 
 /** The committed migrations, written by `db:generate`. */
 const MIGRATIONS_FOLDER = fileURLToPath(new URL("../../drizzle/", import.meta.url));
 
 /**
- * `DATABASE_URL` is `file:<path>`; better-sqlite3 takes the bare path. A
- * relative path resolves against the working directory, which is the io
- * package whenever pnpm runs the script.
+ * The file better-sqlite3 opens for a `DATABASE_URL`: `file:<path>`, a
+ * `file://` URL, a bare path, or `:memory:`. A relative path resolves from the
+ * repository root, where `.env` lives, so one value names one file whichever
+ * directory a script starts in.
  */
 export function sqliteFilePath(databaseUrl: string): string {
-  return databaseUrl.replace(/^file:/, "");
+  if (databaseUrl === ":memory:") return databaseUrl;
+  if (databaseUrl.startsWith("file://")) return fileURLToPath(databaseUrl);
+  return resolve(dirname(ENV_FILE), databaseUrl.replace(/^file:/, ""));
 }
 
 /** Open the database, creating the file if it does not exist. Close with `db.$client.close()`. */

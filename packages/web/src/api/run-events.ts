@@ -47,6 +47,9 @@ export function subscribeToRunEvents(
   onStatus("connecting");
   source.addEventListener("open", () => onStatus("open"));
   // While CONNECTING the browser is already retrying; CLOSED means it gave up.
+  // EventSource hides the status, so io's 204 ("you saw the last event") would
+  // read as failed here too. It cannot arrive: this source closes on the run's
+  // last event, before it could reconnect.
   source.addEventListener("error", () => {
     onStatus(source.readyState === EventSource.CLOSED ? "failed" : "connecting");
   });
