@@ -32,10 +32,9 @@ export type ActionType = z.infer<typeof ActionType>;
 
 /**
  * The longest single `wait` the Actor may ask for. Ten seconds is longer than
- * any honest pause for a page to settle, and short enough that one answer
- * cannot eat the shortest persona budget (Milo, 90 s) in a single step. An
- * engine guard, not a persona threshold: it has no source and never moves
- * into a profile.
+ * any honest pause for a page to settle, and a small fraction of any realistic
+ * run budget, so one answer cannot spend it in a single step. An engine guard,
+ * not a persona threshold: it has no source and never moves into a profile.
  */
 export const MAX_WAIT_MS = 10_000;
 
@@ -56,6 +55,9 @@ export type Action = z.infer<typeof Action>;
  * own account, stored as the `narration` event (interpretation, not
  * measurement); `action` is what gets measured. Refinements and some keywords
  * do not survive every provider, so every answer is re-parsed with this schema.
+ * `z.toJSONSchema` emits `oneOf` for the `action` union; strict modes that
+ * accept only `anyOf` need the adapter to rewrite it, which is safe because
+ * the `type` literals are disjoint.
  */
 export const ActorResponse = z.object({ narration: z.string(), action: Action }).strict();
 export type ActorResponse = z.infer<typeof ActorResponse>;
