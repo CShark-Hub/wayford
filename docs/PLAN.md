@@ -129,7 +129,7 @@ Analyst output per task.
 - AC2 Every finding links to at least one evidence step. Findings without evidence are not rendered.
 - AC3 Every finding has a recommendation.
 - AC4 Analyst input covers all runs across all personas for the task.
-- AC5 Every finding carries its basis: the rules behind it and each rule's threshold provenance. A deterministic finding names at least one. A finding whose basis includes `folk` or `llm` keeps its type but is marked soft, with its source shown, and is never presented as hard.
+- AC5 Every finding carries its basis: the rules behind it and each rule's threshold provenance. A deterministic finding names at least one. A finding whose basis includes `folk` or `llm` keeps its type but is marked soft, with its source shown, and is never presented as hard. Each basis entry's provenance is copied in code from the named profiles' thresholds, never taken from the Analyst's output.
 
 ### F9 Boundary sweep
 

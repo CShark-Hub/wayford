@@ -152,7 +152,7 @@ describe("Finding schema", () => {
     expect(Finding.safeParse(finding).success).toBe(true);
   });
 
-  test("only a hard finding may cite an axe rule (F10 AC2)", () => {
+  test("only a measurement or deterministic finding may cite an axe rule (F10 AC2)", () => {
     const hypothesis = rawFixture("fnd_deliveries-label-reads-as-current-only");
     hypothesis.axeRuleId = "color-contrast";
     const result = Finding.safeParse(hypothesis);
@@ -282,6 +282,14 @@ describe("fixtures", () => {
         });
         expect(held).toContain(entry.provenance);
       }
+    }
+  });
+
+  test("every rule a fixture's detail quotes is in its basis", () => {
+    for (const finding of findingFixtures) {
+      const quoted = new Set(finding.detail.match(/\b[PKVAMB]\d\b/g) ?? []);
+      const based = finding.basis.map((entry) => entry.rule);
+      for (const rule of quoted) expect(based).toContain(rule);
     }
   });
 

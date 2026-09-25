@@ -7,8 +7,10 @@
  * a finding carries its `type`, so a hypothesis can never be presented as a
  * measurement, and it carries at least one piece of evidence, so every verdict
  * is clickable through to the step it came from. A third: a `deterministic`
- * finding names the rules and threshold sources it rests on, so a `folk` or
- * `llm` threshold cannot pass as hard.
+ * finding names the rules and threshold sources it rests on, and
+ * `isHardFinding` treats any `folk` or `llm` source as soft. The schema cannot
+ * check those sources against the profiles; the Analyst step copies them in
+ * code (`docs/PLAN.md` F8 AC5).
  */
 import { z } from "zod";
 import {
@@ -108,10 +110,10 @@ export const Finding = z
   })
   .strict()
   .superRefine((finding, ctx) => {
-    // F10 AC2 lets the report cite an axe violation as a hard finding. A
-    // hypothesis is the Analyst reading the narration, so hanging a machine
-    // check's rule id on one would put the strongest provenance signal we have
-    // on the one claim that cannot carry it.
+    // F10 AC2 lets a measurement or deterministic finding cite an axe
+    // violation. A hypothesis is the Analyst reading the narration, so hanging
+    // a machine check's rule id on one would put the strongest provenance
+    // signal we have on the one claim that cannot carry it.
     if (finding.axeRuleId !== undefined && !HARD_FINDING_TYPES.includes(finding.type)) {
       ctx.addIssue({
         code: "custom",
