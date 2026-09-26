@@ -4,5 +4,6 @@ export * from "./finding.js";
 export * from "./observation.js";
 export * from "./primitives.js";
 export * from "./profile.js";
+export * from "./random.js";
 export * from "./run.js";
 export * from "./task.js";

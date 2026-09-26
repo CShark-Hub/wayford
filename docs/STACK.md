@@ -22,7 +22,7 @@
 | Schemas | zod | Runtime validation, TypeScript types, JSON Schema for structured LLM output, one source. |
 | YAML | `yaml` | Profiles on disk are YAML, everything else JSON. |
 | Seeded random | own `mulberry32` | About ten lines. Identical output in Node and browser, no dependency, easy to explain to a jury. |
-| Stable hashing | own FNV-1a 32-bit | For `hash(seed, elementKey)`. Same reason. |
+| Stable hashing | own FNV-1a 32-bit, finished with one `mulberry32` step | For `hash(seed, elementKey)`. Same reason. The step is needed: FNV-1a alone gives keys that differ only at the end, like the links of a list, nearly the same roll. |
 | Colour parsing and CVD simulation | `culori` | Parses any CSS colour from computed styles. Ships colour-vision-deficiency filters based on Machado et al. 2009, the same model Chrome uses. Lets the filter compute contrast *after* simulated deficiency, deterministically. |
 | Contrast | own WCAG 2.2 relative luminance and ratio | Fifteen lines. We defend this number in front of people, so we own the code. Tested against published examples. |
 | Browser | Playwright (library, not test runner) | CDP access through `page.context().newCDPSession(page)`. |

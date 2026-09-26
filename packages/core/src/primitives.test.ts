@@ -86,6 +86,12 @@ describe("metrics and states", () => {
     expect(Seed.safeParse(8814.5).success).toBe(false);
     expect(Seed.safeParse(-1).success).toBe(false);
   });
+
+  test("a seed fits the generator's 32-bit state, so none silently replays a smaller one", () => {
+    expect(Seed.safeParse(0).success).toBe(true);
+    expect(Seed.safeParse(4294967295).success).toBe(true);
+    expect(Seed.safeParse(4294967296).success).toBe(false);
+  });
 });
 
 describe("geometry", () => {

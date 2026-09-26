@@ -141,8 +141,13 @@ export const ContrastRatio = z.number().min(1).max(21);
 /** A probability, and the width of a soft threshold band. */
 export const Probability = z.number().min(0).max(1);
 
-/** Seed for the run's random stream. Integer so it survives a URL and a filename. */
-export const Seed = z.number().int().nonnegative();
+/**
+ * Seed for the run's random stream. Integer so it survives a URL and a filename; 32 bits because
+ * that is the generator's whole state (`random.ts`), so a larger seed would silently replay a
+ * smaller one.
+ */
+export const Seed = z.uint32();
+export type Seed = z.infer<typeof Seed>;
 
 /**
  * A step's position in its run. Referenced by the stored observation, by an

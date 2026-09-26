@@ -1,0 +1,12 @@
+// docs/CONVENTIONS.md, "Determinism rules": every decision draws from the seeded functions in
+// @wayford/core, so a run can be replayed from its seed. Matches Math.random called or not,
+// reached through ?. or a global object, and destructured from Math.
+or {
+  `Math.random`,
+  `Math?.random`,
+  `$_.Math.random`,
+  `$_.Math?.random`,
+  `{ $props } = Math` where { $props <: contains `random` }
+} as $random where {
+  register_diagnostic(span=$random, message="Math.random makes a run impossible to replay. Draw from rng(seed) or hash(seed, key) in @wayford/core (docs/CONVENTIONS.md, Determinism rules).")
+}
