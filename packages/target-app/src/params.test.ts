@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
+import { PAGES } from "./pages.js";
 import {
   DEFAULT_PARAMS,
   hasParams,
@@ -97,12 +98,68 @@ describe("defaults", () => {
   });
 });
 
+// The cuts of the persona bundles in docs/RULES.md. A size exactly on one passes only because the
+// rules compare with `>=`, and a box there can flip on sub-pixel layout (issue #32). The hard
+// link's variables are the one place a size may sit on a cut, and they are not fixed sizes.
+const FONT_CUTS = [16, 24]; // Vera, Zoya
+const TARGET_CUTS = [32, 44, 48]; // Vera, Milo, Zoya
+
+/**
+ * Every fixed size declared for `property` in style.css, in px. Custom properties and the hard
+ * link's variables are left out. Any other unit fails here, so no size slips past the cut checks
+ * as em, rem or a keyword.
+ */
+function pxSizes(property: RegExp): number[] {
+  const pattern = new RegExp(`(?<![\\w-])(?:${property.source}):\\s*([^;]+);`, "g");
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const values = [...rules.matchAll(pattern)]
+    .map((m) => (m[1] ?? "").trim())
+    .filter((value) => !value.startsWith("var("));
+  for (const value of values) expect(value).toMatch(/^\d+(?:\.\d+)?px$/);
+  return values.map((value) => Number.parseFloat(value));
+}
+
+const pageMarkup = (file: string): string =>
+  readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), "utf8");
+
 describe("style.css", () => {
-  // Vera's 16 px font cut: fixed text below it would be an off-path removal in her evidence.
-  test("no fixed font size is below 16 px", () => {
-    const sizes = [...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
+  // Fixed text at or below Vera's 16 px font cut would be an off-path removal in her evidence.
+  test("every fixed font size clears Vera's 16 px cut and sits on no font cut", () => {
+    const sizes = pxSizes(/font-size/);
     expect(sizes.length).toBeGreaterThan(0);
-    for (const size of sizes) expect(size).toBeGreaterThanOrEqual(16);
+    for (const size of sizes) {
+      expect(size).toBeGreaterThan(16);
+      expect(FONT_CUTS).not.toContain(size);
+    }
+  });
+
+  // Without one, a heading takes the browser's em default: `h2` sat on Zoya's 24 px cut while
+  // body text was 16 px.
+  test("every heading level the pages use sets its own size", () => {
+    const levels = new Set(
+      PAGES.flatMap((page) => [...pageMarkup(page.file).matchAll(/<(h[1-6])\b/g)].map((m) => m[1])),
+    );
+    expect(levels.size).toBeGreaterThan(0);
+    for (const level of levels) {
+      const body = cssRules().find((rule) => rule.selector === level)?.body ?? "";
+      expect(body, `${level} in style.css`).toMatch(/(?:^|;)\s*font-size:/);
+    }
+  });
+
+  // Milo's 44 px is the strictest target cut of a persona meant to get through; declaring the
+  // height keeps it from depending on font metrics.
+  test.each([".site-nav a", ".menu-toggle", ".button", ".big-link"])(
+    "%s declares a box taller than Milo's 44 px cut",
+    (selector) => {
+      const body = cssRules().find((rule) => rule.selector === selector)?.body ?? "";
+      expect(Number(/min-height:\s*(\d+)px/.exec(body)?.[1])).toBeGreaterThan(44);
+    },
+  );
+
+  test("no fixed box size sits on a target cut", () => {
+    const sizes = pxSizes(/(?:min-)?(?:height|width)/);
+    expect(sizes.length).toBeGreaterThan(0);
+    for (const size of sizes) expect(TARGET_CUTS).not.toContain(size);
   });
 
   test("only .hard-link reads the tunable variables", () => {

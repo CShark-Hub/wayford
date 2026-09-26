@@ -1,7 +1,28 @@
 /*
  * The page itself is fixed and comfortably readable. Only `.hard-link` reads the tunable
  * variables, so a parameter change moves exactly one element across a threshold.
+ *
+ * No fixed size sits on a persona cut from docs/RULES.md (font 16 and 24 px, target 32, 44 and
+ * 48 px): on a cut, an element passes only because the rules compare with `>=`, and a box can
+ * flip on sub-pixel layout (issue #32). Text is 17 px, headings set their own size, controls
+ * declare their height. Only the hard link sits on a cut, on purpose: its default 16 px font
+ * meets Vera's font cut exactly.
  */
+
+/*
+ * The one font, bundled: no CDN and no system font. Inter 4, variable weight, upright, Latin
+ * subset, copied from `@fontsource-variable/inter` 5.3.0 (licence: public/fonts/OFL.txt).
+ * Chromium holds `load` until the file arrives. `block` keeps text invisible for up to 3 s
+ * rather than paint a fallback first; if the file never loads, a system font shows after that.
+ */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2");
+}
+
 :root {
   --fg: #b7b7b7;
   --bg: #ffffff;
@@ -20,10 +41,18 @@
   box-sizing: border-box;
 }
 
+/* Browsers give form controls a system font of their own. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 16px;
+  font-family: "Inter", sans-serif;
+  font-size: 17px;
   line-height: 1.5;
   color: var(--text);
   background: var(--page-bg);
@@ -61,6 +90,7 @@ a {
 
 .site-nav a {
   display: inline-block;
+  min-height: 46px;
   padding: 10px 14px;
   border-radius: 6px;
   color: var(--text);
@@ -74,13 +104,25 @@ a {
 
 .menu-toggle {
   display: none;
-  min-height: 44px;
+  min-height: 46px;
   padding: 8px 14px;
-  font: inherit;
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 6px;
   cursor: pointer;
+}
+
+/* Three bars, drawn: the bundled font has no U+2630, so that glyph would come from a system font. */
+.menu-icon {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: currentColor;
+  box-shadow:
+    0 -5px currentColor,
+    0 5px currentColor;
 }
 
 main {
@@ -92,6 +134,10 @@ main {
 h1 {
   margin-top: 8px;
   font-size: 28px;
+}
+
+h2 {
+  font-size: 26px;
 }
 
 .lead {
@@ -127,7 +173,7 @@ h1 {
 .big-link {
   display: inline-flex;
   align-items: center;
-  min-height: 48px;
+  min-height: 50px;
   padding: 10px 18px;
   font-size: 18px;
   font-weight: 600;
@@ -151,7 +197,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 44px;
+  min-height: 46px;
 }
 
 .field input[type="checkbox"] {
@@ -160,9 +206,8 @@ h1 {
 }
 
 .button {
-  min-height: 44px;
+  min-height: 46px;
   padding: 8px 16px;
-  font: inherit;
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 6px;

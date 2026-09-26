@@ -40,7 +40,7 @@ Given a Playwright page, the filter produces its `PageMeasurement`, and collect-
 ## Acceptance
 
 - [ ] `pnpm --filter @wayford/filter test` passes and includes `contrast.test.ts` and `collect.browser.test.ts`
-- [ ] `collect` on `/deliveries` at default parameters matches the regenerated `measurementFixture` in keys, roles, names, kinds, contrast and font size. Boxes are not compared, because text metrics depend on the machine's fonts until the target app bundles one (issue #32).
+- [ ] `collect` on `/deliveries` at default parameters matches the regenerated `measurementFixture` in keys, roles, names, kinds, contrast and font size. Boxes are not compared: the target app bundles its one font (issue #32), but glyph positioning can still differ between operating systems.
 - [ ] The "Order archive" link measures within 0.01 of 2.006:1 at `?contrast=2&fontPx=16&targetPx=36` and within 0.01 of 7.005:1 at `?contrast=7&fontPx=16&targetPx=36`
 - [ ] For every element `collect` returns on each of the six target-app pages, `getByRole(role, { name, exact: true })` finds it
 - [ ] Collect-then-perceive twice on `/deliveries` with Vera and seed 7 gives string-equal `renderObservationForModel(toActorObservation(...))`

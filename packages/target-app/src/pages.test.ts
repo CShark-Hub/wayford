@@ -12,7 +12,7 @@ const paths = PAGES.map((page) => page.path);
 /** Text a reader or the accessibility tree gets: tags and `aria-hidden` decoration removed. */
 function visibleText(markup: string): string {
   return markup
-    .replace(/<span aria-hidden="true">[^<]*<\/span>/g, "")
+    .replace(/<span\b[^>]*\saria-hidden="true"[^>]*>[^<]*<\/span>/g, "")
     .replace(/<[^>]*>/g, "")
     .trim();
 }
