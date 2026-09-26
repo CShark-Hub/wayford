@@ -49,6 +49,7 @@ One function any package can call to get a zod-validated object from an OpenAI-c
 - The Actor, Scout and Analyst prompts and loops. Week 3 and 4.
 - Streaming responses, tool calls, images.
 - Showing cost on the dashboard (F7). The adapter returns it; storing and showing it come later.
+- Jev's `decide` and the actor backend setting. s2-05 adds them next to `complete`, on the same key and base URL.
 
 ## Notes for the reviewer
 

@@ -18,9 +18,10 @@ Planning docs:
 - `docs/RULES.md` — the filter pipeline, every rule with its source id, the three persona bundles. Draft, under review.
 - `docs/STACK.md` — exact library picks and package import rules. `docs/CONVENTIONS.md` — layout, determinism rules, Definition of Done.
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
+- `docs/adr/` — decisions taken after the plan, one file each: context, rejected options, consequences. Read the matching one before changing what it covers.
 - `tasks/` — agent-sized task files, `BOARD.md` for ownership and status, `TEMPLATE.md` for new tasks.
 
-Next move: the week 2 table in `tasks/BOARD.md`: the perception filter (`s1-01`, `s1-02`), the LLM adapter and evidence capture (`s2-01`, `s2-02`), the personas and preview screens (`s3-01`, `s3-02`), the Extractor and the database (`s4-01`, `s4-02`). The week 1 review is filed as issues #13 to #51; the critical ones (#13 to #16) change the contracts and are fixed before week 2 starts. The seven contracts (`Profile`, `Task`, `RunResult`, `Finding` at rest; `Observation`, `Action`, `RunEvent` in motion) count as frozen once those are merged.
+Next move: the week 2 table in `tasks/BOARD.md`: the perception filter (`s1-01`, `s1-02`), the LLM adapter, its Jev half and evidence capture (`s2-01`, `s2-05`, `s2-02`), the personas and preview screens (`s3-01`, `s3-02`), the Extractor and the database (`s4-01`, `s4-02`). The week 1 review is filed as issues #13 to #51; the critical ones (#13 to #16) change the contracts and are fixed before week 2 starts. The seven contracts (`Profile`, `Task`, `RunResult`, `Finding` at rest; `Observation`, `Action`, `RunEvent` in motion) count as frozen once those are merged.
 
 If you are an agent picking up a task: read `AGENTS.md`, then `docs/PLAN.md`, then the task file. Do only what the task file says.
 
@@ -122,6 +123,12 @@ Playwright and CDP live natively in Node. A .NET (orchestration) + Node (executo
 One adapter, config per role (extractor / scout / actor / analyst). The Actor runs × N and drives the bill — cheap model there. The Analyst runs once — strong model there.
 
 At the hackathon it'll be one key anyway. The adapter exists so there's no `if (provider)` scattered across five files.
+
+### Jev is the Actor's second backend, nothing more
+
+Jev is a decision model on the same OpenRouter key: a probability per option back, no text. The Actor can run on it behind a flag, with the LLM as default, because the Actor is where the bill and the wall clock go. The action is drawn from Jev's probabilities with the run seed, so a stored run replays down to the action.
+
+It stays inside the three sentences: Jev sees exactly the filtered observation the LLM sees, it is one call inside our own loop, and its confidence is a hypothesis, never a measurement. It stays out of the filter and the Analyst. Why, what was rejected, and the gate it must pass: `docs/adr/0001-jev-actor-backend.md`.
 
 ---
 

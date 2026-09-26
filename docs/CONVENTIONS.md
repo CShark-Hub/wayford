@@ -38,6 +38,7 @@ One error class per package boundary, `WayfordError` in `core` with a `code` str
 - Anything that touches `Math.random()` outside the seeded RNG fails lint. Use `rng(seed)` from `core`.
 - Perception decisions: resolved once per element per run, keyed by `hash(seed, elementKey)`.
 - Behaviour decisions: rolled per action from the same RNG stream, logged with the rolled value.
+- The Jev Actor's choice: drawn from Jev's probabilities by its own stream derived from the run seed, never the behaviour stream, logged with the rolled value.
 - `Date.now()` never influences a decision, only timestamps.
 
 ## Tests

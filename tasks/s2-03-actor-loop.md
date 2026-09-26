@@ -29,7 +29,8 @@ One command runs one persona on one task with one seed against the target app: t
 
 - "The Actor must be our own loop" (`AGENTS.md`). Each step: `collect`, `perceive`, `toActorObservation`, `renderObservationForModel`, then the model. The model gets nothing else from the page.
 - The prompt template is identical for every persona: the goal sentence, the observation, the history, the actions it may take. No persona name, trait, threshold or impairment reaches it (F5 AC6).
-- M1: the history is truncated to the last `memorySteps` steps; earlier steps are replaced by a one-line count.
+- M1: the history is truncated to the last `memorySteps` steps; earlier steps are replaced by a one-line count. One function renders the history, so every backend gets the same truncation.
+- The model sits behind one seam, the Actor backend: goal sentence, Actor-facing observation text and rendered history in; an `Action` and optional narration out. The LLM backend is the only one here; s2-06 adds Jev behind the same seam (`docs/adr/0001-jev-actor-backend.md`).
 - The model answers with `ActorResponse`. A ref the observation does not contain is a typed failure: one retry carrying the error, then the step counts as wasted. Never a Playwright crash.
 - Acting: the cursor moves to the element's box first and the action lands at that point, so what the persona clicked is what the video shows.
 - Behaviour, per `docs/RULES.md` stage 7 and assumption A12: B1 double click from `rng(run seed)`, B3 budget from `budgetSeconds` ending `budget_exceeded` (wall-clock, read from an injectable clock so tests never wait; the run records its elapsed time, since B3 is the one rule a seed does not reproduce), a `giveUp` ending `gave_up`, and a step cap from config. Every roll is stored as the run record allows. B2 and B4 are out of scope.
@@ -56,6 +57,7 @@ One command runs one persona on one task with one seed against the target app: t
 - Scout (s2-04), storing runs in the database and HTTP (s4-03), the Analyst (week 4).
 - Knowledge and attention stages: s1-03 adds them inside `perceive`, and the loop only calls `perceive`.
 - B2 `scrollWhenStuck` and B4 misclick. Live video (cut in `m0-08`).
+- The Jev backend and the decision record on the step. That is s2-06.
 
 ## Notes for the reviewer
 

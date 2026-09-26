@@ -37,6 +37,7 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 | s3-01 | Preview screen on the measurement fixture | L | s1-01, s3-02 | Dev 3 | | todo |
 | s4-01 | Extractor | M | s2-01 | Dev 4 | | todo |
 | s4-02 | Database: runs and tasks | S | m0-07, #13, #14, #15 | Dev 2 | | todo |
+| s2-05 | Jev decision call in the adapter | S | s2-01 | Dev 4 | | todo |
 
 `#n` in Depends on is a GitHub issue on `CShark-Hub/promptozaury` that has to be fixed first. Fixes live in those issues, not in task files.
 
@@ -45,11 +46,11 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 **Waves.** Nothing starts on a task whose dependencies are not merged.
 
 1. Monday: `s1-01`, `s2-01`, `s2-02`, `s3-02`, and `s4-02` once #13 to #15 are merged.
-2. After `s1-01`: `s1-02`, and `s3-01` once `s3-02` is in too. After `s2-01`: `s4-01`.
+2. After `s1-01`: `s1-02`, and `s3-01` once `s3-02` is in too. After `s2-01`: `s2-05`, then `s4-01`. `s2-05` goes first while the adapter code is fresh; it is the Jev half of the adapter (`docs/adr/0001-jev-actor-backend.md`).
 
 Critical path: #16 and #26 → `s1-01` → `s1-02` and `s3-01`. Review those first. Dev 1 carries two L tasks in a row on that path, so `s1-02` goes to whoever frees up first once `s1-01` merges; Dev 2 is the natural pick, since `s2-02` already starts the target app from its tests.
 
-**If the week runs short**, `s4-01` moves to week 3 first: the Actor can run on the task fixtures until it lands, and nothing else waits on it.
+**If the week runs short**, `s2-05` moves to week 3 first, into Dev 4's free Monday: only `s2-06` waits on it, and `s2-06` also waits on `s2-03`. Then `s4-01`: the Actor can run on the task fixtures until it lands, and nothing else waits on it.
 
 **Reviews.** `s1-01` changes the filter contract: two reviewers within 48 h. Everything else: one reviewer who did not work on the task.
 
@@ -65,18 +66,19 @@ Monday 2026-10-05 to Sunday 2026-10-11. Written in `m0-08` and cut to what the d
 | s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Dev 4 | | todo |
 | s3-03 | Ring: several personas on one task, live | L | s3-02 (s4-03 for the real-key box) | Dev 3 | | todo |
 | s3-04 | Dashboard and run detail | L | s3-02, #15 (s4-03 for the `pnpm dev` box) | Dev 1 | | todo |
+| s2-06 | Jev Actor backend | L | s2-03, s2-05 | Dev 2 | | todo |
 
 **Waves.**
 
 1. Monday: `s2-03`, `s3-05`, `s3-04`, and anything left over from week 2. `s3-03` follows `s3-05` in the Dev 3 slot.
-2. After `s2-03`: `s2-04`, `s4-03`.
+2. After `s2-03`: `s2-04`, `s4-03`, and `s2-06` in the Dev 2 slot.
 3. After `s4-03`: the real-run acceptance boxes of `s3-03` and `s3-04`.
 
 `s3-03` and `s3-04` build against the routes `s4-03` describes, with stubbed responses, and wait for its merge only for their real-run checks. That keeps three L tasks from running in series.
 
-Critical path: `s2-03` → `s4-03` → the real runs in the ring. That chain is the week 3 meeting point, so review those first. Dev 4 starts the week free on purpose: that is the room for week 2 slips and for reviewing `s2-03`.
+Critical path: `s2-03` → `s4-03` → the real runs in the ring. That chain is the week 3 meeting point, so review those first. Dev 4 starts the week free on purpose: that is the room for week 2 slips and for reviewing `s2-03`. `s2-06` is off the critical path: nothing waits on it, and its gate decides whether week 4 runs on Jev.
 
-**Cut order, from `docs/ROADMAP.md`.** `s2-04` first: a hand-written ground truth per task replaces Scout. Then the ring's animation.
+**Cut order, from `docs/ROADMAP.md`.** `s2-06` first: it slips to week 4 or drops, and the LLM backend stays. Then `s2-04`: a hand-written ground truth per task replaces Scout. Then the ring's animation.
 
 ## Week 4 — M4 report and sweep, M5 demo
 

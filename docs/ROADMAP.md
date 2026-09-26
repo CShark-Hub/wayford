@@ -55,7 +55,7 @@ Exit criteria:
 
 ## Week 2 — M1 filter standalone, M2 frontend on fixtures
 
-Monday 2026-09-28 to Sunday 2026-10-04. Streams split. Nothing here needs an LLM key except the adapter smoke test and the Extractor's manual check.
+Monday 2026-09-28 to Sunday 2026-10-04. Streams split. Nothing here needs an LLM key except the adapter smoke tests (`complete` and Jev's `decide`) and the Extractor's manual check.
 
 Before it starts: the critical issues from the week 1 review (#13 to #16) are fixed, because they change the contracts every week 2 task builds on. `s1-01` and `s3-02` also need `rng` and `hash` in core, which issue #26 asks for, and `pnpm lint` must pass on `main` again (#55), because every task's acceptance runs it. Everything else the review found stays in its issue and is not a week 2 task.
 
@@ -64,6 +64,7 @@ Exit criteria:
 - Filter: Playwright page in, `PageMeasurement` out; `PageMeasurement`, profile and seed in, `FullObservation` out. Two runs with the same seed produce identical output on the target app. Elements below a hard threshold are absent from the Actor's view and present in the evidence. Raising a threshold never makes an element more visible. Tests run without an LLM.
 - Frontend: the preview screen runs `perceive` in the browser on the measurement fixture and redraws under 500 ms when a slider moves. Persona cards render fixture profiles with procedural avatars.
 - LLM adapter: `complete()` returns a parsed object for a trivial schema through OpenRouter, cost logged.
+- Jev: `smoke:jev` prints a probability per option for the fixture observation through OpenRouter, cost logged (`s2-05`, `docs/adr/0001-jev-actor-backend.md`). First to slip to week 3.
 - Evidence: one persona on the target app gets a browser context with its device, a fake cursor, a screenshot per step, a `webm` and a `trace.zip` named after persona, seed and run id.
 - Extractor: rejects a task with a path in it, accepts a clean one, produces a `Task`.
 - Database: Drizzle tables for profiles, tasks and runs; migrations run; runs and tasks round-trip.
@@ -73,6 +74,8 @@ Exit criteria:
 Meeting point one: Actor with a real filtered observation, result on disk and in the database.
 
 Tasks: `tasks/BOARD.md`, week 3, written in `m0-08`. Six tasks, cut to what the demo needs: the Actor loop (`s2-03`), Scout (`s2-04`), the runs API (`s4-03`), the ring, the dashboard and the live preview (`s3-03`, `s3-04`, `s3-05`). The knowledge and attention stages (`s1-03`) moved to week 4 as a stretch; live video was cut.
+
+A seventh, off the critical path: the Jev Actor backend (`s2-06`, `docs/adr/0001-jev-actor-backend.md`). It is no exit criterion. Its gate decides whether week 4 runs on Jev or on the LLM.
 
 Issues to fix before week 3 starts, because `s2-03` waits on them: #19 (knowledge never in the Actor prompt) and #31 (`ActorResponse`). Before the first real runs, also #38, so traces with cookies cannot be committed.
 
@@ -90,6 +93,8 @@ Exit criteria:
 ## Week 4 — M4 report and sweep, M5 demo
 
 Meeting point two: frontend on real analysis.
+
+If `s2-06` passed its gate, the sweep and `seed:demo` run on the Jev backend; otherwise on the LLM.
 
 Exit criteria:
 
@@ -115,3 +120,4 @@ Cut from the bottom, never from the top.
 7. axe-core sidecar.
 8. Procedural avatar animation (fall back to static SVG).
 9. Real public site run.
+10. Jev Actor backend (`s2-06`). The LLM backend stays.

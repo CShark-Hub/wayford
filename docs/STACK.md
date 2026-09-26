@@ -34,6 +34,7 @@
 |---|---|---|
 | LLM client | plain `fetch` to an OpenAI-compatible `/chat/completions`, response parsed with zod | The adapter is about 150 lines. The `openai` SDK and the Vercel AI SDK were rejected because they hide the request body and we must control exactly what the Actor receives. |
 | Structured output | JSON schema from zod 4's built-in `z.toJSONSchema()`, `response_format: json_schema` in strict mode where supported, JSON-mode fallback with a zod repair round | Works on OpenRouter, OpenAI, Anthropic-compatible proxies and Ollama. `zod-to-json-schema` targets zod 3 and is not used. Strict modes need an object at the root, so every response schema is one (`ActorResponse`, not a bare `Action`). Refinements do not survive into JSON Schema, so every response is re-parsed with zod. |
+| Decision model | Jev, pinned to `typesafe/jev-1.13`, through OpenRouter's System One API with plain `fetch`, on the LLM's key and base URL | The Actor's second backend (`docs/adr/0001-jev-actor-backend.md`): a probability per option, sub-second, input tokens billed only. `~typesafe/jev-latest` and `typesafe/jev-router` rejected: both change the model under a tuned run. |
 | Retries | own, exponential, max 3, logged | No library. |
 | Cost | own table `models.yaml` with price per million tokens per model id | Stored on every step. |
 

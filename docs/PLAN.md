@@ -20,7 +20,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A10 | Avatars are procedural SVG derived from the profile seed and dimensions. No generated images. | default |
 | A11 | Three hand-written personas. PersonaLayer is cited as provenance where thresholds match. | default |
 | A12 | Perception dimension in full. Behaviour: one dice (double click). Knowledge: observation only, never in the Actor prompt template (`docs/RULES.md` pipeline, F5 AC6). Pattern rules K1 and K4 are a week 4 stretch (`s1-03`). Vocabulary (K2 masking, `[unfamiliar term]`) and readability (K3), `docs/RULES.md` stage 4: week 4 or the "what next" slide. | default, issue #19 |
-| A13 | LLM access through OpenRouter with one key and a 50 USD cap. Adapter is OpenAI-compatible so any key works. | default |
+| A13 | LLM access through OpenRouter with one key and a 50 USD cap. Adapter is OpenAI-compatible so any key works. Jev (A22) comes through the same key. | default |
 | A14 | Whole team works in TypeScript. | default |
 | A15 | SQLite through Drizzle at start. Postgres is one config change later. | default |
 | A16 | Actor receives text observation only (filtered accessibility tree). Screenshot input is a flag, off by default. | default |
@@ -29,6 +29,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A19 | Project name is **Wayford**. Workspace scope `@wayford/*`. Rationale in `AGENTS.md`, section "On the name". | Tomasz, 2026-09-17 |
 | A20 | The run seed drives every perception decision and every dice roll. The profile seed only draws the avatar. A run set uses the same seed list for every persona, so personas are compared on the same dice. | m0-08, issue #22 |
 | A21 | Streams are areas of the code, not people. Anyone may claim any task whose dependencies are merged; `tasks/BOARD.md` suggests a split into four slots so nobody waits. | Tomasz, 2026-09-25 |
+| A22 | The Actor has two backends behind one seam: an LLM, the default, and Jev, a decision model that returns a probability per option instead of text. A run set uses one backend. Decision, limits and gate: `docs/adr/0001-jev-actor-backend.md`. | Tomasz, 2026-09-26 |
 
 ## Goal
 
@@ -97,11 +98,12 @@ Unconstrained run that produces ground truth.
 
 - AC1 Same profile and seed give identical filtered observations per step. Test: two runs, string equality of observations.
 - AC2 Behaviour dice rolls are logged per action with the seed-derived random value.
-- AC3 Every step stores: screenshot, filtered observation, action, narration, URL, timestamp.
+- AC3 Every step stores: screenshot, filtered observation, action, narration when the backend writes one (Jev writes none), URL, timestamp.
 - AC4 A step emits a `RunEvent` before and after the action, over SSE.
 - AC5 Budget timeout ends the run with outcome `gave_up`. Reaching the success condition ends it with `success`.
 - AC6 Actor prompt never mentions impairment or persona traits. A test greps the prompt template for banned words.
 - AC7 A fake cursor is injected into the page and moved to click coordinates before each click, so it appears in video and screenshots.
+- AC8 With the Jev backend (A22), every option comes from the Actor-facing observation, the action is drawn from Jev's probabilities by a stream of the run seed, and the step stores the options, the probabilities, the confidence and the rolled value.
 
 ### F6 Ring
 
@@ -182,7 +184,7 @@ POST /tasks            Extractor: sentence -> Task
 POST /runs             { taskId, profileIds, seeds, n } -> runIds
    job runner: for each persona x seed: Actor loop (Scout runs per task, by hand)
    Actor step: page -> DOM metrics -> filter(profile, seed) -> Observation
-               -> LLM -> Action -> behaviour dice -> Playwright -> evidence + RunEvent
+               -> Actor backend (LLM or Jev) -> Action -> behaviour dice -> Playwright -> evidence + RunEvent
 GET  /runs/:id/events  SSE stream of RunEvent
 POST /analyses         Analyst over a run set -> Finding[]
 POST /sweeps           axis, range, step -> loop of runs -> boundary
@@ -237,7 +239,8 @@ Exact library picks, ports and import rules: `docs/STACK.md`. Code conventions a
 API key, not a subscription. Subscription tools are for building the project, not for running it.
 
 - One adapter: `complete({ role, messages, schema })` with structured output, retries and per-call token and cost logging stored on the step.
-- Role configuration: `extractor`, `scout`, `actor`, `analyst`, each mapped to a model id in config.
+- `decide({ role, state, question })` in the same adapter: one Jev Choice question over text, a probability per option back. The Actor's Jev backend is its only caller (A22).
+- Role configuration: `extractor`, `scout`, `actor`, `analyst`, each mapped to a model id in config. The `actor` role also has a backend setting, `llm` or `jev`, and Jev's pinned model id.
 - OpenRouter as the default endpoint. Direct OpenAI or Anthropic keys work through the same adapter.
 - Local Ollama configured as an emergency fallback, never demoed.
 - Cost shown on the dashboard. "30 runs for 1.20 USD" is a pitch point.
