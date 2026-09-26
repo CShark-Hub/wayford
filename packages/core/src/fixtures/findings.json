@@ -9,6 +9,7 @@
       { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0tp", "stepIndex": 2 },
       { "runId": "run_01jbqk7t2ec5vh9w0p6skn3rjm", "stepIndex": 2 }
     ],
+    "basis": [],
     "recommendation": "Raise the link to at least 4.5:1 against its background, or lift the archive out of the body text into a labelled entry in the section.",
     "personaIds": [],
     "axeRuleId": "color-contrast"
@@ -23,6 +24,7 @@
       { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0tp", "stepIndex": 2 },
       { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6hk", "stepIndex": 5 }
     ],
+    "basis": [{ "rule": "P1", "provenance": "wcag22" }],
     "recommendation": "Raise the link to at least 7:1 against its background, or lift the archive out of the body text into a labelled entry in the section so reaching it does not depend on reading it.",
     "personaIds": ["prof_zoya"]
   },
@@ -36,6 +38,7 @@
       { "runId": "run_01jbqm1f8dz4t7x2c9v5gwb6hk", "stepIndex": 7 },
       { "runId": "run_01jbqn4h6bq8s3y1e7k2mtd9pw", "stepIndex": 6 }
     ],
+    "basis": [],
     "recommendation": "Say in the label, or in the first line of the section, that it also holds what has already arrived.",
     "personaIds": ["prof_vera", "prof_zoya"]
   }
