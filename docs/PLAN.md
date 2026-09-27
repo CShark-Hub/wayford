@@ -100,7 +100,7 @@ Unconstrained run that produces ground truth.
 - AC2 Behaviour dice rolls are logged per action with the seed-derived random value.
 - AC3 Every step stores: screenshot, filtered observation, action, narration when the backend writes one (Jev writes none), URL, timestamp.
 - AC4 A step emits a `RunEvent` before and after the action, over SSE.
-- AC5 Budget timeout ends the run with outcome `gave_up`. Reaching the success condition ends it with `success`.
+- AC5 Budget timeout ends the run with outcome `budget_exceeded`. Reaching the success condition ends it with `success`.
 - AC6 Actor prompt never mentions impairment or persona traits. A test greps the prompt template for banned words.
 - AC7 A fake cursor is injected into the page and moved to click coordinates before each click, so it appears in video and screenshots.
 - AC8 With the Jev backend (A22), every option comes from the Actor-facing observation, the action is drawn from Jev's probabilities by a stream of the run seed, and the step stores the options, the probabilities, the confidence and the rolled value.
