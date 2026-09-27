@@ -1,6 +1,6 @@
 # @wayford/target-app
 
-Quillmere, a small, domain-neutral and fictional "my account" shop to walk. It has one easy goal and one hard one, and query parameters tune the hard link, so the filter, the preview and the sweep all have a stable target.
+Quillmere, a small, domain-neutral and fictional "my account" shop to walk. It has one easy goal and one hard one, and query parameters tune the hard link. They set the app, not the persona: the preview sliders and the sweep move a persona's thresholds and leave these fixed (`docs/STACK.md`, "Target app").
 
 ![Deliveries, with the faint Order archive link outlined](docs/screenshots/04b-deliveries-annotated.png)
 
@@ -46,7 +46,7 @@ Defined in `src/pages.ts` as `GOALS`. Both succeed on URL alone:
 
 `--bg` is fixed at `#ffffff`. **Only `.hard-link` reads these variables**, so a change moves one element across a threshold and the rest of the page stays put.
 
-With the defaults, the font meets Vera's 16 px exactly, on purpose (P3 compares with `>=`, and the calibration table in `docs/RULES.md` relies on it), and the target clears her 32 px, so **contrast is the only metric that gates her**, and a contrast sweep has a boundary to find. 2:1 sits below her 3:1, inside her softness band, so each run's seed decides whether the link reaches her degraded (name partly masked) or not at all. Milo (target 44) still loses the link on target size; Zoya (7:1, 24 px, 48 px) loses it on all three.
+With the defaults, the font meets Vera's 16 px exactly, on purpose (P3 compares with `>=`, and the calibration table in `docs/RULES.md` relies on it), and the target clears her 32 px, so **contrast is the only metric that gates her**, and a sweep of her contrast threshold has a boundary to find. 2:1 sits below her 3:1, inside her softness band, so each run's seed decides whether the link reaches her degraded (name partly masked) or not at all. Milo (target 44) still loses the link on target size; Zoya (7:1, 24 px, 48 px) loses it on all three.
 
 Missing or unparsable values fall back to the defaults, and out-of-range values, infinities included, are clamped.
 

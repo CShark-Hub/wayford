@@ -141,7 +141,7 @@ One axis, one path.
 - AC2 Chart with a marker on the boundary value.
 - AC3 Sweep runs reuse the same seed set for every value.
 - AC4 The swept value is a profile threshold, a capability, never a target-app parameter, and its softness stays fixed for the whole sweep. App parameters stay fixed for the whole sweep and are recorded on every run in its start URL. That is what makes a sweep work on a site we cannot tune.
-- AC5 The boundary is the first value whose success rate over the seed set falls below 50%. The chart states the rate. For a fixed seed an element's state only worsens as the threshold rises (`docs/RULES.md`), so the success rate is monotone up to the Actor's own variance.
+- AC5 The boundary is the first value, counting from the laxest, whose success rate over the seed set falls below 50%. The chart states the rate. For a fixed seed the state the perception rules give an element never improves as the threshold rises (`docs/RULES.md`), so the success rate is monotone up to the Actor's own variance.
 
 ### F10 axe-core sidecar
 

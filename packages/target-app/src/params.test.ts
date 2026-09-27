@@ -67,7 +67,7 @@ describe("contrast from the CSS variables", () => {
     expect(themeVariables(parseParams(`?contrast=${ratio}`))["--fg"]).toBe(hex);
   });
 
-  test("is monotone, so a sweep sees one boundary", () => {
+  test("is monotone, so tuning the page crosses a threshold once", () => {
     const ratios = Array.from({ length: 41 }, (_, i) => 1 + i * 0.5).map((r) =>
       contrastFor(`?contrast=${r}`),
     );

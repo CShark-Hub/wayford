@@ -199,7 +199,7 @@ Działa z OpenRouter, OpenAI, Anthropic, lokalną Ollamą. Na hackathonie i tak 
 
 **Ekran główny: suwaki z podglądem na żywo.**
 
-Po lewej suwaki profilu, po prawej strona **taka, jaką widzi ta persona**. Przesuwasz próg kontrastu z 4.5 na 3.0 → elementy znikają z podglądu na oczach widza.
+Po lewej suwaki profilu, po prawej strona **taka, jaką widzi ta persona**. Przesuwasz próg kontrastu z 3.0 na 4.5 → elementy znikają z podglądu na oczach widza.
 
 Robi trzy rzeczy naraz: wygląda efektownie, jest zabawne w klikaniu i **pokazuje mechanizm**. Widz od razu rozumie, że to nie „AI udaje", tylko realne obcinanie wejścia.
 
@@ -280,7 +280,7 @@ Ostatnie **2 godziny**: generujemy dane demo (kilka person, kilka przebiegów, h
 3. Zadanie jednym zdaniem, ring startuje
 4. Agent klika, obok leci narracja. Utyka. Cofa się. **Poddaje się.**
 5. Dashboard: 3 persony obok siebie, Ryszard czerwony
-6. Slajd graniczny: *„ta ścieżka wymaga kontrastu lepszego niż 3.5:1"*
+6. Slajd graniczny: *„ta ścieżka wymaga wzroku lepszego niż 3.5:1"*
 
 Punkt 4 to moment, dla którego robimy wszystko inne. Sala musi zobaczyć, jak agent się gubi.
 

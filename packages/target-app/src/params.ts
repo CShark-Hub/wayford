@@ -2,7 +2,8 @@
  * Query parameters that tune the hard link, and the CSS variables they become.
  *
  * Only the hard link reads these variables, so changing `contrast` moves one element across
- * the threshold and leaves the rest of the page alone. That keeps the sweep boundary sharp.
+ * a threshold and leaves the rest of the page alone. The sweep never changes them: it moves a
+ * persona's threshold (`docs/PLAN.md` F9 AC4), and tuning them by hand checks what it found.
  */
 
 export interface TargetParams {
@@ -117,8 +118,8 @@ export function themeVariables(params: TargetParams): ThemeVariables {
 
 /**
  * The lightest grey whose WCAG 2.2 contrast ratio against `BACKGROUND` is at least `ratio`.
- * Never below: `?contrast=4.5` must pass a 4.5:1 threshold, or the sweep boundary lands one
- * step off. The realised ratio snaps up to the next 8-bit grey. Past 21:1 it returns black.
+ * Never below: `?contrast=4.5` must pass a 4.5:1 threshold, or a hand check of a boundary lands
+ * one step off. The realised ratio snaps up to the next 8-bit grey. Past 21:1 it returns black.
  */
 function greyForContrast(ratio: number): string {
   const bgLuminance = luminance(BACKGROUND);
