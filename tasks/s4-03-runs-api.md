@@ -32,6 +32,7 @@ Read first, in this order:
 
 - One Node process: no queue, no workers (`docs/PLAN.md`, "Architecture"). One browser, one context per run (F6 AC1), at most 5 runs at once.
 - Every persona in one request gets the same seed list (A20).
+- The seeds in one request are distinct: a repeated seed is a 400, since a run set runs each persona once per seed (A20).
 - SSE keeps the m0-07 framing: `event:` is the `RunEvent` type, `data:` the event as JSON, `id:` its index in the run, and `Last-Event-ID` resumes. One stream per run; the ring opens at most five, under the browser's six connections per origin.
 - The stored `RunResult` is `runResultFromEvents` of exactly the events streamed. A run that crashes is stored with outcome `error` and does not stop the others; a client that disconnects does not stop a run.
 - Validation at the edge with `@hono/zod-validator` and the core schemas. Responses are core shapes.
@@ -42,6 +43,7 @@ Read first, in this order:
 
 - [ ] `pnpm --filter @wayford/io test` passes, with a test per route
 - [ ] `POST /runs` for 2 personas × 2 seeds returns 4 run ids; each stream ends with `runFinished` or `runFailed`, and `GET /runs` then lists all four
+- [ ] `POST /runs` with `seeds: [1, 1]` returns 400 and starts no run
 - [ ] A fake run that throws is stored with outcome `error`, and the others finish and are stored
 - [ ] Every stored run deep-equals `runResultFromEvents` of the events its stream sent
 - [ ] `GET /runs?profileId=prof_vera&outcome=gave_up` returns only matching runs
