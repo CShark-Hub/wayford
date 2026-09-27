@@ -3,7 +3,7 @@
 Stream: s1
 Milestone: week 2
 Size: L
-Depends on: issue #16 (every decision on an element), issue #26 (`rng` and `hash` in core)
+Depends on: issue #16 (every decision on an element), PR #71 (`rng` and `hash` in core, from issue #26; merged)
 
 ## Context
 
@@ -12,7 +12,7 @@ Read first, in this order:
 - `AGENTS.md` sections "Untouchable core", "Persona is a filter, not a prompt" and "Randomness follows three different rules"
 - `docs/RULES.md` sections "The pipeline" and "Thresholds, bands and the roll", stages 1 to 3, and the calibration table
 - `docs/PLAN.md` section "Filter internals", F2 AC3 and assumption A20
-- `packages/core/src/observation.ts` after issue #16, and the core random module after issue #26
+- `packages/core/src/observation.ts` after issue #16, and the core random module from PR #71
 - `packages/target-app/README.md` — the `/deliveries` page the new fixture describes
 
 ## Goal

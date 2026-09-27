@@ -17,7 +17,7 @@ Phases: 0 setup · 1 resolve · 2 worktree · 3 read · 4 spec and review · gat
 
 Stop, say what blocks and what the options are, and wait for the user when:
 
-- a dependency in the task's "Depends on" is not merged: a task not `done` on `tasks/BOARD.md`, an issue not closed;
+- a dependency in the task's "Depends on" is not merged: a task not `done` on `tasks/BOARD.md`, an issue not closed, a PR not merged;
 - the task file conflicts with the code you find, or with `AGENTS.md`;
 - the work needs a dependency `docs/STACK.md` does not list, a change to a file another open task owns, or anything the task's Out of scope excludes;
 - an acceptance box cannot be met as written;
@@ -38,7 +38,7 @@ Run `git fetch origin` first, and read the board and the task file as `origin/ma
 
 1. Resolve the task. `$ARGUMENTS` is an id (`s2-01`) or a path to a task file. When it is empty, propose the first unowned task on the board whose dependencies are merged, and confirm it with the user.
 2. **Resume** a task already started. Look for a branch `feature/<task-id>-*` or a worktree `<task-id>-*` (`git branch -a`, `git worktree list`), for `docs/specs/*-<task-id>-*.md` and `docs/plans/*-<task-id>-*.md`, and for commits on the branch. Pick up at the first phase whose output is missing or not yet approved (a spec or plan is approved when its Status line says so), and say where you are resuming.
-3. Check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`).
+3. Check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`).
 
 ## 2. Worktree and branch
 

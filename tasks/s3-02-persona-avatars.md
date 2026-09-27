@@ -3,7 +3,7 @@
 Stream: s3
 Milestone: week 2
 Size: M
-Depends on: m0-07, issue #26 (`rng` in core)
+Depends on: m0-07, PR #71 (`rng` in core, from issue #26; merged)
 
 ## Context
 

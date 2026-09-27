@@ -29,17 +29,17 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 
 | Task | Title | Size | Depends on | Slot | Owner | Status |
 |---|---|---|---|---|---|---|
-| s1-01 | Perceive: the page measurement, thresholds, soft bands and the seed | L | #16, #26 | Dev 1 | | todo |
+| s1-01 | Perceive: the page measurement, thresholds, soft bands and the seed | L | #16, PR #71 | Dev 1 | | todo |
 | s2-01 | LLM adapter | M | m0-07 | Dev 4 | | todo |
 | s2-02 | Run context and evidence capture | L | — | Dev 2 | | todo |
-| s3-02 | Persona cards and procedural avatars | M | m0-07, #26 | Dev 3 | | todo |
+| s3-02 | Persona cards and procedural avatars | M | m0-07, PR #71 | Dev 3 | | todo |
 | s1-02 | DOM metrics collector and the seed test on the target app | L | s1-01 | Dev 1 | | todo |
 | s3-01 | Preview screen on the measurement fixture | L | s1-01, s3-02 | Dev 3 | | todo |
 | s4-01 | Extractor | M | s2-01 | Dev 4 | | todo |
 | s4-02 | Database: runs and tasks | S | m0-07, #13, #14, #15 | Dev 2 | | todo |
 | s2-05 | Jev decision call in the adapter | S | s2-01 | Dev 4 | | todo |
 
-`#n` in Depends on is a GitHub issue on `CShark-Hub/promptozaury` that has to be fixed first. Fixes live in those issues, not in task files.
+`#n` in Depends on is a GitHub issue on `CShark-Hub/promptozaury` that has to be fixed first, and `PR #n` a pull request that has to be merged. Fixes live in those issues, not in task files.
 
 **Slots are a suggested split, not ownership.** Streams are areas of the code, not people: nobody has to continue what they did in week 1. A slot is two tasks sized to about 4 h of human time, ordered so each person has something to start on Monday. Take any unowned task whose dependencies are merged, write your name in Owner, and go.
 
@@ -48,7 +48,7 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 1. Monday: `s1-01`, `s2-01`, `s2-02`, `s3-02`, and `s4-02` once #13 to #15 are merged.
 2. After `s1-01`: `s1-02`, and `s3-01` once `s3-02` is in too. After `s2-01`: `s2-05`, then `s4-01`. `s2-05` goes first while the adapter code is fresh; it is the Jev half of the adapter (`docs/adr/0001-jev-actor-backend.md`).
 
-Critical path: #16 and #26 → `s1-01` → `s1-02` and `s3-01`. Review those first. Dev 1 carries two L tasks in a row on that path, so `s1-02` goes to whoever frees up first once `s1-01` merges; Dev 2 is the natural pick, since `s2-02` already starts the target app from its tests.
+Critical path: #16 → `s1-01` → `s1-02` and `s3-01`. Review those first. Dev 1 carries two L tasks in a row on that path, so `s1-02` goes to whoever frees up first once `s1-01` merges; Dev 2 is the natural pick, since `s2-02` already starts the target app from its tests.
 
 **If the week runs short**, `s2-05` moves to week 3 first, into Dev 4's free Monday: only `s2-06` waits on it, and `s2-06` also waits on `s2-03`. Then `s4-01`: the Actor can run on the task fixtures until it lands, and nothing else waits on it.
 
