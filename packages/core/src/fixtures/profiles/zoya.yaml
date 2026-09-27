@@ -1,6 +1,7 @@
 # Bundle: docs/RULES.md, "Persona composition".
 # The lower boundary. A path this persona can walk is a path almost anyone can
-# walk; a path this persona cannot is where the sweep in F9 starts looking.
+# walk. At the target app's defaults she reaches neither goal, as the
+# calibration table in docs/RULES.md expects; the contrast sweep runs on Vera.
 id: prof_zoya
 label: Zoya
 description: >-

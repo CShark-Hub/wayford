@@ -92,13 +92,13 @@ No refinement session. The task files follow the week 1 template, and a task tha
 **Week 2 kickoff: the weekly 30-minute sync, before Monday.**
 
 1. Claim slots in `tasks/BOARD.md`, names in the Owner column. (5 min)
-2. Settle any objection to the decisions in the `m0-08` PR, then merge it. The soft-band rule, Zoya and the seed rule are there; a change after Monday moves `s1-01` mid-flight. (10 min)
+2. Settle any objection to the decisions `m0-08` took, merged in PR #56. The soft-band rule, Zoya and the seed rule are among them; a change after Monday moves `s1-01` mid-flight. (10 min)
 3. Walk through the #16 decision shape with the stream 1 and preview developers, or confirm the 15-minute session happened. (10 min)
 4. Name the OpenRouter key holder, and confirm #13 to #16, the `rng` and `hash` part of #26, and #55 merge by Sunday. (5 min)
 
 ## Open decisions that need the team
 
-Decided in `m0-08`, written into `docs/RULES.md` and `docs/PLAN.md`. Object in a comment on the `m0-08` PR:
+Decided in `m0-08` (PR #56, merged 2026-09-25) and written into `docs/RULES.md` and `docs/PLAN.md`. Changing one now takes a PR, with two approvals if it touches the filter contract and one otherwise (`docs/CONVENTIONS.md`, "Git"):
 
 - Soft thresholds: in the band below a soft threshold, an element is degraded when its roll falls below its position in the band, and invisible otherwise. The band floor is `threshold × (1 − softness)`. A hard cut never degrades. (`docs/RULES.md`, "Thresholds, bands and the roll"; issue #23.)
 - Zoya stays as she is and scores 0/10 on both goals at the target app's defaults. Vera is the persona for the contrast sweep. (Issue #23.)
