@@ -29,7 +29,7 @@ The hero screen exists: sliders for a persona's perception thresholds on the lef
 
 - "Preview uses the same filter package as the Actor. There is no second visual approximation" (F2 AC3). The screen never decides visibility: it draws what `perceive` returns.
 - The perceived page is drawn from the `FullObservation` alone, each element at its bbox: `visible` as is, `degraded` with its masked name, `invisible` not at all. A toggle shows removed elements as outlines with the rule that removed them, and that view is labelled as evidence, not perception.
-- Sliders: contrast, font size and target size thresholds, the softness of each, and the seed. Starting values come from the chosen persona. All of it lives in the URL through TanStack Router search params, so a preview state is a link.
+- Sliders: contrast, font size and target size thresholds, the softness of each, and the seed. Thresholds and softness start from the chosen persona. The seed stands in for a run seed: it starts at 1, never at the profile's seed, and stays when the persona changes (`docs/PLAN.md` A20). All of it lives in the URL through TanStack Router search params, so a preview state is a link.
 - Output register: sober, monochrome, monospace for seed and measurements (`docs/PLAN.md` "UI"). Every slider and every icon-only control has an accessible name.
 
 ## Acceptance

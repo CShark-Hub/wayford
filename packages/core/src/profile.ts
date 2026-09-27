@@ -121,7 +121,7 @@ export const Profile = z
     label: z.string().regex(/^\p{Lu}\p{L}+$/u, "a label is one capitalised name"),
     /** One English line: what this bundle is and which limits define it. */
     description: z.string().min(1),
-    /** Every run is reproducible or it is an anecdote. */
+    /** Draws the avatar and nothing else: runs take their own seed (`docs/PLAN.md` A20). */
     seed: Seed,
     /** Drives real device emulation, rule V1. */
     device: DeviceKind,

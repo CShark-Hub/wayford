@@ -94,9 +94,9 @@ Unconstrained run that produces ground truth.
 
 ### F5 Actor runs
 
-`persona × seed × N` runs through our own loop.
+`persona × run seed × N` runs through our own loop.
 
-- AC1 Same profile and seed give identical filtered observations per step. Test: two runs, string equality of observations.
+- AC1 Same profile and run seed give identical filtered observations per step. Test: two runs, string equality of observations.
 - AC2 Behaviour dice rolls are logged per action with the seed-derived random value.
 - AC3 Every step stores: screenshot, filtered observation, action, narration when the backend writes one (Jev writes none), URL, timestamp.
 - AC4 A step emits a `RunEvent` before and after the action, over SSE.

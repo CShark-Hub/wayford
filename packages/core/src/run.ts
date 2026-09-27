@@ -151,6 +151,8 @@ export const RunResult = z
     id: RunId,
     taskId: TaskId,
     profileId: ProfileId,
+    /** The run seed, not the profile's: it drives every perception decision and
+     *  every dice roll of this run (`docs/PLAN.md` A20). */
     seed: Seed,
     runIndex: z.number().int().nonnegative(),
     /** Exactly the URL passed to `goto`, target parameters included. Not

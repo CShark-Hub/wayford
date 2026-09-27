@@ -42,7 +42,7 @@ With the actor backend set to `jev`, the Actor loop from s2-03 picks each action
 - [ ] `pnpm --filter @wayford/core test` passes; a test folds events carrying a decision record into a `RunResult` whose step carries it, and a record with fewer probabilities than options fails to parse
 - [ ] `pnpm --filter @wayford/agent test` passes with the fake `decide` and no network
 - [ ] With a fake that puts probability 1 on Your account, then on Delivery address, Ada ends `success` on the easy goal after two actions
-- [ ] Same persona, seed and fake probabilities twice: every step's action and rolled value are equal. With the fake splitting 0.5 and 0.5 between two options, seeds 1 to 20 draw each of them at least once
+- [ ] Same persona, run seed and fake probabilities twice: every step's action and rolled value are equal. With the fake splitting 0.5 and 0.5 between two options, seeds 1 to 20 draw each of them at least once
 - [ ] A test shows the B1 rolls of a Jev run equal those of an LLM run with the same seed and the same sequence of clicks
 - [ ] On the observation fixture, the request the fake receives offers a degraded element under its masked name and contains no hidden element's name
 - [ ] A test builds the first request for all four persona fixtures on the same observation and shows the four are identical and contain no persona name and none of "impaired", "disabled", "blind", "vision", "contrast"

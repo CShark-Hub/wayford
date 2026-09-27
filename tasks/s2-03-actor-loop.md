@@ -42,7 +42,7 @@ One command runs one persona on one task with one seed against the target app: t
 
 - [ ] `pnpm --filter @wayford/agent test` passes with a scripted fake adapter and no network
 - [ ] With a fake that walks Home, Your account, Delivery address, Ada ends `success` on the easy goal after two actions
-- [ ] Same persona, seed and fake script twice: every step's `actorObservationText` is string-equal
+- [ ] Same persona, run seed and fake script twice: every step's `actorObservationText` is string-equal
 - [ ] With a hard contrast cut of 3.0, no step's `actorObservationText` contains "Order archive"
 - [ ] With a fake clock, a fake that never reaches the goal ends `budget_exceeded` when the clock passes the budget, without the test waiting; one that answers `giveUp` ends `gave_up`; one that throws ends `runFailed` with the partial step stored
 - [ ] A fake answering a ref the observation lacks gets one retry and the run does not crash

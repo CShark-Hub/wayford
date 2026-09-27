@@ -42,7 +42,7 @@ Read first, in this order:
 - [ ] On the target app at a mobile viewport, a profile with `hamburger` in `unknownPatterns` reads the menu toggle as its bare role, and Milo, who knows the pattern, reads "Menu"
 - [ ] Every pattern detector has a test on a page where it fires and one where it must not
 - [ ] Vera (`maxElements` 12) on `/deliveries`: at most 12 shown elements, and `hiddenCount` equals the number of elements in the evidence with an A1 decision
-- [ ] Same profile and seed twice give string-equal Actor text with the new stages on, for all four persona fixtures
+- [ ] Same profile and run seed twice give string-equal Actor text with the new stages on, for all four persona fixtures
 - [ ] Lowering `maxElements` from 20 to 1 in steps of 1 never adds an element to the shown set
 - [ ] `bench:perceive` still prints under 5 ms on a developer laptop, and the `./perceive` import test still passes
 - [ ] `docs/RULES.md` stage 5 states the salience formula the code implements

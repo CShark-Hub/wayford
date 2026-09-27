@@ -47,7 +47,7 @@ The filter's input exists as a core schema with a fixture, and a pure function t
 
 - [ ] `pnpm --filter @wayford/core test` passes and includes `measurement.test.ts`, which validates `measurementFixture`
 - [ ] `pnpm --filter @wayford/filter test` passes and includes `perceive.test.ts`, which runs without a browser
-- [ ] Same measurement, profile and seed twice give string-equal `renderObservationForModel(toActorObservation(...))`, for each of the four persona fixtures on `measurementFixture`
+- [ ] Same measurement, profile and run seed twice give string-equal `renderObservationForModel(toActorObservation(...))`, for each of the four persona fixtures on `measurementFixture`
 - [ ] Ada on `measurementFixture`: every element inside the viewport is `visible`
 - [ ] A profile with a hard contrast cut of 3.0: the "Order archive" link is absent from `toActorObservation(...)` and present in the evidence as `invisible` with a P1 decision
 - [ ] Vera over seeds 1 to 1000: the "Order archive" link is `degraded` in a share within 0.05 of its band position, `(contrast − 1.5) / 1.5` for the fixture's measured contrast, and `invisible` in the rest
