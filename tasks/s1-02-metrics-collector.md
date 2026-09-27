@@ -17,7 +17,7 @@ Read first, in this order:
 
 ## Goal
 
-Given a Playwright page, the filter produces its `PageMeasurement`, and collect-then-perceive twice with the same seed on the running target app gives identical observations: the week 2 exit criterion for stream 1.
+Given a Playwright page, the filter produces its `PageMeasurement`, and collect-then-perceive twice on one page of the running target app, with the same profile and seed, gives identical observations: the week 2 exit criterion for stream 1.
 
 ## Interface
 

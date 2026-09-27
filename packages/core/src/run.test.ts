@@ -78,6 +78,38 @@ describe("RunResult and RunEvent schemas", () => {
     ).toBe(false);
   });
 
+  test("actorSampling is optional on runStarted and RunResult: a Jev run sends none", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    expect(started.actorSampling).toBeDefined();
+    expect(runResultFixture.actorSampling).toBeDefined();
+    const { actorSampling: _eventSampling, ...startedWithout } = started;
+    const { actorSampling: _resultSampling, ...resultWithout } = runResultFixture;
+    expect(RunEvent.safeParse(startedWithout).success).toBe(true);
+    expect(RunResult.safeParse(resultWithout).success).toBe(true);
+  });
+
+  test("actorSampling is a temperature in [0, 2] and, when sent, a provider seed below 2^31", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    const accepts = (actorSampling: object) =>
+      RunEvent.safeParse({ ...started, actorSampling }).success;
+    expect(accepts({ temperature: 0 })).toBe(true);
+    expect(accepts({ temperature: 2, providerSeed: 0 })).toBe(true);
+    expect(accepts({ temperature: 0.7, providerSeed: 2 ** 31 - 1 })).toBe(true);
+    for (const temperature of [-0.1, 2.1]) expect(accepts({ temperature })).toBe(false);
+    // Some providers type seed as a signed 32-bit integer, so the cap is 2^31 - 1, not a Seed's.
+    for (const providerSeed of [-1, 1.5, 2 ** 31]) {
+      expect(accepts({ temperature: 0.7, providerSeed })).toBe(false);
+    }
+    expect(accepts({ providerSeed: 7 })).toBe(false);
+    expect(accepts({ temperature: 0.7, topP: 0.9 })).toBe(false);
+    const tooBig = { temperature: 0.7, providerSeed: 2 ** 31 };
+    expect(RunResult.safeParse({ ...runResultFixture, actorSampling: tooBig }).success).toBe(false);
+  });
+
   test("startUrl is required on runStarted and on RunResult", () => {
     const started = runEventFixtures[0];
     if (started?.type !== "runStarted")
@@ -230,6 +262,18 @@ describe("runResultFromEvents", () => {
     expect(result.startUrl).toBe(started.startUrl);
     // The first observation's URL is page.url(), with the parameters stripped.
     expect(result.startUrl).not.toBe(result.steps[0]?.urlBefore);
+  });
+
+  test("carries actorSampling from runStarted, and leaves it out when runStarted has none", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    expect(started.actorSampling).toBeDefined();
+    expect(runResultFromEvents(runEventFixtures).actorSampling).toEqual(started.actorSampling);
+    // A Jev run sends no sampling settings: its record has no key, not an undefined one.
+    const { actorSampling: _sampling, ...jevStart } = started;
+    const jevRun = runResultFromEvents([jevStart, ...runEventFixtures.slice(1)]);
+    expect(jevRun).not.toHaveProperty("actorSampling");
   });
 
   test("a stream must open with runStarted", () => {

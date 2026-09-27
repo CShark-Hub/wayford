@@ -61,7 +61,7 @@ Before it starts: the critical issues from the week 1 review (#13 to #16) are fi
 
 Exit criteria:
 
-- Filter: Playwright page in, `PageMeasurement` out; `PageMeasurement`, profile and seed in, `FullObservation` out. Two runs with the same seed produce identical output on the target app. Elements below a hard threshold are absent from the Actor's view and present in the evidence. Raising a threshold never makes an element more visible. Tests run without an LLM.
+- Filter: Playwright page in, `PageMeasurement` out; `PageMeasurement`, profile and seed in, `FullObservation` out. Collect-then-perceive twice on one target-app page, with the same profile and seed, gives identical output. Elements below a hard threshold are absent from the Actor's view and present in the evidence. Raising a threshold never makes an element more visible. Tests run without an LLM.
 - Frontend: the preview screen runs `perceive` in the browser on the measurement fixture and redraws under 500 ms when a slider moves. Persona cards render fixture profiles with procedural avatars.
 - LLM adapter: `complete()` returns a parsed object for a trivial schema through OpenRouter, cost logged.
 - Jev: `smoke:jev` prints a probability per option for the fixture observation through OpenRouter, cost logged (`s2-05`, `docs/adr/0001-jev-actor-backend.md`). First to slip to week 3.
@@ -84,7 +84,7 @@ Watch during the first real runs, from `tasks/m0-06-target-app.md` Follow-ups: d
 Exit criteria:
 
 - One command runs one persona on one task against the target app and writes a `RunResult`, a `webm` and a `trace.zip`.
-- Same seed twice gives identical filtered observations per step.
+- Same task, persona, run seed and fake Actor answers twice give identical filtered observations and dice rolls per step (`docs/PLAN.md` F5 AC1).
 - Scout produces ground truth for both target-app goals. The Actor package has no import from Scout output, enforced by a test.
 - Ring shows 3 runs in parallel over SSE, avatars change state, each tile shows its latest step screenshot.
 - Dashboard lists real runs with filters and opens run detail with replay.

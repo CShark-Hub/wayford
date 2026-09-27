@@ -1,6 +1,6 @@
 // docs/CONVENTIONS.md, "Determinism rules": every decision draws from the seeded functions in
-// @wayford/core, so a run can be replayed from its seed. Matches Math.random called or not,
-// reached through ?. or a global object, and destructured from Math.
+// @wayford/core, so every roll a run holds comes from its seed. Matches Math.random called or
+// not, reached through ?. or a global object, and destructured from Math.
 or {
   `Math.random`,
   `Math?.random`,

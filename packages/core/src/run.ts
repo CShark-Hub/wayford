@@ -61,6 +61,29 @@ export const Cost = z
 export type Cost = z.infer<typeof Cost>;
 
 /**
+ * The sampling settings one LLM call was sent. The adapter returns them for
+ * every role; a run keeps the Actor's as `actorSampling`. Sent, not applied: a
+ * provider may ignore either value, so they are a record, not a way to make a
+ * live model answer the same twice (`docs/PLAN.md` A20, F5 AC1).
+ */
+export const Sampling = z
+  .object({
+    /** The OpenAI-compatible range. */
+    temperature: z.number().min(0).max(2),
+    /** Present only when the caller passed one. Not a `Seed`: it never feeds
+     *  `rng`. At most 2^31 - 1, because some providers type `seed` as a signed
+     *  32-bit integer and would refuse a larger one. */
+    providerSeed: z
+      .number()
+      .int()
+      .min(0)
+      .max(2 ** 31 - 1)
+      .optional(),
+  })
+  .strict();
+export type Sampling = z.infer<typeof Sampling>;
+
+/**
  * How a run ended. `gave_up` is the Actor's own decision (a `giveUp` action);
  * `budget_exceeded` is the loop cutting it off; `error` is a crash. They are
  * kept apart because "the person gave up" and "the tool fell over" are
@@ -136,9 +159,11 @@ export type RunStep = z.infer<typeof RunStep>;
 // ---------------------------------------------------------------------------
 
 /**
- * The record at rest. `seed`, `runIndex`, `startUrl` and the ids make one run
- * reproducible and addressable; `videoPath` and `tracePath` are the recording (`F12`);
- * `cost` and `modelIds` are the provenance the report needs.
+ * The record at rest. `seed`, `runIndex`, `startUrl` and the ids fix one run's
+ * inputs and make it addressable; a live model can still answer differently
+ * when the seed runs again (`docs/PLAN.md` F5 AC1). `videoPath` and `tracePath`
+ * are the recording (`F12`); `cost`, `modelIds` and `actorSampling` are the
+ * provenance the report needs.
  *
  * At most the last step is incomplete, and only when the outcome is `error` or
  * `budget_exceeded`. That rule is a refine, so `.omit`, `.pick` and `.partial`
@@ -168,6 +193,10 @@ export const RunResult = z
     tracePath: z.string().min(1).optional(),
     cost: Cost,
     modelIds: ModelIds,
+    /** The Actor's temperature and the provider seed every Actor call was sent
+     *  (`docs/PLAN.md` A20), from `runStarted`. Absent on a Jev run, which
+     *  sends neither. */
+    actorSampling: Sampling.optional(),
   })
   .strict()
   .superRefine((run, ctx) => {
@@ -229,7 +258,7 @@ const eventBase = {
 
 export const RunEvent = z.discriminatedUnion("type", [
   /** The run opens. Carries everything the result is keyed by, and the inputs
-   *  fixed before the first step (`seed`, `startUrl`). */
+   *  fixed before the first step (`seed`, `startUrl`, `actorSampling`). */
   z
     .object({
       ...eventBase,
@@ -240,6 +269,7 @@ export const RunEvent = z.discriminatedUnion("type", [
       runIndex: z.number().int().nonnegative(),
       startUrl: HttpUrl,
       modelIds: ModelIds,
+      actorSampling: Sampling.optional(),
     })
     .strict(),
   /** The filter has produced a step's observation. Full evidence; the
@@ -460,6 +490,7 @@ export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
   };
   if (terminal.videoPath !== undefined) result.videoPath = terminal.videoPath;
   if (terminal.tracePath !== undefined) result.tracePath = terminal.tracePath;
+  if (start.actorSampling !== undefined) result.actorSampling = start.actorSampling;
 
   // Parse before returning: the fold above builds the shape, this proves it.
   return RunResult.parse(result);

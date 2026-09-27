@@ -27,7 +27,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A17 | Tasks live as files in `tasks/`. Status in `tasks/BOARD.md`. | default |
 | A18 | Team members run different coding agents (Claude Code, Codex, Cursor). Task files follow the `AGENTS.md` convention that all of them read. | default |
 | A19 | Project name is **Wayford**. Workspace scope `@wayford/*`. Rationale in `AGENTS.md`, section "On the name". | Tomasz, 2026-09-17 |
-| A20 | The run seed drives every perception decision and every dice roll. The profile seed only draws the avatar. A run set uses the same seed list for every persona, so personas are compared on the same dice. | m0-08, issue #22 |
+| A20 | The run seed drives every perception decision and every dice roll. The profile seed only draws the avatar. A run set uses the same seed list for every persona and runs each persona once per seed, so personas are compared on the same dice. The Actor's LLM calls send one provider seed per run, derived from the run seed, which no two runs of a persona share; a provider may ignore it, so the run records it and nothing relies on it. | m0-08, issues #20 and #22 |
 | A21 | Streams are areas of the code, not people. Anyone may claim any task whose dependencies are merged; `tasks/BOARD.md` suggests a split into four slots so nobody waits. | Tomasz, 2026-09-25 |
 | A22 | The Actor has two backends behind one seam: an LLM, the default, and Jev, a decision model that returns a probability per option instead of text. A run set uses one backend. Decision, limits and gate: `docs/adr/0001-jev-actor-backend.md`. | Tomasz, 2026-09-26 |
 
@@ -94,9 +94,9 @@ Unconstrained run that produces ground truth.
 
 ### F5 Actor runs
 
-`persona × run seed × N` runs through our own loop.
+`persona × run seed` runs through our own loop, each persona once per seed of the run set.
 
-- AC1 Same profile and run seed give identical filtered observations per step. Test: two runs, string equality of observations.
+- AC1 Same task, profile, run seed and Actor answers (the LLM's actions, or Jev's probabilities) give identical filtered observations and dice rolls on every step both runs reach; a re-run on a live model is not this check, since its answers can differ. The run records the temperature and provider seed the LLM was sent (A20). Test: two runs on the same fake answers, string equality of observations, equality of rolls.
 - AC2 Behaviour dice rolls are logged per action with the seed-derived random value.
 - AC3 Every step stores: screenshot, filtered observation, action, narration when the backend writes one (Jev writes none), URL, timestamp.
 - AC4 A step emits a `RunEvent` before and after the action, over SSE.
@@ -181,7 +181,7 @@ Single Node process: HTTP API, in-process job runner, Playwright. No queue, no w
 
 ```
 POST /tasks            Extractor: sentence -> Task
-POST /runs             { taskId, profileIds, seeds, n } -> runIds
+POST /runs             { taskId, profileIds, seeds } -> runIds
    job runner: for each persona x seed: Actor loop (Scout runs per task, by hand)
    Actor step: page -> DOM metrics -> filter(profile, seed) -> Observation
                -> Actor backend (LLM or Jev) -> Action -> behaviour dice -> Playwright -> evidence + RunEvent
@@ -238,9 +238,9 @@ Exact library picks, ports and import rules: `docs/STACK.md`. Code conventions a
 
 API key, not a subscription. Subscription tools are for building the project, not for running it.
 
-- One adapter: `complete({ role, messages, schema })` with structured output, retries and per-call token and cost logging stored on the step.
+- One adapter: `complete({ role, messages, schema, seed })` with structured output, retries and per-call token and cost logging stored on the step.
 - `decide({ role, state, question })` in the same adapter: one Jev Choice question over text, a probability per option back. The Actor's Jev backend is its only caller (A22).
-- Role configuration: `extractor`, `scout`, `actor`, `analyst`, each mapped to a model id in config. The `actor` role also has a backend setting, `llm` or `jev`, and Jev's pinned model id.
+- Role configuration: `extractor`, `scout`, `actor`, `analyst`, each mapped to a model id and a temperature in config. The `actor` role also has a backend setting, `llm` or `jev`, and Jev's pinned model id.
 - OpenRouter as the default endpoint. Direct OpenAI or Anthropic keys work through the same adapter.
 - Local Ollama configured as an emergency fallback, never demoed.
 - Cost shown on the dashboard. "30 runs for 1.20 USD" is a pitch point.

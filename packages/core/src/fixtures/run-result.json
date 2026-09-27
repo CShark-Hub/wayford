@@ -401,5 +401,9 @@
     "scout": "gpt-4o",
     "actor": "gpt-4o-mini",
     "analyst": "gpt-4o"
+  },
+  "actorSampling": {
+    "temperature": 0.7,
+    "providerSeed": 1660033557
   }
 }

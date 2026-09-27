@@ -15,8 +15,8 @@
  * Both are plain 32-bit integer arithmetic, with no clock, no platform API and no state shared
  * between calls, so Node and a browser give the same numbers.
  *
- * The algorithms are part of the record: a stored run is reproduced from its seed alone, so a
- * change to either one changes every past decision. The tests pin their output.
+ * The algorithms are part of the record: every roll a stored run holds was drawn from its seed
+ * with them, so a change to either one changes every past decision. The tests pin their output.
  */
 import { Seed } from "./primitives.js";
 
