@@ -317,10 +317,17 @@ type StepDraft = {
 /**
  * Fold a run's events into its `RunResult`. Pure: no clock, no disk, no RNG.
  *
- * The events are the whole story — the first must be `runStarted` and the last
- * a `runFinished` or `runFailed` — so the same stream always folds to the same
- * record. Each step's Actor-facing text is recomputed from its evidence here,
- * so it can never drift from what the filter would have shown.
+ * The events are the whole story of one run, so the same stream always folds
+ * to the same record. Each step's Actor-facing text is recomputed from its
+ * evidence here, so it can never drift from what the filter would have shown.
+ *
+ * The first event is `runStarted` and every other carries its `runId`; the
+ * last is a `runFinished` or `runFailed`, and nothing follows it. A step has
+ * at most one `stepObserved`, holding that step's own observation, one
+ * `actionPlanned` and one `actionPerformed`; `narration` may repeat, and
+ * appends. A stream that breaks one of these rules throws instead of folding:
+ * several runs stream at once (`docs/PLAN.md` F6), and a misrouted event must
+ * fail here, not land quietly in another run's record.
  *
  * A step missing its action or `urlAfter` is stored as incomplete; `RunResult`
  * then rejects it unless it is the last step of a run that failed or ran out
@@ -343,12 +350,36 @@ export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
   };
 
   let terminal: Extract<RunEvent, { type: "runFinished" | "runFailed" }> | undefined;
+  // `stepObserved`, `actionPlanned` and `actionPerformed` come at most once per
+  // step, and an exact copy counts as a second. `seen` holds each one met so
+  // far as `type@stepIndex`. Narration may repeat: a copied narration cannot be
+  // told from a second one, so it is appended like any other.
+  const oncePerStep = new Set<RunEventType>(["stepObserved", "actionPlanned", "actionPerformed"]);
+  const seen = new Set<string>();
 
   for (const event of events.slice(1)) {
+    if (event.runId !== start.runId) {
+      throw new Error(
+        `${event.type} at step ${event.stepIndex} belongs to ${event.runId}, not ${start.runId}`,
+      );
+    }
+    if (terminal !== undefined) {
+      throw new Error(`${event.type} at step ${event.stepIndex} comes after ${terminal.type}`);
+    }
+    if (oncePerStep.has(event.type)) {
+      const key = `${event.type}@${event.stepIndex}`;
+      if (seen.has(key)) throw new Error(`step ${event.stepIndex} has a second ${event.type}`);
+      seen.add(key);
+    }
     switch (event.type) {
       case "runStarted":
         throw new Error("a run has exactly one runStarted, at the start");
       case "stepObserved": {
+        if (event.observation.stepIndex !== event.stepIndex) {
+          throw new Error(
+            `step ${event.stepIndex} holds the observation of step ${event.observation.stepIndex}`,
+          );
+        }
         const draft = draftFor(event.stepIndex);
         draft.fullObservation = event.observation;
         draft.urlBefore = event.observation.url;
@@ -373,7 +404,6 @@ export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
       }
       case "runFinished":
       case "runFailed": {
-        if (terminal !== undefined) throw new Error("a run ends once");
         terminal = event;
         break;
       }

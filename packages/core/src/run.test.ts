@@ -399,3 +399,120 @@ describe("a run that stops mid-step", () => {
     );
   });
 });
+
+describe("a stream that is not exactly one run", () => {
+  // Each stream is the fixture stream with one event added, copied or changed.
+  // The ones that throw would fold but for the single rule they break.
+  const indexOf = (type: RunEvent["type"], stepIndex: number): number => {
+    const i = runEventFixtures.findIndex((e) => e.type === type && e.stepIndex === stepIndex);
+    if (i < 0) throw new Error(`the fixture stream has no ${type} at step ${stepIndex}`);
+    return i;
+  };
+  const eventAt = (i: number): RunEvent => {
+    const event = runEventFixtures[i];
+    if (!event) throw new Error(`the fixture stream has no event ${i}`);
+    return event;
+  };
+  const replacedAt = (i: number, event: RunEvent): RunEvent[] =>
+    runEventFixtures.map((e, j) => (j === i ? event : e));
+  const insertedAfter = (i: number, ...extra: RunEvent[]): RunEvent[] => [
+    ...runEventFixtures.slice(0, i + 1),
+    ...extra,
+    ...runEventFixtures.slice(i + 1),
+  ];
+  const failed: RunEvent = {
+    type: "runFailed",
+    runId: "run_vera-hard-1",
+    stepIndex: 3,
+    timestamp: "2026-09-22T10:00:13.000Z",
+    error: "browser context crashed",
+    durationMs: 13000,
+    cost: { tokensIn: 5120, tokensOut: 880, usd: 0.0143 },
+  };
+
+  test.each([
+    "stepObserved",
+    "actionPlanned",
+    "actionPerformed",
+    "narration",
+    "runFinished",
+  ] as const)("%s from another run throws", (type) => {
+    const i = runEventFixtures.findIndex((e) => e.type === type);
+    const foreign = { ...eventAt(i), runId: "run_other-1" };
+    expect(() => runResultFromEvents(replacedAt(i, foreign))).toThrow(
+      /belongs to run_other-1, not run_vera-hard-1/,
+    );
+  });
+
+  test("another run's event names both runs, even after the end", () => {
+    // Step 3's actionPerformed again, after runFinished: it breaks the end and
+    // duplicate rules too, but the runId check comes first.
+    const foreign = { ...eventAt(indexOf("actionPerformed", 3)), runId: "run_other-1" };
+    expect(() => runResultFromEvents([...runEventFixtures, foreign])).toThrow(
+      /belongs to run_other-1, not run_vera-hard-1/,
+    );
+  });
+
+  test("narration after runFinished throws instead of joining the last step", () => {
+    const late: RunEvent = {
+      type: "narration",
+      runId: "run_vera-hard-1",
+      stepIndex: 3,
+      timestamp: "2026-09-22T10:00:13.000Z",
+      text: "Maybe one more look.",
+    };
+    expect(() => runResultFromEvents([...runEventFixtures, late])).toThrow(
+      /narration at step 3 comes after runFinished/,
+    );
+  });
+
+  test("a step observed after runFailed throws instead of becoming its incomplete last step", () => {
+    const observed = eventAt(indexOf("stepObserved", 3));
+    if (observed.type !== "stepObserved") throw new Error("the fixture stream must observe step 3");
+    // Re-indexed whole, the observation too, so only its place in the stream is wrong.
+    const next: RunEvent = {
+      ...observed,
+      stepIndex: 4,
+      timestamp: "2026-09-22T10:00:14.000Z",
+      observation: { ...observed.observation, stepIndex: 4 },
+    };
+    const unfinished = runEventFixtures.filter((e) => e.type !== "runFinished");
+    expect(() => runResultFromEvents([...unfinished, failed, next])).toThrow(
+      /stepObserved at step 4 comes after runFailed/,
+    );
+  });
+
+  test("a second end throws", () => {
+    expect(() => runResultFromEvents([...runEventFixtures, failed])).toThrow(
+      /runFailed at step 3 comes after runFinished/,
+    );
+  });
+
+  test("a stepObserved holding another step's observation throws", () => {
+    const i = indexOf("stepObserved", 1);
+    const observed = eventAt(i);
+    if (observed.type !== "stepObserved") throw new Error("the fixture stream must observe step 1");
+    const mismatched = { ...observed, observation: { ...observed.observation, stepIndex: 2 } };
+    expect(() => runResultFromEvents(replacedAt(i, mismatched))).toThrow(
+      /step 1 holds the observation of step 2/,
+    );
+  });
+
+  test.each(["stepObserved", "actionPlanned", "actionPerformed"] as const)(
+    "a second %s in one step throws, even an exact copy",
+    (type) => {
+      const i = indexOf(type, 1);
+      expect(() => runResultFromEvents(insertedAfter(i, eventAt(i)))).toThrow(
+        new RegExp(`step 1 has a second ${type}`),
+      );
+    },
+  );
+
+  test("narration may repeat in one step and is appended in order", () => {
+    const i = indexOf("narration", 1);
+    const said = eventAt(i);
+    if (said.type !== "narration") throw new Error("the fixture stream must narrate step 1");
+    const result = runResultFromEvents(insertedAfter(i, { ...said, text: "Still looking." }));
+    expect(result.steps[1]?.narration).toBe(`${said.text}\nStill looking.`);
+  });
+});
