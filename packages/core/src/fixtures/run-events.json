@@ -10,10 +10,7 @@
     "runIndex": 1,
     "startUrl": "http://localhost:5174/?contrast=2&fontPx=16&targetPx=36",
     "modelIds": {
-      "extractor": "gpt-4o-mini",
-      "scout": "gpt-4o",
-      "actor": "gpt-4o-mini",
-      "analyst": "gpt-4o"
+      "actor": "gpt-4o-mini"
     },
     "actorSampling": { "temperature": 0.7, "providerSeed": 1660033557 }
   },

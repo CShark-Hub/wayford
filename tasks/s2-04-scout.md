@@ -28,6 +28,7 @@ For each task an unconstrained run records whether the goal is reachable, the pa
 ## Constraints
 
 - Full vision: a profile with no thresholds, no caps, every pattern known, and no behaviour dice. Model role `scout`. Up to 3 attempts; the shortest successful one is the ground truth, and no success is a result too.
+- Scout's model id goes on the `GroundTruth`, because a run records only the Actor's (`ModelIds` in `packages/core/src/run.ts`). If a Scout attempt goes through `runActor`, its `runStarted` would name Scout's model as `modelIds.actor`. Say in the PR which way it goes: Scout attempts emit no `runStarted`, or they are runs and the `ModelIds` comment changes to say so.
 - Run it by hand when the target app changes. No cache and no DOM hash: we own the app and know when it changes.
 - "The Actor has no access to Scout's output" (`AGENTS.md`). A test walks the imports from the Actor entry and fails if a Scout module or the ground-truth directory appears (F4 AC3).
 

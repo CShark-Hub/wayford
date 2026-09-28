@@ -23,7 +23,7 @@ import { z } from "zod";
 import { Action } from "./action.js";
 import { WayfordError } from "./error.js";
 import { FullObservation, renderObservationForModel, toActorObservation } from "./observation.js";
-import { HttpUrl, Probability, ProfileId, RunId, Seed, TaskId } from "./primitives.js";
+import { HttpUrl, Probability, ProfileId, RunId, Seed, StepIndex, TaskId } from "./primitives.js";
 
 // ---------------------------------------------------------------------------
 // Roles, cost, outcome
@@ -36,17 +36,16 @@ export const LlmRole = z.enum(LLM_ROLES);
 export type LlmRole = z.infer<typeof LlmRole>;
 
 /**
- * Which model played each role in this run. Kept per role, not one id, because
- * the bill is driven by a cheap Actor run × N and a single strong Analyst pass
- * (`AGENTS.md`, "AI through one OpenAI-compatible API"): the report has to be
- * able to say which was which.
+ * Which model played the Actor in this run: the LLM's model id, or Jev's on a
+ * Jev run (`docs/adr/0001-jev-actor-backend.md`). Keyed by role, like the model
+ * config (`docs/PLAN.md`, "AI access"). The Actor is the only role that runs
+ * inside a run: the Extractor runs once per task (`POST /tasks`), Scout once
+ * per task by hand, and the Analyst once over a whole run set. Their model ids
+ * belong on those records; a run that had to carry them would invent them.
  */
 export const ModelIds = z
   .object({
-    extractor: z.string().min(1),
-    scout: z.string().min(1),
     actor: z.string().min(1),
-    analyst: z.string().min(1),
   })
   .strict();
 export type ModelIds = z.infer<typeof ModelIds>;
@@ -121,13 +120,14 @@ export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
  * key, so narrow with `"incomplete" in step`, not `step.incomplete`.
  */
 const stepBase = {
-  stepIndex: z.number().int().nonnegative(),
+  stepIndex: StepIndex,
   fullObservation: FullObservation,
   actorObservationText: z.string(),
   diceRoll: Probability.optional(),
   narration: z.string(),
   screenshotPath: z.string().min(1).optional(),
-  urlBefore: z.url(),
+  /** `fullObservation.url`, so an `HttpUrl`. `urlAfter` is any URL: see `actionPerformed`. */
+  urlBefore: HttpUrl,
 };
 
 /** A step whose action landed: `action` and `urlAfter` both present. See `RunStep`. */
@@ -253,7 +253,7 @@ export type RunEventType = z.infer<typeof RunEventType>;
  */
 const eventBase = {
   runId: RunId,
-  stepIndex: z.number().int().nonnegative(),
+  stepIndex: StepIndex,
   timestamp: z.iso.datetime(),
 };
 
@@ -296,6 +296,11 @@ export const RunEvent = z.discriminatedUnion("type", [
     .object({
       ...eventBase,
       type: z.literal("actionPerformed"),
+      /** `page.url()` after the action, so any URL, not an `HttpUrl`: a `back`
+       *  from the first page lands on `about:blank`, a link to a dead host on
+       *  the browser's error page (`chrome-error://chromewebdata/` in Chromium).
+       *  An `HttpUrl` would reject this event and store an action that landed
+       *  as one that never did. */
       urlAfter: z.url(),
       screenshotPath: z.string().min(1).optional(),
     })

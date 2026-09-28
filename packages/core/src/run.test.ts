@@ -110,6 +110,45 @@ describe("RunResult and RunEvent schemas", () => {
     expect(RunResult.safeParse({ ...runResultFixture, actorSampling: tooBig }).success).toBe(false);
   });
 
+  test("modelIds names the Actor's model and no role that runs outside the run", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    const accepts = (modelIds: object) => [
+      RunEvent.safeParse({ ...started, modelIds }).success,
+      RunResult.safeParse({ ...runResultFixture, modelIds }).success,
+    ];
+    expect(accepts({ actor: "gpt-4o-mini" })).toEqual([true, true]);
+    // The Extractor, Scout and the Analyst run outside a run, so a run would invent their models.
+    for (const role of ["extractor", "scout", "analyst"]) {
+      expect(accepts({ actor: "gpt-4o-mini", [role]: "gpt-4o" })).toEqual([false, false]);
+    }
+    expect(accepts({})).toEqual([false, false]);
+  });
+
+  test("urlBefore is the observed page, so an http(s) URL like the observation's", () => {
+    const step = runResultFixture.steps[0];
+    if (!step) throw new Error("the fixture run must have a first step");
+    expect(RunStep.safeParse(step).success).toBe(true);
+    expect(RunStep.safeParse({ ...step, urlBefore: "about:blank" }).success).toBe(false);
+  });
+
+  test("urlAfter keeps where the action landed, even a page that is not http(s)", () => {
+    // What page.url() reads after a back from the first page, and after a link to a dead host.
+    const i = runEventFixtures.findIndex((e) => e.type === "actionPerformed");
+    const performed = runEventFixtures[i];
+    if (performed?.type !== "actionPerformed") {
+      throw new Error("the fixture stream must perform an action");
+    }
+    for (const urlAfter of ["about:blank", "chrome-error://chromewebdata/"]) {
+      const landed = { ...performed, urlAfter };
+      expect(RunEvent.safeParse(landed).success).toBe(true);
+      const result = runResultFromEvents(runEventFixtures.map((e, j) => (j === i ? landed : e)));
+      const step = result.steps.find((s) => s.stepIndex === performed.stepIndex);
+      expect(step?.urlAfter).toBe(urlAfter);
+    }
+  });
+
   test("startUrl is required on runStarted and on RunResult", () => {
     const started = runEventFixtures[0];
     if (started?.type !== "runStarted")
