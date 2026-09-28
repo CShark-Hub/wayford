@@ -16,6 +16,7 @@ import {
   Seed,
   smallerSide,
   stageOf,
+  UI_PATTERNS,
   UNSOURCED,
   Viewport,
 } from "./primitives.js";
@@ -63,6 +64,16 @@ describe("rules", () => {
 
   test("an unknown rule is rejected", () => {
     expect(RuleId.safeParse("Z9").success).toBe(false);
+  });
+});
+
+describe("interface patterns", () => {
+  test("UI_PATTERNS is exactly the pattern list in docs/RULES.md stage 4", () => {
+    const doc = readFileSync(RULES_MD, "utf8");
+    const list = doc.match(/^\*\*Patterns\.\*\*.*$/m)?.[0] ?? "";
+    const documented = [...list.matchAll(/`([A-Za-z]+)`/g)].map((m) => m[1]);
+    expect(documented.length).toBeGreaterThan(0);
+    expect([...documented].sort()).toEqual([...UI_PATTERNS].sort());
   });
 });
 

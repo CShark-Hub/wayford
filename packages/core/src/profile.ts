@@ -100,7 +100,8 @@ export type Behaviour = z.infer<typeof Behaviour>;
 /**
  * What the persona understands. Fully deterministic, no dice (rules K1 to K4).
  * Patterns are the shared `UiPattern` vocabulary so a typo fails validation
- * instead of silently making a persona that knows nothing.
+ * instead of silently dropping a pattern the persona was meant not to know: a
+ * pattern in neither list is known (`docs/RULES.md`, stage 4).
  */
 export const Knowledge = z
   .object({

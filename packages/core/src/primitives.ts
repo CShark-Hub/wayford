@@ -2,8 +2,9 @@
  * Shared vocabulary. Everything in this file is referenced by at least two
  * other schemas, so it is defined once, here, before they are written.
  *
- * Nothing in this file makes a design decision. The provenance ids and rule
- * ids are a transcription of `docs/RULES.md`; change that document first.
+ * Nothing in this file makes a design decision. The provenance ids, rule ids
+ * and interface patterns are a transcription of `docs/RULES.md`; change that
+ * document first.
  */
 import { z } from "zod";
 
@@ -225,6 +226,7 @@ export type VisionDeficiency = z.infer<typeof VisionDeficiency>;
 // Interface patterns (knowledge dimension, rules K1 and K4)
 // ---------------------------------------------------------------------------
 
+/** Pattern ids from `docs/RULES.md`, stage 4. */
 export const UI_PATTERNS = [
   "hamburger",
   "kebab",

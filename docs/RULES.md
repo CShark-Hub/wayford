@@ -62,7 +62,7 @@ Rules that decide the state. Metric is computed by the filter from the DOM, thre
 
 | Id | Metric | Visible when | Degraded when | Source |
 |---|---|---|---|---|
-| P1 | text contrast ratio, after colour-vision simulation if the profile sets one | `>= threshold` | in the band, by roll (see above) | WCAG 2.2 1.4.3 for the 4.5:1 and 3:1 anchors; Machado 2009 for the simulation |
+| P1 | text contrast ratio, after colour-vision simulation if the profile sets one | `>= threshold` | in the band, by roll (see above) | WCAG 2.2 1.4.3 for the 4.5:1 and 3:1 anchors, 1.4.6 for 7:1; Machado 2009 for the simulation |
 | P2 | non-text contrast of controls, borders, icons | `>= threshold` (WCAG anchor 3:1) | band | WCAG 2.2 1.4.11 |
 | P3 | font size in CSS px, scaled by page zoom | `>= threshold` | band | Legge and Bigelow 2011 for the acuity to print-size relation; WCAG 1.4.4 for the 200% zoom anchor |
 | P4 | target size, smaller side of the bounding box | `>= threshold` (anchors 24 px AA, 44 px AAA) | band | WCAG 2.2 2.5.8 and 2.5.5; Parhi 2006 for the 9.2 mm touch anchor; Apple HIG 44 pt; Material 48 dp |
@@ -77,12 +77,16 @@ Open: P3 threshold should be derived from a declared acuity (Snellen 20/40, 20/7
 
 Deterministic. No dice. The persona either knows a pattern or does not.
 
+**Patterns.** A profile names a pattern by one of these ids and no other: `hamburger`, `kebab`, `breadcrumb`, `carousel`, `tabs`, `accordion`, `fab`, `infiniteScroll`, `swipe`, `search`, `cart`, `backLink`.
+
+**A pattern in neither list is known.** K1 and K4 read `unknownPatterns` only: a pattern is unknown to the persona when its profile lists it there, never because a list leaves it out, and neither rule touches an element that matches no pattern. So every rename points to a profile entry the report can cite. The bundle table in "Persona composition" reads the same way: Vera does not know the three patterns her row names and knows the rest. `knownPatterns` documents the bundle and changes nothing in the filter. An icon-only control whose pattern is unknown fails both K1 and K4, so it carries both decisions ("Several rules" above); K4 adds the icon-usability source.
+
 | Id | Input | Effect | Source |
 |---|---|---|---|
-| K1 | element matches a UI pattern in `unknownPatterns` (hamburger, kebab, breadcrumb, carousel, tabs, accordion, FAB, infinite scroll, swipe) | element name replaced by its bare role, e.g. "menu" becomes "button, icon only" | NN/g hidden navigation study (2016): hidden nav roughly halves discoverability; Jakob's Law |
+| K1 | element matches a UI pattern in `unknownPatterns` | element name replaced by its bare role, e.g. "menu" becomes "button, icon only" | NN/g hidden navigation study (2016): hidden nav roughly halves discoverability; Jakob's Law |
 | K2 | element name contains a term not in `domainVocabulary` and flagged as jargon | term masked as `[unfamiliar term]` | PLAIN guidelines; a jargon list per target app, provenance `folk` or `llm` depending on who wrote it |
 | K3 | readability of a text block above the persona's grade level | block summarised to its first sentence, rest masked | Pisarek fog index (Polish), Flesch-Kincaid or Gunning fog (English) |
-| K4 | icon-only control without a text label and pattern not in `knownPatterns` | as K1 | NN/g icon usability |
+| K4 | icon-only control without a text label whose pattern is in `unknownPatterns` | as K1 | NN/g icon usability |
 
 Pattern detection is heuristics on role, name, position and children. Each heuristic is a pure function with tests on the target app. Wrong detection is a bug, not a finding.
 
@@ -181,7 +185,7 @@ Ids used in `provenance`. Each entry: id, what it anchors, citation.
 
 | Id | Anchors | Citation |
 |---|---|---|
-| `wcag22` | contrast 4.5:1 and 3:1, non-text 3:1, target 24 px and 44 px, colour-only, zoom 200% | W3C WCAG 2.2, criteria 1.4.3, 1.4.11, 1.4.1, 1.4.4, 2.5.8, 2.5.5 |
+| `wcag22` | contrast 4.5:1 and 3:1, enhanced contrast 7:1, non-text 3:1, target 24 px and 44 px, colour-only, zoom 200% | W3C WCAG 2.2, criteria 1.4.3, 1.4.6, 1.4.11, 1.4.1, 1.4.4, 2.5.8, 2.5.5 |
 | `machado2009` | colour-vision deficiency simulation | Machado, Oliveira, Fernandes. A physiologically-based model for simulation of color vision deficiency. IEEE TVCG 2009. Same model as Chrome DevTools and `culori` |
 | `legge2011` | print size vs acuity | Legge, Bigelow. Does print size matter for reading? Journal of Vision 2011 |
 | `parhi2006` | touch target 9.2 mm | Parhi, Karlson, Bederson. Target size study for one-handed thumb use on small touchscreen devices. MobileHCI 2006 |
