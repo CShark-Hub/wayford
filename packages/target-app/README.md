@@ -10,7 +10,9 @@ Quillmere, a small, domain-neutral and fictional "my account" shop to walk. It h
 pnpm --filter @wayford/target-app dev
 ```
 
-Serves on **http://localhost:5174** (`strictPort`, so it fails rather than moving). There is no `preview` script: to serve a production build on the same port, stop `dev`, then run `pnpm --filter @wayford/target-app build` and `pnpm --filter @wayford/target-app exec vite preview`.
+Serves on **http://localhost:5174** (`strictPort`, so it fails rather than moving). To serve a production build on the same port instead, stop `dev`, then run `pnpm --filter @wayford/target-app build` and `pnpm --filter @wayford/target-app preview`. `preview` serves the last build; it does not rebuild.
+
+Seeded runs, sweeps and the demo recording use a build (`docs/STACK.md`, "Target app"). `dev` adds Vite's client to every page and injects `style.css` from script. The client keeps a websocket open to the server, swaps the styles when `style.css` changes, and reloads the page when its HTML or a script changes, or after the server restarts. A build links bundled, hashed files in `<head>` and has no client.
 
 ## Pages
 
@@ -25,11 +27,11 @@ The URL contract from `tasks/m0-06-target-app.md`, also defined in `src/pages.ts
 | `/deliveries/archive` | `deliveries/archive.html` | **hard goal page**, linked only from `/deliveries` |
 | `/settings` | `settings.html` | a plausible wrong turn ("order history" is mentioned, not linked) |
 
-A path that matches no page or file returns 404 (`appType: "mpa"`), never the home page. The dev server also serves the files themselves (`/deliveries/archive.html` returns the archive page), but the goal globs below match only the extensionless paths, so reaching a `.html` file is not success.
+A path that matches no page or file returns 404 (`appType: "mpa"`), never the home page. A trailing slash is no match either: `/account/` and `/deliveries/?contrast=3` return 404 with an empty body, on `dev` and `preview` alike. No redirect adds the slash or strips it, since the app has no router, so links and start URLs use the paths exactly as listed, and only `/` ends in a slash. Both servers also serve the files themselves (`/deliveries/archive.html` returns the archive page), but the goal globs below match only the extensionless paths, so reaching a `.html` file is not success.
 
 ## Goals
 
-Defined in `src/pages.ts` as `GOALS`. Both succeed on URL alone:
+Defined in `src/pages.ts` as `GOALS`, a copy of the two tasks in `packages/core/src/fixtures/tasks.json`. `src/goals.test.ts` reads that file and fails when a sentence, a success condition or the order differs. Both succeed on URL alone:
 
 | Goal | Sentence | `urlMatches` | Route |
 |---|---|---|---|
@@ -76,6 +78,7 @@ Every glyph on every page comes from one bundled file, `public/fonts/inter-latin
 - Text is 17 px, headings 28 and 26 px (18 px in cards). Nav items, the Menu button and the buttons are 46 px tall, and the big links are 18 px text in 50 px boxes. Form controls inherit the page font. No fixed size sits on a persona cut (font 16 and 24 px, target 32, 44 and 48 px): on a cut an element passes only because the rules compare with `>=`, and a box there can flip on sub-pixel layout (issue #32). A test keeps it that way. The hard link at its defaults is the one exception, on purpose (see "Parameters").
 - Other elements are below Vera's and Milo's target cuts whatever the parameters: the brand link (27 px tall), the plain text links such as "Go to deliveries" and "Back to deliveries" (20 px), and the 22 px checkboxes. Both goals stay reachable through the nav and the big links.
 - Three buttons ("Change delivery address", "Request a copy of my data", "Close my account") do nothing. Neither goal needs them.
-- `target-app` imports nothing from the workspace.
+- `target-app` imports nothing from the workspace, and no package may import it (`biome.json`). So it has no `src/index.ts`, the barrel the layout in `docs/CONVENTIONS.md` gives a package: its entries are the six HTML pages and `src/main.ts`.
+- The `typecheck` script runs two TypeScript programs. `tsconfig.json` holds every file, with node types for the tests and `vite.config.ts`, and it is the one editors open. `tsconfig.browser.json` checks `src` without the tests against browser types only, so page code that uses a Node API such as `process` fails the typecheck, even where an editor shows no error.
 
 Decisions, deviations from the task and open follow-ups: `tasks/m0-06-target-app.md`, sections Outcome and Follow-ups.

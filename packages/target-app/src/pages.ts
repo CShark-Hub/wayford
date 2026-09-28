@@ -27,6 +27,7 @@ export interface Goal {
   path: string;
 }
 
+/** A copy of the two tasks in core `tasks.json`, easy first. `goals.test.ts` keeps them equal. */
 export const GOALS: readonly Goal[] = [
   {
     id: "easy",

@@ -5,8 +5,8 @@
  *
  * The files are read from disk at import time, so this module is Node only and
  * lives behind its own entry point, `@wayford/core/fixtures`, instead of the
- * barrel: `filter`, `agent`, `web` and `target-app` typecheck the barrel
- * without node types, and a `node:fs` import in it breaks all four.
+ * barrel: `web` bundles the barrel for the browser, and `filter` and `agent`
+ * typecheck it without node types, so a `node:fs` import in it breaks them.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

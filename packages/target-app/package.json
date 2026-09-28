@@ -6,8 +6,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "devDependencies": {
     "@types/node": "^24.19.0",
