@@ -123,4 +123,20 @@ describe("identifiers", () => {
     expect(id.safeParse("run_Vera").success).toBe(false);
     expect(id.safeParse("run_two words").success).toBe(false);
   });
+
+  test("a canonical ULID fails until lowercased, and the error says lowercase", () => {
+    const id = prefixedId("run");
+    expect(id.safeParse("run_01j8z3ndektsv4rrffq69g5fav").success).toBe(true);
+    const canonical = id.safeParse("run_01J8Z3NDEKTSV4RRFFQ69G5FAV");
+    expect(canonical.success).toBe(false);
+    expect(canonical.error?.issues[0]?.message).toMatch(/lowercase/);
+  });
+
+  test("the slug is lowercase ASCII letters, digits and dashes: no underscore, no leading dash", () => {
+    const id = prefixedId("run");
+    expect(id.safeParse("run_vera-hard-1").success).toBe(true);
+    expect(id.safeParse("run_vera_hard_1").success).toBe(false);
+    expect(id.safeParse("run_-vera").success).toBe(false);
+    expect(id.safeParse("run_café").success).toBe(false);
+  });
 });

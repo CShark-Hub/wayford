@@ -13,7 +13,7 @@
 | Lint and format | Biome | One tool. ESLint and Prettier rejected. |
 | Env | `dotenv` plus a zod-validated `config` object | Fail at boot with a readable message, never `undefined` at runtime. `.env` sits at the repository root; io finds it from `config.ts`, whatever directory pnpm starts it in. |
 | Logging | `pino` | One logger, JSON lines, `runId` on every line from a run. |
-| Ids | Prefix plus lowercase ULID: `prof_`, `task_`, `run_`, `step_`, `fnd_`, `swp_` | Sortable, readable in logs and URLs. Lowercase because the id schema is; fixtures use readable slugs (`run_vera-hard-1`), which the schema also accepts. One generator in core, with no `Math.random` (it lands with `s4-01`). |
+| Ids | Prefix plus lowercase ULID: `prof_`, `task_`, `run_`, `step_`, `fnd_`, `swp_` | Sortable, readable in logs and URLs. Canonical ULIDs are uppercase; the generator lowercases them, which keeps their order. The id schema rejects uppercase, so an id has one spelling and compares as a plain string (the reducer's `runId` check, SQLite keys, URLs). Fixtures use readable slugs (`run_vera-hard-1`), which the schema also accepts. One generator in core, with no `Math.random` (it lands with `s4-01`). |
 
 ## Core and filter
 

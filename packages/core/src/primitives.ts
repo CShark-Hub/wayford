@@ -259,13 +259,18 @@ export const ID_PREFIXES = {
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];
 
-/** `<prefix>_<slug>`: lowercase alphanumerics, dashes and underscores. */
+/**
+ * `<prefix>_<slug>`. The slug is lowercase ASCII letters, digits and dashes and
+ * does not start with a dash; it holds no underscore, so an id has exactly one.
+ * Lowercase only, so an id has one spelling and compares as a plain string. A
+ * ULID passes lowercased; its canonical uppercase form fails (`docs/STACK.md`).
+ */
 export function prefixedId<P extends IdPrefix>(prefix: P) {
   return z
     .string()
     .regex(
       new RegExp(`^${prefix}_[a-z0-9][a-z0-9-]*$`),
-      `expected an id of the form ${prefix}_<slug>`,
+      `expected ${prefix}_<slug>: lowercase ASCII letters, digits and dashes, not starting with a dash`,
     );
 }
 
