@@ -4,9 +4,9 @@
     "taskId": "task_past-order",
     "type": "measurement",
     "title": "The link to the archive is at 2.1:1, below the WCAG 2.2 minimum for body text",
-    "detail": "The link renders at 2.1:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at this font size. The four links in the main navigation on the same page all measure 12.6:1, so the archive link is the outlier and not a page-wide colour choice.",
+    "detail": "The link renders at 2.1:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at this font size. The links in the main navigation on the same page all measure 12.6:1, so the archive link is the outlier and not a page-wide colour choice.",
     "evidence": [
-      { "runId": "run_01jbqk3v9xra6yz8d2m4fnq0tp", "stepIndex": 2 },
+      { "runId": "run_vera-hard-1", "stepIndex": 1 },
       { "runId": "run_01jbqk7t2ec5vh9w0p6skn3rjm", "stepIndex": 2 }
     ],
     "basis": [],
