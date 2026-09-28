@@ -20,7 +20,9 @@ function describe(event: RunEvent): string {
     case "stepObserved":
       return `${event.observation.title} at ${event.observation.url}`;
     case "actionPlanned":
-      return "ref" in event.action ? `${event.action.type} ${event.action.ref}` : event.action.type;
+      return "ref" in event.performedAction
+        ? `${event.performedAction.type} ${event.performedAction.ref}`
+        : event.performedAction.type;
     case "actionPerformed":
       return `now at ${event.urlAfter}`;
     case "narration":

@@ -96,10 +96,22 @@
         ]
       },
       "actorObservationText": "Page: Home\nURL: http://localhost:5174/\nViewport: 1280 x 800\n[e1] link \"Home\" at 24,16\n[e2] link \"Account\" at 104,16\n[e3] link \"Deliveries\" at 192,16\n[e4] link \"Settings\" at 296,16",
-      "action": {
+      "proposedAction": {
         "type": "click",
         "ref": "e3"
       },
+      "performedAction": {
+        "type": "click",
+        "ref": "e3"
+      },
+      "dice": [
+        {
+          "rule": "B1",
+          "p": 0.8,
+          "rolled": 0.91,
+          "fired": false
+        }
+      ],
       "narration": "I want to see something I ordered a while back. Deliveries sounds like the place.",
       "startedAt": "2026-09-22T10:00:01.000Z",
       "endedAt": "2026-09-22T10:00:03.000Z",
@@ -233,10 +245,15 @@
         ]
       },
       "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Home\" at 24,16\n[e2] link \"Deliveries\" at 192,16\n[e3] link \"Settings\" at 296,16\n[e4] link \"Ar▒▒ive\" at 640,412, partly legible\n1 more elements not shown\n2 more below, scroll to see them",
-      "action": {
+      "proposedAction": {
         "type": "scroll",
         "direction": "down"
       },
+      "performedAction": {
+        "type": "scroll",
+        "direction": "down"
+      },
+      "dice": [],
       "narration": "There is a faint link down the page I can barely make out. Let me look further before touching it.",
       "startedAt": "2026-09-22T10:00:04.000Z",
       "endedAt": "2026-09-22T10:00:06.000Z",
@@ -329,11 +346,22 @@
         ]
       },
       "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Deliveries\" at 192,16\n[e2] link \"Settings\" at 296,16\n[e3] link \"Ar▒▒ive\" at 640,300, partly legible\n1 more elements not shown",
-      "action": {
+      "proposedAction": {
         "type": "click",
         "ref": "e2"
       },
-      "diceRoll": 0.62,
+      "performedAction": {
+        "type": "doubleClick",
+        "ref": "e2"
+      },
+      "dice": [
+        {
+          "rule": "B1",
+          "p": 0.8,
+          "rolled": 0.62,
+          "fired": true
+        }
+      ],
       "narration": "Still can't read that faint one. Settings probably keeps my order history.",
       "startedAt": "2026-09-22T10:00:07.000Z",
       "endedAt": "2026-09-22T10:00:09.000Z",
@@ -399,9 +427,13 @@
         ]
       },
       "actorObservationText": "Page: Settings\nURL: http://localhost:5174/settings\nViewport: 1280 x 800\n[e1] link \"Deliveries\" at 192,16\n[e2] heading \"Settings\" at 120,96",
-      "action": {
+      "proposedAction": {
         "type": "giveUp"
       },
+      "performedAction": {
+        "type": "giveUp"
+      },
+      "dice": [],
       "narration": "Nothing here about past orders either. I've looked everywhere I can read. I give up.",
       "startedAt": "2026-09-22T10:00:10.000Z",
       "endedAt": "2026-09-22T10:00:12.000Z",

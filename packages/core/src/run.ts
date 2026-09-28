@@ -23,7 +23,16 @@ import { z } from "zod";
 import { Action } from "./action.js";
 import { WayfordError } from "./error.js";
 import { FullObservation, renderObservationForModel, toActorObservation } from "./observation.js";
-import { HttpUrl, Probability, ProfileId, RunId, Seed, StepIndex, TaskId } from "./primitives.js";
+import {
+  HttpUrl,
+  Probability,
+  ProfileId,
+  RuleId,
+  RunId,
+  Seed,
+  StepIndex,
+  TaskId,
+} from "./primitives.js";
 
 // ---------------------------------------------------------------------------
 // Roles, cost, outcome
@@ -106,6 +115,89 @@ export const FinishedOutcome = z.enum(FINISHED_OUTCOMES);
 export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
 
 // ---------------------------------------------------------------------------
+// Behaviour dice
+// ---------------------------------------------------------------------------
+
+/**
+ * The behaviour rules that roll dice (`docs/RULES.md`, stage 7). B3 is a
+ * wall-clock budget, not a dice, so it never appears in a step's dice log.
+ */
+export const DICE_RULES = ["B1", "B2", "B4"] as const;
+export const DiceRule = RuleId.extract(DICE_RULES);
+export type DiceRule = z.infer<typeof DiceRule>;
+
+/**
+ * The firing rule: a roll fires when it is strictly below p. `rolled` is drawn
+ * in [0, 1), so p 0 never fires and p 1 always does.
+ */
+export function diceFires(p: number, rolled: number): boolean {
+  return rolled < p;
+}
+
+/**
+ * One roll, as logged. `p` is the probability the rule resolved for this
+ * action (the profile knob for B1 and B2, the effective-width model for B4),
+ * `rolled` the value drawn, and `fired` must equal `diceFires(p, rolled)`: a
+ * stored flag that disagrees with its own numbers is rejected.
+ */
+export const DiceRoll = z
+  .object({ rule: DiceRule, p: Probability, rolled: Probability.lt(1), fired: z.boolean() })
+  .strict()
+  .superRefine((roll, ctx) => {
+    if (roll.fired !== diceFires(roll.p, roll.rolled)) {
+      ctx.addIssue({ code: "custom", path: ["fired"], message: "fired must equal rolled < p" });
+    }
+  });
+export type DiceRoll = z.infer<typeof DiceRoll>;
+
+/** The three audit fields, present together on a step and on `actionPlanned`. */
+type DiceAudit = { proposedAction: Action; performedAction: Action; dice: DiceRoll[] };
+
+/**
+ * Structural checks only: one roll per rule, B1 and B4 roll on a `click` alone,
+ * a fired B1 performs a `doubleClick`, a fired B2 performs a `scroll`, and no
+ * rewrite of the proposed action without a fired roll. Whether a rewrite is the
+ * right one (which neighbour B4 hit) is s2-03's to test.
+ */
+function checkDice(audit: DiceAudit, ctx: z.RefinementCtx): void {
+  const rules = audit.dice.map((d) => d.rule);
+  if (new Set(rules).size !== rules.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["dice"],
+      message: "a rule rolls at most once per action",
+    });
+  }
+  for (const [i, d] of audit.dice.entries()) {
+    if ((d.rule === "B1" || d.rule === "B4") && audit.proposedAction.type !== "click") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["dice", i],
+        message: `${d.rule} rolls on a click only`,
+      });
+    }
+    const performs = d.rule === "B1" ? "doubleClick" : d.rule === "B2" ? "scroll" : undefined;
+    if (d.fired && performs && audit.performedAction.type !== performs) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["performedAction"],
+        message: `a fired ${d.rule} performs a ${performs}`,
+      });
+    }
+  }
+  // Stringify is a sound equality here: every `Action` member is strict and
+  // flat, and parsed objects keep the schema's key order.
+  const same = JSON.stringify(audit.proposedAction) === JSON.stringify(audit.performedAction);
+  if (!same && !audit.dice.some((d) => d.fired)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["performedAction"],
+      message: "without a fired roll the performed action is the proposed one",
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Stored per-step record
 // ---------------------------------------------------------------------------
 
@@ -114,21 +206,23 @@ export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
  * all; `actorObservationText` is exactly what the model was shown, so a
  * reviewer can read the same lines the Actor read without re-deriving them.
  * `urlBefore` is the page the step observed; `urlAfter` is where the action
- * landed. `diceRoll` is present only when a behaviour rule rolled one.
+ * landed. `proposedAction` is the model's output, `performedAction` what ran
+ * after the behaviour dice, and `dice` every roll in the order rolled (`[]`
+ * when no rule applied).
  *
  * A step is complete unless the run stopped partway through it: a crash
  * (`runFailed`) or the budget running out (`budget_exceeded`) after the
  * observation but before the action landed. That step, and only the last one,
- * is stored as `IncompleteRunStep`: `incomplete: true`, with `action` present
- * only if it was planned, `urlAfter` only if it also landed. `RunResult`
- * enforces the "last step, those two endings" rule. A complete step has no `incomplete`
- * key, so narrow with `"incomplete" in step`, not `step.incomplete`.
+ * is stored as `IncompleteRunStep`: `incomplete: true`, with the three audit
+ * fields present together and only if the action was planned, `urlAfter`
+ * only if it also landed. `RunResult` enforces the "last step, those two
+ * endings" rule. A complete step has no `incomplete` key, so narrow with
+ * `"incomplete" in step`, not `step.incomplete`.
  */
 const stepBase = {
   stepIndex: StepIndex,
   fullObservation: FullObservation,
   actorObservationText: z.string(),
-  diceRoll: Probability.optional(),
   narration: z.string(),
   /** When the step's observation was ready: its `stepObserved` timestamp. */
   startedAt: z.iso.datetime(),
@@ -141,24 +235,49 @@ const stepBase = {
   urlBefore: HttpUrl,
 };
 
-/** A step whose action landed: `action` and `urlAfter` both present. See `RunStep`. */
+/** A step whose action landed: the audit fields and `urlAfter` all present. See `RunStep`. */
 export const CompleteRunStep = z
-  .object({ ...stepBase, action: Action, cost: Cost, urlAfter: z.url() })
-  .strict();
+  .object({
+    ...stepBase,
+    proposedAction: Action,
+    performedAction: Action,
+    dice: z.array(DiceRoll),
+    cost: Cost,
+    urlAfter: z.url(),
+  })
+  .strict()
+  .superRefine(checkDice);
 export type CompleteRunStep = z.infer<typeof CompleteRunStep>;
 
 /** The last step of a run that crashed or ran out of budget mid-step. See `RunStep`. */
 export const IncompleteRunStep = z
   .object({
     ...stepBase,
-    action: Action.optional(),
+    proposedAction: Action.optional(),
+    performedAction: Action.optional(),
+    dice: z.array(DiceRoll).optional(),
     urlAfter: z.url().optional(),
     incomplete: z.literal(true),
-    /** Present exactly when `action` is: the reducer sets both from
+    /** Present exactly when the audit fields are: the reducer sets all from
      *  `actionPlanned`. The schema does not check the pairing. */
     cost: Cost.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((step, ctx) => {
+    const { proposedAction, performedAction, dice } = step;
+    if (proposedAction === undefined && performedAction === undefined && dice === undefined) {
+      return;
+    }
+    if (proposedAction === undefined || performedAction === undefined || dice === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["proposedAction"],
+        message: "proposedAction, performedAction and dice are present together or not at all",
+      });
+      return;
+    }
+    checkDice({ proposedAction, performedAction, dice }, ctx);
+  });
 export type IncompleteRunStep = z.infer<typeof IncompleteRunStep>;
 
 /**
@@ -218,7 +337,7 @@ export const RunResult = z
     const last = run.steps.length - 1;
     run.steps.forEach((step, i) => {
       if (!("incomplete" in step)) return;
-      if (step.urlAfter !== undefined && step.action === undefined) {
+      if (step.urlAfter !== undefined && step.performedAction === undefined) {
         ctx.addIssue({
           code: "custom",
           path: ["steps", i],
@@ -292,24 +411,27 @@ export const RunEvent = z.discriminatedUnion("type", [
   z
     .object({ ...eventBase, type: z.literal("stepObserved"), observation: FullObservation })
     .strict(),
-  /** The Actor chose an action, after any behaviour dice rewrote it. */
+  /** The Actor proposed an action; the behaviour dice may have rewritten it.
+   *  Both are carried, with every roll. */
   z
     .object({
       ...eventBase,
       type: z.literal("actionPlanned"),
-      action: Action,
-      diceRoll: Probability.optional(),
+      proposedAction: Action,
+      performedAction: Action,
+      dice: z.array(DiceRoll),
       /** Every model call made to choose this action, a repair or a retry
        *  included. Here, not on `actionPerformed`, so a run that stops before
        *  the action lands still keeps the step's bill. */
       cost: Cost,
     })
-    .strict(),
+    .strict()
+    .superRefine(checkDice),
   /** The action ran. Carries where it landed and the post-action screenshot.
    *  Every action emits it, `giveUp` included: a give-up is a step whose
-   *  action is `giveUp`, and `urlAfter` is the page the person gave up on. A
-   *  missing `actionPerformed` means the run stopped mid-step, never that the
-   *  action was `giveUp`. */
+   *  performed action is `giveUp`, and `urlAfter` is the page the person gave
+   *  up on. A missing `actionPerformed` means the run stopped mid-step, never
+   *  that the action was `giveUp`. */
   z
     .object({
       ...eventBase,
@@ -360,8 +482,9 @@ export type RunEvent = z.infer<typeof RunEvent>;
 type StepDraft = {
   stepIndex: number;
   fullObservation?: FullObservation;
-  action?: Action;
-  diceRoll?: number;
+  proposedAction?: Action;
+  performedAction?: Action;
+  dice?: DiceRoll[];
   narration: string;
   startedAt?: string;
   endedAt?: string;
@@ -466,8 +589,9 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
       }
       case "actionPlanned": {
         const draft = draftFor(event.stepIndex);
-        draft.action = event.action;
-        if (event.diceRoll !== undefined) draft.diceRoll = event.diceRoll;
+        draft.proposedAction = event.proposedAction;
+        draft.performedAction = event.performedAction;
+        draft.dice = event.dice;
         draft.cost = event.cost;
         break;
       }
@@ -515,21 +639,26 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         endedAt: draft.endedAt ?? terminal.timestamp,
         urlBefore: draft.urlBefore,
       };
-      if (draft.urlAfter !== undefined && draft.action === undefined) {
+      // `actionPlanned` sets the three audit fields together, so one stands for all.
+      const { proposedAction, performedAction, dice } = draft;
+      const planned =
+        proposedAction !== undefined && performedAction !== undefined && dice !== undefined
+          ? { proposedAction, performedAction, dice }
+          : undefined;
+      if (draft.urlAfter !== undefined && planned === undefined) {
         throw new Error(`step ${draft.stepIndex} performed an action it never planned`);
       }
       let step: RunStep;
-      if (draft.action !== undefined && draft.cost !== undefined && draft.urlAfter !== undefined) {
-        step = { ...base, action: draft.action, cost: draft.cost, urlAfter: draft.urlAfter };
+      if (planned !== undefined && draft.cost !== undefined && draft.urlAfter !== undefined) {
+        step = { ...base, ...planned, cost: draft.cost, urlAfter: draft.urlAfter };
       } else {
         // The run stopped mid-step. RunResult.parse below decides whether that is allowed.
         const partial: IncompleteRunStep = { ...base, incomplete: true };
-        if (draft.action !== undefined) partial.action = draft.action;
+        if (planned !== undefined) Object.assign(partial, planned);
         if (draft.urlAfter !== undefined) partial.urlAfter = draft.urlAfter;
         if (draft.cost !== undefined) partial.cost = draft.cost;
         step = partial;
       }
-      if (draft.diceRoll !== undefined) step.diceRoll = draft.diceRoll;
       if (draft.screenshotPath !== undefined) step.screenshotPath = draft.screenshotPath;
       return step;
     });

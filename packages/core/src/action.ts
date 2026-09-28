@@ -1,7 +1,7 @@
 /**
  * `Action` is everything the Actor may do. Stage 7 of the filter pipeline
  * (behaviour, `docs/RULES.md`) rewrites one action into another — a `click`
- * may become a `doubleClick`, a `scroll` may be injected before a `giveUp` —
+ * may become a `doubleClick`, a `scroll` may be performed in place of a `giveUp` —
  * so the union is closed on purpose: a dice rule can only pick from this list.
  *
  * Payloads are minimal. Anything the Actor wants to say about *why* goes into

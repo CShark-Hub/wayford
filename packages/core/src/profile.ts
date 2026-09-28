@@ -71,7 +71,7 @@ export type Perception = z.infer<typeof Perception>;
 
 /**
  * What the persona does with what reached it, plus the caps on how much reaches
- * it at all. The dice (B1 to B3) are rolled per action; the caps are
+ * it at all. The dice (B1, B2; B4 is next) are rolled per action; the caps are
  * deterministic truncation applied by stages 5 and 6. They share a section
  * because a profile has three sections, not five.
  *

@@ -110,10 +110,14 @@ This is the one rule that touches the model's context directly instead of the ob
 
 Dice per action, from the seeded stream, every roll logged.
 
+- **Firing rule.** A rule that applies to the action draws one number `rolled` in [0, 1) and fires when `rolled < p`. `p` is the probability the rule resolved for this action: the profile knob for B1 and B2, the effective-width model for B4. `p` 0 never fires; `p` 1 always does. How `rolled` is drawn from the seed is decided with s2-03 and #26.
+- **What is logged.** Per step: the action the model proposed, the action performed, and every roll as `{ rule, p, rolled, fired }` in the order rolled, fired or not. A rule that does not apply to the action logs nothing. Without a fired roll the two actions are identical. B3 is a budget, not a dice, and never appears in this log.
+- **B2 in the log.** The proposed action is the `giveUp` or the repeat, the performed action is the injected `scroll` down, and the Actor decides again on the next step.
+
 | Id | Roll | Effect | Source |
 |---|---|---|---|
 | B1 | `doubleClick` | a `click` becomes `doubleClick` | `folk` |
-| B2 | `scrollWhenStuck` | when the Actor emits `giveUp` or repeats an action, with probability p a `scroll` is injected first | NN/g scrolling data for the anchor; the probability itself is `folk` |
+| B2 | `scrollWhenStuck` | when the Actor emits `giveUp` or repeats an action, with probability p a `scroll` down is performed instead on that step, and the Actor decides again on the next step | NN/g scrolling data for the anchor; the probability itself is `folk` |
 | B3 | `budgetSeconds` | run ends `budget_exceeded`. Wall-clock, so model latency counts: the one behaviour rule a seed does not reproduce, and the run records its elapsed time | Nielsen response-time and abandonment literature for the order of magnitude; the exact number is `folk` |
 | B4 | `misclick` | for targets smaller than the persona's motor threshold, with probability from the effective-width model the click lands on the nearest neighbour | ISO 9241-9 effective width, Fitts's law for the time penalty; MacKenzie 1992 |
 

@@ -1,6 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { runEventFixtures, runResultFixture, taskFixtures } from "./fixtures/index.js";
 import {
+  profileFixture,
+  runEventFixtures,
+  runResultFixture,
+  taskFixtures,
+} from "./fixtures/index.js";
+import {
+  DICE_RULES,
+  DiceRoll,
+  diceFires,
   type FinishedOutcome,
   RUN_EVENT_TYPES,
   RUN_OUTCOMES,
@@ -170,29 +178,60 @@ describe("RunResult and RunEvent schemas", () => {
     );
   });
 
-  test("a step's diceRoll is a probability when present", () => {
-    const withRoll = runResultFixture.steps.find((s) => s.diceRoll !== undefined);
-    expect(withRoll).toBeDefined();
-    expect(withRoll?.diceRoll).toBeGreaterThanOrEqual(0);
-    expect(withRoll?.diceRoll).toBeLessThanOrEqual(1);
-    const bad = { ...(withRoll as RunStep), diceRoll: 1.5 };
-    expect(RunStep.safeParse(bad).success).toBe(false);
+  test("an actionPlanned in the old shape (action + diceRoll) is rejected", () => {
+    expect(
+      RunEvent.safeParse({
+        type: "actionPlanned",
+        runId: "run_x",
+        stepIndex: 0,
+        timestamp: "2026-09-22T10:00:00.000Z",
+        action: { type: "click", ref: "e2" },
+        diceRoll: 0.62,
+        cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
+      }).success,
+    ).toBe(false);
   });
 
   test("RunStep accepts an incomplete step and rejects a silent partial", () => {
     const step = runResultFixture.steps[0];
     if (!step) throw new Error("the fixture run must have a first step");
-    const { action: _action, urlAfter: _urlAfter, ...partial } = step;
+    const {
+      proposedAction: _proposed,
+      performedAction: _performed,
+      dice: _dice,
+      urlAfter: _urlAfter,
+      ...partial
+    } = step;
     expect(RunStep.safeParse({ ...partial, incomplete: true }).success).toBe(true);
     expect(RunStep.safeParse(partial).success).toBe(false);
     expect(RunStep.safeParse({ ...partial, incomplete: false }).success).toBe(false);
+  });
+
+  test("an incomplete step carries the three audit fields together or not at all", () => {
+    const step = runResultFixture.steps[2];
+    if (!step || "incomplete" in step) throw new Error("fixture step 2 must be complete");
+    const { urlAfter: _urlAfter, ...planned } = step;
+    expect(RunStep.safeParse({ ...planned, incomplete: true }).success).toBe(true);
+    for (const key of ["proposedAction", "performedAction", "dice"] as const) {
+      const { [key]: _dropped, ...missingOne } = planned;
+      expect(RunStep.safeParse({ ...missingOne, incomplete: true }).success).toBe(false);
+    }
+    // The dice audit still holds on an incomplete step.
+    const rewritten = { ...planned, dice: [], incomplete: true };
+    expect(RunStep.safeParse(rewritten).success).toBe(false);
   });
 
   test("RunResult allows an incomplete step only last, and only on error or budget_exceeded", () => {
     const makeIncomplete = (i: number) =>
       runResultFixture.steps.map((s, j) => {
         if (j !== i) return s;
-        const { action: _action, urlAfter: _urlAfter, ...partial } = s;
+        const {
+          proposedAction: _proposed,
+          performedAction: _performed,
+          dice: _dice,
+          urlAfter: _urlAfter,
+          ...partial
+        } = s;
         return { ...partial, incomplete: true };
       });
     const last = runResultFixture.steps.length - 1;
@@ -215,7 +254,7 @@ describe("RunResult and RunEvent schemas", () => {
 
     const unplanned = runResultFixture.steps.map((s, j) => {
       if (j !== last) return s;
-      const { action: _action, ...partial } = s;
+      const { proposedAction: _proposed, performedAction: _performed, dice: _dice, ...partial } = s;
       return { ...partial, incomplete: true };
     });
     const landedUnplanned = RunResult.safeParse({
@@ -229,7 +268,7 @@ describe("RunResult and RunEvent schemas", () => {
 
   test("giveUp still emits actionPerformed", () => {
     const planned = runEventFixtures.find(
-      (e) => e.type === "actionPlanned" && e.action.type === "giveUp",
+      (e) => e.type === "actionPlanned" && e.performedAction.type === "giveUp",
     );
     if (!planned) throw new Error("the fixture stream must give up");
     expect(
@@ -239,7 +278,153 @@ describe("RunResult and RunEvent schemas", () => {
     ).toBe(true);
     const lastStep = runResultFromEvents(runEventFixtures).steps.at(-1);
     expect(lastStep && "incomplete" in lastStep).toBe(false);
-    expect(lastStep?.action?.type).toBe("giveUp");
+    expect(lastStep?.performedAction?.type).toBe("giveUp");
+  });
+});
+
+describe("behaviour dice audit", () => {
+  const baseStep = runResultFixture.steps[2] as RunStep;
+  const plannedEvent = (fields: object) => ({
+    type: "actionPlanned",
+    runId: "run_x",
+    stepIndex: 2,
+    timestamp: "2026-09-22T10:00:00.000Z",
+    cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
+    ...fields,
+  });
+  const b1Fired = { rule: "B1", p: 0.8, rolled: 0.62, fired: true };
+  const b1Unfired = { rule: "B1", p: 0.8, rolled: 0.91, fired: false };
+  const b4Fired = { rule: "B4", p: 0.4, rolled: 0.1, fired: true };
+
+  test("the firing rule is rolled < p, strictly", () => {
+    expect(diceFires(0.8, 0.62)).toBe(true);
+    expect(diceFires(0.8, 0.8)).toBe(false);
+    expect(diceFires(0, 0)).toBe(false);
+    expect(diceFires(1, 0.999)).toBe(true);
+  });
+
+  test("a roll's fired flag must agree with its numbers", () => {
+    expect(DiceRoll.safeParse(b1Fired).success).toBe(true);
+    expect(DiceRoll.safeParse({ ...b1Fired, fired: false }).success).toBe(false);
+    expect(DiceRoll.safeParse({ ...b1Unfired, fired: true }).success).toBe(false);
+    expect(DiceRoll.safeParse({ ...b1Fired, rolled: 1.5 }).success).toBe(false);
+    // rolled is drawn in [0, 1), so a p 1 rule always fires.
+    expect(DiceRoll.safeParse({ ...b1Fired, p: 1, rolled: 1, fired: false }).success).toBe(false);
+  });
+
+  test("only the behaviour dice rules can roll", () => {
+    expect(DICE_RULES).toEqual(["B1", "B2", "B4"]);
+    for (const rule of ["B1", "B2", "B4"]) {
+      expect(DiceRoll.safeParse({ ...b1Fired, rule }).success).toBe(true);
+    }
+    for (const rule of ["B3", "P1"]) {
+      expect(DiceRoll.safeParse({ ...b1Fired, rule }).success).toBe(false);
+    }
+  });
+
+  test("B1 and B4 can both be recorded on one click", () => {
+    const audit = {
+      proposedAction: { type: "click", ref: "e2" },
+      performedAction: { type: "doubleClick", ref: "e3" },
+      dice: [b1Fired, b4Fired],
+    };
+    expect(RunStep.safeParse({ ...baseStep, ...audit }).success).toBe(true);
+    expect(RunEvent.safeParse(plannedEvent(audit)).success).toBe(true);
+  });
+
+  test("B2 is representable: a scroll performed in place of a giveUp", () => {
+    const audit = {
+      proposedAction: { type: "giveUp" },
+      performedAction: { type: "scroll", direction: "down" },
+      dice: [{ rule: "B2", p: 0.3, rolled: 0.1, fired: true }],
+    };
+    expect(RunStep.safeParse({ ...baseStep, ...audit }).success).toBe(true);
+    expect(RunEvent.safeParse(plannedEvent(audit)).success).toBe(true);
+  });
+
+  test("without a fired roll the performed action is the proposed one", () => {
+    const rewrite = {
+      proposedAction: { type: "click", ref: "e2" },
+      performedAction: { type: "doubleClick", ref: "e2" },
+    };
+    for (const dice of [[], [b1Unfired]]) {
+      expect(RunStep.safeParse({ ...baseStep, ...rewrite, dice }).success).toBe(false);
+      expect(RunEvent.safeParse(plannedEvent({ ...rewrite, dice })).success).toBe(false);
+    }
+    // A fired roll may still leave the action as proposed (B4 landing on the same target).
+    const same = {
+      proposedAction: { type: "click", ref: "e2" },
+      performedAction: { type: "click", ref: "e2" },
+      dice: [{ ...b4Fired }],
+    };
+    expect(RunStep.safeParse({ ...baseStep, ...same }).success).toBe(true);
+  });
+
+  test("a roll must fit the rule: B1 and B4 on a click, fired B1 doubles, fired B2 scrolls", () => {
+    const wrong = [
+      {
+        proposedAction: { type: "scroll", direction: "down" },
+        performedAction: { type: "giveUp" },
+        dice: [b1Fired],
+      },
+      {
+        proposedAction: { type: "click", ref: "e2" },
+        performedAction: { type: "type", ref: "e9", text: "hi" },
+        dice: [b1Fired],
+      },
+      {
+        proposedAction: { type: "giveUp" },
+        performedAction: { type: "back" },
+        dice: [{ rule: "B2", p: 0.3, rolled: 0.1, fired: true }],
+      },
+      {
+        proposedAction: { type: "back" },
+        performedAction: { type: "back" },
+        dice: [{ ...b4Fired, fired: false, rolled: 0.9 }],
+      },
+    ];
+    for (const audit of wrong) {
+      expect(RunStep.safeParse({ ...baseStep, ...audit }).success).toBe(false);
+      expect(RunEvent.safeParse(plannedEvent(audit)).success).toBe(false);
+    }
+  });
+
+  test("a rule rolls at most once per action", () => {
+    const twice = {
+      proposedAction: { type: "click", ref: "e2" },
+      performedAction: { type: "doubleClick", ref: "e2" },
+      dice: [b1Fired, b1Fired],
+    };
+    expect(RunStep.safeParse({ ...baseStep, ...twice }).success).toBe(false);
+  });
+
+  test("the fixture's dice agree with Vera's profile", () => {
+    const vera = profileFixture("prof_vera");
+    for (const step of runResultFixture.steps) {
+      if ("incomplete" in step) throw new Error("the fixture run has no incomplete step");
+      const b1 = step.dice.filter((d) => d.rule === "B1");
+      if (step.proposedAction.type === "click") {
+        expect(b1).toHaveLength(1);
+        expect(b1[0]?.p).toBe(vera.behaviour.doubleClick);
+      } else {
+        expect(b1).toHaveLength(0);
+      }
+    }
+    const [step0, , step2] = runResultFixture.steps;
+    expect(step0?.performedAction).toEqual({ type: "click", ref: "e3" });
+    expect(step0?.dice?.[0]?.fired).toBe(false);
+    expect(step2?.proposedAction).toEqual({ type: "click", ref: "e2" });
+    expect(step2?.performedAction).toEqual({ type: "doubleClick", ref: "e2" });
+    expect(step2?.dice?.[0]).toEqual({ rule: "B1", p: 0.8, rolled: 0.62, fired: true });
+  });
+
+  test("the reducer carries the audit from the event to the step", () => {
+    const planned = runEventFixtures.find((e) => e.type === "actionPlanned" && e.stepIndex === 2);
+    if (planned?.type !== "actionPlanned") throw new Error("step 2 must have an actionPlanned");
+    const step = runResultFromEvents(runEventFixtures).steps[2];
+    expect(step?.proposedAction).toEqual(planned.proposedAction);
+    expect(step?.performedAction).toEqual(planned.performedAction);
+    expect(step?.dice).toEqual(planned.dice);
   });
 });
 
@@ -464,7 +649,9 @@ describe("a run that stops mid-step", () => {
     const step = result.steps[0];
     if (!step || !("incomplete" in step)) throw new Error("step 0 must be incomplete");
     expect(step.incomplete).toBe(true);
-    expect(step.action).toBeUndefined();
+    expect(step.proposedAction).toBeUndefined();
+    expect(step.performedAction).toBeUndefined();
+    expect(step.dice).toBeUndefined();
     expect(step.urlAfter).toBeUndefined();
     expect(step.urlBefore).toBe(step.fullObservation.url);
     expect(step.actorObservationText).toContain(`URL: ${step.fullObservation.url}`);
@@ -482,12 +669,12 @@ describe("a run that stops mid-step", () => {
     const [first, last] = result.steps;
     expect(first && "incomplete" in first).toBe(false);
     if (!last || !("incomplete" in last)) throw new Error("step 1 must be incomplete");
-    expect(last.action).toBeUndefined();
+    expect(last.performedAction).toBeUndefined();
   });
 
   test("an action planned but never performed is kept on the incomplete step", () => {
     const planned = stepEvents(2).find((e) => e.type === "actionPlanned");
-    if (planned?.type !== "actionPlanned" || planned.diceRoll === undefined) {
+    if (planned?.type !== "actionPlanned" || planned.dice.length === 0) {
       throw new Error("fixture step 2 must plan an action with a dice roll");
     }
     const result = runResultFromEvents([
@@ -499,8 +686,9 @@ describe("a run that stops mid-step", () => {
     ]);
     const step = result.steps.at(-1);
     if (!step || !("incomplete" in step)) throw new Error("step 2 must be incomplete");
-    expect(step.action).toEqual(planned.action);
-    expect(step.diceRoll).toBe(planned.diceRoll);
+    expect(step.proposedAction).toEqual(planned.proposedAction);
+    expect(step.performedAction).toEqual(planned.performedAction);
+    expect(step.dice).toEqual(planned.dice);
     expect(step.urlAfter).toBeUndefined();
   });
 
