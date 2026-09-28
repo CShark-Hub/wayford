@@ -47,3 +47,4 @@ For each task an unconstrained run records whether the goal is reachable, the pa
 ## Notes for the reviewer
 
 - If a real Scout run fails, the fallback is a hand-written ground-truth file per task: both routes are in `packages/target-app/README.md`. Do not let Scout block anything else.
+- Lint does not guard F4 AC3: the Biome rules in `biome.json` work per package and see direct imports only (`docs/STACK.md`, "Package import rules"), so the import-walking test is the guard.

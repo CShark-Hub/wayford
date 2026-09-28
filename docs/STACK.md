@@ -107,6 +107,14 @@ web         imports core, and filter only through @wayford/filter/perceive; talk
 target-app  imports nothing
 ```
 
-`agent` never imports `io`. The Actor code path never imports Scout output (see `m0-03` and `docs/PLAN.md` F4).
+A package that may not be imported is banned with every subpath: in `agent`, `@wayford/io` and `@wayford/io/src/app.js` both fail lint, and in `web` every `@wayford/filter` import fails except `@wayford/filter/perceive` itself.
+
+A relative import stays inside its package. In every package, lint fails on a relative path where a `..` segment is followed by `core`, `filter`, `agent`, `io`, `web`, `target-app` or `packages`, such as `../../io/src/config.js` or `../../../packages/io/src/config.js`. That holds where the other package may be imported by name too: `agent` imports `@wayford/core`, never `../../core/src/run.js`. A relative path into `node_modules` fails as well. The check reads the path, not where the file sits, so a package may not name one of its own directories after any of them.
+
+`pnpm typecheck` catches two more mistakes, both with TS2307: a workspace package missing from the importing package's `package.json`, since pnpm links declared dependencies only, and a subpath the package does not export, such as `@wayford/core/src/run.js` from `io`, since TypeScript resolves a workspace package through its `exports` only.
+
+Biome does not merge `noRestrictedImports` options across overrides. For the files it matches, a later override that sets the rule as an object, even `{ "level": "warn" }` alone, replaces the package's bans, and the string `"warn"` turns them into warnings, which do not fail `pnpm lint`. So an override for part of a package repeats the package's bans in full, at level `error`.
+
+`agent` never imports `io`. The Actor code path never imports Scout output (see `m0-03` and `docs/PLAN.md` F4). Both live in `agent`, where these per-package rules cannot tell them apart, so `s2-04` enforces it with a test that walks the Actor's imports.
 
 `@wayford/filter/perceive` is the browser-safe entry of the filter: `perceive` and nothing that needs Node or Playwright. The preview runs it in the browser, so it applies the same code the Actor's observation comes from (`docs/PLAN.md` F2 AC3). The collector, which needs a Playwright page, sits in the main entry only.
