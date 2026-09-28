@@ -23,7 +23,7 @@ One command runs one persona on one task with one seed against the target app: t
 
 - In: `Profile`, `Task`, `Seed`, a run index, the target-app parameters
 - Out: `runActor(...)` from `@wayford/agent`, which emits `RunEvent`s as they happen and returns the `RunResult`; the CLI `pnpm --filter @wayford/agent run:one -- --persona prof_vera --task task_past-order --seed 7`; files under `runs/<run id>/`
-- Files expected to change: `packages/agent/src/**`, `packages/agent/package.json`, new `packages/agent/prompts/`
+- Files expected to change: `packages/agent/src/**`, `packages/agent/package.json`, new `packages/agent/prompts/`; in core only `packages/core/src/fixtures/index.ts` and `packages/core/src/observation.test.ts`, to move the banned-word list (see Acceptance)
 
 ## Constraints
 
@@ -49,7 +49,7 @@ One command runs one persona on one task with one seed against the target app: t
 - [ ] With a fake clock, a fake that never reaches the goal ends `budget_exceeded` when the clock passes the budget, without the test waiting; one that answers `giveUp` ends `gave_up`; one that throws ends `runFailed` with the partial step stored
 - [ ] A fake answering a ref the observation lacks gets one retry and the run does not crash
 - [ ] A test shows a click becomes `doubleClick` exactly when `rolled < p`, and the roll is stored
-- [ ] A test renders the first prompt for all four persona fixtures on the same observation and shows the four are identical and contain no persona name and none of "impaired", "disabled", "blind", "vision", "contrast"
+- [ ] A test renders the first prompt for all four persona fixtures on the same observation and shows the four are identical, and that the template's own words (the prompt with the goal sentence and every page string blanked) contain none of the banned words (F5 AC6). The words are `BANNED` in `packages/core/src/observation.test.ts`, a test file no other package can import: move the list to `@wayford/core/fixtures`, where the persona fixtures come from, export it, and import it in both tests, so there is one list and no copy
 - [ ] `runs/<run id>/result.json` validates as `RunResult` and deep-equals `runResultFromEvents` of the emitted events; the `webm` and the `trace.zip` exist
 - [ ] With a real key, `run:one` for Ada on the easy goal ends `success` (output and cost in the PR)
 - [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root

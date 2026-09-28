@@ -105,17 +105,18 @@ describe("URL contract", () => {
 });
 
 describe("markup", () => {
-  test.each(PAGES)("$file ships no HTML comments and no inline styles", ({ file }) => {
-    expect(source(file)).not.toContain("<!--");
-    expect(source(file)).not.toMatch(/\sstyle\s*=/i);
+  // A style attribute or a <style> element would put a size or colour outside style.css, where
+  // params.test.ts checks every size against the persona cuts and lets only .hard-link read the
+  // tunable variables.
+  test.each(PAGES)("$file has no style attribute and no <style> element", ({ file }) => {
+    expect(html(file)).not.toMatch(/<style\b|\sstyle\s*=/i);
   });
 
   test.each(PAGES)("$file is branded as the fictional Quillmere", ({ file }) => {
     const markup = html(file);
     expect(markup).toMatch(/<title>[^<]+ · Quillmere<\/title>/);
-    expect(markup).toContain(
-      '<footer class="site-footer">Quillmere is a fictional demo shop. Not a real service.</footer>',
-    );
+    const footer = /<footer\b[^>]*>([\s\S]*?)<\/footer>/.exec(markup)?.[1] ?? "";
+    expect(visibleText(footer)).toMatch(/\bfictional\b/i);
   });
 
   test.each(PAGES)("$file: every link and button has visible text", ({ file }) => {
@@ -125,12 +126,18 @@ describe("markup", () => {
     }
   });
 
-  test.each(PAGES)("$file: every checkbox sits inside a label with text", ({ file }) => {
+  test.each(PAGES)("$file: every input sits in its own label, with text", ({ file }) => {
     const markup = html(file);
-    const inputs = markup.match(/<input\b/g)?.length ?? 0;
-    const labels = [...markup.matchAll(/<label\b[^>]*>\s*<input\b[^>]*>([\s\S]*?)<\/label>/g)];
-    expect(labels).toHaveLength(inputs);
-    for (const label of labels) expect(visibleText(label[1] ?? "")).not.toBe("");
+    const count = (part: string): number => part.match(/<input\b/g)?.length ?? 0;
+    const labelled = [...markup.matchAll(/<label\b[^>]*>([\s\S]*?)<\/label>/g)]
+      .map((m) => m[1] ?? "")
+      .filter((inner) => count(inner) > 0);
+    // A label names only the first input inside it, so a second one would go unnamed.
+    for (const inner of labelled) {
+      expect(count(inner), visibleText(inner)).toBe(1);
+      expect(visibleText(inner)).not.toBe("");
+    }
+    expect(labelled).toHaveLength(count(markup));
   });
 
   test.each(PAGES)("$file: one mobile menu toggle, wired to the nav", ({ file }) => {

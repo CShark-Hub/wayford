@@ -350,18 +350,10 @@ describe("runResultFromEvents", () => {
   });
 
   test("RUN_EVENT_TYPES lists exactly the union members", () => {
-    // A guard so a new event kind cannot be added to one without the other.
-    expect([...RUN_EVENT_TYPES].sort()).toEqual(
-      [
-        "actionPerformed",
-        "actionPlanned",
-        "narration",
-        "runFailed",
-        "runFinished",
-        "runStarted",
-        "stepObserved",
-      ].sort(),
-    );
+    // Read off the union itself, so a kind added to one and not the other fails here. The web
+    // subscribes by this list, so an unlisted kind would never reach it.
+    const members = RunEvent.options.map((option) => option.shape.type.value);
+    expect([...RUN_EVENT_TYPES].sort()).toEqual(members.sort());
   });
 });
 

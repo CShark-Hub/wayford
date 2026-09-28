@@ -12,7 +12,13 @@ import {
 } from "./observation.js";
 import { METRIC_NAMES } from "./primitives.js";
 
-/** Words that must never reach the Actor. The prompt is identical for every persona. */
+/**
+ * Words our own text must never put in front of the Actor: persona names, and the vocabulary of
+ * the filter and of impairment. Substrings, so a stem such as `impair` catches every form. Page
+ * text is the page's, and a real page may well say "Hidden fees" or "Your profile", so a test
+ * blanks it before it greps. `tasks/s2-03-actor-loop.md` holds the Actor prompt template to this
+ * list too.
+ */
 const BANNED = [
   "persona",
   "profile",
@@ -251,9 +257,24 @@ describe("renderObservationForModel", () => {
     `);
   });
 
-  test("contains no persona or impairment words", () => {
-    const lower = text.toLowerCase();
-    for (const word of BANNED) expect(lower).not.toContain(word);
+  test("adds no persona or impairment word of its own", () => {
+    // Title, URL, role and name come from the page. Blanked, what is left is the renderer's.
+    const actor = toActorObservation(observationFixture);
+    const blanked: Observation = {
+      ...actor,
+      title: "",
+      url: "",
+      elements: actor.elements.map((element) => ({ ...element, role: "", name: "" })),
+    };
+    // Every kind of line the renderer writes is in the input, so every kind is checked.
+    expect([...new Set(blanked.elements.map((e) => e.state))].sort()).toEqual([
+      "degraded",
+      "visible",
+    ]);
+    expect(blanked.hiddenCount).toBeGreaterThan(0);
+    expect(blanked.belowFoldCount).toBeGreaterThan(0);
+    const ours = renderObservationForModel(blanked).toLowerCase();
+    for (const word of BANNED) expect(ours).not.toContain(word);
   });
 
   test("names nothing the filter removed or masked", () => {
