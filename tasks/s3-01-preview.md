@@ -39,6 +39,7 @@ The hero screen exists: sliders for a persona's perception thresholds on the lef
 - [ ] A test shows the drawn elements are exactly the shown elements of `perceive(measurementFixture, profile, seed)` for the URL's values
 - [ ] With `pnpm dev` running, dragging the contrast slider on `http://localhost:5173/preview` redraws in under 500 ms, shown by the React Profiler or a `performance.measure` logged to the console (screenshot in the PR)
 - [ ] Opening a copied preview URL in a new tab restores the same persona, thresholds and seed
+- [ ] A test renders `/preview` for Vera with no seed in the URL and shows that the seed slider reads 1 and every `perceive` call gets seed 1; at seed 7, switching to Zoya with the persona control keeps seed 7 in the URL, and every `perceive` call after the switch gets seed 7 (A20)
 - [ ] `pnpm --filter @wayford/web build` passes
 - [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
 

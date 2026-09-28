@@ -43,6 +43,7 @@ One command runs one persona on one task with one seed against the target app: t
 - [ ] `pnpm --filter @wayford/agent test` passes with a scripted fake adapter and no network
 - [ ] With a fake that walks Home, Your account, Delivery address, Ada ends `success` on the easy goal after two actions
 - [ ] Vera, one task, one run seed and the same fake Actor answers, twice: every step's `actorObservationText` and every B1 roll are equal (F5 AC1)
+- [ ] Vera on `task_past-order` at the target app's defaults, one run seed and the same fake Actor answers (`click` the Deliveries nav link, then `giveUp` on `/deliveries`), with only `profile.seed` changed: every step's `actorObservationText`, every `rolled` in its `fullObservation`, every B1 roll and every call's provider seed are equal (A20)
 - [ ] Every call of a fake run receives the same provider seed, the `RunResult`'s `actorSampling` holds it with the configured temperature, and seeds 1 and 2 send different provider seeds
 - [ ] With a hard contrast cut of 3.0, no step's `actorObservationText` contains "Order archive"
 - [ ] With a fake clock, a fake that never reaches the goal ends `budget_exceeded` when the clock passes the budget, without the test waiting; one that answers `giveUp` ends `gave_up`; one that throws ends `runFailed` with the partial step stored
