@@ -29,6 +29,10 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
+    # These scopes bound only GITHUB_TOKEN. Claude's own git and gh calls use the Claude
+    # app token, which the action obtains through id-token and which can push and comment
+    # whatever these say. The deny list in claude_args below is what keeps a mention to
+    # reading and replying.
     permissions:
       contents: read
       pull-requests: read
@@ -36,14 +40,22 @@ jobs:
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
+      # Actions are pinned to commit SHAs, as in ci.yml, since tags can move.
+      # persist-credentials keeps its default here, unlike in claude-code-review.yml: tag
+      # mode fetches the PR branch before it sets up its own git credential, so without
+      # checkout's every mention fails on this private repo (upstream
+      # anthropics/claude-code-action#1711). The action removes checkout's credential before
+      # Claude starts. Checkout stays on v4 because from v6 on it stores the credential where
+      # that removal misses it (anthropics/claude-code-action#1721). Revisit each once its
+      # issue is fixed.
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 1
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@756cc22e19660d20e8cc9496b4f242475a7f7790 # v1.0.235
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -54,7 +66,14 @@ jobs:
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
+          # A mention reads and replies; it does not change code. The action always lets a
+          # mention edit files and run git add, commit, rm and its push wrapper, and it adds
+          # any --allowedTools to that list, so only a deny list can narrow it; deny rules win
+          # over allow rules. The three lines deny file edits, git writes, and the API commits
+          # used with use_commit_signing. The wrapper rule must stay "*/git-push.sh *": its
+          # ":*" form lets the wrapper run (tested on Claude Code 2.1.283). Delete this block
+          # to let mentions commit and push again.
+          claude_args: |
+            --disallowedTools "Edit,Write,NotebookEdit"
+            --disallowedTools "Bash(git add *),Bash(git commit *),Bash(git rm *),Bash(git push *),Bash(*/git-push.sh *)"
+            --disallowedTools "mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files"

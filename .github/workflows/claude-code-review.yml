@@ -33,10 +33,13 @@ jobs:
       id-token: write
 
     steps:
+      # Actions are pinned to commit SHAs, as in ci.yml, since tags can move. Checkout's
+      # credential is not kept: the action sets up its own before it fetches anything.
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       # Reviews the whole PR on every push and returns the review as structured output for
       # the next step to post. Two things this deliberately avoids:
@@ -46,7 +49,7 @@ jobs:
       #   login contains "claude", which is usually an @claude reply.
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@756cc22e19660d20e8cc9496b4f242475a7f7790 # v1.0.235
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
