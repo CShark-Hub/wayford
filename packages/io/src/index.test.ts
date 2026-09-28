@@ -10,6 +10,8 @@ afterEach(() => {
   vi.resetModules();
 });
 
+// Loading io's whole module graph inside the test went past vitest's default 5 s timeout on a busy
+// machine (issue #82). Hence 20 s: the test checks what importing does, not how fast it is.
 test("importing @wayford/io reads no .env file and starts no server", async () => {
   const readEnvFile = vi.fn();
   const sideEffectImport = vi.fn();
@@ -28,7 +30,7 @@ test("importing @wayford/io reads no .env file and starts no server", async () =
   expect(serve).not.toHaveBeenCalled();
   expect(process.env).toEqual(before);
   expect(typeof io.createApp).toBe("function");
-});
+}, 20_000);
 
 test("no source file loads .env as an import side effect", () => {
   const src = fileURLToPath(new URL(".", import.meta.url));
