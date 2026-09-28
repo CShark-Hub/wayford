@@ -13,7 +13,7 @@ Read first, in this order:
 - `docs/RULES.md` stages 4 and 5 (knowledge, attention) and section "Thresholds, bands and the roll"
 - `packages/filter/src/` after s1-02 — `collect` and `perceive`
 - `packages/core/src/measurement.ts` and `packages/core/src/observation.ts`
-- `packages/target-app/index.html` and `packages/target-app/src/main.ts` — the mobile menu, the app's only hamburger
+- `packages/target-app/index.html` and `packages/target-app/src/page-script.ts` (`wireMenu`, wired up in `src/main.ts`) — the mobile menu, the app's only hamburger
 
 ## Goal
 

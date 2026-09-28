@@ -27,7 +27,7 @@ The URL contract from `tasks/m0-06-target-app.md`, also defined in `src/pages.ts
 | `/deliveries/archive` | `deliveries/archive.html` | **hard goal page**, linked only from `/deliveries` |
 | `/settings` | `settings.html` | a plausible wrong turn ("order history" is mentioned, not linked) |
 
-A path that matches no page or file returns 404 (`appType: "mpa"`), never the home page. A trailing slash is no match either: `/account/` and `/deliveries/?contrast=3` return 404 with an empty body, on `dev` and `preview` alike. No redirect adds the slash or strips it, since the app has no router, so links and start URLs use the paths exactly as listed, and only `/` ends in a slash. Both servers also serve the files themselves (`/deliveries/archive.html` returns the archive page), but the goal globs below match only the extensionless paths, so reaching a `.html` file is not success.
+A path that matches no page or file returns 404 (`appType: "mpa"`), never the home page. A trailing slash is no match either: `/account/` and `/deliveries/?contrast=3` return 404 with an empty body, on `dev` and `preview` alike. No redirect adds the slash or strips it, since the app has no router, so links and start URLs use the paths exactly as listed, and only `/` ends in a slash. Both servers also serve the files themselves (`/deliveries/archive.html` returns the archive page), but the goal globs below match only the extensionless paths, so reaching a `.html` file is not success. `src/dev-server.test.ts` checks this on `dev`; `preview` is still checked by hand.
 
 ## Goals
 
@@ -72,7 +72,7 @@ Every glyph on every page comes from one bundled file, `public/fonts/inter-latin
 
 ## Other properties
 
-- No framework, no router. Plain HTML pages, one script (`src/main.ts`) for the parameters and the menu.
+- No framework, no router. Plain HTML pages, one script (`src/main.ts`) for the parameters and the menu. Its logic sits in `src/page-script.ts`, tested in `page-script.test.ts`; `dev-server.test.ts` starts Vite and checks that every contract path returns 200 and an unknown path or a trailing slash returns 404.
 - Every link, button and checkbox has a visible text name, and no control is icon-only. Sub-pages mark their section in the nav with `aria-current="location"`.
 - At widths up to 640 px the nav collapses behind one "Menu" button with a three-bar icon (`aria-expanded`, `aria-controls`). This is here for the knowledge dimension.
 - Text is 17 px, headings 28 and 26 px (18 px in cards). Nav items, the Menu button and the buttons are 46 px tall, and the big links are 18 px text in 50 px boxes. Form controls inherit the page font. No fixed size sits on a persona cut (font 16 and 24 px, target 32, 44 and 48 px): on a cut an element passes only because the rules compare with `>=`, and a box there can flip on sub-pixel layout (issue #32). A test keeps it that way. The hard link at its defaults is the one exception, on purpose (see "Parameters").
