@@ -28,7 +28,7 @@ Runs and tasks can be stored and loaded unchanged, and runs queried by what the 
 ## Constraints
 
 - The same pattern as `profiles` from m0-07: the whole record as a JSON document column, parsed with the core schema on the way out, plus real columns only for what a query filters or sorts on.
-- `runs` columns beside the document: id, task, profile, seed, run index, outcome, duration, cost in USD, start time (F7 AC1, AC2). Steps stay inside the document.
+- `runs` columns beside the document: id, task, profile, seed, outcome, duration, cost in USD, start time (F7 AC1, AC2). Steps stay inside the document.
 - Postgres-compatible: no SQLite-only types or functions (A15). Tables and columns `snake_case` and plural (`docs/CONVENTIONS.md`).
 - Loading validates with the core schema. A row that fails raises an error naming the table and the id, never a silently partial record.
 - Migrations generated with `db:generate` and committed. `db:migrate` stays the only way to apply them.

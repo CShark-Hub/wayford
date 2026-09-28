@@ -293,8 +293,9 @@ export type RunStep = z.infer<typeof RunStep>;
 // ---------------------------------------------------------------------------
 
 /**
- * The record at rest. `seed`, `runIndex`, `startUrl` and the ids fix one run's
- * inputs and make it addressable; a live model can still answer differently
+ * The record at rest. `seed`, `startUrl` and the ids fix one run's inputs, and
+ * `id` makes it addressable: the run has no other number (the `run #` of
+ * `docs/PLAN.md` F7 AC4 is `id`). A live model can still answer differently
  * when the seed runs again (`docs/PLAN.md` F5 AC1). `videoPath` and `tracePath`
  * are the recording (`F12`); `cost`, `modelIds` and `actorSampling` are the
  * provenance the report needs.
@@ -313,7 +314,6 @@ export const RunResult = z
     /** The run seed, not the profile's: it drives every perception decision and
      *  every dice roll of this run (`docs/PLAN.md` A20). */
     seed: Seed,
-    runIndex: z.number().int().nonnegative(),
     /** Exactly the URL passed to `goto`, target parameters included. Not
      *  `page.url()`: the target app strips its parameters from the address bar
      *  (`packages/target-app/README.md`), so the first observation's URL is not
@@ -400,7 +400,6 @@ export const RunEvent = z.discriminatedUnion("type", [
       taskId: TaskId,
       profileId: ProfileId,
       seed: Seed,
-      runIndex: z.number().int().nonnegative(),
       startUrl: HttpUrl,
       modelIds: ModelIds,
       actorSampling: Sampling.optional(),
@@ -668,7 +667,6 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
     taskId: start.taskId,
     profileId: start.profileId,
     seed: start.seed,
-    runIndex: start.runIndex,
     startUrl: start.startUrl,
     steps,
     outcome: terminal.type === "runFailed" ? "error" : terminal.outcome,

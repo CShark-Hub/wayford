@@ -21,7 +21,7 @@ One command runs one persona on one task with one seed against the target app: t
 
 ## Interface
 
-- In: `Profile`, `Task`, `Seed`, a run index, the target-app parameters
+- In: `Profile`, `Task`, `Seed`, the target-app parameters, and an optional `RunId`: io passes the one it minted for `POST /runs` (s4-03); when it is absent, as from the CLI, `runActor` mints one
 - Out: `runActor(...)` from `@wayford/agent`, which emits `RunEvent`s as they happen and returns the `RunResult`; the CLI `pnpm --filter @wayford/agent run:one -- --persona prof_vera --task task_past-order --seed 7`; files under `runs/<run id>/`
 - Files expected to change: `packages/agent/src/**`, `packages/agent/package.json`, new `packages/agent/prompts/`; in core only `packages/core/src/fixtures/index.ts` and `packages/core/src/observation.test.ts`, to move the banned-word list (see Acceptance)
 

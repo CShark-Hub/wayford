@@ -121,7 +121,7 @@ All runs.
 - AC1 Runs list filters by task, persona and outcome.
 - AC2 Per task: success rate and median time per persona.
 - AC3 Run detail opens a step-by-step replay with screenshots, observation and action per step.
-- AC4 Run header shows `persona | seed | run #`.
+- AC4 Run header shows `persona | seed | run id`. The run id is the run's only number: runs carry no index (issue #94).
 
 ### F8 Report
 

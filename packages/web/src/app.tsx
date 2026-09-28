@@ -16,7 +16,7 @@ const STREAM_STATUS: Record<StreamStatus, string> = {
 function describe(event: RunEvent): string {
   switch (event.type) {
     case "runStarted":
-      return `${event.profileId} on ${event.taskId}, seed ${event.seed}, run ${event.runIndex}`;
+      return `${event.profileId} on ${event.taskId}, seed ${event.seed}, ${event.runId}`;
     case "stepObserved":
       return `${event.observation.title} at ${event.observation.url}`;
     case "actionPlanned":

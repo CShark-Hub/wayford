@@ -86,6 +86,14 @@ describe("RunResult and RunEvent schemas", () => {
     ).toBe(false);
   });
 
+  test("a run has no runIndex: its id is its number (issue #94)", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    expect(RunEvent.safeParse({ ...started, runIndex: 1 }).success).toBe(false);
+    expect(RunResult.safeParse({ ...runResultFixture, runIndex: 1 }).success).toBe(false);
+  });
+
   test("actorSampling is optional on runStarted and RunResult: a Jev run sends none", () => {
     const started = runEventFixtures[0];
     if (started?.type !== "runStarted")
