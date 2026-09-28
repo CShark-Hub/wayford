@@ -138,7 +138,7 @@ user story / prompt
   [Scout] ─────→ prawda bazowa    raz na wersję, cache, pełny wzrok
       ↓
   ┌─────────────────────────────┐
-  │  dla: persona × seed × N     │
+  │  dla: persona × run seed     │
   │                              │
   │  Playwright                  │
   │      ↓                       │
