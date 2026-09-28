@@ -71,12 +71,19 @@ describe("Profile schema", () => {
     expect(Profile.safeParse(ada).success).toBe(false);
   });
 
-  test("behaviour stays open for the rules week 2 adds", () => {
-    const milo = rawFixture("milo") as { behaviour: Record<string, unknown> };
-    milo.behaviour.misclick = 0.3;
-    const parsed = Profile.safeParse(milo);
-    expect(parsed.success).toBe(true);
-    expect(parsed.data?.behaviour.misclick).toBe(0.3);
+  test("a misspelt behaviour key is rejected instead of switching its rule off", () => {
+    const vera = rawFixture("vera") as { behaviour: Record<string, unknown> };
+    vera.behaviour.doubleclick = vera.behaviour.doubleClick;
+    delete vera.behaviour.doubleClick;
+    const result = Profile.safeParse(vera);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        code: "unrecognized_keys",
+        path: ["behaviour"],
+        keys: ["doubleclick"],
+      }),
+    ]);
   });
 
   test("emulation defaults to none", () => {
@@ -91,6 +98,29 @@ describe("Profile schema", () => {
     const ada = rawFixture("ada") as { knowledge: { unknownPatterns: string[] } };
     ada.knowledge.unknownPatterns = ["wizard"];
     expect(Profile.safeParse(ada).success).toBe(false);
+  });
+
+  test("a pattern both known and unknown is rejected", () => {
+    const vera = rawFixture("vera") as { knowledge: { knownPatterns: string[] } };
+    vera.knowledge.knownPatterns.push("hamburger");
+    const result = Profile.safeParse(vera);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["knowledge"],
+        message: expect.stringContaining("hamburger"),
+      }),
+    ]);
+    // The knowledge section enforces it on its own, not only inside a whole profile.
+    expect(Profile.shape.knowledge.safeParse(vera.knowledge).success).toBe(false);
+  });
+
+  test("a conflicting pattern listed twice is named once", () => {
+    const vera = rawFixture("vera") as { knowledge: { knownPatterns: string[] } };
+    vera.knowledge.knownPatterns.push("hamburger", "hamburger");
+    const result = Profile.safeParse(vera);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message.match(/hamburger/g)).toHaveLength(1);
   });
 });
 

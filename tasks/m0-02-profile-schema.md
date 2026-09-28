@@ -36,7 +36,7 @@ The names are a system, not decoration. The initial is the dimension the persona
 - `label` is the persona's bare name, nothing else. The sentence describing the bundle lives in `description`, in English. No job title, no "able-bodied" or "impaired" wording (see `AGENTS.md`, "English only, no locales").
 - Perception thresholds: `contrast` (ratio, WCAG 2.2), `fontPx`, `targetPx`, each with `threshold` and optional `softness` in 0..1. Plus `emulation` from the CDP vision deficiency enum.
 - Every threshold object carries `provenance`, typed as `ProvenanceId` from `packages/core/src/primitives.ts`. That list already exists; do not redefine it.
-- Behaviour: `doubleClick`, `scrollWhenStuck`, `budgetSeconds` (RULES B1 to B3). Leave room for more via an open record, but do not add more.
+- Behaviour: `doubleClick`, `scrollWhenStuck`, `budgetSeconds` (RULES B1 to B3). Leave room for more via an open record, but do not add more. Closed since #34: a misspelt key passed and switched its rule off, so a rule adds its key when it lands.
 - Attention and memory: `maxElements`, `maxOptions`, `memorySteps`, all optional integers (RULES A1, A3, M1).
 - Perception state is three-valued in the filter (visible, degraded, invisible). The profile only carries `threshold` and `softness`; the band logic lives in `filter`.
 - Knowledge: `knownPatterns`, `unknownPatterns` as string arrays, `domainVocabulary` as an optional string array.

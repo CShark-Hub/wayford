@@ -1,6 +1,7 @@
 /**
  * `Profile` is a capability bundle, never a job title. The engine reads the
- * dimensions below; the job title lives in `label` and is shown to users only.
+ * dimensions below; `label`, a bare name, and `description`, one line about
+ * the bundle, are for people.
  *
  * The schema describes thresholds. It never applies them: the band logic that
  * turns a threshold plus a softness into `visible | degraded | invisible`
@@ -74,9 +75,9 @@ export type Perception = z.infer<typeof Perception>;
  * deterministic truncation applied by stages 5 and 6. They share a section
  * because a profile has three sections, not five.
  *
- * The record is open on purpose: week 2 adds rules here (B4 misclick is next).
- * Values are numbers — every knob in `docs/RULES.md` is a probability or a
- * budget.
+ * Closed like the other sections, so a misspelt key such as `doubleclick`
+ * fails instead of switching B1 off. A rule that needs a knob of its own adds
+ * the key when it lands.
  */
 export const Behaviour = z
   .object({
@@ -93,7 +94,7 @@ export const Behaviour = z
     /** M1: how many steps of history the Actor keeps. Absent is unlimited. */
     memorySteps: z.number().int().positive().optional(),
   })
-  .catchall(z.number());
+  .strict();
 export type Behaviour = z.infer<typeof Behaviour>;
 
 /**
@@ -107,7 +108,19 @@ export const Knowledge = z
     unknownPatterns: z.array(UiPattern),
     domainVocabulary: z.array(z.string()).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((knowledge, ctx) => {
+    // RULES stage 4: the persona either knows a pattern or does not. The check
+    // sits on the section, not on `Profile`, so the builder's knowledge block
+    // validates on its own and `Profile` keeps `.pick()`, `.omit()` and
+    // `.partial()`, which zod refuses on a refined object.
+    const both = [...new Set(conflictingPatterns({ knowledge }))];
+    if (both.length === 0) return;
+    ctx.addIssue({
+      code: "custom",
+      message: `a pattern is known or unknown, never both; remove ${both.join(", ")} from one list`,
+    });
+  });
 export type Knowledge = z.infer<typeof Knowledge>;
 
 // ---------------------------------------------------------------------------
@@ -133,7 +146,7 @@ export const Profile = z
 export type Profile = z.infer<typeof Profile>;
 
 /** A pattern the persona knows cannot also be one it does not know. */
-export function conflictingPatterns(profile: Profile): UiPattern[] {
+export function conflictingPatterns(profile: Pick<Profile, "knowledge">): UiPattern[] {
   const unknown = new Set(profile.knowledge.unknownPatterns);
   return profile.knowledge.knownPatterns.filter((p) => unknown.has(p));
 }
