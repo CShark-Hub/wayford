@@ -101,6 +101,13 @@
         "ref": "e3"
       },
       "narration": "I want to see something I ordered a while back. Deliveries sounds like the place.",
+      "startedAt": "2026-09-22T10:00:01.000Z",
+      "endedAt": "2026-09-22T10:00:03.000Z",
+      "cost": {
+        "tokensIn": 1100,
+        "tokensOut": 210,
+        "usd": 0.0032
+      },
       "screenshotPath": "runs/run_vera-hard-1/step-0.png",
       "urlBefore": "http://localhost:5174/",
       "urlAfter": "http://localhost:5174/deliveries"
@@ -231,6 +238,13 @@
         "direction": "down"
       },
       "narration": "There is a faint link down the page I can barely make out. Let me look further before touching it.",
+      "startedAt": "2026-09-22T10:00:04.000Z",
+      "endedAt": "2026-09-22T10:00:06.000Z",
+      "cost": {
+        "tokensIn": 1220,
+        "tokensOut": 230,
+        "usd": 0.0036
+      },
       "screenshotPath": "runs/run_vera-hard-1/step-1.png",
       "urlBefore": "http://localhost:5174/deliveries",
       "urlAfter": "http://localhost:5174/deliveries"
@@ -321,6 +335,13 @@
       },
       "diceRoll": 0.62,
       "narration": "Still can't read that faint one. Settings probably keeps my order history.",
+      "startedAt": "2026-09-22T10:00:07.000Z",
+      "endedAt": "2026-09-22T10:00:09.000Z",
+      "cost": {
+        "tokensIn": 1340,
+        "tokensOut": 220,
+        "usd": 0.0037
+      },
       "screenshotPath": "runs/run_vera-hard-1/step-2.png",
       "urlBefore": "http://localhost:5174/deliveries",
       "urlAfter": "http://localhost:5174/settings"
@@ -382,6 +403,13 @@
         "type": "giveUp"
       },
       "narration": "Nothing here about past orders either. I've looked everywhere I can read. I give up.",
+      "startedAt": "2026-09-22T10:00:10.000Z",
+      "endedAt": "2026-09-22T10:00:12.000Z",
+      "cost": {
+        "tokensIn": 1460,
+        "tokensOut": 220,
+        "usd": 0.0038
+      },
       "screenshotPath": "runs/run_vera-hard-1/step-3.png",
       "urlBefore": "http://localhost:5174/settings",
       "urlAfter": "http://localhost:5174/settings"

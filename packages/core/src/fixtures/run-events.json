@@ -78,7 +78,8 @@
     "runId": "run_vera-hard-1",
     "stepIndex": 0,
     "timestamp": "2026-09-22T10:00:02.500Z",
-    "action": { "type": "click", "ref": "e3" }
+    "action": { "type": "click", "ref": "e3" },
+    "cost": { "tokensIn": 1100, "tokensOut": 210, "usd": 0.0032 }
   },
   {
     "type": "actionPerformed",
@@ -169,7 +170,8 @@
     "runId": "run_vera-hard-1",
     "stepIndex": 1,
     "timestamp": "2026-09-22T10:00:05.500Z",
-    "action": { "type": "scroll", "direction": "down" }
+    "action": { "type": "scroll", "direction": "down" },
+    "cost": { "tokensIn": 1220, "tokensOut": 230, "usd": 0.0036 }
   },
   {
     "type": "actionPerformed",
@@ -243,7 +245,8 @@
     "stepIndex": 2,
     "timestamp": "2026-09-22T10:00:08.500Z",
     "action": { "type": "click", "ref": "e2" },
-    "diceRoll": 0.62
+    "diceRoll": 0.62,
+    "cost": { "tokensIn": 1340, "tokensOut": 220, "usd": 0.0037 }
   },
   {
     "type": "actionPerformed",
@@ -299,7 +302,8 @@
     "runId": "run_vera-hard-1",
     "stepIndex": 3,
     "timestamp": "2026-09-22T10:00:11.500Z",
-    "action": { "type": "giveUp" }
+    "action": { "type": "giveUp" },
+    "cost": { "tokensIn": 1460, "tokensOut": 220, "usd": 0.0038 }
   },
   {
     "type": "actionPerformed",

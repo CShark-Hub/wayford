@@ -25,9 +25,9 @@ A zod schema for the live stream (`RunEvent`) and for the stored result (`RunRes
 
 ## Constraints
 
-- `RunEvent` is a closed union keyed by `type`: `runStarted`, `stepObserved` (carries the Actor-facing observation), `actionPlanned` (carries the action and the dice roll if any), `actionPerformed` (carries url after, screenshot path), `narration` (free text from the model, labelled as such), `runFinished` (outcome, duration), `runFailed` (error, distinct from `gave_up`). Every event has `runId`, `stepIndex`, `timestamp`.
+- `RunEvent` is a closed union keyed by `type`: `runStarted`, `stepObserved` (carries the full evidence observation, `FullObservation`, hidden elements included; the Actor-facing text is projected from it), `actionPlanned` (carries the action, the dice roll if any, and the cost of the model calls that chose it), `actionPerformed` (carries url after, screenshot path), `narration` (free text from the model, labelled as such), `runFinished` (outcome, duration), `runFailed` (error, distinct from `gave_up`). Every event has `runId`, `stepIndex`, `timestamp`.
 - `RunOutcome`: `success | gave_up | budget_exceeded | error`.
-- `RunStep` is the stored per-step record: full observation including hidden elements (for evidence), Actor-facing observation text, action, dice roll, narration, screenshot path, url before and after.
+- `RunStep` is the stored per-step record: full observation including hidden elements (for evidence), Actor-facing observation text, action, dice roll, narration, start and end time (from the event timestamps), the cost of the step's model calls, screenshot path, url before and after.
 - `RunResult`: `id`, `taskId`, `profileId`, `seed`, `runIndex`, `steps`, `outcome`, `durationMs`, `videoPath`, `tracePath`, `cost` (tokens in, tokens out, USD), `modelIds` per role.
 - Fixture `RunResult` has at least four steps and ends in `gave_up`. Fixture events describe the same run.
 

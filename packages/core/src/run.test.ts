@@ -365,6 +365,73 @@ describe("runResultFromEvents", () => {
   });
 });
 
+describe("step times and cost", () => {
+  const timestampOf = (type: RunEvent["type"], stepIndex: number): string => {
+    const event = runEventFixtures.find((e) => e.type === type && e.stepIndex === stepIndex);
+    if (!event) throw new Error(`the fixture stream has no ${type} at step ${stepIndex}`);
+    return event.timestamp;
+  };
+
+  test("a step starts at its stepObserved and ends at its actionPerformed", () => {
+    // Every event of a step has its own timestamp, so taking the wrong one fails.
+    const { steps } = runResultFromEvents(runEventFixtures);
+    expect(steps).toHaveLength(4);
+    for (const step of steps) {
+      expect(step.startedAt).toBe(timestampOf("stepObserved", step.stepIndex));
+      expect(step.endedAt).toBe(timestampOf("actionPerformed", step.stepIndex));
+    }
+  });
+
+  test("a step's cost is its actionPlanned's", () => {
+    const { steps } = runResultFromEvents(runEventFixtures);
+    for (const step of steps) {
+      const planned = runEventFixtures.find(
+        (e) => e.type === "actionPlanned" && e.stepIndex === step.stepIndex,
+      );
+      if (planned?.type !== "actionPlanned") {
+        throw new Error(`the fixture stream must plan an action at step ${step.stepIndex}`);
+      }
+      expect(step.cost).toEqual(planned.cost);
+    }
+    // The four costs differ, so a step carrying another step's cost fails too.
+    expect(new Set(steps.map((s) => JSON.stringify(s.cost))).size).toBe(steps.length);
+  });
+
+  test("a stored step needs ISO start and end times, and a complete step its cost", () => {
+    const step = runResultFixture.steps[0];
+    if (!step || "incomplete" in step) throw new Error("fixture step 0 must be complete");
+    for (const key of ["startedAt", "endedAt", "cost"] as const) {
+      const { [key]: _dropped, ...without } = step;
+      expect(RunStep.safeParse(without).success, key).toBe(false);
+    }
+    for (const key of ["startedAt", "endedAt"] as const) {
+      expect(RunStep.safeParse({ ...step, [key]: "2026-09-22T10:00:01Z" }).success, key).toBe(true);
+      expect(RunStep.safeParse({ ...step, [key]: "2026-09-22 10:00:01" }).success, key).toBe(false);
+    }
+  });
+
+  test("actionPlanned must carry a cost", () => {
+    const planned = runEventFixtures.find((e) => e.type === "actionPlanned");
+    if (planned?.type !== "actionPlanned") {
+      throw new Error("the fixture stream must plan an action");
+    }
+    expect(RunEvent.safeParse(planned).success).toBe(true);
+    const { cost: _cost, ...without } = planned;
+    expect(RunEvent.safeParse(without).success).toBe(false);
+  });
+
+  test("the fixture run's step costs add up to its total", () => {
+    // A property of this fixture, not a contract rule: the calls of a step the
+    // run stopped in before planning its action are billed in the run's total
+    // only, so a real run's total can exceed the sum of its steps.
+    const sum = (key: keyof RunResult["cost"]) =>
+      runResultFixture.steps.reduce((total, step) => total + (step.cost?.[key] ?? 0), 0);
+    expect(sum("tokensIn")).toBe(runResultFixture.cost.tokensIn);
+    expect(sum("tokensOut")).toBe(runResultFixture.cost.tokensOut);
+    expect(sum("usd")).toBeCloseTo(runResultFixture.cost.usd, 10);
+  });
+});
+
 describe("a run that stops mid-step", () => {
   const started = runEventFixtures[0];
   if (started?.type !== "runStarted")
@@ -480,6 +547,31 @@ describe("a run that stops mid-step", () => {
     expect(() => runResultFromEvents([started, ...noPlan, failedAt(0)])).toThrow(
       /step 0 performed an action it never planned/,
     );
+  });
+
+  test("an incomplete step ends when the run stopped, and has a cost only if it was planned", () => {
+    const [observation] = observed(0);
+    if (!observation) throw new Error("the fixture stream must observe step 0");
+    const failed = failedAt(0);
+    const unplanned = runResultFromEvents([started, observation, failed]).steps[0];
+    if (!unplanned || !("incomplete" in unplanned)) throw new Error("step 0 must be incomplete");
+    expect(unplanned.startedAt).toBe(observation.timestamp);
+    expect(unplanned.endedAt).toBe(failed.timestamp);
+    // runResultFromEvents parses what it returns, so RunResult accepts a step with no cost.
+    expect(unplanned).not.toHaveProperty("cost");
+    for (const key of ["startedAt", "endedAt"] as const) {
+      const { [key]: _dropped, ...without } = unplanned;
+      expect(RunStep.safeParse(without).success, key).toBe(false);
+    }
+
+    const planned = upToPlanned(1).find((e) => e.type === "actionPlanned");
+    if (planned?.type !== "actionPlanned") throw new Error("fixture step 1 must plan an action");
+    const cut = finishedAt(1, "budget_exceeded");
+    const events = [started, ...stepEvents(0), ...upToPlanned(1), cut];
+    const last = runResultFromEvents(events).steps.at(-1);
+    if (!last || !("incomplete" in last)) throw new Error("step 1 must be incomplete");
+    expect(last.endedAt).toBe(cut.timestamp);
+    expect(last.cost).toEqual(planned.cost);
   });
 });
 

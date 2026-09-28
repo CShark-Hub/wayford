@@ -50,7 +50,12 @@ export const ModelIds = z
   .strict();
 export type ModelIds = z.infer<typeof ModelIds>;
 
-/** Token counts and dollars for one run. Whole tokens; USD is a real number. */
+/**
+ * Token counts and dollars, for a run or for one step. Whole tokens; USD is a
+ * real number. A run's total can exceed the sum of its steps: a step's cost
+ * travels on its `actionPlanned`, so the calls of a step the run stopped in
+ * before any action was planned are billed in the run's total only.
+ */
 export const Cost = z
   .object({
     tokensIn: z.number().int().nonnegative(),
@@ -125,6 +130,12 @@ const stepBase = {
   actorObservationText: z.string(),
   diceRoll: Probability.optional(),
   narration: z.string(),
+  /** When the step's observation was ready: its `stepObserved` timestamp. */
+  startedAt: z.iso.datetime(),
+  /** When the action landed: its `actionPerformed` timestamp. On an incomplete
+   *  step, the timestamp of the `runFailed` or `runFinished` that stopped the
+   *  run, so the last step of a cut-short run keeps its length. */
+  endedAt: z.iso.datetime(),
   screenshotPath: z.string().min(1).optional(),
   /** `fullObservation.url`, so an `HttpUrl`. `urlAfter` is any URL: see `actionPerformed`. */
   urlBefore: HttpUrl,
@@ -132,7 +143,7 @@ const stepBase = {
 
 /** A step whose action landed: `action` and `urlAfter` both present. See `RunStep`. */
 export const CompleteRunStep = z
-  .object({ ...stepBase, action: Action, urlAfter: z.url() })
+  .object({ ...stepBase, action: Action, cost: Cost, urlAfter: z.url() })
   .strict();
 export type CompleteRunStep = z.infer<typeof CompleteRunStep>;
 
@@ -143,6 +154,9 @@ export const IncompleteRunStep = z
     action: Action.optional(),
     urlAfter: z.url().optional(),
     incomplete: z.literal(true),
+    /** Present exactly when `action` is: the reducer sets both from
+     *  `actionPlanned`. The schema does not check the pairing. */
+    cost: Cost.optional(),
   })
   .strict();
 export type IncompleteRunStep = z.infer<typeof IncompleteRunStep>;
@@ -285,6 +299,10 @@ export const RunEvent = z.discriminatedUnion("type", [
       type: z.literal("actionPlanned"),
       action: Action,
       diceRoll: Probability.optional(),
+      /** Every model call made to choose this action, a repair or a retry
+       *  included. Here, not on `actionPerformed`, so a run that stops before
+       *  the action lands still keeps the step's bill. */
+      cost: Cost,
     })
     .strict(),
   /** The action ran. Carries where it landed and the post-action screenshot.
@@ -345,6 +363,9 @@ type StepDraft = {
   action?: Action;
   diceRoll?: number;
   narration: string;
+  startedAt?: string;
+  endedAt?: string;
+  cost?: Cost;
   screenshotPath?: string;
   urlBefore?: string;
   urlAfter?: string;
@@ -438,6 +459,7 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
           );
         }
         const draft = draftFor(event.stepIndex);
+        draft.startedAt = event.timestamp;
         draft.fullObservation = event.observation;
         draft.urlBefore = event.observation.url;
         break;
@@ -446,12 +468,14 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         const draft = draftFor(event.stepIndex);
         draft.action = event.action;
         if (event.diceRoll !== undefined) draft.diceRoll = event.diceRoll;
+        draft.cost = event.cost;
         break;
       }
       case "actionPerformed": {
         const draft = draftFor(event.stepIndex);
         draft.urlAfter = event.urlAfter;
         if (event.screenshotPath !== undefined) draft.screenshotPath = event.screenshotPath;
+        draft.endedAt = event.timestamp;
         break;
       }
       case "narration": {
@@ -474,7 +498,11 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
   const steps: RunStep[] = [...drafts.values()]
     .sort((a, b) => a.stepIndex - b.stepIndex)
     .map((draft) => {
-      if (draft.fullObservation === undefined || draft.urlBefore === undefined) {
+      if (
+        draft.fullObservation === undefined ||
+        draft.urlBefore === undefined ||
+        draft.startedAt === undefined
+      ) {
         throw new Error(`step ${draft.stepIndex} is missing an observation`);
       }
       const base = {
@@ -482,19 +510,23 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         fullObservation: draft.fullObservation,
         actorObservationText: renderObservationForModel(toActorObservation(draft.fullObservation)),
         narration: draft.narration,
+        startedAt: draft.startedAt,
+        // A step with no actionPerformed was stopped by the run's end, so it ends there.
+        endedAt: draft.endedAt ?? terminal.timestamp,
         urlBefore: draft.urlBefore,
       };
       if (draft.urlAfter !== undefined && draft.action === undefined) {
         throw new Error(`step ${draft.stepIndex} performed an action it never planned`);
       }
       let step: RunStep;
-      if (draft.action !== undefined && draft.urlAfter !== undefined) {
-        step = { ...base, action: draft.action, urlAfter: draft.urlAfter };
+      if (draft.action !== undefined && draft.cost !== undefined && draft.urlAfter !== undefined) {
+        step = { ...base, action: draft.action, cost: draft.cost, urlAfter: draft.urlAfter };
       } else {
         // The run stopped mid-step. RunResult.parse below decides whether that is allowed.
         const partial: IncompleteRunStep = { ...base, incomplete: true };
         if (draft.action !== undefined) partial.action = draft.action;
         if (draft.urlAfter !== undefined) partial.urlAfter = draft.urlAfter;
+        if (draft.cost !== undefined) partial.cost = draft.cost;
         step = partial;
       }
       if (draft.diceRoll !== undefined) step.diceRoll = draft.diceRoll;

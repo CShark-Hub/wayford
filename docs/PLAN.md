@@ -99,7 +99,7 @@ Unconstrained run that produces ground truth.
 - AC1 Same task, profile, run seed and Actor answers (the LLM's actions, or Jev's probabilities) give identical filtered observations and dice rolls on every step both runs reach; a re-run on a live model is not this check, since its answers can differ. The run records the temperature and provider seed the LLM was sent (A20). Test: two runs on the same fake answers, string equality of observations, equality of rolls.
 - AC2 Behaviour dice rolls are logged per action with the seed-derived random value.
 - AC3 Every step stores: screenshot, filtered observation, action, narration when the backend writes one (Jev writes none), URL, timestamp.
-- AC4 A step emits a `RunEvent` before and after the action, over SSE.
+- AC4 A step emits a `RunEvent` before and after the action, over SSE. The stream carries the full evidence observation (`FullObservation`, hidden elements included), and the step stores the Actor-facing text projected from it.
 - AC5 Budget timeout ends the run with outcome `budget_exceeded`. Reaching the success condition ends it with `success`.
 - AC6 Actor prompt never mentions impairment or persona traits. A test greps the prompt template for banned words.
 - AC7 A fake cursor is injected into the page and moved to click coordinates before each click, so it appears in video and screenshots.
@@ -238,7 +238,7 @@ Exact library picks, ports and import rules: `docs/STACK.md`. Code conventions a
 
 API key, not a subscription. Subscription tools are for building the project, not for running it.
 
-- One adapter: `complete({ role, messages, schema, seed })` with structured output, retries and per-call token and cost logging stored on the step.
+- One adapter: `complete({ role, messages, schema, seed })` with structured output, retries, and the token counts and cost of every call. A step's cost is the sum over the calls that chose its action, repairs and retries included.
 - `decide({ role, state, question })` in the same adapter: one Jev Choice question over text, a probability per option back. The Actor's Jev backend is its only caller (A22).
 - Role configuration: `extractor`, `scout`, `actor`, `analyst`, each mapped to a model id and a temperature in config. The `actor` role also has a backend setting, `llm` or `jev`, and Jev's pinned model id.
 - OpenRouter as the default endpoint. Direct OpenAI or Anthropic keys work through the same adapter.
