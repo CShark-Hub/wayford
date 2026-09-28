@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "pnpm -r --parallel --filter @wayford/io --filter @wayford/web --filter @wayford/target-app dev",
     "test": "vitest run",
+    "test:unit": "vitest run --exclude \"**/*.browser.test.ts\"",
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

@@ -21,6 +21,7 @@
  */
 import { z } from "zod";
 import { Action } from "./action.js";
+import { WayfordError } from "./error.js";
 import { FullObservation, renderObservationForModel, toActorObservation } from "./observation.js";
 import { HttpUrl, Probability, ProfileId, RunId, Seed, TaskId } from "./primitives.js";
 
@@ -362,8 +363,29 @@ type StepDraft = {
  * A step missing its action or `urlAfter` is stored as incomplete; `RunResult`
  * then rejects it unless it is the last step of a run that failed or ran out
  * of budget.
+ *
+ * A rejected stream throws a `WayfordError` with code `invalid_run_events`,
+ * the original error on `cause`. Any other error is a bug and passes through
+ * unchanged, never relabelled as the caller's bad input.
  */
 export function runResultFromEvents(events: readonly RunEvent[]): RunResult {
+  try {
+    return foldRunEvents(events);
+  } catch (cause) {
+    if (cause instanceof z.ZodError) {
+      throw new WayfordError("invalid_run_events", z.prettifyError(cause), { cause });
+    }
+    if (cause instanceof Error && Object.getPrototypeOf(cause) === Error.prototype) {
+      throw new WayfordError("invalid_run_events", cause.message, { cause });
+    }
+    throw cause;
+  }
+}
+
+// The fold throws a plain `Error` for every rule a stream breaks, and
+// `RunResult.parse` a `ZodError`: that is how the wrapper above tells a
+// rejection from a bug, so a check added here throws a plain `Error` too.
+function foldRunEvents(events: readonly RunEvent[]): RunResult {
   const start = events[0];
   if (start?.type !== "runStarted") {
     throw new Error("a run's events must open with runStarted");
