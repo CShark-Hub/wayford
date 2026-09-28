@@ -18,9 +18,9 @@ A running Hono server and a Vite React shell that talk to each other, including 
 
 ## Interface
 
-- In: `RunEvent` fixtures from `@wayford/core`
+- In: `RunEvent` from `@wayford/core`; `runEventFixtures` from `@wayford/core/fixtures`
 - Out: `GET /health`, `GET /runs/:id/events` (SSE, fixture replay with 300 ms spacing), web page that subscribes and lists events
-- Files expected to change: `packages/io/src/server.ts`, `packages/io/src/routes/*.ts`, `packages/web/src/App.tsx`, `packages/web/src/api/*.ts`, root `package.json` scripts
+- Files expected to change: `packages/io/src/server.ts`, `packages/io/src/routes/*.ts`, `packages/web/src/app.tsx`, `packages/web/src/api/*.ts`, root `package.json` scripts
 
 ## Constraints
 
@@ -52,7 +52,7 @@ What shipped, for the next reader.
 - **The wire.** `GET /runs/:id/events` names each SSE message after its `RunEvent` type (`event: stepObserved`), sends the whole event as JSON in `data:`, and numbers it with its index in the run (`id: 0` … `id: 17`). A reconnecting `EventSource` sends `Last-Event-ID` and the stream resumes after it. A client that has already seen the last event gets 204, which tells `EventSource` to stop. Only `fixture` exists; any other id is a 404. Real runs should keep this framing, because the web client relies on it.
 - **The web client** (`packages/web/src/api/run-events.ts`) validates every message with the core `RunEvent` schema and closes the stream on the first one that fails. It also closes after `runFinished` or `runFailed`, because io ends the stream there and an `EventSource` left open would reconnect. The page subscribes only after `/health` answers, which covers io still booting under `pnpm dev`.
 - **The web reaches io through Vite's proxy**, `/api/*` to `localhost:3000`, so the page never calls another origin and io needs no CORS.
-- **Files differ from the list above.** `src/app.ts` builds the Hono app and `src/server.ts` only listens. Tests drive `createApp()` without a port, and neither file has to detect that it is the entry point: `import.meta.main` is `undefined` under tsx, and the old `file://${argv[1]}` check never matched on Windows. `db/migrate.ts` is the entry point for `db:migrate`, and `db/database.ts` holds the functions. The web file is the existing `src/app.tsx`, not `App.tsx`, because files are kebab-case. The root `package.json` needed no change: its `dev` script from m0-01 already starts the three packages.
+- **Files differ from the list above.** `src/app.ts` builds the Hono app and `src/server.ts` only listens. Tests drive `createApp()` without a port, and neither file has to detect that it is the entry point: `import.meta.main` is `undefined` under tsx, and the old `file://${argv[1]}` check never matched on Windows. `db/migrate.ts` is the entry point for `db:migrate`, and `db/database.ts` holds the functions. The root `package.json` needed no change: its `dev` script from m0-01 already starts the three packages.
 - **Database.** `profiles` has `id`, `label` and `document`, which is the whole `Profile` as JSON. The migration is `packages/io/drizzle/0000_init.sql`, generated with `db:generate`. `db:migrate` runs Drizzle's migrator from app code instead of `drizzle-kit migrate`, so it reads `DATABASE_URL` through the same zod config as the server. A relative `DATABASE_URL` resolves from the repository root, where `.env` lives, so one value names one file whichever directory a script starts in. The default puts `wayford.sqlite` at the root.
 - **`.env` is read from the repository root**, where the README puts it. Before, `import "dotenv/config"` looked in the working directory, which pnpm sets to `packages/io`, so the root `.env` was ignored.
 - **io listens on `localhost` only.** The API has no auth.

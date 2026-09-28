@@ -86,9 +86,9 @@ export type Sampling = z.infer<typeof Sampling>;
 
 /**
  * How a run ended. `gave_up` is the Actor's own decision (a `giveUp` action);
- * `budget_exceeded` is the loop cutting it off; `error` is a crash. They are
- * kept apart because "the person gave up" and "the tool fell over" are
- * different findings (`docs/PLAN.md`, F5 AC5).
+ * `budget_exceeded` is the loop cutting it off (`docs/PLAN.md` F5 AC5);
+ * `error` is a crash. They are kept apart (`m0-05`, "Constraints") because
+ * "the person gave up" and "the tool fell over" are different findings.
  */
 export const RUN_OUTCOMES = ["success", "gave_up", "budget_exceeded", "error"] as const;
 

@@ -26,7 +26,7 @@ One task each, all four start at once. They touch different files, so nobody wai
 | You | Task | What it is | Why you |
 |---|---|---|---|
 | Dev 1 (strongest deliverer) | `m0-03` | `Observation` and `Action` schemas: the contract between the perception filter and the Actor | You will own the filter in week 2. The filter owner writes the filter contract. |
-| Dev 2 | `m0-02` | `Profile` schema and the three persona fixtures | You will own the agent loop; profiles are its input. |
+| Dev 2 | `m0-02` | `Profile` schema and the four persona fixtures | You will own the agent loop; profiles are its input. |
 | Dev 3 | `m0-06` | The demo target app: plain HTML, CSS variables, one hard-to-find link | You will own the frontend. Zero dependencies, starts immediately. |
 | Dev 4 | `m0-04` | `Task` and `Finding` schemas | You will own the Extractor and Analyst, which produce exactly these. |
 
@@ -85,7 +85,7 @@ Week 1 is done: `m0-00` to `m0-07` merged, `m0-08` planned week 2. The week 2 ta
 
 No refinement session. The task files follow the week 1 template, and a task that turns out unclear mid-week stops and asks in its PR. Two things replace refinement instead.
 
-**Before the sync, asynchronously.** Read the task file you expect to take and leave any question as a comment on the `m0-08` PR (#56). The files were written without a developer reading them; this is where a wrong assumption surfaces cheaply.
+**Before the sync, asynchronously.** Read the task file you expect to take and open an issue for any question, naming the task file. The files were written without a developer reading them; this is where a wrong assumption surfaces cheaply.
 
 **One 15-minute session on #16, before it merges.** #16 defines how an element records its decisions, including one from a rule without a metric (V2 below the fold, later A1 and K1); `s1-01` fills that shape and adds `PageMeasurement`, and `s1-02` and `s3-01` read both. That is the filter contract, the one contract worth a live conversation. Whoever fixes #16 and whoever expects to take `s1-01`, `s1-02` or `s3-01` sketch it together once.
 
@@ -96,7 +96,7 @@ No refinement session. The task files follow the week 1 template, and a task tha
 3. Walk through the #16 decision shape with the stream 1 and preview developers, or confirm the 15-minute session happened. (10 min)
 4. Name the OpenRouter key holder, and confirm #13 to #16, the `rng` and `hash` part of #26, and #55 merge by Sunday. (5 min)
 
-## Open decisions that need the team
+## Settled decisions
 
 Decided in `m0-08` (PR #56, merged 2026-09-25) and written into `docs/RULES.md` and `docs/PLAN.md`. Changing one now takes a PR, with two approvals if it touches the filter contract and one otherwise (`docs/CONVENTIONS.md`, "Git"):
 
@@ -106,7 +106,7 @@ Decided in `m0-08` (PR #56, merged 2026-09-25) and written into `docs/RULES.md` 
 - The boundary sweep moves a profile threshold, never a target-app parameter (`docs/PLAN.md` F9; issue #18).
 - Text blocks are measured, and P1 and P3 apply to them (`docs/RULES.md`; issue #49).
 
-Still open:
+## Open decisions that need the team
 
 - Who holds the OpenRouter key and the 50 USD cap. `s2-01` cannot tick its smoke-test box without it, so it is needed on Monday of week 2.
 - Hackathon rules: are existing frameworks and pre-existing repos allowed. Someone must ask.

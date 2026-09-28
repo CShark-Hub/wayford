@@ -47,7 +47,7 @@ The web app gets its router and dark shell, and a personas screen shows the four
 
 ## Out of scope
 
-- The five animation states (idle, moving, stuck, done, gave up). They come with the ring in week 3.
+- The six animation states (idle, moving, stuck, done, gave up, error). They come with the ring in week 3.
 - The profile builder and saving profiles (F1 AC1, AC2).
 - Any change to `packages/core`.
 

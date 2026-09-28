@@ -18,7 +18,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A8 | Boundary sweep covers one axis (contrast) with the axis selector present but disabled. | default |
 | A9 | Report is structured findings rendered by the UI. The Analyst fills recommendation and hypothesis fields, never free prose. | default |
 | A10 | Avatars are procedural SVG derived from the profile seed and dimensions. No generated images. | default |
-| A11 | Three hand-written personas. PersonaLayer is cited as provenance where thresholds match. | default |
+| A11 | Four hand-written personas: Ada, Milo, Vera and Zoya (`docs/RULES.md`, "Persona composition"). PersonaLayer is cited as provenance where thresholds match. | default, m0-02 |
 | A12 | Perception dimension in full. Behaviour: one dice (double click). Knowledge: observation only, never in the Actor prompt template (`docs/RULES.md` pipeline, F5 AC6). Pattern rules K1 and K4 are a week 4 stretch (`s1-03`). Vocabulary (K2 masking, `[unfamiliar term]`) and readability (K3), `docs/RULES.md` stage 4: week 4 or the "what next" slide. | default, issue #19 |
 | A13 | LLM access through OpenRouter with one key and a 50 USD cap. Adapter is OpenAI-compatible so any key works. Jev (A22) comes through the same key. | default |
 | A14 | Whole team works in TypeScript. | default |
@@ -110,7 +110,7 @@ Unconstrained run that produces ground truth.
 Several personas on the same task, live.
 
 - AC1 3 to 5 runs start in parallel, one browser context each.
-- AC2 Avatar state follows run events: idle, moving, stuck, done, gave up.
+- AC2 Avatar state follows run events: idle, moving, stuck, done, gave up, error. A crashed run (`runFailed`) shows error, never gave up.
 - AC3 Finish order and elapsed time are visible.
 - AC4 Every persona shows its latest step screenshot. No live video (A7); the `webm` in run detail is the recording.
 
@@ -173,7 +173,7 @@ Screens:
 
 Look: two registers on purpose. Input side is playful: large avatar cards, bold names, one colour per persona, race track. Output side is sober: monochrome, dense, evidence first, monospace for seeds and measurements. Dark theme by default. The persona colour is the only thing that crosses both registers.
 
-Avatars: procedural SVG, layered parts, deterministic from the profile seed. Parts follow dimensions: thick glasses for a low contrast threshold, phone in hand for mobile, hourglass for low patience. Five animation states driven by run events, done with CSS or Framer Motion.
+Avatars: procedural SVG, layered parts, deterministic from the profile seed. Parts follow dimensions: thick glasses for a low contrast threshold, phone in hand for mobile, hourglass for low patience. Six animation states driven by run events (F6 AC2), done with CSS or Framer Motion.
 
 ## Architecture
 
@@ -251,7 +251,7 @@ API key, not a subscription. Subscription tools are for building the project, no
 - Own target app exists from week 1.
 - SQLite first.
 - OpenRouter, one key, 50 USD cap.
-- Workspace scope placeholder `@wayford/*` until the name is chosen.
+- Name Wayford, workspace scope `@wayford/*` (A19).
 
 ## Risks
 

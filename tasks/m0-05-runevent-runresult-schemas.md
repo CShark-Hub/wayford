@@ -20,7 +20,7 @@ A zod schema for the live stream (`RunEvent`) and for the stored result (`RunRes
 ## Interface
 
 - In: `Observation`, `Action` from `@wayford/core`
-- Out: `RunEvent`, `RunStep`, `RunResult`, `RunOutcome` schemas and types, `runResultFixture`, `runEventFixtures`, exported from `@wayford/core`
+- Out: `RunEvent`, `RunStep`, `RunResult`, `RunOutcome` schemas and types from `@wayford/core`; `runResultFixture` and `runEventFixtures` from `@wayford/core/fixtures`, the disk-reading entry point established by `m0-02`
 - Files expected to change: `packages/core/src/run.ts`, fixtures and tests next to it
 
 ## Constraints

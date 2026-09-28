@@ -22,7 +22,7 @@ A pnpm monorepo where every package builds, tests and lints with one command, so
 
 - In: nothing
 - Out: workspace with packages `core`, `filter`, `agent`, `io`, `web`, `target-app`, each exporting one placeholder function with one passing test
-- Files expected to change: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `biome.json`, `vitest.workspace.ts`, `packages/*/package.json`, `packages/*/src/index.ts`, `packages/*/src/index.test.ts`, `.gitignore`, `.nvmrc` or `.node-version`
+- Files expected to change: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `biome.json`, `vitest.config.ts` (with `test.projects`), `packages/*/package.json`, `packages/*/src/index.ts`, `packages/*/src/index.test.ts`, `.gitignore`, `.nvmrc` or `.node-version`
 
 ## Constraints
 
