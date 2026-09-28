@@ -64,8 +64,11 @@ export const actionFixtures: Action[] = readJson("actions.json", Action.array())
 
 /**
  * The `/deliveries` page of the target app (URL contract in `m0-04`) as the
- * filter saw it for a persona with a 3:1 soft contrast threshold: the archive
- * link degraded, two elements removed, the rest visible.
+ * filter saw it for an illustrative profile, not one of the persona fixtures:
+ * a 3:1 soft contrast threshold, a 16 px hard font cut and an attention cap of
+ * 6. The archive link degraded, two elements removed by perception (one of
+ * them failing two rules), three cut by attention, five below the fold, the
+ * rest visible.
  */
 export const observationFixture: FullObservation = readJson("observation.json", FullObservation);
 

@@ -14,7 +14,7 @@
       "bbox": { "x": 24, "y": 16, "width": 64, "height": 36 },
       "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
       "state": "visible",
-      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+      "decisions": []
     },
     {
       "ref": "e2",
@@ -24,7 +24,7 @@
       "bbox": { "x": 104, "y": 16, "width": 72, "height": 36 },
       "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
       "state": "visible",
-      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+      "decisions": []
     },
     {
       "ref": "e3",
@@ -34,7 +34,7 @@
       "bbox": { "x": 192, "y": 16, "width": 88, "height": 36 },
       "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
       "state": "visible",
-      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+      "decisions": []
     },
     {
       "ref": "e4",
@@ -44,7 +44,7 @@
       "bbox": { "x": 296, "y": 16, "width": 76, "height": 36 },
       "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
       "state": "visible",
-      "decision": { "rule": "P1", "metric": "contrast", "value": 12.6, "threshold": 3 }
+      "decisions": []
     },
     {
       "ref": "e5",
@@ -54,16 +54,34 @@
       "bbox": { "x": 120, "y": 96, "width": 320, "height": 40 },
       "metrics": { "contrast": 15.2, "fontPx": 28 },
       "state": "visible",
-      "decision": { "rule": "P1", "metric": "contrast", "value": 15.2, "threshold": 3 }
+      "decisions": []
     },
     {
       "key": "main//button:Sort by date",
       "role": "button",
       "name": "Sort by date",
       "bbox": { "x": 720, "y": 100, "width": 96, "height": 32 },
-      "metrics": { "contrast": 4.8, "fontPx": 11, "targetPx": 32 },
+      "metrics": { "contrast": 2.1, "fontPx": 11, "targetPx": 32 },
       "state": "invisible",
-      "decision": { "rule": "P3", "metric": "fontPx", "value": 11, "threshold": 16 }
+      "decisions": [
+        {
+          "stage": "perception",
+          "rule": "P1",
+          "metric": "contrast",
+          "value": 2.1,
+          "threshold": 3,
+          "rolled": 0.23,
+          "state": "degraded"
+        },
+        {
+          "stage": "perception",
+          "rule": "P3",
+          "metric": "fontPx",
+          "value": 11,
+          "threshold": 16,
+          "state": "invisible"
+        }
+      ]
     },
     {
       "ref": "e6",
@@ -74,13 +92,17 @@
       "metrics": { "contrast": 2.1, "fontPx": 16, "targetPx": 36 },
       "state": "degraded",
       "maskedName": "Ar▒▒ive",
-      "decision": {
-        "rule": "P1",
-        "metric": "contrast",
-        "value": 2.1,
-        "threshold": 3,
-        "rolled": 0.37
-      }
+      "decisions": [
+        {
+          "stage": "perception",
+          "rule": "P1",
+          "metric": "contrast",
+          "value": 2.1,
+          "threshold": 3,
+          "rolled": 0.37,
+          "state": "degraded"
+        }
+      ]
     },
     {
       "key": "contentinfo//link:Help",
@@ -89,13 +111,89 @@
       "bbox": { "x": 24, "y": 760, "width": 40, "height": 36 },
       "metrics": { "contrast": 1.8, "fontPx": 16, "targetPx": 36 },
       "state": "invisible",
-      "decision": {
-        "rule": "P1",
-        "metric": "contrast",
-        "value": 1.8,
-        "threshold": 3,
-        "rolled": 0.91
-      }
+      "decisions": [
+        {
+          "stage": "perception",
+          "rule": "P1",
+          "metric": "contrast",
+          "value": 1.8,
+          "threshold": 3,
+          "rolled": 0.91,
+          "state": "invisible"
+        }
+      ]
+    },
+    {
+      "key": "main//link:Returns",
+      "role": "link",
+      "name": "Returns",
+      "bbox": { "x": 120, "y": 520, "width": 80, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "attention", "rule": "A1" }]
+    },
+    {
+      "key": "main//button:Print list",
+      "role": "button",
+      "name": "Print list",
+      "bbox": { "x": 220, "y": 520, "width": 96, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "attention", "rule": "A1" }]
+    },
+    {
+      "key": "main//link:Contact us",
+      "role": "link",
+      "name": "Contact us",
+      "bbox": { "x": 340, "y": 520, "width": 96, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "attention", "rule": "A1" }]
+    },
+    {
+      "key": "contentinfo//link:Privacy",
+      "role": "link",
+      "name": "Privacy",
+      "bbox": { "x": 24, "y": 860, "width": 80, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
+    },
+    {
+      "key": "contentinfo//link:Terms",
+      "role": "link",
+      "name": "Terms",
+      "bbox": { "x": 120, "y": 860, "width": 80, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
+    },
+    {
+      "key": "contentinfo//link:Cookies",
+      "role": "link",
+      "name": "Cookies",
+      "bbox": { "x": 200, "y": 860, "width": 80, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
+    },
+    {
+      "key": "contentinfo//link:Careers",
+      "role": "link",
+      "name": "Careers",
+      "bbox": { "x": 290, "y": 860, "width": 80, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
+    },
+    {
+      "key": "contentinfo//link:Older orders",
+      "role": "link",
+      "name": "Older orders",
+      "bbox": { "x": 380, "y": 860, "width": 80, "height": 36 },
+      "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+      "state": "invisible",
+      "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
     }
   ]
 }

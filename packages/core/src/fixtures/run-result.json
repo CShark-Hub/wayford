@@ -37,7 +37,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e2",
@@ -55,7 +56,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e3",
@@ -73,7 +75,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e4",
@@ -91,7 +94,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           }
         ]
       },
@@ -136,7 +140,7 @@
           "deviceScaleFactor": 1,
           "isMobile": false
         },
-        "hiddenCount": 1,
+        "hiddenCount": 0,
         "belowFoldCount": 2,
         "elements": [
           {
@@ -155,7 +159,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e2",
@@ -173,7 +178,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e3",
@@ -191,7 +197,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "key": "main//button:Sort by date",
@@ -209,12 +216,16 @@
               "targetPx": 32
             },
             "state": "invisible",
-            "decision": {
-              "rule": "P3",
-              "metric": "fontPx",
-              "value": 11,
-              "threshold": 16
-            }
+            "decisions": [
+              {
+                "stage": "perception",
+                "rule": "P3",
+                "metric": "fontPx",
+                "value": 11,
+                "threshold": 16,
+                "state": "invisible"
+              }
+            ]
           },
           {
             "ref": "e4",
@@ -233,18 +244,40 @@
               "targetPx": 36
             },
             "state": "degraded",
-            "decision": {
-              "rule": "P1",
-              "metric": "contrast",
-              "value": 2.1,
-              "threshold": 3,
-              "rolled": 0.37
-            },
+            "decisions": [
+              {
+                "stage": "perception",
+                "rule": "P1",
+                "metric": "contrast",
+                "value": 2.1,
+                "threshold": 3,
+                "rolled": 0.37,
+                "state": "degraded"
+              }
+            ],
             "maskedName": "Ar▒▒ive"
+          },
+          {
+            "key": "contentinfo//link:Privacy",
+            "role": "link",
+            "name": "Privacy",
+            "bbox": { "x": 24, "y": 1100, "width": 80, "height": 36 },
+            "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+            "state": "invisible",
+            "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
+          },
+          {
+            "key": "contentinfo//link:Terms",
+            "role": "link",
+            "name": "Terms",
+            "bbox": { "x": 120, "y": 1100, "width": 80, "height": 36 },
+            "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+            "state": "invisible",
+            "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
           }
         ]
       },
-      "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Home\" at 24,16\n[e2] link \"Deliveries\" at 192,16\n[e3] link \"Settings\" at 296,16\n[e4] link \"Ar▒▒ive\" at 640,412, partly legible\n1 more elements not shown\n2 more below, scroll to see them",
+      "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Home\" at 24,16\n[e2] link \"Deliveries\" at 192,16\n[e3] link \"Settings\" at 296,16\n[e4] link \"Ar▒▒ive\" at 640,412, partly legible\n2 more below, scroll to see them",
       "proposedAction": {
         "type": "scroll",
         "direction": "down"
@@ -278,8 +311,8 @@
           "deviceScaleFactor": 1,
           "isMobile": false
         },
-        "hiddenCount": 1,
-        "belowFoldCount": 0,
+        "hiddenCount": 0,
+        "belowFoldCount": 2,
         "elements": [
           {
             "ref": "e1",
@@ -297,7 +330,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e2",
@@ -315,7 +349,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e3",
@@ -334,18 +369,40 @@
               "targetPx": 36
             },
             "state": "degraded",
-            "decision": {
-              "rule": "P1",
-              "metric": "contrast",
-              "value": 2.1,
-              "threshold": 3,
-              "rolled": 0.37
-            },
+            "decisions": [
+              {
+                "stage": "perception",
+                "rule": "P1",
+                "metric": "contrast",
+                "value": 2.1,
+                "threshold": 3,
+                "rolled": 0.37,
+                "state": "degraded"
+              }
+            ],
             "maskedName": "Ar▒▒ive"
+          },
+          {
+            "key": "contentinfo//link:Privacy",
+            "role": "link",
+            "name": "Privacy",
+            "bbox": { "x": 24, "y": 988, "width": 80, "height": 36 },
+            "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+            "state": "invisible",
+            "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
+          },
+          {
+            "key": "contentinfo//link:Terms",
+            "role": "link",
+            "name": "Terms",
+            "bbox": { "x": 120, "y": 988, "width": 80, "height": 36 },
+            "metrics": { "contrast": 12.6, "fontPx": 16, "targetPx": 36 },
+            "state": "invisible",
+            "decisions": [{ "stage": "viewport", "rule": "V2", "side": "below" }]
           }
         ]
       },
-      "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Deliveries\" at 192,16\n[e2] link \"Settings\" at 296,16\n[e3] link \"Ar▒▒ive\" at 640,300, partly legible\n1 more elements not shown",
+      "actorObservationText": "Page: Deliveries\nURL: http://localhost:5174/deliveries\nViewport: 1280 x 800\n[e1] link \"Deliveries\" at 192,16\n[e2] link \"Settings\" at 296,16\n[e3] link \"Ar▒▒ive\" at 640,300, partly legible\n2 more below, scroll to see them",
       "proposedAction": {
         "type": "click",
         "ref": "e2"
@@ -405,7 +462,8 @@
               "fontPx": 16,
               "targetPx": 36
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           },
           {
             "ref": "e2",
@@ -422,7 +480,8 @@
               "contrast": 15.2,
               "fontPx": 28
             },
-            "state": "visible"
+            "state": "visible",
+            "decisions": []
           }
         ]
       },

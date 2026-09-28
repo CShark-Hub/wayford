@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { observationFixture } from "./fixtures/index.js";
 import {
   type ActorElement,
+  ElementDecision,
   elementKey,
   FullObservation,
   Metrics,
@@ -9,6 +10,7 @@ import {
   ObservedElement,
   renderObservationForModel,
   toActorObservation,
+  worstState,
 } from "./observation.js";
 import { METRIC_NAMES } from "./primitives.js";
 
@@ -50,8 +52,92 @@ const baseElement = {
   bbox: { x: 640, y: 412, width: 120, height: 18 },
   metrics: { contrast: 2.1, fontPx: 14, targetPx: 18 },
   state: "visible",
-  decision: { rule: "P1", metric: "contrast", value: 2.1, threshold: 3 },
+  decisions: [],
 } as const;
+
+const p1Degraded = {
+  stage: "perception",
+  rule: "P1",
+  metric: "contrast",
+  value: 2.1,
+  threshold: 3,
+  rolled: 0.37,
+  state: "degraded",
+} as const;
+const p3Invisible = {
+  stage: "perception",
+  rule: "P3",
+  metric: "fontPx",
+  value: 14,
+  threshold: 16,
+  state: "invisible",
+} as const;
+const v2Below = { stage: "viewport", rule: "V2", side: "below" } as const;
+const v2Above = { stage: "viewport", rule: "V2", side: "above" } as const;
+const a1 = { stage: "attention", rule: "A1" } as const;
+const k1 = { stage: "knowledge", rule: "K1", pattern: "hamburger" } as const;
+
+/** An element cut before the Actor sees it: invisible, no ref. */
+function cut(decisions: readonly unknown[]): unknown {
+  const { ref: _ref, ...rest } = baseElement;
+  return { ...rest, state: "invisible", decisions };
+}
+
+describe("ElementDecision (one failed rule)", () => {
+  test("a rule without a metric or threshold is a decision: V2, A1, K1", () => {
+    for (const d of [v2Below, v2Above, a1, k1, { stage: "knowledge", rule: "K4" }]) {
+      expect(ElementDecision.safeParse(d).success).toBe(true);
+    }
+  });
+
+  test("the stage decides the shape: a P rule is not a viewport decision", () => {
+    expect(
+      ElementDecision.safeParse({ stage: "viewport", rule: "P1", side: "below" }).success,
+    ).toBe(false);
+    expect(ElementDecision.safeParse({ ...v2Below, metric: "contrast" }).success).toBe(false);
+    expect(ElementDecision.safeParse({ stage: "attention", rule: "K1" }).success).toBe(false);
+  });
+
+  test("a perception decision carries metric, value, threshold and its own state", () => {
+    expect(ElementDecision.safeParse(p1Degraded).success).toBe(true);
+    expect(ElementDecision.safeParse(p3Invisible).success).toBe(true);
+    const { metric: _metric, ...noMetric } = p3Invisible;
+    expect(ElementDecision.safeParse(noMetric).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...p3Invisible, state: "visible" }).success).toBe(false);
+  });
+
+  test("only a failing rule is recorded: value at or above the threshold is rejected", () => {
+    expect(ElementDecision.safeParse({ ...p3Invisible, value: 16 }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...p3Invisible, value: 18 }).success).toBe(false);
+  });
+
+  test("a degraded outcome stores its roll, and the roll is a probability", () => {
+    const { rolled: _rolled, ...unrolled } = p1Degraded;
+    expect(ElementDecision.safeParse(unrolled).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...p1Degraded, rolled: 1.2 }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...p1Degraded, rolled: 1 }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...p1Degraded, rolled: 0 }).success).toBe(true);
+  });
+
+  test("each perception rule compares its own metric", () => {
+    expect(ElementDecision.safeParse({ ...p1Degraded, rule: "P2" }).success).toBe(true);
+    expect(ElementDecision.safeParse({ ...p1Degraded, metric: "fontPx" }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...p3Invisible, metric: "contrast" }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...p3Invisible, rule: "P4" }).success).toBe(false);
+  });
+});
+
+describe("worstState (rule precedence)", () => {
+  test("invisible over degraded over visible, knowledge leaves the state alone", () => {
+    expect(worstState([])).toBe("visible");
+    expect(worstState([p1Degraded])).toBe("degraded");
+    expect(worstState([p1Degraded, p3Invisible])).toBe("invisible");
+    expect(worstState([k1])).toBe("visible");
+    expect(worstState([p1Degraded, k1])).toBe("degraded");
+    expect(worstState([v2Below, p1Degraded])).toBe("invisible");
+    expect(worstState([a1])).toBe("invisible");
+  });
+});
 
 describe("ObservedElement (evidence)", () => {
   test("the fixture validates and mixes all three states", () => {
@@ -60,47 +146,99 @@ describe("ObservedElement (evidence)", () => {
     expect([...states].sort()).toEqual(["degraded", "invisible", "visible"]);
   });
 
+  test("the fixture records several failing rules on one element, worst state winning", () => {
+    const several = observationFixture.elements.filter((e) => e.decisions.length > 1);
+    expect(several.length).toBeGreaterThan(0);
+    for (const element of several) expect(element.state).toBe(worstState(element.decisions));
+  });
+
   test("metrics are exactly the names the filter measures", () => {
     expect(Object.keys(Metrics.shape).sort()).toEqual([...METRIC_NAMES].sort());
   });
 
   test("a degraded element must say what the Actor read instead", () => {
-    const degraded = {
-      ...baseElement,
-      state: "degraded",
-      decision: { ...baseElement.decision, rolled: 0.37 },
-    };
+    const degraded = { ...baseElement, state: "degraded", decisions: [p1Degraded] };
     expect(ObservedElement.safeParse(degraded).success).toBe(false);
     expect(ObservedElement.safeParse({ ...degraded, maskedName: "Ar▒▒ive" }).success).toBe(true);
   });
 
-  test("an element that is not visible must say which rule decided", () => {
-    const { decision: _decision, ref: _ref, ...undecided } = baseElement;
-    expect(ObservedElement.safeParse({ ...undecided, state: "invisible" }).success).toBe(false);
-    expect(
-      ObservedElement.safeParse({
-        ...undecided,
-        state: "invisible",
-        decision: baseElement.decision,
-      }).success,
-    ).toBe(true);
+  test("an element that is not visible must say which rule removed it", () => {
+    expect(ObservedElement.safeParse(cut([])).success).toBe(false);
+    expect(ObservedElement.safeParse(cut([p3Invisible])).success).toBe(true);
+    expect(ObservedElement.safeParse(cut([v2Below])).success).toBe(true);
+    expect(ObservedElement.safeParse(cut([a1])).success).toBe(true);
   });
 
-  test("a visible element with no threshold behind it needs no decision", () => {
-    const { decision: _decision, ...plain } = baseElement;
-    expect(ObservedElement.safeParse(plain).success).toBe(true);
+  test("a visible element carries no decision that would remove or degrade it", () => {
+    expect(ObservedElement.safeParse(baseElement).success).toBe(true);
+    expect(ObservedElement.safeParse({ ...baseElement, decisions: [p3Invisible] }).success).toBe(
+      false,
+    );
+  });
+
+  test("several failing rules: the state is the worst of them", () => {
+    expect(ObservedElement.safeParse(cut([p1Degraded, p3Invisible])).success).toBe(true);
+    const claimedDegraded = {
+      ...baseElement,
+      state: "degraded",
+      maskedName: "Ar▒▒ive",
+      decisions: [p1Degraded, p3Invisible],
+    };
+    const result = ObservedElement.safeParse(claimedDegraded);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain("expected invisible");
+  });
+
+  test("decisions are in pipeline order, then rule id, with no repeat", () => {
+    expect(ObservedElement.safeParse(cut([v2Below, p1Degraded, p3Invisible])).success).toBe(true);
+    expect(ObservedElement.safeParse(cut([p1Degraded, v2Below])).success).toBe(false);
+    expect(ObservedElement.safeParse(cut([p3Invisible, p1Degraded])).success).toBe(false);
+    expect(ObservedElement.safeParse(cut([p3Invisible, p3Invisible])).success).toBe(false);
+  });
+
+  test("one roll per element: two soft decisions share the rolled value", () => {
+    const p4 = { ...p1Degraded, rule: "P4", metric: "targetPx", value: 18, threshold: 24 };
+    expect(ObservedElement.safeParse(cut([p1Degraded, p3Invisible, p4])).success).toBe(true);
+    expect(
+      ObservedElement.safeParse(cut([p1Degraded, p3Invisible, { ...p4, rolled: 0.5 }])).success,
+    ).toBe(false);
+  });
+
+  test("a knowledge rename lives in renamedName, apart from maskedName", () => {
+    const renamed = { ...baseElement, decisions: [k1], renamedName: "link" };
+    expect(ObservedElement.safeParse(renamed).success).toBe(true);
+    const { renamedName: _renamedName, ...unnamed } = renamed;
+    expect(ObservedElement.safeParse(unnamed).success).toBe(false);
+    expect(ObservedElement.safeParse({ ...baseElement, renamedName: "link" }).success).toBe(false);
+  });
+
+  test("a rename replaces the mask: a degraded, renamed element carries no masked name", () => {
+    const degradedRenamed = {
+      ...baseElement,
+      state: "degraded",
+      renamedName: "link",
+      decisions: [p1Degraded, k1],
+    };
+    expect(ObservedElement.safeParse(degradedRenamed).success).toBe(true);
+    expect(ObservedElement.safeParse({ ...degradedRenamed, maskedName: "Ar▒▒ive" }).success).toBe(
+      false,
+    );
+  });
+
+  test("attention ranks only what viewport and perception left shown", () => {
+    expect(ObservedElement.safeParse(cut([p1Degraded, a1])).success).toBe(true);
+    expect(ObservedElement.safeParse(cut([p3Invisible, a1])).success).toBe(false);
+    expect(ObservedElement.safeParse(cut([v2Below, a1])).success).toBe(false);
+    expect(ObservedElement.safeParse(cut([v2Above, a1])).success).toBe(false);
   });
 
   test("an invisible element has no ref, a shown element must have one", () => {
     const { ref: _ref, ...noRef } = baseElement;
     expect(ObservedElement.safeParse(noRef).success).toBe(false);
-    expect(ObservedElement.safeParse({ ...baseElement, state: "invisible" }).success).toBe(false);
-    expect(ObservedElement.safeParse({ ...noRef, state: "invisible" }).success).toBe(true);
-  });
-
-  test("the rolled value is a probability", () => {
-    const rolled = { ...baseElement, decision: { ...baseElement.decision, rolled: 1.2 } };
-    expect(ObservedElement.safeParse(rolled).success).toBe(false);
+    expect(
+      ObservedElement.safeParse({ ...baseElement, state: "invisible", decisions: [a1] }).success,
+    ).toBe(false);
+    expect(ObservedElement.safeParse(cut([a1])).success).toBe(true);
   });
 
   test("only a degraded element carries a masked name", () => {
@@ -140,6 +278,43 @@ describe("FullObservation (the evidence record)", () => {
   test("a duplicate ref is rejected", () => {
     const duplicated = shown.map((ref) => (ref === "e6" ? "e5" : ref));
     expect(FullObservation.safeParse(withRefs(duplicated)).success).toBe(false);
+  });
+
+  test("every counted element is in the evidence with the rule that cut it", () => {
+    const attention = observationFixture.elements.filter((e) =>
+      e.decisions.some((d) => d.stage === "attention"),
+    );
+    const below = observationFixture.elements.filter((e) =>
+      e.decisions.some((d) => d.stage === "viewport" && d.side === "below"),
+    );
+    expect(attention.length).toBe(observationFixture.hiddenCount);
+    expect(below.length).toBe(observationFixture.belowFoldCount);
+    for (const element of [...attention, ...below]) expect(element.state).toBe("invisible");
+  });
+
+  test("a count with no element behind it is rejected", () => {
+    const hidden = { ...observationFixture, hiddenCount: observationFixture.hiddenCount + 1 };
+    expect(FullObservation.safeParse(hidden).success).toBe(false);
+    const below = { ...observationFixture, belowFoldCount: observationFixture.belowFoldCount - 1 };
+    expect(FullObservation.safeParse(below).success).toBe(false);
+  });
+
+  test("what perception removed never reaches hiddenCount through an attention decision", () => {
+    const leaked = {
+      ...observationFixture,
+      hiddenCount: observationFixture.hiddenCount + 1,
+      elements: [...observationFixture.elements, cut([p3Invisible, a1])],
+    };
+    expect(FullObservation.safeParse(leaked).success).toBe(false);
+  });
+
+  test("an element above the viewport is cut by V2 but not counted below the fold", () => {
+    const above = { ...(cut([v2Above]) as object), key: "banner//link:Archive" };
+    const observation = {
+      ...observationFixture,
+      elements: [...observationFixture.elements, above],
+    };
+    expect(FullObservation.safeParse(observation).success).toBe(true);
   });
 });
 
@@ -203,7 +378,7 @@ describe("Observation (what the Actor receives)", () => {
     expect(element.state).toBe("invisible");
   });
 
-  test("carries no evidence fields: key, metrics, decision, maskedName", () => {
+  test("carries no evidence fields: key, metrics, decisions, maskedName, renamedName", () => {
     for (const element of actor.elements) {
       expect(Object.keys(element).sort()).toEqual(["bbox", "name", "ref", "role", "state"]);
     }
@@ -220,6 +395,40 @@ describe("Observation (what the Actor receives)", () => {
       expect(shown?.name).toBe(element.maskedName);
       expect(serialised).not.toContain(element.name);
     }
+  });
+
+  test("a renamed element shows its renamed name, keeps its state, and hides the real one", () => {
+    const renamed = {
+      ...observationFixture,
+      elements: observationFixture.elements.map((e) =>
+        e.ref === "e4" ? { ...e, decisions: [k1], renamedName: "link" } : e,
+      ),
+    };
+    const parsed = FullObservation.parse(renamed);
+    const projected = toActorObservation(parsed);
+    const shown = projected.elements.find((e) => e.ref === "e4");
+    expect(shown?.name).toBe("link");
+    expect(shown?.state).toBe("visible");
+    expect(JSON.stringify(projected)).not.toContain("Settings");
+    const text = renderObservationForModel(projected);
+    expect(text).toContain('[e4] link "link" at 296,16\n');
+  });
+
+  test("a degraded, renamed element reads its renamed name whole, never partly legible", () => {
+    const renamed = {
+      ...observationFixture,
+      elements: observationFixture.elements.map((e) => {
+        if (e.state !== "degraded") return e;
+        const { maskedName: _maskedName, ...rest } = e;
+        return { ...rest, decisions: [...e.decisions, k1], renamedName: "link" };
+      }),
+    };
+    const projected = toActorObservation(FullObservation.parse(renamed));
+    const text = renderObservationForModel(projected);
+    expect(text).toContain('[e6] link "link" at 640,412\n');
+    expect(text).not.toContain("partly legible");
+    expect(text).not.toContain("Archive");
+    expect(text).not.toContain("Ar▒▒ive");
   });
 
   test("refs are contiguous, so a gap cannot reveal a removed element", () => {

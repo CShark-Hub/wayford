@@ -57,17 +57,13 @@ const METRIC_OF_RULE: Partial<Record<RuleId, MetricName>> = {
 // Reading the fixtures
 // ---------------------------------------------------------------------------
 
-/** A perception decision, and the state it is stored with. */
-type StoredDecision = PerceptionDecision & { state: PerceptionState };
-
 /**
  * The perception decisions stored on one element. The only function here that
- * reads how an element stores them, so issue #16's change from `decision` to
- * `decisions` lands here and nowhere else. Until then an element holds at most
- * one decision, and the element's state is the state that decision gave.
+ * reads how an element stores them. Each decision carries the state its rule
+ * alone gives, which is what the band arithmetic checks.
  */
-function perceptionDecisions(element: ObservedElement): StoredDecision[] {
-  return element.decision === undefined ? [] : [{ ...element.decision, state: element.state }];
+function perceptionDecisions(element: ObservedElement): PerceptionDecision[] {
+  return element.decisions.filter((d): d is PerceptionDecision => d.stage === "perception");
 }
 
 /** Every stored decision RULES would not give, one line each. */

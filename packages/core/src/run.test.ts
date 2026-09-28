@@ -607,6 +607,22 @@ describe("step times and cost", () => {
     expect(sum("tokensOut")).toBe(runResultFixture.cost.tokensOut);
     expect(sum("usd")).toBeCloseTo(runResultFixture.cost.usd, 10);
   });
+
+  test("an element keeps one roll for the whole run", () => {
+    // Perception is resolved once per element per run (docs/RULES.md, "The roll").
+    const rolls = new Map<string, number>();
+    for (const step of runResultFixture.steps) {
+      for (const element of step.fullObservation.elements) {
+        for (const decision of element.decisions) {
+          if (decision.stage !== "perception" || decision.rolled === undefined) continue;
+          const seen = rolls.get(element.key);
+          if (seen !== undefined) expect(decision.rolled, element.key).toBe(seen);
+          rolls.set(element.key, decision.rolled);
+        }
+      }
+    }
+    expect(rolls.size).toBeGreaterThan(0);
+  });
 });
 
 describe("a run that stops mid-step", () => {

@@ -2,8 +2,8 @@
  * The boundary between the perception filter and the Actor.
  *
  * Two shapes, on purpose. `FullObservation` is the evidence record: every
- * element the filter looked at, with the metric it measured, the rule that
- * decided and the state it landed in. `Observation` is what the Actor gets:
+ * element the filter looked at, with the metrics it measured, every rule it
+ * failed and the state it landed in. `Observation` is what the Actor gets:
  * only elements it may see, with nothing on them that says what was measured,
  * what was removed or what a masked name really said.
  *
@@ -21,9 +21,11 @@ import {
   HttpUrl,
   MetricName,
   PerceptionState,
-  Probability,
+  PIPELINE_STAGES,
+  RULE_IDS,
   RuleId,
   StepIndex,
+  UiPattern,
   Viewport,
 } from "./primitives.js";
 
@@ -74,29 +76,121 @@ export const Metrics = z
   .strict();
 export type Metrics = z.infer<typeof Metrics>;
 
+/** The metric each perception rule compares (`docs/RULES.md`, stage 2). */
+const RULE_METRIC = { P1: "contrast", P2: "contrast", P3: "fontPx", P4: "targetPx" } as const;
+
 /**
- * Why an element landed in its state: the rule, the metric, the measured value,
- * the profile threshold, and the rolled value when the threshold had a softness
- * band (`docs/RULES.md`, stages 2 and 3). The roll is stored so a reviewer can
- * see why element X was degraded in run 7 and not in run 8.
+ * A perception rule the element failed: the metric, the measured value, the
+ * profile threshold, the rolled value when the threshold had a softness band
+ * (`docs/RULES.md`, stages 2 and 3), and the state this rule alone gives. Only
+ * a failing rule is recorded, so `value < threshold` (`>=` passes). Degradation
+ * shares the stage: a `degraded` state here is stage 3. The roll is stored so a
+ * reviewer can see why element X was degraded in run 7 and not in run 8.
  */
 export const PerceptionDecision = z
   .object({
-    rule: RuleId,
+    stage: z.literal("perception"),
+    rule: RuleId.extract(["P1", "P2", "P3", "P4"]),
     metric: MetricName,
     value: z.number(),
     threshold: z.number(),
-    rolled: Probability.optional(),
+    /** In `[0, 1)`, like the roll itself (`docs/RULES.md`, "The roll"). */
+    rolled: z.number().min(0).lt(1).optional(),
+    state: PerceptionState.exclude(["visible"]),
+  })
+  .strict()
+  .refine((d) => d.metric === RULE_METRIC[d.rule], {
+    path: ["metric"],
+    message: "each perception rule compares one metric: P1 and P2 contrast, P3 fontPx, P4 targetPx",
+  })
+  .refine((d) => d.value < d.threshold, {
+    path: ["value"],
+    message: "only a failing rule is recorded: value must be below the threshold",
+  })
+  .refine((d) => d.state !== "degraded" || d.rolled !== undefined, {
+    path: ["rolled"],
+    message: "a degraded outcome comes from a soft band and stores its roll",
+  });
+export type PerceptionDecision = z.infer<typeof PerceptionDecision>;
+
+/**
+ * V2: outside the viewport. No metric, no threshold. The element is invisible;
+ * only `below` counts in `belowFoldCount`, since the Actor is told "N more below".
+ */
+export const ViewportDecision = z
+  .object({ stage: z.literal("viewport"), rule: z.literal("V2"), side: z.enum(["above", "below"]) })
+  .strict();
+export type ViewportDecision = z.infer<typeof ViewportDecision>;
+
+/**
+ * K1, K4: the persona does not know the pattern. The name is replaced
+ * (`renamedName` on the element); the state is left as perception decided.
+ */
+export const KnowledgeDecision = z
+  .object({
+    stage: z.literal("knowledge"),
+    rule: RuleId.extract(["K1", "K4"]),
+    pattern: UiPattern.optional(),
   })
   .strict();
-export type PerceptionDecision = z.infer<typeof PerceptionDecision>;
+export type KnowledgeDecision = z.infer<typeof KnowledgeDecision>;
+
+/** A1, A3: cut by the attention or option cap. Invisible, counted in `hiddenCount`. */
+export const AttentionDecision = z
+  .object({ stage: z.literal("attention"), rule: RuleId.extract(["A1", "A3"]) })
+  .strict();
+export type AttentionDecision = z.infer<typeof AttentionDecision>;
+
+/** One rule an element failed, discriminated by pipeline stage. */
+export const ElementDecision = z.discriminatedUnion("stage", [
+  ViewportDecision,
+  PerceptionDecision,
+  KnowledgeDecision,
+  AttentionDecision,
+]);
+export type ElementDecision = z.infer<typeof ElementDecision>;
+
+const STATE_RANK: Record<PerceptionState, number> = { visible: 0, degraded: 1, invisible: 2 };
+
+/** The state one decision gives on its own. Knowledge renames and leaves the state alone. */
+export function decisionState(decision: ElementDecision): PerceptionState {
+  if (decision.stage === "perception") return decision.state;
+  if (decision.stage === "knowledge") return "visible";
+  return "invisible";
+}
+
+/**
+ * Rule precedence (`docs/RULES.md`, "Several rules"): the worst state wins,
+ * `invisible` over `degraded` over `visible`. No decision is `visible`.
+ */
+export function worstState(decisions: readonly ElementDecision[]): PerceptionState {
+  let worst: PerceptionState = "visible";
+  for (const decision of decisions) {
+    const state = decisionState(decision);
+    if (STATE_RANK[state] > STATE_RANK[worst]) worst = state;
+  }
+  return worst;
+}
+
+/** Sort position of a decision: pipeline stage, then rule id. */
+function decisionOrder(decision: ElementDecision): number {
+  return (
+    PIPELINE_STAGES.indexOf(decision.stage) * RULE_IDS.length + RULE_IDS.indexOf(decision.rule)
+  );
+}
 
 /**
  * One element as evidence. Invariants, enforced below:
  * - `visible` or `degraded` carries a `ref`; `invisible` carries none, so the
  *   Actor-facing refs stay contiguous and a gap cannot reveal a removal;
- * - anything but `visible` says which rule decided;
- * - `degraded` says what the Actor read instead (`maskedName`).
+ * - `decisions` lists every rule the element failed, none it passed, in
+ *   pipeline order then rule id, and `state` is the worst of them;
+ * - every soft perception decision carries the same roll: one per element;
+ * - `renamedName` is there exactly when a knowledge rule renamed the element;
+ * - a degraded element that was not renamed says what the Actor read instead
+ *   (`maskedName`); a renamed one reads `renamedName` and carries no mask;
+ * - an attention decision only on an element viewport and perception left
+ *   shown, so `hiddenCount` never counts what perception removed.
  */
 export const ObservedElement = z
   .object({
@@ -107,8 +201,10 @@ export const ObservedElement = z
     bbox: Bbox,
     metrics: Metrics,
     state: PerceptionState,
-    decision: PerceptionDecision.optional(),
+    decisions: z.array(ElementDecision),
     maskedName: z.string().optional(),
+    /** What the Actor reads after K1 or K4. Independent of `maskedName`. */
+    renamedName: z.string().optional(),
   })
   .strict()
   .superRefine((element, ctx) => {
@@ -118,33 +214,78 @@ export const ObservedElement = z
     if (element.state !== "invisible" && element.ref === undefined) {
       ctx.addIssue({ code: "custom", path: ["ref"], message: "a shown element needs a ref" });
     }
-    if (element.state !== "visible" && element.decision === undefined) {
+    const worst = worstState(element.decisions);
+    if (element.state !== worst) {
       ctx.addIssue({
         code: "custom",
-        path: ["decision"],
-        message: `a ${element.state} element must say which rule decided`,
+        path: ["state"],
+        message: `the state is the worst of the decisions: expected ${worst}, got ${element.state}`,
       });
     }
-    if (element.state === "degraded" && element.maskedName === undefined) {
+    element.decisions.forEach((decision, index) => {
+      const previous = element.decisions[index - 1];
+      if (previous !== undefined && decisionOrder(previous) >= decisionOrder(decision)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["decisions", index],
+          message: "decisions are in pipeline order, then rule id, with no repeat",
+        });
+      }
+    });
+    const rolls = new Set(
+      element.decisions.flatMap((d) =>
+        d.stage === "perception" && d.rolled !== undefined ? [d.rolled] : [],
+      ),
+    );
+    if (rolls.size > 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["decisions"],
+        message: "an element is rolled once per run: every soft decision carries the same roll",
+      });
+    }
+    const renamed = element.decisions.some((d) => d.stage === "knowledge");
+    if (renamed !== (element.renamedName !== undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["renamedName"],
+        message: "a renamed name exists exactly when a knowledge rule renamed the element",
+      });
+    }
+    const masked = element.state === "degraded" && !renamed;
+    if (masked && element.maskedName === undefined) {
       ctx.addIssue({
         code: "custom",
         path: ["maskedName"],
         message: "a degraded element must say what the Actor read instead",
       });
     }
-    if (element.state !== "degraded" && element.maskedName !== undefined) {
+    if (!masked && element.maskedName !== undefined) {
       ctx.addIssue({
         code: "custom",
         path: ["maskedName"],
-        message: "only a degraded element carries a masked name",
+        message: "only a degraded element that was not renamed carries a masked name",
+      });
+    }
+    const removedEarlier = element.decisions.some(
+      (d) =>
+        (d.stage === "viewport" || d.stage === "perception") && decisionState(d) === "invisible",
+    );
+    if (removedEarlier && element.decisions.some((d) => d.stage === "attention")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["decisions"],
+        message: "attention ranks only what viewport and perception left shown",
       });
     }
   });
 export type ObservedElement = z.infer<typeof ObservedElement>;
 
 /**
- * Header shared by both shapes. `belowFoldCount` is rule V2: elements outside
- * the viewport. `hiddenCount` is rule A1: elements the attention cap cut. What
+ * Header shared by both shapes. `belowFoldCount` is rule V2: elements below the
+ * viewport. `hiddenCount` is rules A1 and A3: elements the attention or option
+ * cap cut. Each counted element is in `elements` as invisible with its V2 or
+ * A1/A3 decision, enforced on `FullObservation`. What
  * perception removed (P1 to P4) is counted nowhere the Actor can see: a person
  * does not know how many things they failed to see.
  */
@@ -183,6 +324,24 @@ export const FullObservation = z
       }
       expected += 1;
     });
+    const count = (match: (d: ElementDecision) => boolean) =>
+      observation.elements.filter((e) => e.decisions.some(match)).length;
+    const hidden = count((d) => d.stage === "attention");
+    if (observation.hiddenCount !== hidden) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["hiddenCount"],
+        message: `hiddenCount counts the elements with an attention decision: expected ${hidden}`,
+      });
+    }
+    const below = count((d) => d.stage === "viewport" && d.side === "below");
+    if (observation.belowFoldCount !== below) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["belowFoldCount"],
+        message: `belowFoldCount counts the elements with a V2 below decision: expected ${below}`,
+      });
+    }
   });
 export type FullObservation = z.infer<typeof FullObservation>;
 
@@ -196,8 +355,9 @@ export type ActorPerceptionState = z.infer<typeof ActorPerceptionState>;
 
 /**
  * One element as the Actor sees it. No `key` (it contains the real name), no
- * `metrics`, no `decision` (they contain the threshold). For a degraded element
- * `name` is already the masked one.
+ * `metrics`, no `decisions` (they contain the threshold). For a renamed element
+ * `name` is already the renamed one and `state` is `visible`, otherwise for a
+ * degraded element `name` is the masked one.
  */
 export const ActorElement = z
   .object({
@@ -216,7 +376,7 @@ export type Observation = z.infer<typeof Observation>;
 
 /**
  * Project the evidence record onto what the Actor may see: drop invisible
- * elements, swap in the masked name, strip every evidence field. Element order
+ * elements, swap in the renamed or masked name, strip every evidence field. Element order
  * is preserved; the filter has already sorted by salience (rule A1).
  */
 export function toActorObservation(full: FullObservation): Observation {
@@ -227,10 +387,14 @@ export function toActorObservation(full: FullObservation): Observation {
       ref: element.ref,
       role: element.role,
       // Never fall back to the real name: an unmasked degraded element is a schema
-      // violation, and an empty name is the safe failure.
-      name: element.state === "degraded" ? (element.maskedName ?? "") : element.name,
+      // violation, and an empty name is the safe failure. A rename wins over a mask
+      // because knowledge (stage 4) runs after degradation (stage 3), and a renamed
+      // element reads its replacement whole, never as "partly legible".
+      name:
+        element.renamedName ??
+        (element.state === "degraded" ? (element.maskedName ?? "") : element.name),
       bbox: element.bbox,
-      state: element.state,
+      state: element.renamedName === undefined ? element.state : "visible",
     });
   }
   const observation: Observation = {
