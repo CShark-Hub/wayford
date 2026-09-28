@@ -112,15 +112,15 @@ describe("geometry", () => {
 
 describe("identifiers", () => {
   test("a prefixed id accepts its own prefix only", () => {
-    expect(ProfileId.safeParse("prof_ryszard").success).toBe(true);
-    expect(ProfileId.safeParse("task_ryszard").success).toBe(false);
-    expect(ProfileId.safeParse("ryszard").success).toBe(false);
+    expect(ProfileId.safeParse("prof_vera").success).toBe(true);
+    expect(ProfileId.safeParse("task_vera").success).toBe(false);
+    expect(ProfileId.safeParse("vera").success).toBe(false);
   });
 
   test("uppercase and spaces are rejected", () => {
     const id = prefixedId("run");
     expect(id.safeParse("run_47").success).toBe(true);
-    expect(id.safeParse("run_Ryszard").success).toBe(false);
+    expect(id.safeParse("run_Vera").success).toBe(false);
     expect(id.safeParse("run_two words").success).toBe(false);
   });
 });

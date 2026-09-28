@@ -39,13 +39,13 @@ describe("path words", () => {
 
 describe("Goal", () => {
   test("a goal that names a route is rejected, and says which word did it", () => {
-    const result = Goal.safeParse("click Settings and choose the night rate");
+    const result = Goal.safeParse("click Deliveries and open the order archive");
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain("click");
   });
 
   test("a goal that states an intent passes", () => {
-    expect(Goal.safeParse("you want to pay less at night").success).toBe(true);
+    expect(Goal.safeParse("you want to see what you ordered three months ago").success).toBe(true);
   });
 
   test("an empty goal is rejected", () => {

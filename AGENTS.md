@@ -102,8 +102,8 @@ Why: a model that just did something will confirm it did it well. And variance p
 ### A task must not contain the solution
 
 ```
-❌ "click Settings → Tariff → select G12w"
-✅ "you want to pay less for electricity at night — sort it out"
+❌ "click Deliveries → Order archive"
+✅ "you want to see what you ordered three months ago"
 ```
 
 The Extractor must **actively strip paths** out of user stories, since those are full of screen names. A task containing the path measures instruction-following, not wayfinding.
@@ -204,7 +204,7 @@ The name also carries the two ideas the tool is built on: **wayfinding**, how pe
 It reads like a surname, which is a gift in the reports:
 
 ```
-Wayford couldn't find your tariff settings.
+Wayford couldn't find your order archive.
 Wayford gave up after 1:50.
 Wayford clicked twice. Twice.
 ```
