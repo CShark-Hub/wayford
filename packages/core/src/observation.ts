@@ -33,8 +33,20 @@ import {
 // Key
 // ---------------------------------------------------------------------------
 
+/**
+ * An ARIA role as Playwright's `getByRole` names it: one lowercase word
+ * (`link`, `button`, `columnheader`). Page-controlled, so it is held to a
+ * token: a role cannot carry a space, a quote or a line break into the
+ * Actor's text. A collector maps to these names; an exotic accessibility-tree
+ * role (`RootWebArea`, `doc-toc`) fails to parse, which is intended. Any later
+ * schema that carries a role (the filter's page measurement) reuses this one
+ * instead of a free string.
+ */
+export const AriaRole = z.string().regex(/^[a-z]+$/, "a role is one lowercase ARIA role word");
+export type AriaRole = z.infer<typeof AriaRole>;
+
 /** An ancestor with a landmark role, and its accessible name when it has one. */
-export const Landmark = z.object({ role: z.string().min(1), name: z.string().optional() }).strict();
+export const Landmark = z.object({ role: AriaRole, name: z.string().optional() }).strict();
 export type Landmark = z.infer<typeof Landmark>;
 
 /**
@@ -196,7 +208,7 @@ export const ObservedElement = z
   .object({
     ref: ElementRef.optional(),
     key: z.string().min(1),
-    role: z.string().min(1),
+    role: AriaRole,
     name: z.string(),
     bbox: Bbox,
     metrics: Metrics,
@@ -362,7 +374,7 @@ export type ActorPerceptionState = z.infer<typeof ActorPerceptionState>;
 export const ActorElement = z
   .object({
     ref: ElementRef,
-    role: z.string().min(1),
+    role: AriaRole,
     name: z.string(),
     bbox: Bbox,
     state: ActorPerceptionState,
@@ -411,15 +423,29 @@ export function toActorObservation(full: FullObservation): Observation {
 }
 
 /**
+ * Page text is untrusted: a title, URL, role or name with a line break in it
+ * would write its own lines into the Actor's observation. Every run of control
+ * characters (C0 including TAB, DEL, C1 including NEL) and Unicode line or
+ * paragraph separators becomes one space, so a page-controlled string always
+ * stays on the line it was put on. Format characters (`Cf`, bidi overrides)
+ * are left alone on purpose: they cannot start a new line. Clean text passes
+ * through byte for byte.
+ */
+function oneLine(text: string): string {
+  return text.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ");
+}
+
+/**
  * The exact text the Actor sees. One line per element, position included so
  * the model can reason about layout, nothing about why a name reads oddly
  * beyond "partly legible". The vocabulary here is what the banned-word test in
  * `observation.test.ts` guards.
+ * Page-controlled strings pass through `oneLine`.
  */
 export function renderObservationForModel(observation: Observation): string {
   const lines = [
-    `Page: ${observation.title}`,
-    `URL: ${observation.url}`,
+    `Page: ${oneLine(observation.title)}`,
+    `URL: ${oneLine(observation.url)}`,
     `Viewport: ${observation.viewport.width} x ${observation.viewport.height}`,
   ];
   for (const element of observation.elements) {
@@ -428,7 +454,7 @@ export function renderObservationForModel(observation: Observation): string {
     // Actor experiences, not why, which is what keeps it off the banned list.
     const legibility = element.state === "degraded" ? ", partly legible" : "";
     lines.push(
-      `[${element.ref}] ${element.role} ${JSON.stringify(element.name)} at ${position}${legibility}`,
+      `[${element.ref}] ${oneLine(element.role)} ${JSON.stringify(oneLine(element.name))} at ${position}${legibility}`,
     );
   }
   if (observation.hiddenCount > 0) {
