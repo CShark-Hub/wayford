@@ -134,8 +134,8 @@ Not how we know the personas are right. We do not claim that.
 | Vera at the target app's defaults: soft cut 3.0, band from 1.5, hard link at 2.006:1. Its 16 px font sits exactly on her 16 px font cut, on purpose, so the row also checks that `>=` passes; its 36 px box clears her 32 px target cut (issue #32) | the link reaches her degraded in about one seed in three (checked over 1000 seeds in `s1-01`) and never whole. For a fixed seed list the number of seeds where it is degraded is fixed, and hard-goal successes never exceed it. Ten seeds are too few to judge the share: at a true third, 4/10 or more happens almost half the time. |
 | Zoya at the target app's defaults | 0/10 on both goals. Her hard 24 px font cut removes every link in the app (16 to 18 px), so no route leaves the home page. That is the far end of the scale, not a broken engine (decided in `m0-08`, issue #23). |
 | axe-core violations on the target app | every P1 to P4 removal on a page corresponds to at least one axe finding on the same page, or the rule is stricter than WCAG and says so in provenance |
-| Same seed twice | identical observations per step, identical dice rolls |
-| Sweep on contrast | monotone per seed: once a value fails, all stricter values fail. Over the fixed seed set the success rate never rises as the threshold does. |
+| Same task, profile, run seed and Actor answers, twice (fake adapter) | identical observations and dice rolls on every step both runs reach (`docs/PLAN.md` F5 AC1). Re-running a seed on a live model is not this check: its answers can differ. |
+| Sweep on contrast | per seed, a higher threshold never gives an element a better state under the contrast rules (`s1-01` tests P1 on `perceive` alone). So over the fixed seed set, the seeds where those rules leave the hard link visible or degraded never grow in number, and at each value hard-goal successes never outnumber them. The success rate itself is monotone only up to the Actor's own variance (`docs/PLAN.md` F9 AC5): a stricter value can score higher. |
 
 ## Persona composition
 
