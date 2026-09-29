@@ -88,6 +88,15 @@ describe("measurementFixture", () => {
     }
   });
 
+  test("a checkbox's targetPx is its wrapping label's 46 px, not its own 22 px box (#117)", () => {
+    const checkboxes = measurementFixture.elements.filter((e) => e.role === "checkbox");
+    expect(checkboxes).toHaveLength(2);
+    for (const { key, bbox, metrics } of checkboxes) {
+      expect([bbox.width, bbox.height], key).toEqual([22, 22]);
+      expect(metrics.targetPx, key).toBe(46);
+    }
+  });
+
   test("every element sits inside the viewport, so nothing on it is below the fold", () => {
     const { width, height } = measurementFixture.viewport;
     for (const { key, bbox } of measurementFixture.elements) {

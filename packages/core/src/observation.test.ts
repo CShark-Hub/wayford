@@ -286,8 +286,11 @@ describe("FullObservation (the evidence record)", () => {
     const attention = observationFixture.elements.filter((e) =>
       e.decisions.some((d) => d.stage === "attention"),
     );
-    const below = observationFixture.elements.filter((e) =>
-      e.decisions.some((d) => d.stage === "viewport" && d.side === "below"),
+    // Below the viewport, only what perception left shown is counted (#118).
+    const below = observationFixture.elements.filter(
+      (e) =>
+        e.decisions.some((d) => d.stage === "viewport" && d.side === "below") &&
+        !e.decisions.some((d) => d.stage === "perception" && d.state === "invisible"),
     );
     expect(attention.length).toBe(observationFixture.hiddenCount);
     expect(below.length).toBe(observationFixture.belowFoldCount);
@@ -310,6 +313,30 @@ describe("FullObservation (the evidence record)", () => {
     expect(FullObservation.safeParse(leaked).success).toBe(false);
   });
 
+  test("what perception removed below the viewport is not counted (#118)", () => {
+    const removed = {
+      ...(cut([v2Below, p3Invisible]) as object),
+      key: "contentinfo//link:Archive",
+    };
+    const elements = [...observationFixture.elements, removed];
+    const { belowFoldCount } = observationFixture;
+    expect(FullObservation.safeParse({ ...observationFixture, elements }).success).toBe(true);
+    const leaked = { ...observationFixture, belowFoldCount: belowFoldCount + 1, elements };
+    expect(FullObservation.safeParse(leaked).success).toBe(false);
+  });
+
+  test("an element below the viewport that perception only degraded is counted (#118)", () => {
+    const degraded = {
+      ...(cut([v2Below, p1Degraded]) as object),
+      key: "contentinfo//link:Archive",
+    };
+    const elements = [...observationFixture.elements, degraded];
+    const { belowFoldCount } = observationFixture;
+    const counted = { ...observationFixture, belowFoldCount: belowFoldCount + 1, elements };
+    expect(FullObservation.safeParse(counted).success).toBe(true);
+    expect(FullObservation.safeParse({ ...observationFixture, elements }).success).toBe(false);
+  });
+
   test("an element above the viewport is cut by V2 but not counted below the fold", () => {
     const above = { ...(cut([v2Above]) as object), key: "banner//link:Archive" };
     const observation = {
@@ -317,6 +344,18 @@ describe("FullObservation (the evidence record)", () => {
       elements: [...observationFixture.elements, above],
     };
     expect(FullObservation.safeParse(observation).success).toBe(true);
+  });
+
+  test("an element left or right of the viewport is cut by V2 and counted nowhere (#116)", () => {
+    for (const side of ["left", "right"] as const) {
+      const beside = { ...(cut([{ ...v2Below, side }]) as object), key: "banner//link:Archive" };
+      const elements = [...observationFixture.elements, beside];
+      const { belowFoldCount } = observationFixture;
+      const parsed = FullObservation.safeParse({ ...observationFixture, elements });
+      expect(parsed.success, side).toBe(true);
+      const counted = { ...observationFixture, belowFoldCount: belowFoldCount + 1, elements };
+      expect(FullObservation.safeParse(counted).success, side).toBe(false);
+    }
   });
 });
 

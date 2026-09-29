@@ -85,14 +85,17 @@ export const observationFixture: FullObservation = readJson("observation.json", 
  * its text: for a nav `li`, its link. Everything is inside the 720 px
  * viewport.
  *
- * Not measured, and why, for `s1-02` to keep or overturn:
+ * Each checkbox carries the contrast and font size of its label's text
+ * (`docs/RULES.md`, "What is measured", #117). Its label wraps it, so its
+ * `targetPx` is the smaller side of the area a click activates, the label's
+ * box: 832 × 46 at x 216.5, y 471.0625 and 517.0625, measured on 2026-09-29.
+ * Its `bbox` stays its own 22 × 22 box.
+ *
+ * Not measured, and why:
  * - the `display: none` Menu button: a hidden element is not measured;
- * - the two `label`s, as separate text blocks. A label has no ARIA role for
- *   `AriaRole` or `getByRole`, so there is nothing to key it on. Each checkbox
- *   carries the contrast and font size of its label's text instead, so P1 and
- *   P3 still reach that text. This is a deviation from `docs/RULES.md`, "What
- *   is measured", open in #117;
- * - the footer's bare text: it is not a heading, paragraph, list item or label.
+ * - the two `label`s, as separate text blocks: a label's text is measured on
+ *   the checkbox it names;
+ * - the footer's bare text: it is not a heading, paragraph or list item.
  */
 export const measurementFixture: PageMeasurement = readJson("measurement.json", PageMeasurement);
 

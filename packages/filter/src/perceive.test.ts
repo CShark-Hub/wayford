@@ -210,7 +210,11 @@ test("the profile seed never changes the Actor text (A20)", () => {
 test("Ada sees every element inside the viewport", () => {
   const { viewport } = measurementFixture;
   const inside = measurementFixture.elements.every(
-    ({ bbox }) => bbox.y < viewport.height && bbox.y + bbox.height > 0,
+    ({ bbox }) =>
+      bbox.x < viewport.width &&
+      bbox.x + bbox.width > 0 &&
+      bbox.y < viewport.height &&
+      bbox.y + bbox.height > 0,
   );
   expect(inside, "every fixture element is inside the viewport").toBe(true);
   const ada = profileFixture("prof_ada");
@@ -500,13 +504,106 @@ test("every observation parses as FullObservation", () => {
   }
 });
 
-test("Milo loses the brand link, both checkboxes and Order archive to P4", () => {
+test("what perception removes below the viewport is not counted (#118)", () => {
+  // The fixture at viewport height 600, as in the V2 box: only Order archive is below.
+  const short = PageMeasurement.parse({
+    ...measurementFixture,
+    viewport: { ...measurementFixture.viewport, height: 600 },
+  });
+  const counted = new Map<string, number>();
+  for (const profile of profileFixtures) {
+    let seedsCounted = 0;
+    for (const seed of seeds(50)) {
+      const where = `${profile.id} at run seed ${seed}`;
+      const full = perceive(short, profile, seed);
+      const onScreen = observed(perceive(measurementFixture, profile, seed), ARCHIVE);
+      // Every element below keeps its V2 decision, whatever perception did to it.
+      expect(observed(full, ARCHIVE).decisions, where).toStrictEqual([
+        { stage: "viewport", rule: "V2", side: "below" },
+        ...onScreen.decisions,
+      ]);
+      // Counted only when perception alone leaves it shown: scrolling could bring it into view.
+      const shown = onScreen.state !== "invisible";
+      expect(full.belowFoldCount, where).toBe(shown ? 1 : 0);
+      expect(actorText(full).includes("more below"), where).toBe(shown);
+      const parsed = FullObservation.safeParse(full);
+      expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+      if (shown) seedsCounted += 1;
+    }
+    counted.set(profile.id, seedsCounted);
+  }
+  // Ada always. Milo never (P4), nor Zoya (P1, P3 and P4). Vera on the seeds where P1 degrades it.
+  expect(counted.get("prof_ada")).toBe(50);
+  expect(counted.get("prof_milo")).toBe(0);
+  expect(counted.get("prof_zoya")).toBe(0);
+  expect(counted.get("prof_vera")).toBeGreaterThan(0);
+  expect(counted.get("prof_vera")).toBeLessThan(50);
+});
+
+test("an element left or right of the viewport is cut by V2 and not counted (#116)", () => {
+  const ada = profileFixture("prof_ada");
+  const { width, height } = measurementFixture.viewport;
+  const { bbox } = measured(BRAND);
+  /** Ada on the fixture with the brand link's box moved, everything else in place. */
+  const brandAt = (box: { x?: number; y?: number; width?: number }) =>
+    perceive(
+      {
+        ...measurementFixture,
+        elements: measurementFixture.elements.map((e) =>
+          e.key === BRAND ? { ...e, bbox: { ...e.bbox, ...box } } : e,
+        ),
+      },
+      ada,
+      1,
+    );
+  const decisionsAt = (box: { x?: number; y?: number; width?: number }) =>
+    observed(brandAt(box), BRAND).decisions;
+  const right = [{ stage: "viewport", rule: "V2", side: "right" }];
+  const left = [{ stage: "viewport", rule: "V2", side: "left" }];
+
+  // The viewport is [0, width): a box that starts at the width is right of it, one that ends at 0
+  // is left of it, and one that reaches half a pixel into it is inside.
+  expect(decisionsAt({ x: width })).toStrictEqual(right);
+  expect(decisionsAt({ x: width + 500 })).toStrictEqual(right);
+  expect(decisionsAt({ x: width - 0.5 })).toStrictEqual([]);
+  expect(decisionsAt({ x: -bbox.width })).toStrictEqual(left);
+  expect(decisionsAt({ x: -2000 })).toStrictEqual(left);
+  expect(decisionsAt({ x: 0.5 - bbox.width })).toStrictEqual([]);
+  // A zero-width box is the line x: inside from 0 up to the width.
+  expect(decisionsAt({ x: 0, width: 0 })).toStrictEqual([]);
+  expect(decisionsAt({ x: -0.5, width: 0 })).toStrictEqual(left);
+
+  for (const x of [width, -bbox.width]) {
+    const full = brandAt({ x });
+    const brand = observed(full, BRAND);
+    expect(brand.state, `x ${x}`).toBe("invisible");
+    expect("ref" in brand, `x ${x}`).toBe(false);
+    expect(full.belowFoldCount, `x ${x}`).toBe(0);
+    const text = actorText(full);
+    expect(text, `x ${x}`).not.toContain('link "Quillmere"');
+    expect(text, `x ${x}`).not.toContain("more below");
+  }
+
+  // Off a corner the horizontal wins: the Actor scrolls only up and down, so no scroll shows it.
+  expect(brandAt({ y: height + 10 }).belowFoldCount).toBe(1);
+  const corner = brandAt({ x: width + 10, y: height + 10 });
+  expect(observed(corner, BRAND).decisions).toStrictEqual(right);
+  expect(corner.belowFoldCount).toBe(0);
+  expect(actorText(corner)).not.toContain("more below");
+  expect(decisionsAt({ x: -2000, y: -2000 })).toStrictEqual(left);
+});
+
+test("Milo loses the brand link and Order archive to P4", () => {
   const milo = profileFixture("prof_milo");
   const cut = milo.perception.targetPx;
   if (!cut) throw new Error("Milo sets a target threshold");
-  const lost = [BRAND, ...CHECKBOXES, ARCHIVE];
+  // A checkbox's target is the area a click activates, its label's box (#117): he keeps both.
+  for (const key of CHECKBOXES) {
+    expect(metric(key, "targetPx"), key).toBeGreaterThanOrEqual(cut.threshold);
+  }
+  const lost = [BRAND, ARCHIVE];
   const kept = KEYS.filter((key) => !lost.includes(key));
-  expect(kept).toHaveLength(15);
+  expect(kept).toHaveLength(17);
   for (const seed of seeds(10)) {
     const full = perceive(measurementFixture, milo, seed);
     expect(shownKeys(full)).toEqual(kept);
@@ -528,14 +625,18 @@ test("Milo loses the brand link, both checkboxes and Order archive to P4", () =>
   }
 });
 
-test("Vera loses the brand link and both checkboxes to P4", () => {
+test("Vera loses the brand link to P4", () => {
   const vera = profileFixture("prof_vera");
   const cut = vera.perception.targetPx;
   if (!cut) throw new Error("Vera sets a target threshold");
-  const lost = [BRAND, ...CHECKBOXES];
+  // A checkbox's target is the area a click activates, its label's box (#117): she keeps both.
+  for (const key of CHECKBOXES) {
+    expect(metric(key, "targetPx"), key).toBeGreaterThanOrEqual(cut.threshold);
+  }
+  const lost = [BRAND];
   // Order archive is in her contrast band: shown or not by the roll, the test above.
   const kept = KEYS.filter((key) => !lost.includes(key) && key !== ARCHIVE);
-  expect(kept).toHaveLength(15);
+  expect(kept).toHaveLength(17);
   for (const seed of seeds(10)) {
     const full = perceive(measurementFixture, vera, seed);
     expect(shownKeys(full).filter((key) => key !== ARCHIVE)).toEqual(kept);
@@ -596,6 +697,21 @@ test("Zoya sees only the three headings", () => {
     }
   }
   expect(degradedByP1, "P1 alone would have shown some of them").toBeGreaterThan(0);
+
+  // #117: the checkboxes' 46 px label area still fails her 48 px target cut, not only her font cut.
+  const { targetPx } = zoya.perception;
+  if (!targetPx) throw new Error("Zoya sets a target threshold");
+  const full = perceive(measurementFixture, zoya, 1);
+  for (const key of CHECKBOXES) {
+    expect(observed(full, key).decisions, key).toContainEqual({
+      stage: "perception",
+      rule: "P4",
+      metric: "targetPx",
+      value: 46,
+      threshold: targetPx.threshold,
+      state: "invisible",
+    });
+  }
 });
 
 test("perceive does not change the measurement", () => {

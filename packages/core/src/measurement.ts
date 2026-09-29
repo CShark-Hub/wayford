@@ -9,16 +9,25 @@
  * Elements are listed in measurement order. The filter numbers the shown ones
  * `e1..eN` in that order, so the refs follow it.
  *
- * Controls and text blocks are measured (`docs/RULES.md`, "What is measured",
- * issue #49). The cues that tell a person where to go are mostly text, so P1
- * and P3 read text blocks too. P4 reads `targetPx` on controls only.
+ * Controls and text blocks (headings, paragraphs, list items) are measured
+ * (`docs/RULES.md`, "What is measured", issues #49 and #117). The cues that
+ * tell a person where to go are mostly text, so P1 and P3 read text blocks
+ * too. P4 reads `targetPx` on controls only. A label is not a text block: the
+ * control it names carries the contrast and font size of the label's text.
+ * When the label activates the control (a wrapping `<label>`, or `label for=`),
+ * `targetPx` is the smaller side of the area a click activates, taken as one
+ * rectangle around the control's box and its label's box (for a label apart
+ * from its control, the gap between them too). So `targetPx` need not be the
+ * smaller side of `bbox`, which is where the control itself is.
  *
  * Coordinate space: every `bbox` is in CSS px, in viewport coordinates, as
  * `getBoundingClientRect()` and Playwright's `boundingBox()` give them. The
  * origin is the viewport's top-left, and the viewport is
  * `[0, width) × [0, height)`. A box's position on the page is `bbox + scroll`.
  * So V2 is decided from `bbox` and `viewport` alone, and `scroll` records
- * where on the page the step was.
+ * where on the page the step was. Only the measurement holds it, and the
+ * measurement is not stored: `FullObservation` has no scroll offset, so a
+ * stored step keeps viewport positions and no page position (#119).
  */
 import { z } from "zod";
 import { AriaRole, Metrics } from "./observation.js";

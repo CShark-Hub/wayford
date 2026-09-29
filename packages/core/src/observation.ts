@@ -126,11 +126,20 @@ export const PerceptionDecision = z
 export type PerceptionDecision = z.infer<typeof PerceptionDecision>;
 
 /**
- * V2: outside the viewport. No metric, no threshold. The element is invisible;
- * only `below` counts in `belowFoldCount`, since the Actor is told "N more below".
+ * V2: wholly outside the viewport, on one side. No metric, no threshold. The
+ * element is invisible. One side per element, and off a corner the horizontal
+ * wins: the Actor scrolls only up and down (`Action`), so no scroll brings a
+ * box left or right of the viewport into view (#116). Only `below` counts in
+ * `belowFoldCount`, since the Actor is told "N more below", and only when
+ * perception left the element shown (#118). `above`, `left` and `right` are
+ * counted nowhere.
  */
 export const ViewportDecision = z
-  .object({ stage: z.literal("viewport"), rule: z.literal("V2"), side: z.enum(["above", "below"]) })
+  .object({
+    stage: z.literal("viewport"),
+    rule: z.literal("V2"),
+    side: z.enum(["above", "below", "left", "right"]),
+  })
   .strict();
 export type ViewportDecision = z.infer<typeof ViewportDecision>;
 
@@ -295,11 +304,18 @@ export type ObservedElement = z.infer<typeof ObservedElement>;
 
 /**
  * Header shared by both shapes. `belowFoldCount` is rule V2: elements below the
- * viewport. `hiddenCount` is rules A1 and A3: elements the attention or option
- * cap cut. Each counted element is in `elements` as invisible with its V2 or
- * A1/A3 decision, enforced on `FullObservation`. What
- * perception removed (P1 to P4) is counted nowhere the Actor can see: a person
- * does not know how many things they failed to see.
+ * viewport that perception (P1 to P4) left shown, which is what scrolling could
+ * bring into view. `hiddenCount` is rules A1 and A3: elements the attention or
+ * option cap cut. Each counted element is in `elements` as invisible with its
+ * V2 or A1/A3 decision, enforced on `FullObservation`. What perception removed
+ * (P1 to P4) is counted nowhere the Actor can see, below the viewport too
+ * (#118): a person does not know how many things they failed to see.
+ *
+ * Every `bbox`, in both shapes, is a position in the viewport, in CSS px, as
+ * the `PageMeasurement` gave it. No scroll offset is kept (#119): a stored box
+ * places its element on the screen of its step, not on the page. The page
+ * position, `bbox + scroll`, exists only in the measurement, which is not
+ * stored.
  */
 const header = {
   url: HttpUrl,
@@ -346,12 +362,18 @@ export const FullObservation = z
         message: `hiddenCount counts the elements with an attention decision: expected ${hidden}`,
       });
     }
-    const below = count((d) => d.stage === "viewport" && d.side === "below");
+    // "N more below" is what scrolling could bring into view, so an element below the viewport
+    // that perception made invisible keeps its V2 decision and is not counted (#118).
+    const below = observation.elements.filter(
+      (e) =>
+        e.decisions.some((d) => d.stage === "viewport" && d.side === "below") &&
+        !e.decisions.some((d) => d.stage === "perception" && d.state === "invisible"),
+    ).length;
     if (observation.belowFoldCount !== below) {
       ctx.addIssue({
         code: "custom",
         path: ["belowFoldCount"],
-        message: `belowFoldCount counts the elements with a V2 below decision: expected ${below}`,
+        message: `belowFoldCount counts V2 below elements perception left shown: expected ${below}`,
       });
     }
   });

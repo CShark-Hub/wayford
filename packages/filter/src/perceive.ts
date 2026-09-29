@@ -47,14 +47,16 @@ const PERCEPTION_RULES = [
  * says so: only `perception` is taken, and a full `Profile` still fits.
  *
  * Per element:
- * - V2 first. The box is in viewport coordinates and the viewport is `[0, height)`, so a box that
- *   starts at or below the viewport's height is below it, and one that starts above 0 and ends at
- *   or above 0 is above it. A box that overlaps the viewport at all is inside, and so is a
- *   zero-height box at 0. Vertical only: `ViewportDecision` has no side for left or right, and
- *   that gap is #116.
+ * - V2 first. The box is in viewport coordinates and the viewport is `[0, width) × [0, height)`.
+ *   A box that starts at or past the viewport's width is right of it, and one that starts left of
+ *   0 and ends at or left of 0 is left of it. The same edges on the vertical make below and
+ *   above. A box that overlaps the viewport at all is inside, and so is a zero-width or
+ *   zero-height box at 0. One side per element, and left and right are checked first: the Actor
+ *   scrolls only up and down, so a box off a corner is never counted as more below (#116).
  * - Then P1, P3 and P4, on every element, V2-cut ones too, because "every rule an element fails
  *   is recorded". A rule applies when the profile sets its threshold and the element has its
- *   metric.
+ *   metric. They also decide the count: an element below the viewport is counted in
+ *   `belowFoldCount` only when none of them is `invisible` (#118).
  * - One roll per element, `hash(run seed, key)`, drawn at most once and only when a soft rule
  *   fails. Every soft decision on the element stores that same roll.
  * - Decisions are pushed V2, P1, P3, P4, which is pipeline order, then rule id. The state is the
@@ -87,11 +89,13 @@ export function perceive(
   for (const element of measurement.elements) {
     const decisions: ElementDecision[] = [];
     const offscreen = viewportDecision(element, measurement.viewport);
-    if (offscreen !== undefined) {
-      decisions.push(offscreen);
-      if (offscreen.side === "below") belowFoldCount += 1;
+    if (offscreen !== undefined) decisions.push(offscreen);
+    const perceived = perceptionDecisions(element, profile.perception, runSeed);
+    decisions.push(...perceived);
+    // "N more below" is what scrolling could bring into view, not what perception removed (#118).
+    if (offscreen?.side === "below" && !perceived.some((d) => d.state === "invisible")) {
+      belowFoldCount += 1;
     }
-    decisions.push(...perceptionDecisions(element, profile.perception, runSeed));
     const state = worstState(decisions);
     if (state !== "invisible") shown += 1;
     elements.push({
@@ -117,12 +121,17 @@ export function perceive(
   };
 }
 
-/** V2: the side of the viewport the element lies beyond, or nothing when it is on screen. */
+/**
+ * V2: the side of the viewport the element lies wholly beyond, or nothing when it is on screen.
+ * Left and right come first, so a box off a corner is never below (#116).
+ */
 function viewportDecision(
   element: MeasuredElement,
   viewport: Viewport,
 ): ViewportDecision | undefined {
-  const { y, height } = element.bbox;
+  const { x, y, width, height } = element.bbox;
+  if (x >= viewport.width) return { stage: "viewport", rule: "V2", side: "right" };
+  if (x < 0 && x + width <= 0) return { stage: "viewport", rule: "V2", side: "left" };
   if (y >= viewport.height) return { stage: "viewport", rule: "V2", side: "below" };
   if (y < 0 && y + height <= 0) return { stage: "viewport", rule: "V2", side: "above" };
   return undefined;

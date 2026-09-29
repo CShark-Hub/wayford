@@ -29,8 +29,8 @@ Given a Playwright page, the filter produces its `PageMeasurement`, and collect-
 
 - Measurement only: no thresholds, no profile, no decisions. Those are `perceive` (s1-01).
 - Contrast is the WCAG 2.2 relative-luminance ratio, in our own code, tested against published values: black on white 21:1, `#767676` on white 4.54:1, `#777777` on white 4.48:1. The background is the effective one: walk the ancestors, compositing alpha, until an opaque colour. A text colour with alpha is composited too.
-- Font size is the computed CSS pixel size. Target size is the smaller side of a control's bounding box.
-- Measured: every control, and every text block (heading, paragraph, list item, label) with visible text, as `docs/RULES.md` says. Elements with `display: none`, `visibility: hidden` or `aria-hidden="true"` are not measured.
+- Font size is the computed CSS pixel size. Target size is the smaller side of the area a click activates: a control's own box, or, when a label activates it (a wrapping `<label>`, or `label for=`), one rectangle around the control's box and its label's box, gap included, as `docs/RULES.md` P4 says (#117). `bbox` stays the control's own box.
+- Measured: every control, and every text block (heading, paragraph, list item) with visible text, as `docs/RULES.md` says. A label is not measured as a text block of its own: the control it names carries the contrast and font size of its label's text (#117). Elements with `display: none`, `visibility: hidden` or `aria-hidden="true"` are not measured.
 - Role and accessible name: for every element measured on the target app, `page.getByRole(role, { name, exact: true })` resolves to it. The key is `elementKey` from core, over the element's named landmark ancestors.
 - `@wayford/filter/perceive` stays browser-safe, so `collect` lives outside it. Playwright is a dev dependency of `filter`: `collect` takes the page from its caller.
 - Tests start the target app themselves, with no manual `pnpm dev`, and load pages with all three parameters on the URL, as `packages/target-app/README.md` requires.
