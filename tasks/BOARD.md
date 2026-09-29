@@ -29,7 +29,7 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 
 | Task | Title | Size | Depends on | Slot | Owner | Status |
 |---|---|---|---|---|---|---|
-| s1-01 | Perceive: the page measurement, thresholds, soft bands and the seed | L | #16, PR #71 | Dev 1 | | todo |
+| s1-01 | Perceive: the page measurement, thresholds, soft bands and the seed | L | #16, PR #71 | Dev 1 | Dawid | doing |
 | s2-01 | LLM adapter | M | m0-07 | Dev 4 | | todo |
 | s2-02 | Run context and evidence capture | L | — | Dev 2 | | todo |
 | s3-02 | Persona cards and procedural avatars | M | m0-07, PR #71 | Dev 3 | | todo |
