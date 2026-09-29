@@ -8,7 +8,7 @@
  * what was removed or what a masked name really said.
  *
  * `toActorObservation` is the only way from one to the other. It is a pure
- * projection, so the seed test (same profile, same seed, same text) compares
+ * projection, so the seed test (same profile, same run seed, same text) compares
  * `renderObservationForModel(toActorObservation(full))` and nothing else.
  *
  * Nothing here computes a metric or applies a threshold. That is `filter`.
@@ -56,7 +56,7 @@ export type Landmark = z.infer<typeof Landmark>;
  * landmark ancestors from the accessibility tree, in that order and nothing
  * else. No DOM index, no sibling position, no CSS path: a re-render that moves
  * the element or wraps it in a `div` leaves the key unchanged, so
- * `hash(seed, key)` gives the same perception decision every step of a run.
+ * `hash(run seed, key)` gives the same perception decision every step of a run.
  *
  * Two identical controls under the same landmark share a key. That is the
  * intended reading: the same button gets the same decision.

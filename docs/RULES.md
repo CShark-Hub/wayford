@@ -10,12 +10,12 @@ Order is fixed and matters. Each stage takes the observation from the previous o
 
 ```
 1. viewport       what is on screen at all              deterministic   (device, scroll position)
-2. perception     what can be seen                       deterministic per element per run (seed)
-3. degradation    how well it can be read                deterministic per element per run (seed)
+2. perception     what can be seen                       deterministic per element per run (run seed)
+3. degradation    how well it can be read                deterministic per element per run (run seed)
 4. knowledge      what it means                          deterministic
 5. attention      what gets noticed first, how much      deterministic ordering, capped
 6. memory         what the Actor still remembers         deterministic truncation
-7. behaviour      what the Actor does with its choice    dice per action (seed)
+7. behaviour      what the Actor does with its choice    dice per action (run seed)
 ```
 
 Stages 1 to 6 shape the `Observation`. Stage 7 shapes the `Action`. The Actor prompt is identical for every persona. Only the observation and the action post-processing differ.
@@ -42,7 +42,7 @@ Every perception rule compares a value the filter measured with a threshold from
 
 **Several rules.** Every rule an element fails is recorded as a decision on it; a rule it passes is not. Each decision says the state that rule alone gives: a perception rule `degraded` or `invisible` by the band arithmetic above, V2, A1 and A3 `invisible`, K1 and K4 none (they replace the name, `renamedName`, and leave the state). The element's state is the worst of them: `invisible` over `degraded` over `visible`, and `visible` when there is none. A masked name exists only when the result is `degraded` and no knowledge rule renamed the element; a renamed element reads its replacement whole, never as "partly legible". Decisions are listed in pipeline order, then by rule id, so the evidence for a seed is byte-stable. An element cut by V2 or by attention stays in the evidence as `invisible` with that decision. V2 records the side: an element below the viewport is counted in `belowFoldCount`, one above it (scrolled past) is invisible and counted nowhere. A1 and A3 rank and cut only the elements stages 1 to 3 left shown, so an element V2 or perception already made `invisible` never carries an attention decision. Elements cut by A1 or A3 are counted in `hiddenCount`.
 
-**Monotone by construction.** For a fixed seed and element, and with softness held fixed, raising a threshold never makes the element more visible: `rolled` does not move and `position` only falls. Changing softness can move an element back from invisible to degraded, so a sweep keeps it constant. The boundary sweep (F9) relies on this, and the calibration table checks it.
+**Monotone by construction.** For a fixed run seed and element, and with softness held fixed, raising a threshold never makes the element more visible: `rolled` does not move and `position` only falls. Changing softness can move an element back from invisible to degraded, so a sweep keeps it constant. The boundary sweep (F9) relies on this, and the calibration table checks it.
 
 **Worked example.** Vera's contrast cut is 3.0 with softness 0.5, so her band runs from 1.5 to 3.0. The target app's hard link measures 2.006:1 at its defaults, which is position 0.337. Across seeds the link reaches her degraded in about one run in three and not at all in the rest. It never reaches her whole.
 
@@ -55,8 +55,10 @@ Three states per element, not two. Binary removal makes every failure "did not s
 | State | Effect on the element in the observation |
 |---|---|
 | `visible` | passed through unchanged |
-| `degraded` | passed through with its name partially masked, masking ratio deterministic from `hash(seed, key)`; role and bounding box kept |
+| `degraded` | passed through with its name partially masked (see "The mask" below); role and bounding box kept |
 | `invisible` | removed from the Actor-facing observation, kept in evidence |
+
+**The mask.** A degraded element that no knowledge rule renamed reads a masked name. The share of its characters that is masked is its own draw, one number in `[0, 1)` per element per run from `hash(run seed, key + ":mask")`, never the element's `rolled`. The draw is defined for every key so it stays pure, but it is used only when a mask exists. Reusing the roll would tie the mask to the degrade decision: an element is degraded only when `rolled < position`, so one near the band floor, the hardest to see, could only ever get a light mask. Which characters are masked is the filter's choice, as long as it is a pure function of the run seed, the key and the name. At least one character is masked, never all of them. The masked name is stored in the evidence (`maskedName`); the mask draw is not, since it can be recomputed from the run seed and the key. Keys end in the page's own name text, so an element named `Foo:mask` has a roll equal to the mask draw of a `Foo` under the same landmarks and role; that correlation is accepted.
 
 Rules that decide the state. Metric is computed by the filter from the DOM, threshold comes from the profile.
 
@@ -112,9 +114,9 @@ This is the one rule that touches the model's context directly instead of the ob
 
 ## Stage 7: behaviour
 
-Dice per action, from the seeded stream, every roll logged.
+Dice per action, from one stream of the run seed, every roll logged.
 
-- **Firing rule.** A rule that applies to the action draws one number `rolled` in [0, 1) and fires when `rolled < p`. `p` is the probability the rule resolved for this action: the profile knob for B1 and B2, the effective-width model for B4. `p` 0 never fires; `p` 1 always does. How `rolled` is drawn from the seed is decided with s2-03 and #26.
+- **Firing rule.** A rule that applies to the action draws one number `rolled` in [0, 1) and fires when `rolled < p`. `p` is the probability the rule resolved for this action: the profile knob for B1 and B2, the effective-width model for B4. `p` 0 never fires; `p` 1 always does. Each `rolled` is the next draw of the run seed's behaviour stream (`docs/CONVENTIONS.md`, "Determinism rules"), never the profile seed's (`docs/PLAN.md` A20); `s2-03` builds that stream.
 - **What is logged.** Per step: the action the model proposed, the action performed, and every roll as `{ rule, p, rolled, fired }` in the order rolled, fired or not. A rule that does not apply to the action logs nothing. Without a fired roll the two actions are identical. B3 is a budget, not a dice, and never appears in this log.
 - **B2 in the log.** The proposed action is the `giveUp` or the repeat, the performed action is the injected `scroll` down, and the Actor decides again on the next step.
 
