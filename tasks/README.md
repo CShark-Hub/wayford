@@ -14,7 +14,7 @@ A human picks it, points their agent at it, reviews the result, opens a PR.
    Read AGENTS.md, docs/PLAN.md, docs/STACK.md, docs/CONVENTIONS.md and tasks/<id>.md. Do only what the task file says. Stop and report if the task file conflicts with the code you find.
    ```
 
-5. Review the diff yourself. Run the acceptance commands from the task file.
+5. Review the diff yourself. Run the acceptance commands from the task file. In Claude Code, `/pr-review` runs a review built for agent-written code: it runs the change, checks it against `AGENTS.md`'s core, and pushes back on anything bigger than the task needs (`.claude/skills/pr-review/SKILL.md`).
 6. Open a PR titled with the task id. Link the task file. One reviewer, two if the filter contract (`observation.ts`, `measurement.ts`, `docs/RULES.md`) changed.
 7. Tick every acceptance box **in the task file**, each with the evidence that satisfied it, and commit that with the work. The PR body is read once; the task file is what the next person reads.
 8. After merge, set the task to `done` in `BOARD.md`.

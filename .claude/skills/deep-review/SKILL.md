@@ -1,6 +1,8 @@
 ---
 name: deep-review
-description: Full technical review of this repository (architecture, implementation quality, dependencies, security, LLM integration, spec/ADR compliance, repo-wide consistency), optionally scoped by the user to a branch, commit, package, directory or set of documents, then offered as GitHub issues, a shareable page, or both. Use this whenever the user asks to review, audit or assess the repo, a branch or a PR "as a whole", asks for a technical review or health check, wants findings filed as issues, or wants a review report to share with the team, even if they don't say "deep review". Not for reviewing a small diff line by line (use code-review) or for a security-only pass on pending changes (use security-review).
+description: Whole-repo technical review, optionally scoped to a branch, package or documents, delivered as GitHub issues, a shareable page, or both. Run by hand as /deep-review.
+argument-hint: "<scope: branch, commit, package, directory or documents; empty for the whole repo>"
+disable-model-invocation: true
 ---
 
 # Deep review

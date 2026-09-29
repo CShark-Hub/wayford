@@ -100,9 +100,15 @@ After each step returns: read its diff, run its done-check, commit (`<task-id>: 
 
 ## 8. Branch review
 
-Spawn the `branch-reviewer` agent (`subagent_type: "branch-reviewer"`, Opus at xhigh) with the worktree's absolute path, the branch name, the task id and the spec and plan paths, and nothing else: its value is that it comes to the branch cold. The path says where the code is without saying anything about it.
+Two reviews of `git diff origin/main...HEAD`, one round of fixes, then a simplify pass. The standard for all of it is `.claude/skills/pr-review/references/lenses.md`, the same one the CI review applies to the PR.
 
-Check each finding yourself before acting on it; reviewers are sometimes wrong. Fix confirmed critical and important findings, and minor ones when cheap. Rerun the verify commands and commit. Two review rounds at most; whatever remains goes in the summary.
+1. **Cold review.** Spawn the `branch-reviewer` agent in the background (`subagent_type: "branch-reviewer"`, Opus at xhigh) with the worktree's absolute path, the branch name, the task id and the spec and plan paths, and nothing else: its value is that it comes to the branch cold. The path says where the code is without saying anything about it. It runs the `/pr-review` review and returns a verdict, findings by severity and a cut list.
+2. **Security review.** While it runs, run the `security-review` skill from the worktree.
+3. **Fix.** Check each finding from both reviews yourself before acting on it; reviewers are sometimes wrong. Fix confirmed blocking and should-fix findings, and nits when cheap.
+4. **Simplify.** Run the `simplify` skill. Everything is committed by now, so its arguments name the scope: the diff `git diff origin/main...HEAD`, the files it may touch (the branch's changed files), and the cut-list items you confirmed. Its edits are proposals like any subagent's: read the diff it leaves and revert whatever reaches outside the task's scope or its Out of scope.
+5. Rerun the verify commands of phase 7 and commit (`<task-id>: review fixes`).
+
+A second round of the cold review only when the first found blocking findings; two rounds at most. Whatever remains goes in the summary.
 
 ## 9. Summary
 
@@ -111,7 +117,7 @@ Tell the user, compactly:
 - what was built: the main files and what each does;
 - every acceptance box with its evidence;
 - the decisions taken by recommendation;
-- the review: what it found, what was fixed, what was left and why;
+- the review: what the cold review and the security review found, what was fixed, what `simplify` removed, what was left and why;
 - deviations from the task file, and follow-ups;
 - how to try it.
 
