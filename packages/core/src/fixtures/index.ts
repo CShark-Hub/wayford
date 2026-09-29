@@ -14,6 +14,7 @@ import { parse } from "yaml";
 import type { ZodType } from "zod";
 import { Action } from "../action.js";
 import { Finding } from "../finding.js";
+import { PageMeasurement } from "../measurement.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
 import { RunEvent, RunResult } from "../run.js";
@@ -71,6 +72,29 @@ export const actionFixtures: Action[] = readJson("actions.json", Action.array())
  * rest visible.
  */
 export const observationFixture: FullObservation = readJson("observation.json", FullObservation);
+
+/**
+ * The `/deliveries` page of the target app at default parameters
+ * (`?contrast=2&fontPx=16&targetPx=36`), 1280 × 720, scroll 0, before the
+ * filter decided anything. Measured by hand on 2026-09-29 in Playwright's
+ * Chromium after `load`, with the bundled Inter loaded. Contrast is rounded to
+ * 3 decimals; boxes are as measured. `s1-02` replaces the numbers with
+ * collector output.
+ *
+ * A text block's contrast and font size are those of the element that draws
+ * its text: for a nav `li`, its link. Everything is inside the 720 px
+ * viewport.
+ *
+ * Not measured, and why, for `s1-02` to keep or overturn:
+ * - the `display: none` Menu button: a hidden element is not measured;
+ * - the two `label`s, as separate text blocks. A label has no ARIA role for
+ *   `AriaRole` or `getByRole`, so there is nothing to key it on. Each checkbox
+ *   carries the contrast and font size of its label's text instead, so P1 and
+ *   P3 still reach that text. This is a deviation from `docs/RULES.md`, "What
+ *   is measured", open in #117;
+ * - the footer's bare text: it is not a heading, paragraph, list item or label.
+ */
+export const measurementFixture: PageMeasurement = readJson("measurement.json", PageMeasurement);
 
 /** The two goals of the target app, easy first. See `tasks/m0-06-target-app.md`. */
 export const taskFixtures: Task[] = readJson("tasks.json", Task.array());

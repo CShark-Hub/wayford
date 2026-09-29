@@ -206,6 +206,13 @@ importers:
       '@wayford/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.0
+        version: 24.19.0
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
 
   packages/io:
     dependencies:

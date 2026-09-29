@@ -1,6 +1,2 @@
-import { METRIC_NAMES } from "@wayford/core";
-
-/** Placeholder until stream 1 lands the perception filter. */
-export function measuredMetrics(): readonly string[] {
-  return METRIC_NAMES;
-}
+// One export line per module, alphabetical. Add a line, never rewrite the file.
+export * from "./perceive.js";

@@ -1,0 +1,160 @@
+{
+  "url": "http://localhost:5174/deliveries",
+  "title": "Deliveries · Quillmere",
+  "viewport": { "width": 1280, "height": 720, "deviceScaleFactor": 1, "isMobile": false },
+  "scroll": { "x": 0, "y": 0 },
+  "elements": [
+    {
+      "key": "banner//link:Quillmere",
+      "kind": "control",
+      "role": "link",
+      "name": "Quillmere",
+      "bbox": { "x": 24, "y": 21.5, "width": 84.59375, "height": 27 },
+      "metrics": { "contrast": 14.839, "fontPx": 18, "targetPx": 27 }
+    },
+    {
+      "key": "banner/navigation:Main//listitem:Home",
+      "kind": "text",
+      "role": "listitem",
+      "name": "Home",
+      "bbox": { "x": 806.234375, "y": 12, "width": 75.640625, "height": 46 },
+      "metrics": { "contrast": 14.839, "fontPx": 17 }
+    },
+    {
+      "key": "banner/navigation:Main//link:Home",
+      "kind": "control",
+      "role": "link",
+      "name": "Home",
+      "bbox": { "x": 806.234375, "y": 12, "width": 75.640625, "height": 46 },
+      "metrics": { "contrast": 14.839, "fontPx": 17, "targetPx": 46 }
+    },
+    {
+      "key": "banner/navigation:Main//listitem:Your account",
+      "kind": "text",
+      "role": "listitem",
+      "name": "Your account",
+      "bbox": { "x": 889.875, "y": 12, "width": 134.484375, "height": 46 },
+      "metrics": { "contrast": 14.839, "fontPx": 17 }
+    },
+    {
+      "key": "banner/navigation:Main//link:Your account",
+      "kind": "control",
+      "role": "link",
+      "name": "Your account",
+      "bbox": { "x": 889.875, "y": 12, "width": 134.484375, "height": 46 },
+      "metrics": { "contrast": 14.839, "fontPx": 17, "targetPx": 46 }
+    },
+    {
+      "key": "banner/navigation:Main//listitem:Deliveries",
+      "kind": "text",
+      "role": "listitem",
+      "name": "Deliveries",
+      "bbox": { "x": 1032.359375, "y": 12, "width": 107.125, "height": 46 },
+      "metrics": { "contrast": 13.281, "fontPx": 17 }
+    },
+    {
+      "key": "banner/navigation:Main//link:Deliveries",
+      "kind": "control",
+      "role": "link",
+      "name": "Deliveries",
+      "bbox": { "x": 1032.359375, "y": 12, "width": 107.125, "height": 46 },
+      "metrics": { "contrast": 13.281, "fontPx": 17, "targetPx": 46 }
+    },
+    {
+      "key": "banner/navigation:Main//listitem:Settings",
+      "kind": "text",
+      "role": "listitem",
+      "name": "Settings",
+      "bbox": { "x": 1147.484375, "y": 12, "width": 93.515625, "height": 46 },
+      "metrics": { "contrast": 14.839, "fontPx": 17 }
+    },
+    {
+      "key": "banner/navigation:Main//link:Settings",
+      "kind": "control",
+      "role": "link",
+      "name": "Settings",
+      "bbox": { "x": 1147.484375, "y": 12, "width": 93.515625, "height": 46 },
+      "metrics": { "contrast": 14.839, "fontPx": 17, "targetPx": 46 }
+    },
+    {
+      "key": "main//heading:Deliveries",
+      "kind": "text",
+      "role": "heading",
+      "name": "Deliveries",
+      "bbox": { "x": 216.5, "y": 103, "width": 832, "height": 42 },
+      "metrics": { "contrast": 15.798, "fontPx": 28 }
+    },
+    {
+      "key": "main//paragraph:Parcels on the way and how you like to receive them.",
+      "kind": "text",
+      "role": "paragraph",
+      "name": "Parcels on the way and how you like to receive them.",
+      "bbox": { "x": 216.5, "y": 163.75, "width": 832, "height": 25.5 },
+      "metrics": { "contrast": 6.39, "fontPx": 17 }
+    },
+    {
+      "key": "main//heading:On the way",
+      "kind": "text",
+      "role": "heading",
+      "name": "On the way",
+      "bbox": { "x": 216.5, "y": 210.828125, "width": 832, "height": 39 },
+      "metrics": { "contrast": 15.798, "fontPx": 26 }
+    },
+    {
+      "key": "main//listitem:1 parcel in transit, expected Friday between 10:00 and 14:00.",
+      "kind": "text",
+      "role": "listitem",
+      "name": "1 parcel in transit, expected Friday between 10:00 and 14:00.",
+      "bbox": { "x": 216.5, "y": 271.40625, "width": 832, "height": 50.5 },
+      "metrics": { "contrast": 15.798, "fontPx": 17 }
+    },
+    {
+      "key": "main//paragraph:Delivery address",
+      "kind": "text",
+      "role": "paragraph",
+      "name": "Delivery address",
+      "bbox": { "x": 216.5, "y": 338.90625, "width": 832, "height": 50 },
+      "metrics": { "contrast": 6.386, "fontPx": 18 }
+    },
+    {
+      "key": "main//link:Delivery address",
+      "kind": "control",
+      "role": "link",
+      "name": "Delivery address",
+      "bbox": { "x": 216.5, "y": 338.90625, "width": 182.46875, "height": 50 },
+      "metrics": { "contrast": 6.386, "fontPx": 18, "targetPx": 50 }
+    },
+    {
+      "key": "main//heading:Delivery preferences",
+      "kind": "text",
+      "role": "heading",
+      "name": "Delivery preferences",
+      "bbox": { "x": 216.5, "y": 410.484375, "width": 832, "height": 39 },
+      "metrics": { "contrast": 15.798, "fontPx": 26 }
+    },
+    {
+      "key": "main//checkbox:Leave with a neighbour if I am out",
+      "kind": "control",
+      "role": "checkbox",
+      "name": "Leave with a neighbour if I am out",
+      "bbox": { "x": 220.5, "y": 483.0625, "width": 22, "height": 22 },
+      "metrics": { "contrast": 15.798, "fontPx": 17, "targetPx": 22 }
+    },
+    {
+      "key": "main//checkbox:Text me on the day of delivery",
+      "kind": "control",
+      "role": "checkbox",
+      "name": "Text me on the day of delivery",
+      "bbox": { "x": 220.5, "y": 529.0625, "width": 22, "height": 22 },
+      "metrics": { "contrast": 15.798, "fontPx": 17, "targetPx": 22 }
+    },
+    {
+      "key": "main//link:Order archive",
+      "kind": "control",
+      "role": "link",
+      "name": "Order archive",
+      "bbox": { "x": 216.5, "y": 603.0625, "width": 102.875, "height": 36 },
+      "metrics": { "contrast": 2.006, "fontPx": 16, "targetPx": 36 }
+    }
+  ]
+}
