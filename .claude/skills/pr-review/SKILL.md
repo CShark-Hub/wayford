@@ -89,7 +89,7 @@ Good
 - two or three lines
 ```
 
-Severity, the verdict rule, and what else the report must say, are in `references/lenses.md`, "Severity". When earlier reviews exist (the CI comment starting `<!-- claude-code-review -->`, human reviews), say which of their points you confirm and where you disagree, judged from the code.
+Severity, the verdict rule, and what else the report must say, are in `references/lenses.md`, "Severity". When earlier reviews exist (the latest CI comment starting `<!-- claude-code-review -->`, human reviews), say which of their points you confirm and where you disagree, judged from the code.
 
 Nothing blocking and an empty cut list is a good outcome; say so in one line.
 
