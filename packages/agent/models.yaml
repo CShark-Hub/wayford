@@ -1,0 +1,58 @@
+# The LLM adapter's cost table: USD per million input and output tokens, per
+# model id. An id missing here fails at boot (`createLlm`); it is never billed
+# as zero cost.
+#
+# Prices are OpenRouter's list prices from https://openrouter.ai/api/v1/models
+# on 2026-09-30. The ids follow the team's model ladder: "Wayford — Model
+# ladder for AI testing", Tomasz Nowakowski, 2026-09-25.
+#
+# `jsonSchema: false` sends JSON mode instead of strict `json_schema`; the
+# default is true.
+#
+# Calls are not pinned to one OpenRouter host, so a call served by a regional
+# host can bill up to 10% above these prices.
+
+# Ladder tier 1: free, for tinkering and smoke runs at $0.
+"qwen/qwen3.8-27b:free":
+  # One host (ModelRun, fp4), 262k context, 50 requests a day under $10 of
+  # credits ever bought. Takes no seed, and only the efforts xhigh, medium and
+  # low, so a role moved here sets LLM_<ROLE>_EFFORT too. Its host may train on
+  # prompts: with OpenRouter's free-model privacy switch off, calls fail with a
+  # 404 naming the data policy.
+  input: 0
+  output: 0
+
+# Not on the ladder: a second free model, for smoke runs while free Qwen's
+# shared host is throttled.
+"nvidia/nemotron-3-super-120b-a12b:free":
+  # One host (Nvidia), 262k context, the same 50-a-day free cap. Takes a seed,
+  # and only the efforts medium and low, so a role moved here sets
+  # LLM_<ROLE>_EFFORT too.
+  input: 0
+  output: 0
+
+# Ladder tiers 2 and 3: the default model of every role.
+openai/gpt-6-luna:
+  # From 272k prompt tokens OpenRouter charges 0.20 / 0.75; not modelled.
+  input: 0.10
+  output: 0.50
+
+# Ladder tier 4: the Scout and Extractor escalation.
+openai/gpt-6-sol:
+  # From 272k prompt tokens OpenRouter charges 4.00 / 15.00; not modelled.
+  input: 2.00
+  output: 10.00
+
+# Ladder tier 4: the Analyst escalation.
+anthropic/claude-opus-5.5:
+  # Takes no seed. Reasoning is always on, with efforts max, xhigh, high,
+  # medium and low. Only its Azure hosts take a temperature.
+  input: 4.00
+  output: 20.00
+
+# Not on the ladder: local Ollama, the emergency fallback of docs/PLAN.md
+# "AI access". Priced with JSON mode, the one user of that path today.
+"llama3.1:8b":
+  input: 0
+  output: 0
+  jsonSchema: false

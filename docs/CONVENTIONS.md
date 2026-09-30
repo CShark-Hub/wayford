@@ -31,7 +31,7 @@ No `utils.ts`, no `helpers/`. If a function has no feature, it has no home yet.
 
 ## Errors
 
-One error class per package boundary, `WayfordError` in `core` (`packages/core/src/error.ts`) with a `code` string and, when another error lies underneath, a `cause`. Throw it at boundaries, where a package rejects data it was handed: `runResultFromEvents` throws it with code `invalid_run_events` for events that are not one run. Let plain errors propagate inside, and let a throw only a bug can reach stay a built-in error, like `rng`'s `RangeError` for a seed outside `Seed`. Never swallow an error into a log line without rethrowing or returning a typed failure.
+One error class per package boundary, `WayfordError` in `core` (`packages/core/src/error.ts`) with a `code` string and, when another error lies underneath, a `cause`. A subclass is allowed only for data a caller must read off the failure, not for a new kind of error: agent's `LlmError` carries the `cost` a failed model call already billed. Throw it at boundaries, where a package rejects data it was handed: `runResultFromEvents` throws it with code `invalid_run_events` for events that are not one run. Let plain errors propagate inside, and let a throw only a bug can reach stay a built-in error, like `rng`'s `RangeError` for a seed outside `Seed`. Never swallow an error into a log line without rethrowing or returning a typed failure.
 
 ## Determinism rules
 

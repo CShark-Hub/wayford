@@ -240,7 +240,7 @@ API key, not a subscription. Subscription tools are for building the project, no
 
 - One adapter: `complete({ role, messages, schema, seed })` with structured output, retries, and the token counts and cost of every call. A step's cost is the sum over the calls that chose its action, repairs and retries included.
 - `decide({ role, state, question })` in the same adapter: one Jev Choice question over text, a probability per option back. The Actor's Jev backend is its only caller (A22).
-- Role configuration: `extractor`, `scout`, `actor`, `analyst`, each mapped to a model id and a temperature in config. The `actor` role also has a backend setting, `llm` or `jev`, and Jev's pinned model id.
+- Role configuration: `extractor`, `scout`, `actor`, `analyst`, each mapped to a model id, a temperature and an optional reasoning effort in config. While we build, every role defaults to the team's model ladder pick, GPT-6 Luna. The Analyst differs from the Actor by effort only (`max` against `high`). From week 3, report and pitch runs escalate it to the strong model with `LLM_ANALYST_MODEL=anthropic/claude-opus-5.5` (`packages/agent/src/llm-settings.ts`). Until then, the escalation lines in `.env.example` point at Luna too, so a stray run never bills the expensive models. The `actor` role also has a backend setting, `llm` or `jev`, and Jev's pinned model id.
 - OpenRouter as the default endpoint. Direct OpenAI or Anthropic keys work through the same adapter.
 - Local Ollama configured as an emergency fallback, never demoed.
 - Cost shown on the dashboard. "30 runs for 1.20 USD" is a pitch point.

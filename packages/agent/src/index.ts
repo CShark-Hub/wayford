@@ -1,4 +1,2 @@
-/** Placeholder until stream 2 lands the LLM adapter, Scout and Actor. */
-export function packageName(): string {
-  return "@wayford/agent";
-}
+export * from "./llm.js";
+export * from "./llm-settings.js";

@@ -122,6 +122,8 @@ Playwright and CDP live natively in Node. A .NET (orchestration) + Node (executo
 
 One adapter, config per role (extractor / scout / actor / analyst). The Actor runs × N and drives the bill — cheap model there. The Analyst runs once — strong model there.
 
+While we build, every role defaults to the team's model ladder pick, GPT-6 Luna. The Analyst differs from the Actor by reasoning effort only (`max` against `high`). From week 3, report and pitch runs escalate it to the strong model with `LLM_ANALYST_MODEL=anthropic/claude-opus-5.5`. Until then, `.env.example` keeps its escalation lines on Luna, so a stray run never bills the expensive models (`docs/PLAN.md`, "AI access").
+
 At the hackathon it'll be one key anyway. The adapter exists so there's no `if (provider)` scattered across five files.
 
 ### Jev is the Actor's second backend, nothing more
