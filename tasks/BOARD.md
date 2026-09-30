@@ -15,7 +15,7 @@ Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you gr
 | m0-04 | Task and Finding schemas | M | m0-01 | Marcin | done |
 | m0-05 | RunEvent and RunResult schemas | M | m0-03 | Grzegorz | done |
 | m0-06 | Demo target app | L | m0-01 | Dawid | done |
-| m0-07 | API and web skeleton with SSE echo | M | m0-01, m0-05 | Dawid | review |
+| m0-07 | API and web skeleton with SSE echo | M | m0-01, m0-05 | Dawid | done |
 | m0-08 | Week 2 backlog and owners | M | m0-02..05 | Tomasz | review |
 
 `m0-00` lands before wave 1: it holds every name two of the wave-1 tasks would otherwise both invent.
@@ -30,7 +30,7 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 | Task | Title | Size | Depends on | Slot | Owner | Status |
 |---|---|---|---|---|---|---|
 | s1-01 | Perceive: the page measurement, thresholds, soft bands and the seed | L | #16, PR #71 | Dev 1 | Dawid | done |
-| s2-01 | LLM adapter | M | m0-07 | Dev 4 | | todo |
+| s2-01 | LLM adapter | M | m0-07 | Dev 4 | Dawid | doing |
 | s2-02 | Run context and evidence capture | L | — | Dev 2 | | todo |
 | s3-02 | Persona cards and procedural avatars | M | m0-07, PR #71 | Dev 3 | | todo |
 | s1-02 | DOM metrics collector and the seed test on the target app | L | s1-01 | Dev 1 | Grzegorz | review |
