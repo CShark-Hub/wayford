@@ -43,6 +43,12 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
+      # The browser tests (`*.browser.test.ts`) launch Chromium through Playwright. The headless
+      # shell is what `chromium.launch()` runs headless; `--with-deps` adds its system libraries.
+      - name: Install Chromium
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm --filter @wayford/filter exec playwright install --with-deps --only-shell chromium
+
       # Each check runs whenever install succeeded, even after an earlier check
       # failed, so one run reports every failure.
       - name: Lint

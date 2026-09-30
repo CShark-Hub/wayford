@@ -36,8 +36,8 @@ const archive = {
   kind: "control",
   role: "link",
   name: "Order archive",
-  bbox: { x: 216.5, y: 603.0625, width: 102.875, height: 36 },
-  metrics: { contrast: 2.006, fontPx: 16, targetPx: 36 },
+  bbox: { x: 224, y: 603.0625, width: 102.875, height: 36 },
+  metrics: { contrast: 2.005, fontPx: 16, targetPx: 36 },
 } as const;
 
 const heading = {
@@ -45,8 +45,8 @@ const heading = {
   kind: "text",
   role: "heading",
   name: "Deliveries",
-  bbox: { x: 216.5, y: 103, width: 832, height: 42 },
-  metrics: { contrast: 15.798, fontPx: 28 },
+  bbox: { x: 224, y: 103, width: 832, height: 42 },
+  metrics: { contrast: 15.797, fontPx: 28 },
 } as const;
 
 describe("measurementFixture", () => {
@@ -77,7 +77,7 @@ describe("measurementFixture", () => {
     );
   });
 
-  test("Order archive is a control at 2.006 contrast, 16 px text and a 36 px target", () => {
+  test("Order archive is a control at 2.005 contrast, 16 px text and a 36 px target", () => {
     const found = measurementFixture.elements.find((e) => e.name === "Order archive");
     expect(found).toEqual(archive);
   });

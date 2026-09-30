@@ -23,7 +23,7 @@
 | YAML | `yaml` | Profiles on disk are YAML, everything else JSON. |
 | Seeded random | own `mulberry32` | About ten lines. Identical output in Node and browser, no dependency, easy to explain to a jury. |
 | Stable hashing | own FNV-1a 32-bit, finished with one `mulberry32` step | For `hash(seed, elementKey)`. Same reason. The step is needed: FNV-1a alone gives keys that differ only at the end, like the links of a list, nearly the same roll. |
-| Colour parsing and CVD simulation | `culori` | Parses any CSS colour from computed styles. Ships colour-vision-deficiency filters based on Machado et al. 2009, the same model Chrome uses. Lets the filter compute contrast *after* simulated deficiency, deterministically. |
+| Colour parsing and CVD simulation | `culori` | Parses any CSS colour from computed styles. Ships colour-vision-deficiency filters based on Machado et al. 2009, the same model Chrome uses. Lets the filter compute contrast *after* simulated deficiency, deterministically. Types from `@types/culori`. |
 | Contrast | own WCAG 2.2 relative luminance and ratio | Fifteen lines. We defend this number in front of people, so we own the code. Tested against published examples. |
 | Browser | Playwright (library, not test runner) | CDP access through `page.context().newCDPSession(page)`. |
 | Accessibility scan | `axe-core` injected through `@axe-core/playwright` | Sidecar measurements for the report. |
@@ -119,4 +119,4 @@ Biome does not merge `noRestrictedImports` options across overrides. For the fil
 
 `agent` never imports `io`. The Actor code path never imports Scout output (see `m0-03` and `docs/PLAN.md` F4). Both live in `agent`, where these per-package rules cannot tell them apart, so `s2-04` enforces it with a test that walks the Actor's imports.
 
-`@wayford/filter/perceive` is the browser-safe entry of the filter: `perceive` and nothing that needs Node or Playwright. The preview runs it in the browser, so it applies the same code the Actor's observation comes from (`docs/PLAN.md` F2 AC3). The collector, which needs a Playwright page, sits in the main entry only.
+`@wayford/filter/perceive` is the browser-safe entry of the filter: `perceive` and nothing that needs Node or Playwright. The preview runs it in the browser, so it applies the same code the Actor's observation comes from (`docs/PLAN.md` F2 AC3). The collector, which needs a Playwright page, sits in the main entry only. Its in-page half, `measure-page.ts`, carries `/// <reference lib="dom" />`, which reaches every program that imports the main entry: once `agent` or `io` imports `collect`, their typecheck no longer catches a browser global such as `document` in Node code.
