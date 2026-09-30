@@ -381,6 +381,20 @@ test("pageSource runs a source that calls __name, as tsx's keepNames output does
   expect(await withPage((page) => page.evaluate(pageSource(source)))).toBe(7);
 });
 
+test("a document with no body, such as an SVG file, measures no elements", async () => {
+  const measurement = await withPage(async (page) => {
+    await page.route("http://collect.test/**", (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: `<svg xmlns="http://www.w3.org/2000/svg"><text x="0" y="20">Order archive</text></svg>`,
+      }),
+    );
+    await page.goto("http://collect.test/icon.svg");
+    return collect(page);
+  });
+  expect(measurement.elements).toStrictEqual([]);
+});
+
 test("a page that is not on http(s) throws invalid_measurement", async () => {
   const error = await withPage((page) => collect(page)).catch((thrown: unknown) => thrown);
   expect(error).toBeInstanceOf(WayfordError);

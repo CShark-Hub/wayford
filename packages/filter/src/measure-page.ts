@@ -332,7 +332,8 @@ export function measurePage(): RawPage {
   }
 
   const elements: RawElement[] = [];
-  for (const el of document.body.querySelectorAll("*")) {
+  // A document with no `<body>`, such as an SVG file, has nothing to measure.
+  for (const el of document.querySelectorAll("body *")) {
     const role = roleOf(el) ?? "";
     const kind = CONTROLS.has(role) ? "control" : TEXT_BLOCKS.has(role) ? "text" : undefined;
     if (kind === undefined || !measurable(el)) continue;

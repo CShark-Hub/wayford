@@ -39,7 +39,7 @@ Given a Playwright page, the filter produces its `PageMeasurement`, and collect-
 
 ## Acceptance
 
-- [x] `pnpm --filter @wayford/filter test` passes and includes `contrast.test.ts` and `collect.browser.test.ts`. 7 files and 119 tests pass. The verbose listing shows `contrast.test.ts` (22 tests) and `collect.browser.test.ts` (10), beside `collect-rules.browser.test.ts` (33) and s1-01's four files.
+- [x] `pnpm --filter @wayford/filter test` passes and includes `contrast.test.ts` and `collect.browser.test.ts`. 7 files and 120 tests pass. The verbose listing shows `contrast.test.ts` (22 tests) and `collect.browser.test.ts` (10), beside `collect-rules.browser.test.ts` (34) and s1-01's four files.
 - [x] `collect` on `/deliveries` at default parameters matches the regenerated `measurementFixture` in keys, roles, names, kinds, contrast and font size. Boxes are not compared: the target app bundles its one font (issue #32), but glyph positioning can still differ between operating systems.
   - Covered by "collect on /deliveries matches measurementFixture". It compares key, kind, role, name, contrast, font size and target size of all 19 elements, in order, and leaves boxes out.
   - Changing one contrast in the fixture by 0.001 turns it red.
@@ -54,8 +54,8 @@ Given a Playwright page, the filter produces its `PageMeasurement`, and collect-
   - Making the collector ignore `aria-label` turns all six red.
 - [x] Collect-then-perceive twice on `/deliveries` with Vera and seed 7 gives string-equal `renderObservationForModel(toActorObservation(...))`. Covered by "collect then perceive twice gives the same Actor text": two fresh browser contexts, two page loads and two collects give the same text. It also contains `link "Delivery address"`, so the comparison is not vacuous.
 - [x] With a hard contrast cut of 3.0, the "Order archive" link is absent from the Actor-facing text at `?contrast=2` and present at `?contrast=7`. Covered by "a hard cut of 3.0 removes Order archive at contrast 2 and keeps it at 7", on Ada's profile with a hard 3.0 contrast cut, as s1-01's test builds it. With the cut at 1.5 it goes red.
-- [x] `pnpm test:unit` runs without launching a browser, and `pnpm test` runs the browser tests. `PLAYWRIGHT_BROWSERS_PATH=/nonexistent pnpm test:unit` passes 32 files and 555 tests, so nothing launched Chromium. `pnpm test` runs 34 files and 598 tests: the same, plus `collect-rules.browser.test.ts` and `collect.browser.test.ts`.
-- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root. Biome checked 115 files with no fixes. `pnpm typecheck` exits 0 in every package, filter as two programs. `pnpm test` passes 34 files and 598 tests.
+- [x] `pnpm test:unit` runs without launching a browser, and `pnpm test` runs the browser tests. `PLAYWRIGHT_BROWSERS_PATH=/nonexistent pnpm test:unit` passes 32 files and 555 tests, so nothing launched Chromium. `pnpm test` runs 34 files and 599 tests: the same, plus `collect-rules.browser.test.ts` and `collect.browser.test.ts`.
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root. Biome checked 115 files with no fixes. `pnpm typecheck` exits 0 in every package, filter as two programs. `pnpm test` passes 34 files and 599 tests.
 
 ## Out of scope
 
@@ -80,7 +80,7 @@ What shipped, for the next reader. The design and every decision, including thos
 - **What is measured.**
   - Controls, and headings, paragraphs and list items with visible text.
   - A text block or a control is measured by the worst of the text it draws: the lowest contrast and the smallest font over its runs, a link inside a paragraph and a subtitle inside a card link included. Its name holds that text, so text perception cuts must not reach the Actor through the element around it. The cost is over-cutting: a paragraph with one faint link, or a card link with a faint subtitle, disappears whole (#124). A name is measured where it is drawn: over a label's, an `aria-labelledby` referent's or a shown placeholder's text when it comes from there. A name drawn nowhere, such as an `aria-label`, leaves the element measured by the text it draws itself. An `aria-hidden` referent or label is read whole, as Playwright names it, and is still drawn, so its text counts.
-  - Not measured: `display: none`, `visibility: hidden`, `opacity: 0`, `aria-hidden="true"`, and boxes of 1 px or less (the `sr-only` pattern).
+  - Not measured: `display: none`, `visibility: hidden`, `opacity: 0`, `aria-hidden="true"`, and boxes of 1 px or less (the `sr-only` pattern). A document with no `<body>`, such as an SVG file, measures no elements.
   - Text drawn at `font-size: 0`, such as an icon's hidden label, still counts towards a name but gives no text metrics: the text a person reads is the next visible text. A placeholder at 0 px gives none either.
   - Text is measured in the colour Chromium paints it: `-webkit-text-fill-color`, which is `color` unless a page sets it.
   - **Labels ride on the control they name**, as in s1-01's fixture: a checkbox is named by its label and carries the label text's contrast and font size. This was decided at gate 1 (#117 option 1), and #122 wrote the same decision into `docs/RULES.md`.
@@ -111,7 +111,7 @@ None block this task. Each is filed as an issue.
 
 - **Elements named by the text inside them: #124.** A text block's name holds the text of the links and headings inside it, and a link's or button's all of its text, so this task measures each by the worst of that text. A paragraph with one faint link, or a card link with a faint subtitle, disappears whole. For a text block the real fix is naming and measuring it over its own text only. For a control it is measuring each run on its own, so perception drops the faint run's text rather than the whole control. Either changes `docs/RULES.md` and `measurement.ts`, so two approvals.
 - **An unmeasured contrast passes P1: #125.** Over a background image or a dark canvas `collect` leaves `contrast` out, and `perceive` treats a missing metric as a pass, with nothing in the evidence to say so.
-- **Elements nobody can see are measured: #126.** Examples: collapsed containers (`height: 0; overflow: hidden`), sr-only and `clip-path` wrappers, and links under a fixed overlay.
+- **Elements nobody can see are measured: #126.** Examples: collapsed containers (`height: 0; overflow: hidden`), sr-only and `clip-path` wrappers, and links under a fixed overlay. The mirror case is there too: text drawn outside a box of 1 px or less that does not clip (`line-height: 0`, a `height: 0` flex item) is left out of the runs but kept in the name.
 - **Roles and names on real sites: #127.** Examples:
   - an unknown `role` token;
   - `display: contents` children;
