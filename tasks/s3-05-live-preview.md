@@ -28,6 +28,7 @@ The preview draws the live `/deliveries` of the running target app instead of th
 ## Constraints
 
 - io measures once per device and keeps the result until io restarts. The browser re-perceives on every slider move; a slider move never calls io.
+- io calls `collect(page, { isMobile })` with the mobile flag of the device it measures, so `/measure?device=mobile` records `isMobile: true`. A page cannot tell it is emulating a phone.
 - The same `perceive` as the Actor, in the browser (F2 AC3).
 - Fallback (F2 AC5): with io or the target app unreachable, the stored `measurementFixture` and a visible banner saying so.
 

@@ -23,7 +23,7 @@ One call opens a browser context set up for a persona, a task and a seed on the 
 
 - In: `Profile`, `Task` and `Seed` from `@wayford/core`, a run id, the three target-app parameters, an output directory
 - Out, from `@wayford/agent`: a function that opens the run context and returns the page, the exact start URL it navigated to, a cursor it can move before a click, a per-step screenshot function, and a close function that returns the video and trace paths
-- Files expected to change: `packages/agent/src/**`, `packages/agent/package.json`, `pnpm-lock.yaml`, root `package.json` (`test:unit`, if missing), `.github/workflows/ci.yml` only if it exists
+- Files expected to change: `packages/agent/src/**`, `packages/agent/package.json`, `pnpm-lock.yaml`, `packages/filter/src/index.ts` (one export line, see Constraints)
 
 ## Constraints
 
@@ -33,8 +33,8 @@ One call opens a browser context set up for a persona, a task and a seed on the 
 - Fake cursor (F5 AC7): injected with `addInitScript` so it survives navigation, drawn above the page, never focusable and hidden from the accessibility tree, so the collector does not measure it. Moving it to a point before a click is a separate call the Actor loop will make.
 - Recording (F12): `recordVideo` on the context, `context.tracing` with screenshots and snapshots, a PNG per step. Every file name carries persona, seed and run id (F12 AC3). Everything is written under the output directory the caller gives; tests use a temporary directory.
 - No LLM, no filter, no `RunEvent`s. This is the browser side of a run only.
-- Browser tests live in files ending `.browser.test.ts`. If the root `package.json` has no `test:unit` yet, add `"test:unit": "vitest run --exclude \"**/*.browser.test.ts\""`; s1-02 adds the same line, so whichever lands second keeps it as it is. If `.github/workflows/ci.yml` exists by then (issue #28), install Chromium there.
-- Tests start the target app themselves, with no manual `pnpm dev`.
+- Browser tests live in files ending `.browser.test.ts`. The root `test:unit` script skips them and `pnpm test` runs them. CI installs Chromium's headless shell once s1-02 (PR #123) is merged, so `.github/workflows/ci.yml` needs no change.
+- Tests start the target app themselves, with no manual `pnpm dev`. Reuse `serveTargetApp` from `packages/filter/src/serve-target-app.ts` (s1-02, PR #123), which builds the app and serves it on a free port, rather than write a second server. It is internal to filter, so export it from `@wayford/filter` with one line in its `index.ts`.
 
 ## Acceptance
 

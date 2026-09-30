@@ -28,6 +28,8 @@ One command runs one persona on one task with one seed against the target app: t
 ## Constraints
 
 - "The Actor must be our own loop" (`AGENTS.md`). Each step: `collect`, `perceive`, `toActorObservation`, `renderObservationForModel`, then the model. The model gets nothing else from the page.
+- Each step calls `collect(page, { isMobile })` with the mobile flag of the context s2-02 opened. A page cannot tell it is emulating a phone, so without the flag Milo's runs (`device: mobile`) record `isMobile: false`.
+- Before each `collect`, the page settles: its fonts are loaded (`document.fonts.ready`) and no CSS animation or transition is running (`document.getAnimations()`). In the s1-02 review a one-second colour animation measured one key at contrast 1.16, 2.46 and 21 at three delays, so one run seed gave three perception decisions.
 - The prompt template is identical for every persona: the goal sentence, the observation, the history, the actions it may take. No persona name, trait, threshold or impairment reaches it (F5 AC6).
 - M1: the history is truncated to the last `memorySteps` steps; earlier steps are replaced by a one-line count. One function renders the history, so every backend gets the same truncation.
 - The model sits behind one seam, the Actor backend: goal sentence, Actor-facing observation text and rendered history in; an `Action` and optional narration out. The LLM backend is the only one here; s2-06 adds Jev behind the same seam (`docs/adr/0001-jev-actor-backend.md`).
