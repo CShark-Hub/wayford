@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./perceive": "./src/perceive.ts"
+    "./perceive": "./src/perceive.ts",
+    "./serve-target-app": "./src/serve-target-app.ts"
   },
   "scripts": {
     "bench:perceive": "tsx scripts/bench-perceive.ts",
