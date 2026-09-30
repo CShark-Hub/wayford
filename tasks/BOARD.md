@@ -31,7 +31,7 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 |---|---|---|---|---|---|---|
 | s1-01 | Perceive: the page measurement, thresholds, soft bands and the seed | L | #16, PR #71 | Dev 1 | Dawid | done |
 | s2-01 | LLM adapter | M | m0-07 | Dev 4 | Dawid | done |
-| s2-02 | Run context and evidence capture | L | — | Dev 2 | | todo |
+| s2-02 | Run context and evidence capture | L | — | Dev 2 | Dawid | doing |
 | s3-02 | Persona cards and procedural avatars | M | m0-07, PR #71 | Dev 3 | | todo |
 | s1-02 | DOM metrics collector and the seed test on the target app | L | s1-01 | Dev 1 | Grzegorz | review |
 | s3-01 | Preview screen on the measurement fixture | L | s1-01, s3-02 | Dev 3 | | todo |
