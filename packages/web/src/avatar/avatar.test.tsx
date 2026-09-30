@@ -1,0 +1,120 @@
+import type { Profile } from "@wayford/core";
+import { profileFixture, profileFixtures } from "@wayford/core/fixtures";
+import { renderToStaticMarkup } from "react-dom/server";
+import { expect, test } from "vitest";
+import { Avatar } from "./avatar.js";
+
+function render(profile: Profile): string {
+  return renderToStaticMarkup(<Avatar profile={profile} />);
+}
+
+/** Vera with only her contrast threshold moved: her softness and provenance stay. */
+function veraAt(threshold: number): Profile {
+  const vera = profileFixture("prof_vera");
+  const { contrast } = vera.perception;
+  if (!contrast) throw new Error("Vera sets a contrast threshold");
+  return { ...vera, perception: { ...vera.perception, contrast: { ...contrast, threshold } } };
+}
+
+/** No fixture holds a tablet, so a copy of Ada does, to reach the third held part. */
+function tabletAda(): Profile {
+  return { ...profileFixture("prof_ada"), device: "tablet" };
+}
+
+/** The `stroke-width` the glasses' group carries, read off its own tag. */
+function glassesStrokeWidth(profile: Profile): string | undefined {
+  return render(profile).match(/<g data-part="glasses"[^>]* stroke-width="([^"]*)"/)?.[1];
+}
+
+/** Ada with only her time budget moved. */
+function adaWithBudget(budgetSeconds: number): Profile {
+  const ada = profileFixture("prof_ada");
+  return { ...ada, behaviour: { ...ada.behaviour, budgetSeconds } };
+}
+
+/** The hourglass's top bulb and its sand, each as the `d` of its path. */
+function bulbAndSand(profile: Profile): { topBulb: string; sand: string } {
+  const group = render(profile).match(/<g data-part="hourglass">(.*?)<\/g>/)?.[1] ?? "";
+  // The group draws the glass, both bulbs in one path with the top one first, then the sand, then
+  // the glass's outline.
+  const [glass = "", sand = ""] = [...group.matchAll(/<path d="([^"]*)"/g)].map((m) => m[1]);
+  return { topBulb: glass.slice(0, glass.indexOf(" M")), sand };
+}
+
+/** The height of a path such as "M122 9 L152 9 L137 37 Z": its lowest y less its highest. */
+function heightOf(d: string): number {
+  const ys = [...d.matchAll(/[\d.]+ ([\d.]+)/g)].map((m) => Number(m[1]));
+  return Math.max(...ys) - Math.min(...ys);
+}
+
+/** The text of the `<title>`, found only when it is the first child of the `<svg>`. */
+function titleOf(svg: string): string | undefined {
+  return svg.match(/^<svg [^>]*><title>([^<]*)<\/title>/)?.[1];
+}
+
+test("the same profile renders the same SVG string twice", () => {
+  for (const profile of profileFixtures) {
+    const first = render(profile);
+    expect(render(profile), profile.label).toBe(first);
+    // A copy has none of the original's object identity, so only the values can shape the SVG.
+    expect(render(structuredClone(profile)), profile.label).toBe(first);
+  }
+});
+
+test("Ada and Vera render different SVGs", () => {
+  expect(render(profileFixture("prof_ada"))).not.toBe(render(profileFixture("prof_vera")));
+});
+
+test("the glasses' stroke width follows the contrast threshold", () => {
+  const thin = glassesStrokeWidth(veraAt(3));
+  const thick = glassesStrokeWidth(veraAt(7));
+  expect(thin).toBe("2.5");
+  expect(thick).toBe("4.5");
+  expect(Number(thick)).toBeGreaterThan(Number(thin));
+});
+
+test("Milo holds a phone", () => {
+  const milo = render(profileFixture("prof_milo"));
+  expect(milo).toContain('data-part="phone"');
+  const ada = render(profileFixture("prof_ada"));
+  expect(ada).not.toContain('data-part="phone"');
+  expect(ada).not.toContain('data-part="tablet"');
+  expect(ada).not.toContain('data-part="glasses"');
+});
+
+test("the sand's area is the patience share of the top bulb", () => {
+  // 300 s fills the top bulb (`parts.ts`), so the sand is the whole bulb.
+  const full = bulbAndSand(adaWithBudget(300));
+  expect(full.sand).toBe(full.topBulb);
+  // 75 s gives a patience of 0.25. A triangle's area goes with the square of its height, so a
+  // quarter of the bulb's area is half its height.
+  const quarter = bulbAndSand(adaWithBudget(75));
+  expect(heightOf(quarter.sand)).toBe(heightOf(quarter.topBulb) / 2);
+});
+
+test("the title names the drawn parts", () => {
+  expect(titleOf(render(profileFixture("prof_vera")))).toBe(
+    "Glasses for a contrast threshold of 3:1. Hourglass for a budget of 120 s.",
+  );
+  expect(titleOf(render(profileFixture("prof_milo")))).toBe(
+    "Phone in hand for a mobile device. Hourglass for a budget of 90 s.",
+  );
+  expect(titleOf(render(profileFixture("prof_ada")))).toBe("Hourglass for a budget of 120 s.");
+  const tablet = render(tabletAda());
+  expect(tablet).toContain('data-part="tablet"');
+  expect(titleOf(tablet)).toBe(
+    "Tablet in hand for a tablet device. Hourglass for a budget of 120 s.",
+  );
+});
+
+test("no id, gradient or clipPath in the markup", () => {
+  // An id, and the url(#…) that points at it, must be unique on the page, so markup holding one
+  // would depend on where it renders. Gradients and clip paths are reached only through ids.
+  for (const profile of [...profileFixtures, tabletAda()]) {
+    const svg = render(profile);
+    expect(svg, profile.label).not.toMatch(/\sid="/);
+    expect(svg, profile.label).not.toContain("url(");
+    expect(svg, profile.label).not.toMatch(/gradient/i);
+    expect(svg, profile.label).not.toMatch(/clippath/i);
+  }
+});

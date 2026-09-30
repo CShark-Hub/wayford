@@ -81,6 +81,8 @@
 }
 
 .dark {
+  /* Native scrollbars and form controls follow the theme too. */
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -120,5 +122,13 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Keyboard focus on every element: a solid outline in the full-strength ring colour, 4.2:1 on
+     the dark background. The half-strength ring above reaches 1.9:1, under WCAG 2.2's 3:1 for
+     non-text contrast, and an outline, unlike a box-shadow ring, survives forced-colours mode. A
+     shadcn component that sets `outline-none` keeps its own ring: utilities outrank this layer. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
