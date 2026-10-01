@@ -16,7 +16,7 @@ Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you gr
 | m0-05 | RunEvent and RunResult schemas | M | m0-03 | Grzegorz | done |
 | m0-06 | Demo target app | L | m0-01 | Dawid | done |
 | m0-07 | API and web skeleton with SSE echo | M | m0-01, m0-05 | Dawid | done |
-| m0-08 | Week 2 backlog and owners | M | m0-02..05 | Tomasz | review |
+| m0-08 | Week 2 backlog and owners | M | m0-02..05 | Tomasz | done |
 
 `m0-00` lands before wave 1: it holds every name two of the wave-1 tasks would otherwise both invent.
 
