@@ -27,6 +27,10 @@ function describe(event: RunEvent): string {
         : event.performedAction.type;
     case "actionPerformed":
       return `now at ${event.urlAfter}`;
+    case "stepWasted":
+      return `wasted, not shown: ${event.rejected
+        .map(({ action }) => ("ref" in action ? `${action.type} ${action.ref}` : action.type))
+        .join(", ")}`;
     case "narration":
       return event.text;
     case "runFinished":

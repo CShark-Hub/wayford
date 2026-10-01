@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import type { ActorResponse } from "./action.js";
 import {
   profileFixture,
   runEventFixtures,
@@ -6,6 +7,7 @@ import {
   taskFixtures,
 } from "./fixtures/index.js";
 import {
+  type CompleteRunStep,
   DICE_RULES,
   DiceRoll,
   diceFires,
@@ -13,10 +15,18 @@ import {
   RUN_EVENT_TYPES,
   RUN_OUTCOMES,
   RunEvent,
+  type RunOutcome,
   RunResult,
   RunStep,
   runResultFromEvents,
 } from "./run.js";
+
+/** A step the test knows is complete, narrowed so its audit fields typecheck. */
+function completeStep(step: RunStep | undefined, what: string): CompleteRunStep {
+  if (!step || "incomplete" in step || "wasted" in step)
+    throw new Error(`${what} must be complete`);
+  return step;
+}
 
 describe("RunResult and RunEvent schemas", () => {
   test("the fixtures validate", () => {
@@ -161,7 +171,7 @@ describe("RunResult and RunEvent schemas", () => {
       expect(RunEvent.safeParse(landed).success).toBe(true);
       const result = runResultFromEvents(runEventFixtures.map((e, j) => (j === i ? landed : e)));
       const step = result.steps.find((s) => s.stepIndex === performed.stepIndex);
-      expect(step?.urlAfter).toBe(urlAfter);
+      expect(completeStep(step, "the landed step").urlAfter).toBe(urlAfter);
     }
   });
 
@@ -201,8 +211,7 @@ describe("RunResult and RunEvent schemas", () => {
   });
 
   test("RunStep accepts an incomplete step and rejects a silent partial", () => {
-    const step = runResultFixture.steps[0];
-    if (!step) throw new Error("the fixture run must have a first step");
+    const step = completeStep(runResultFixture.steps[0], "fixture step 0");
     const {
       proposedAction: _proposed,
       performedAction: _performed,
@@ -216,8 +225,7 @@ describe("RunResult and RunEvent schemas", () => {
   });
 
   test("an incomplete step carries the three audit fields together or not at all", () => {
-    const step = runResultFixture.steps[2];
-    if (!step || "incomplete" in step) throw new Error("fixture step 2 must be complete");
+    const step = completeStep(runResultFixture.steps[2], "fixture step 2");
     const { urlAfter: _urlAfter, ...planned } = step;
     expect(RunStep.safeParse({ ...planned, incomplete: true }).success).toBe(true);
     for (const key of ["proposedAction", "performedAction", "dice"] as const) {
@@ -239,7 +247,7 @@ describe("RunResult and RunEvent schemas", () => {
           dice: _dice,
           urlAfter: _urlAfter,
           ...partial
-        } = s;
+        } = completeStep(s, `fixture step ${j}`);
         return { ...partial, incomplete: true };
       });
     const last = runResultFixture.steps.length - 1;
@@ -262,7 +270,12 @@ describe("RunResult and RunEvent schemas", () => {
 
     const unplanned = runResultFixture.steps.map((s, j) => {
       if (j !== last) return s;
-      const { proposedAction: _proposed, performedAction: _performed, dice: _dice, ...partial } = s;
+      const {
+        proposedAction: _proposed,
+        performedAction: _performed,
+        dice: _dice,
+        ...partial
+      } = completeStep(s, "the fixture's last step");
       return { ...partial, incomplete: true };
     });
     const landedUnplanned = RunResult.safeParse({
@@ -285,8 +298,7 @@ describe("RunResult and RunEvent schemas", () => {
       ),
     ).toBe(true);
     const lastStep = runResultFromEvents(runEventFixtures).steps.at(-1);
-    expect(lastStep && "incomplete" in lastStep).toBe(false);
-    expect(lastStep?.performedAction?.type).toBe("giveUp");
+    expect(completeStep(lastStep, "the last step").performedAction.type).toBe("giveUp");
   });
 });
 
@@ -410,6 +422,8 @@ describe("behaviour dice audit", () => {
     const vera = profileFixture("prof_vera");
     for (const step of runResultFixture.steps) {
       if ("incomplete" in step) throw new Error("the fixture run has no incomplete step");
+      // A wasted step rolls nothing: no action was performed.
+      if ("wasted" in step) continue;
       const b1 = step.dice.filter((d) => d.rule === "B1");
       if (step.proposedAction.type === "click") {
         expect(b1).toHaveLength(1);
@@ -418,21 +432,22 @@ describe("behaviour dice audit", () => {
         expect(b1).toHaveLength(0);
       }
     }
-    const [step0, , step2] = runResultFixture.steps;
-    expect(step0?.performedAction).toEqual({ type: "click", ref: "e3" });
-    expect(step0?.dice?.[0]?.fired).toBe(false);
-    expect(step2?.proposedAction).toEqual({ type: "click", ref: "e2" });
-    expect(step2?.performedAction).toEqual({ type: "doubleClick", ref: "e2" });
-    expect(step2?.dice?.[0]).toEqual({ rule: "B1", p: 0.8, rolled: 0.62, fired: true });
+    const step0 = completeStep(runResultFixture.steps[0], "fixture step 0");
+    const step2 = completeStep(runResultFixture.steps[2], "fixture step 2");
+    expect(step0.performedAction).toEqual({ type: "click", ref: "e3" });
+    expect(step0.dice[0]?.fired).toBe(false);
+    expect(step2.proposedAction).toEqual({ type: "click", ref: "e2" });
+    expect(step2.performedAction).toEqual({ type: "doubleClick", ref: "e2" });
+    expect(step2.dice[0]).toEqual({ rule: "B1", p: 0.8, rolled: 0.62, fired: true });
   });
 
   test("the reducer carries the audit from the event to the step", () => {
     const planned = runEventFixtures.find((e) => e.type === "actionPlanned" && e.stepIndex === 2);
     if (planned?.type !== "actionPlanned") throw new Error("step 2 must have an actionPlanned");
-    const step = runResultFromEvents(runEventFixtures).steps[2];
-    expect(step?.proposedAction).toEqual(planned.proposedAction);
-    expect(step?.performedAction).toEqual(planned.performedAction);
-    expect(step?.dice).toEqual(planned.dice);
+    const step = completeStep(runResultFromEvents(runEventFixtures).steps[2], "step 2");
+    expect(step.proposedAction).toEqual(planned.proposedAction);
+    expect(step.performedAction).toEqual(planned.performedAction);
+    expect(step.dice).toEqual(planned.dice);
   });
 });
 
@@ -440,6 +455,20 @@ describe("the fixture run", () => {
   test("has at least four steps and gives up", () => {
     expect(runResultFixture.steps.length).toBeGreaterThanOrEqual(4);
     expect(runResultFixture.outcome).toBe("gave_up");
+  });
+
+  test("carries a wasted step mid-run, so every consumer of the fixture meets one", () => {
+    const [, , , wasted, last] = runResultFixture.steps;
+    if (!wasted || !("wasted" in wasted)) throw new Error("fixture step 3 must be wasted");
+    // One answer, then the retry: both name a ref /settings does not show.
+    expect(wasted.rejected.map((answer) => answer.action)).toEqual([
+      { type: "click", ref: "e3" },
+      { type: "click", ref: "e5" },
+    ]);
+    expect(wasted.actorObservationText).not.toMatch(/\[e3\]|\[e5\]/);
+    // The page did not change, so the next step observes it again and gives up there.
+    expect(last?.urlBefore).toBe(wasted.urlBefore);
+    expect(completeStep(last, "fixture step 4").performedAction.type).toBe("giveUp");
   });
 
   test("the stored steps keep the full evidence, hidden elements and all", () => {
@@ -557,28 +586,30 @@ describe("step times and cost", () => {
     return event.timestamp;
   };
 
-  test("a step starts at its stepObserved and ends at its actionPerformed", () => {
+  test("a step starts at its stepObserved and ends at its actionPerformed, or its stepWasted", () => {
     // Every event of a step has its own timestamp, so taking the wrong one fails.
     const { steps } = runResultFromEvents(runEventFixtures);
-    expect(steps).toHaveLength(4);
+    expect(steps).toHaveLength(5);
     for (const step of steps) {
+      const end = "wasted" in step ? "stepWasted" : "actionPerformed";
       expect(step.startedAt).toBe(timestampOf("stepObserved", step.stepIndex));
-      expect(step.endedAt).toBe(timestampOf("actionPerformed", step.stepIndex));
+      expect(step.endedAt).toBe(timestampOf(end, step.stepIndex));
     }
   });
 
-  test("a step's cost is its actionPlanned's", () => {
+  test("a step's cost is its actionPlanned's, or its stepWasted's", () => {
     const { steps } = runResultFromEvents(runEventFixtures);
     for (const step of steps) {
-      const planned = runEventFixtures.find(
-        (e) => e.type === "actionPlanned" && e.stepIndex === step.stepIndex,
+      const type = "wasted" in step ? "stepWasted" : "actionPlanned";
+      const source = runEventFixtures.find(
+        (e) => e.type === type && e.stepIndex === step.stepIndex,
       );
-      if (planned?.type !== "actionPlanned") {
-        throw new Error(`the fixture stream must plan an action at step ${step.stepIndex}`);
+      if (source?.type !== "actionPlanned" && source?.type !== "stepWasted") {
+        throw new Error(`the fixture stream has no ${type} at step ${step.stepIndex}`);
       }
-      expect(step.cost).toEqual(planned.cost);
+      expect(step.cost).toEqual(source.cost);
     }
-    // The four costs differ, so a step carrying another step's cost fails too.
+    // The five costs differ, so a step carrying another step's cost fails too.
     expect(new Set(steps.map((s) => JSON.stringify(s.cost))).size).toBe(steps.length);
   });
 
@@ -732,10 +763,10 @@ describe("a run that stops mid-step", () => {
   );
 
   test("a complete last step under runFailed stays complete", () => {
-    const events = [...runEventFixtures.filter((e) => e.type !== "runFinished"), failedAt(3)];
+    const events = [...runEventFixtures.filter((e) => e.type !== "runFinished"), failedAt(4)];
     const result = runResultFromEvents(events);
     expect(result.outcome).toBe("error");
-    expect(result.steps).toHaveLength(4);
+    expect(result.steps).toHaveLength(5);
     for (const step of result.steps) expect("incomplete" in step).toBe(false);
   });
 
@@ -779,6 +810,175 @@ describe("a run that stops mid-step", () => {
   });
 });
 
+describe("a wasted step (issue #114)", () => {
+  // Step 1 of the fixture run is on /deliveries, where the Actor was shown e1 to e4.
+  // Here it is wasted instead: both answers name a ref that page does not show.
+  const started = runEventFixtures[0];
+  if (started?.type !== "runStarted")
+    throw new Error("the fixture stream must open with runStarted");
+  const stepEvents = (i: number) =>
+    runEventFixtures.filter(
+      (e) =>
+        e.stepIndex === i &&
+        e.type !== "runStarted" &&
+        e.type !== "runFinished" &&
+        e.type !== "runFailed",
+    );
+  const observedAt = (i: number): Extract<RunEvent, { type: "stepObserved" }> => {
+    const event = stepEvents(i).find((e) => e.type === "stepObserved");
+    if (event?.type !== "stepObserved")
+      throw new Error(`the fixture stream must observe step ${i}`);
+    return event;
+  };
+  const eventOf = (type: RunEvent["type"], i: number): RunEvent => {
+    const event = stepEvents(i).find((e) => e.type === type);
+    if (!event) throw new Error(`the fixture stream has no ${type} at step ${i}`);
+    return event;
+  };
+  const answers: ActorResponse[] = [
+    {
+      narration: "The order history should be the next link down.",
+      action: { type: "click", ref: "e5" },
+    },
+    { narration: "Then the one after that.", action: { type: "click", ref: "e6" } },
+  ];
+  const wasted = (rejected: ActorResponse[] = answers): RunEvent => ({
+    type: "stepWasted",
+    runId: started.runId,
+    stepIndex: 1,
+    timestamp: "2026-09-22T10:00:06.000Z",
+    rejected,
+    cost: { tokensIn: 2500, tokensOut: 410, usd: 0.0061 },
+  });
+  const ending = { runId: started.runId, timestamp: "2026-09-22T10:00:20.000Z", durationMs: 20000 };
+  const total = { tokensIn: 9000, tokensOut: 1000, usd: 0.02 };
+  const endAt = (stepIndex: number, outcome: RunOutcome): RunEvent =>
+    outcome === "error"
+      ? { ...ending, type: "runFailed", stepIndex, error: "llm timeout", cost: total }
+      : { ...ending, type: "runFinished", stepIndex, outcome, cost: total };
+  /** Step 0 lands, step 1 is wasted, step 2 lands: the run carries on. */
+  const carriedOn = (rejected: ActorResponse[] = answers): RunEvent[] => [
+    started,
+    ...stepEvents(0),
+    observedAt(1),
+    wasted(rejected),
+    ...stepEvents(2),
+    endAt(2, "gave_up"),
+  ];
+  const wastedStep = (): RunStep => {
+    const step = runResultFromEvents(carriedOn()).steps[1];
+    if (!step || !("wasted" in step)) throw new Error("step 1 must be wasted");
+    return step;
+  };
+
+  test("a run that carries on after a wasted step folds and parses", () => {
+    const result = runResultFromEvents(carriedOn());
+    expect(result.outcome).toBe("gave_up");
+    expect(result.steps.map((s) => s.stepIndex)).toEqual([0, 1, 2]);
+    const [first, middle, last] = result.steps;
+    expect(middle && "wasted" in middle).toBe(true);
+    for (const step of [first, last]) {
+      expect(step && ("wasted" in step || "incomplete" in step)).toBe(false);
+    }
+    expect(RunResult.safeParse(result).success).toBe(true);
+  });
+
+  test("stepWasted carries every rejected answer and the step's cost", () => {
+    const event = wasted();
+    expect(RunEvent.safeParse(event).success).toBe(true);
+    expect(RunEvent.safeParse({ ...event, rejected: [] }).success).toBe(false);
+    // No stored rejection reason: it follows from the answer.
+    expect(RunEvent.safeParse({ ...event, reason: "unknown_ref" }).success).toBe(false);
+  });
+
+  test("a wasted step stores its answers and no action, and is never also incomplete", () => {
+    const step = wastedStep();
+    expect(RunStep.safeParse(step).success).toBe(true);
+    const planned = runResultFixture.steps[1];
+    if (!planned || "incomplete" in planned || "wasted" in planned) {
+      throw new Error("fixture step 1 must be complete");
+    }
+    for (const extra of [
+      { proposedAction: planned.proposedAction },
+      { performedAction: planned.performedAction },
+      { dice: [] },
+      { urlAfter: planned.urlAfter },
+      { screenshotPath: "runs/x/step-1.png" },
+      { narration: "x" },
+      { incomplete: true },
+    ]) {
+      expect(RunStep.safeParse({ ...step, ...extra }).success, Object.keys(extra)[0]).toBe(false);
+    }
+    const { cost: _cost, ...withoutCost } = step;
+    expect(RunStep.safeParse(withoutCost).success).toBe(false);
+    expect(RunStep.safeParse({ ...step, rejected: [] }).success).toBe(false);
+  });
+
+  test.each(["before", "after"] as const)(
+    "a narration event on a wasted step, %s its stepWasted, throws",
+    (where) => {
+      // A refused answer keeps its narration in `rejected`; a narration event would show it twice.
+      const events = carriedOn();
+      const at = events.findIndex((e) => e.type === "stepWasted") + (where === "after" ? 1 : 0);
+      const said: RunEvent = {
+        type: "narration",
+        runId: started.runId,
+        stepIndex: 1,
+        timestamp: "2026-09-22T10:00:05.000Z",
+        text: answers[0]?.narration ?? "",
+      };
+      const stream = [...events.slice(0, at), said, ...events.slice(at)];
+      expect(() => runResultFromEvents(stream)).toThrow(
+        /step 1 is wasted but has a narration event/,
+      );
+    },
+  );
+
+  test.each(["actionPlanned", "actionPerformed"] as const)(
+    "a wasted step that also has an %s throws",
+    (type) => {
+      const events = carriedOn();
+      const at = events.findIndex((e) => e.type === "stepWasted");
+      const stream = [...events.slice(0, at + 1), eventOf(type, 1), ...events.slice(at + 1)];
+      expect(() => runResultFromEvents(stream)).toThrow(/step 1 is wasted but also has an action/);
+    },
+  );
+
+  test("a wasted answer must name a ref the Actor was not shown", () => {
+    const shown: ActorResponse = { narration: "Home.", action: { type: "click", ref: "e1" } };
+    expect(() => runResultFromEvents(carriedOn([answers[0] as ActorResponse, shown]))).toThrow(
+      /step 1 wasted an answer naming e1, which the Actor was shown/,
+    );
+    const noRef: ActorResponse = {
+      narration: "Down.",
+      action: { type: "scroll", direction: "down" },
+    };
+    expect(() => runResultFromEvents(carriedOn([noRef]))).toThrow(
+      /step 1 wasted a scroll, which names no ref/,
+    );
+  });
+
+  test.each(["budget_exceeded", "error"] as const)(
+    "a wasted last step is allowed under %s",
+    (outcome) => {
+      const stream = [started, ...stepEvents(0), observedAt(1), wasted(), endAt(1, outcome)];
+      const result = runResultFromEvents(stream);
+      expect(result.outcome).toBe(outcome);
+      expect(result.steps.at(-1)).toHaveProperty("wasted", true);
+    },
+  );
+
+  test.each(["success", "gave_up"] as const)(
+    "a wasted last step under %s throws: that ending needs an action that landed",
+    (outcome) => {
+      const stream = [started, ...stepEvents(0), observedAt(1), wasted(), endAt(1, outcome)];
+      expect(() => runResultFromEvents(stream)).toThrow(
+        new RegExp(`step 1 is wasted but the run ended ${outcome}`),
+      );
+    },
+  );
+});
+
 describe("a stream that is not exactly one run", () => {
   // Each stream is the fixture stream with one event added, copied or changed.
   // The ones that throw would fold but for the single rule they break.
@@ -802,17 +1002,18 @@ describe("a stream that is not exactly one run", () => {
   const failed: RunEvent = {
     type: "runFailed",
     runId: "run_vera-hard-1",
-    stepIndex: 3,
-    timestamp: "2026-09-22T10:00:13.000Z",
+    stepIndex: 4,
+    timestamp: "2026-09-22T10:00:16.000Z",
     error: "browser context crashed",
-    durationMs: 13000,
-    cost: { tokensIn: 5120, tokensOut: 880, usd: 0.0143 },
+    durationMs: 16000,
+    cost: { tokensIn: 8020, tokensOut: 1180, usd: 0.0201 },
   };
 
   test.each([
     "stepObserved",
     "actionPlanned",
     "actionPerformed",
+    "stepWasted",
     "narration",
     "runFinished",
   ] as const)("%s from another run throws", (type) => {
@@ -824,9 +1025,9 @@ describe("a stream that is not exactly one run", () => {
   });
 
   test("another run's event names both runs, even after the end", () => {
-    // Step 3's actionPerformed again, after runFinished: it breaks the end and
+    // Step 4's actionPerformed again, after runFinished: it breaks the end and
     // duplicate rules too, but the runId check comes first.
-    const foreign = { ...eventAt(indexOf("actionPerformed", 3)), runId: "run_other-1" };
+    const foreign = { ...eventAt(indexOf("actionPerformed", 4)), runId: "run_other-1" };
     expect(() => runResultFromEvents([...runEventFixtures, foreign])).toThrow(
       /belongs to run_other-1, not run_vera-hard-1/,
     );
@@ -836,34 +1037,34 @@ describe("a stream that is not exactly one run", () => {
     const late: RunEvent = {
       type: "narration",
       runId: "run_vera-hard-1",
-      stepIndex: 3,
-      timestamp: "2026-09-22T10:00:13.000Z",
+      stepIndex: 4,
+      timestamp: "2026-09-22T10:00:16.000Z",
       text: "Maybe one more look.",
     };
     expect(() => runResultFromEvents([...runEventFixtures, late])).toThrow(
-      /narration at step 3 comes after runFinished/,
+      /narration at step 4 comes after runFinished/,
     );
   });
 
   test("a step observed after runFailed throws instead of becoming its incomplete last step", () => {
-    const observed = eventAt(indexOf("stepObserved", 3));
-    if (observed.type !== "stepObserved") throw new Error("the fixture stream must observe step 3");
+    const observed = eventAt(indexOf("stepObserved", 4));
+    if (observed.type !== "stepObserved") throw new Error("the fixture stream must observe step 4");
     // Re-indexed whole, the observation too, so only its place in the stream is wrong.
     const next: RunEvent = {
       ...observed,
-      stepIndex: 4,
-      timestamp: "2026-09-22T10:00:14.000Z",
-      observation: { ...observed.observation, stepIndex: 4 },
+      stepIndex: 5,
+      timestamp: "2026-09-22T10:00:17.000Z",
+      observation: { ...observed.observation, stepIndex: 5 },
     };
     const unfinished = runEventFixtures.filter((e) => e.type !== "runFinished");
     expect(() => runResultFromEvents([...unfinished, failed, next])).toThrow(
-      /stepObserved at step 4 comes after runFailed/,
+      /stepObserved at step 5 comes after runFailed/,
     );
   });
 
   test("a second end throws", () => {
     expect(() => runResultFromEvents([...runEventFixtures, failed])).toThrow(
-      /runFailed at step 3 comes after runFinished/,
+      /runFailed at step 4 comes after runFinished/,
     );
   });
 
@@ -877,15 +1078,17 @@ describe("a stream that is not exactly one run", () => {
     );
   });
 
-  test.each(["stepObserved", "actionPlanned", "actionPerformed"] as const)(
-    "a second %s in one step throws, even an exact copy",
-    (type) => {
-      const i = indexOf(type, 1);
-      expect(() => runResultFromEvents(insertedAfter(i, eventAt(i)))).toThrow(
-        new RegExp(`step 1 has a second ${type}`),
-      );
-    },
-  );
+  test.each([
+    ["stepObserved", 1],
+    ["actionPlanned", 1],
+    ["actionPerformed", 1],
+    ["stepWasted", 3],
+  ] as const)("a second %s in one step throws, even an exact copy", (type, step) => {
+    const i = indexOf(type, step);
+    expect(() => runResultFromEvents(insertedAfter(i, eventAt(i)))).toThrow(
+      new RegExp(`step ${step} has a second ${type}`),
+    );
+  });
 
   test("narration may repeat in one step and is appended in order", () => {
     const i = indexOf("narration", 1);

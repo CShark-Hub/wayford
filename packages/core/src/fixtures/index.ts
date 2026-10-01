@@ -115,8 +115,11 @@ export const findingFixtures: Finding[] = readJson("findings.json", Finding.arra
 
 /**
  * One recorded run of the persona with a 3:1 soft contrast threshold against
- * the hard goal (`/deliveries/archive`, `m0-04`): four steps that never reach
- * the archive because its link stays degraded, ending in `gave_up`.
+ * the hard goal (`/deliveries/archive`, `m0-04`): five steps that never reach
+ * the archive because its link stays degraded, ending in `gave_up`. Step 3 is
+ * wasted: on `/settings` the Actor twice names a ref the page does not show,
+ * the first time the archive link's `e3` from the page before, so no action
+ * runs and step 4 observes the same page again.
  */
 export const runResultFixture: RunResult = readJson("run-result.json", RunResult);
 

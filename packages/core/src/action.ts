@@ -53,7 +53,8 @@ export type Action = z.infer<typeof Action>;
  * What the model answers with at every step. An object at the root because
  * strict `json_schema` modes reject a union there. `narration` is the model's
  * own account, stored as the `narration` event (interpretation, not
- * measurement); `action` is what gets measured. Refinements and some keywords
+ * measurement), or kept on the answer itself when the loop refused it
+ * (`WastedRunStep.rejected`); `action` is what gets measured. Refinements and some keywords
  * do not survive every provider, so every answer is re-parsed with this schema.
  * `z.toJSONSchema` emits `oneOf` for the `action` union; strict modes that
  * accept only `anyOf` need the adapter to rewrite it, which is safe because

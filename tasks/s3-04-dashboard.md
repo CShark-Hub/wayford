@@ -30,7 +30,7 @@ Every stored run can be found and replayed step by step with its evidence, video
 - Filters (task, persona, outcome) live in the URL (F7 AC1).
 - Per task: success rate and median duration per persona (F7 AC2), in Recharts, personas left to right in fixture order, Ada to Zoya.
 - Run header: `persona | seed | run id` in monospace (F7 AC4), and the run's cost.
-- Replay per step (F7 AC3): the screenshot; the Actor-facing text exactly as stored; the evidence, every element with its state and decisions; the action proposed and performed, with any dice rolls; the narration under a "narration" label, set apart from the rest because it is interpretation after the fact, not measurement.
+- Replay per step (F7 AC3): the screenshot; the Actor-facing text exactly as stored; the evidence, every element with its state and decisions; the action proposed and performed, with any dice rolls; the narration under a "narration" label, set apart from the rest because it is interpretation after the fact, not measurement. A wasted step (`"wasted" in step`) has no action, screenshot or narration of its own: it shows the latest earlier step's screenshot, or none (a wasted step 0, or a run of wasted steps from the start); in place of the action, the answers the loop refused, labelled as refs the Actor was not shown; and their narrations under the "narration" label, never in the action slot.
 - Video player and trace download (F12 AC2).
 - Output register: sober, monochrome, dense. The persona colour is the only accent.
 - Responses parsed with the core schemas. No run logic duplicated from core.

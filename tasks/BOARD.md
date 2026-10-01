@@ -60,7 +60,7 @@ Monday 2026-10-05 to Sunday 2026-10-11. Written in `m0-08` and cut to what the d
 
 | Task | Title | Size | Depends on | Slot | Owner | Status |
 |---|---|---|---|---|---|---|
-| s2-03 | Actor loop | L | s1-02, s2-01, s2-02, #19, #31 | Dev 2 | | todo |
+| s2-03 | Actor loop | L | s1-02, s2-01, s2-02, #19, #31, #114 | Dev 2 | | todo |
 | s3-05 | Live preview on the target app | S | s1-02, s2-02, s3-01 | Dev 3 | | todo |
 | s2-04 | Scout: ground truth per task | S | s2-03 | Dev 1 | | todo |
 | s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Dev 4 | | todo |

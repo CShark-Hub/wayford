@@ -20,7 +20,7 @@
  * `renderObservationForModel`), never a second source of truth.
  */
 import { z } from "zod";
-import { Action } from "./action.js";
+import { Action, ActorResponse, checkActionRef } from "./action.js";
 import { WayfordError } from "./error.js";
 import { FullObservation, renderObservationForModel, toActorObservation } from "./observation.js";
 import {
@@ -62,8 +62,8 @@ export type ModelIds = z.infer<typeof ModelIds>;
 /**
  * Token counts and dollars, for a run or for one step. Whole tokens; USD is a
  * real number. A run's total can exceed the sum of its steps: a step's cost
- * travels on its `actionPlanned`, so the calls of a step the run stopped in
- * before any action was planned are billed in the run's total only.
+ * travels on its `actionPlanned` or its `stepWasted`, so the calls of a step
+ * the run stopped in before either are billed in the run's total only.
  */
 export const Cost = z
   .object({
@@ -216,8 +216,12 @@ function checkDice(audit: DiceAudit, ctx: z.RefinementCtx): void {
  * is stored as `IncompleteRunStep`: `incomplete: true`, with the three audit
  * fields present together and only if the action was planned, `urlAfter`
  * only if it also landed. `RunResult` enforces the "last step, those two
- * endings" rule. A complete step has no `incomplete` key, so narrow with
- * `"incomplete" in step`, not `step.incomplete`.
+ * endings" rule.
+ *
+ * A step where no action ran because every answer named a ref the Actor was
+ * not shown is stored as `WastedRunStep` (`stepWasted`, issue #114);
+ * `RunResult` says where it may stand. Narrow with `"incomplete" in step` and
+ * `"wasted" in step`, not `step.incomplete`: a complete step has neither key.
  */
 const stepBase = {
   stepIndex: StepIndex,
@@ -226,9 +230,10 @@ const stepBase = {
   narration: z.string(),
   /** When the step's observation was ready: its `stepObserved` timestamp. */
   startedAt: z.iso.datetime(),
-  /** When the action landed: its `actionPerformed` timestamp. On an incomplete
-   *  step, the timestamp of the `runFailed` or `runFinished` that stopped the
-   *  run, so the last step of a cut-short run keeps its length. */
+  /** When the action landed: its `actionPerformed` timestamp. On a wasted
+   *  step, its `stepWasted` timestamp. On an incomplete step, the timestamp of
+   *  the `runFailed` or `runFinished` that stopped the run, so the last step of
+   *  a cut-short run keeps its length. */
   endedAt: z.iso.datetime(),
   screenshotPath: z.string().min(1).optional(),
   /** `fullObservation.url`, so an `HttpUrl`. `urlAfter` is any URL: see `actionPerformed`. */
@@ -281,11 +286,35 @@ export const IncompleteRunStep = z
 export type IncompleteRunStep = z.infer<typeof IncompleteRunStep>;
 
 /**
- * One stored step: `CompleteRunStep`, or `IncompleteRunStep` for the last
- * step of a crashed or timed-out run (details above `stepBase`). Narrow with
- * `"incomplete" in step`, not `step.incomplete`.
+ * A step where no action ran: every answer the Actor gave named a ref the
+ * observation it was shown lacks, the retry included (s2-03). `rejected` holds
+ * each answer exactly as parsed, in the order given; why each was refused is
+ * not stored, because it follows from the answer (`checkActionRef`: its ref is
+ * not shown). The fold checks that against the evidence; this schema does not,
+ * so a stored run keeps parsing if the projection changes. No dice were
+ * rolled, no `urlAfter` and no screenshot: nothing ran. `cost` is every model
+ * call of the step. See `RunResult` for where a wasted step may stand.
  */
-export const RunStep = z.union([CompleteRunStep, IncompleteRunStep]);
+export const WastedRunStep = z
+  .object({
+    ...stepBase,
+    wasted: z.literal(true),
+    rejected: z.array(ActorResponse).min(1),
+    cost: Cost,
+    /** A refused answer gets no `narration` event; its narration stays on it in `rejected`. */
+    narration: z.literal(""),
+    /** Nothing ran, so there is no post-action screenshot to keep. */
+    screenshotPath: z.never().optional(),
+  })
+  .strict();
+export type WastedRunStep = z.infer<typeof WastedRunStep>;
+
+/**
+ * One stored step: `CompleteRunStep`; `IncompleteRunStep` for the last step of
+ * a crashed or timed-out run; or `WastedRunStep` (details above `stepBase`).
+ * Narrow with `"incomplete" in step` and `"wasted" in step`.
+ */
+export const RunStep = z.union([CompleteRunStep, IncompleteRunStep, WastedRunStep]);
 export type RunStep = z.infer<typeof RunStep>;
 
 // ---------------------------------------------------------------------------
@@ -301,7 +330,9 @@ export type RunStep = z.infer<typeof RunStep>;
  * provenance the report needs.
  *
  * At most the last step is incomplete, and only when the outcome is `error` or
- * `budget_exceeded`. That rule is a refine, so `.omit`, `.pick` and `.partial`
+ * `budget_exceeded`. A wasted step may stand anywhere, but as the last step
+ * under those two outcomes only: `success` and `gave_up` end on an action that
+ * landed. Those rules are a refine, so `.omit`, `.pick` and `.partial`
  * throw on this schema (`.extend` with new keys still works; overwriting a
  * key needs `.safeExtend`); derive a summary schema some
  * other way.
@@ -336,6 +367,16 @@ export const RunResult = z
   .superRefine((run, ctx) => {
     const last = run.steps.length - 1;
     run.steps.forEach((step, i) => {
+      if ("wasted" in step) {
+        if (i === last && run.outcome !== "error" && run.outcome !== "budget_exceeded") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["steps", i],
+            message: `step ${step.stepIndex} is wasted but the run ended ${run.outcome}; success and gave_up end on an action that landed`,
+          });
+        }
+        return;
+      }
       if (!("incomplete" in step)) return;
       if (step.urlAfter !== undefined && step.performedAction === undefined) {
         ctx.addIssue({
@@ -370,6 +411,7 @@ export const RUN_EVENT_TYPES = [
   "stepObserved",
   "actionPlanned",
   "actionPerformed",
+  "stepWasted",
   "narration",
   "runFinished",
   "runFailed",
@@ -444,6 +486,20 @@ export const RunEvent = z.discriminatedUnion("type", [
       screenshotPath: z.string().min(1).optional(),
     })
     .strict(),
+  /** The step ended with no action: every answer named a ref the observation
+   *  lacks, the retry included (s2-03). Emitted in place of `actionPlanned`
+   *  and `actionPerformed`; the next step observes again. A rejected answer
+   *  rolls no dice and gets no `narration` event: its narration stays on it. */
+  z
+    .object({
+      ...eventBase,
+      type: z.literal("stepWasted"),
+      /** Each refused answer exactly as parsed, in the order given. */
+      rejected: z.array(ActorResponse).min(1),
+      /** Every model call of the step, repairs and the retry included. */
+      cost: Cost,
+    })
+    .strict(),
   /** Free text the model produced, labelled as narration — interpretation
    *  after the fact, never a measurement (`AGENTS.md`, "Traps"). */
   z.object({ ...eventBase, type: z.literal("narration"), text: z.string() }).strict(),
@@ -491,6 +547,8 @@ type StepDraft = {
   screenshotPath?: string;
   urlBefore?: string;
   urlAfter?: string;
+  /** Set by `stepWasted`, its answers and its cost together. */
+  wasted?: { rejected: ActorResponse[]; cost: Cost };
 };
 
 /**
@@ -503,14 +561,16 @@ type StepDraft = {
  * The first event is `runStarted` and every other carries its `runId`; the
  * last is a `runFinished` or `runFailed`, and nothing follows it. A step has
  * at most one `stepObserved`, holding that step's own observation, one
- * `actionPlanned` and one `actionPerformed`; `narration` may repeat, and
- * appends. A stream that breaks one of these rules throws instead of folding:
- * several runs stream at once (`docs/PLAN.md` F6), and a misrouted event must
- * fail here, not land quietly in another run's record.
+ * `actionPlanned` and one `actionPerformed`, or else one `stepWasted`, whose
+ * answers each name a ref the Actor-facing view of that observation lacks;
+ * `narration` may repeat, and appends. A stream that breaks one of these rules
+ * throws instead of folding: several runs stream at once (`docs/PLAN.md` F6),
+ * and a misrouted event must fail here, not land quietly in another run's
+ * record.
  *
- * A step missing its action or `urlAfter` is stored as incomplete; `RunResult`
- * then rejects it unless it is the last step of a run that failed or ran out
- * of budget.
+ * A wasted step is stored as `WastedRunStep`. Any other step missing its
+ * action or `urlAfter` is stored as incomplete; `RunResult` then rejects it
+ * unless it is the last step of a run that failed or ran out of budget.
  *
  * A rejected stream throws a `WayfordError` with code `invalid_run_events`,
  * the original error on `cause`. Any other error is a bug and passes through
@@ -550,11 +610,16 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
   };
 
   let terminal: Extract<RunEvent, { type: "runFinished" | "runFailed" }> | undefined;
-  // `stepObserved`, `actionPlanned` and `actionPerformed` come at most once per
-  // step, and an exact copy counts as a second. `seen` holds each one met so
+  // `stepObserved`, `actionPlanned`, `actionPerformed` and `stepWasted` come at
+  // most once per step, and an exact copy counts as a second. `seen` holds each one met so
   // far as `type@stepIndex`. Narration may repeat: a copied narration cannot be
   // told from a second one, so it is appended like any other.
-  const oncePerStep = new Set<RunEventType>(["stepObserved", "actionPlanned", "actionPerformed"]);
+  const oncePerStep = new Set<RunEventType>([
+    "stepObserved",
+    "actionPlanned",
+    "actionPerformed",
+    "stepWasted",
+  ]);
   const seen = new Set<string>();
 
   for (const event of events.slice(1)) {
@@ -601,6 +666,12 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         draft.endedAt = event.timestamp;
         break;
       }
+      case "stepWasted": {
+        const draft = draftFor(event.stepIndex);
+        draft.wasted = { rejected: event.rejected, cost: event.cost };
+        draft.endedAt = event.timestamp;
+        break;
+      }
       case "narration": {
         const draft = draftFor(event.stepIndex);
         draft.narration = draft.narration === "" ? event.text : `${draft.narration}\n${event.text}`;
@@ -628,10 +699,11 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
       ) {
         throw new Error(`step ${draft.stepIndex} is missing an observation`);
       }
+      const shown = toActorObservation(draft.fullObservation);
       const base = {
         stepIndex: draft.stepIndex,
         fullObservation: draft.fullObservation,
-        actorObservationText: renderObservationForModel(toActorObservation(draft.fullObservation)),
+        actorObservationText: renderObservationForModel(shown),
         narration: draft.narration,
         startedAt: draft.startedAt,
         // A step with no actionPerformed was stopped by the run's end, so it ends there.
@@ -644,6 +716,27 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         proposedAction !== undefined && performedAction !== undefined && dice !== undefined
           ? { proposedAction, performedAction, dice }
           : undefined;
+      if (draft.wasted !== undefined) {
+        if (planned !== undefined || draft.urlAfter !== undefined) {
+          throw new Error(`step ${draft.stepIndex} is wasted but also has an action`);
+        }
+        if (base.narration !== "") {
+          throw new Error(`step ${draft.stepIndex} is wasted but has a narration event`);
+        }
+        // A wasted answer is one `checkActionRef` refuses against what the Actor was shown.
+        for (const { action } of draft.wasted.rejected) {
+          if (!("ref" in action)) {
+            throw new Error(`step ${draft.stepIndex} wasted a ${action.type}, which names no ref`);
+          }
+          if (checkActionRef(action, shown).ok) {
+            throw new Error(
+              `step ${draft.stepIndex} wasted an answer naming ${action.ref}, which the Actor was shown`,
+            );
+          }
+        }
+        const step: WastedRunStep = { ...base, narration: "", wasted: true, ...draft.wasted };
+        return step;
+      }
       if (draft.urlAfter !== undefined && planned === undefined) {
         throw new Error(`step ${draft.stepIndex} performed an action it never planned`);
       }
