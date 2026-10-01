@@ -37,15 +37,30 @@ Read first, in this order:
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/io test` passes and includes `extractor.test.ts`, using the fake adapter from s2-01
-- [ ] With the fake returning a clean goal, the story "open Settings and click the Archive tab to see my old orders" gives `201`, a goal with no path word, `rewritten: true`, and `strippedPaths` containing "Settings" and "Archive"
-- [ ] The story "you want to see what you ordered three months ago" gives `201` with `rewritten: false`
-- [ ] With the fake returning a goal containing "menu" on the first attempt and again on the repair round, the response is `422` and names "menu"
-- [ ] A body without `success` gives `400`
-- [ ] A test shows a generated task id passes `TaskId`, a generated run id passes `RunId`, and a thousand generated ids are all different
-- [ ] A test reads the prompt template and finds none of "impaired", "disabled", "persona"
-- [ ] With `pnpm dev` and a real key, `curl -X POST localhost:3000/tasks -H 'content-type: application/json' -d '{"story":"open Settings and click the Archive tab to see my old orders","startUrl":"http://localhost:5174/","success":{"type":"urlMatches","pattern":"**/deliveries/archive"}}'` returns a `Task` (output in the PR)
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+- [x] `pnpm --filter @wayford/io test` passes and includes `extractor.test.ts`, using the fake adapter from s2-01. 5 files, 32 tests, 11 of them in `packages/io/src/extractor.test.ts`. Every one of those builds the app with `fakeLlm` from `@wayford/agent/fake`.
+- [x] With the fake returning a clean goal, the story "open Settings and click the Archive tab to see my old orders" gives `201`, a goal with no path word, `rewritten: true`, and `strippedPaths` containing "Settings" and "Archive". Test: "a story with a route through the interface gives 201, a clean goal and what was stripped". It also checks:
+  - the body's `task` parses as `Task`, and its id as `TaskId`;
+  - `success`, `startUrl` and `sourceStory` are the request's;
+  - one `extractor` call was made, its system message the template file and its user message the story.
+- [x] The story "you want to see what you ordered three months ago" gives `201` with `rewritten: false`. Test: "a story that already states an intent comes back unchanged".
+- [x] With the fake returning a goal containing "menu" on the first attempt and again on the repair round, the response is `422` and names "menu". Test: "a goal that keeps a path word through the repair round is a 422 naming it".
+  - It checks that `survived` contains "menu" and that exactly two calls were made. The second call carries the first answer and a repair message naming "menu".
+  - "the repair round can fix a goal" and "a screen name the model says it stripped but kept is a 422" cover the rest of the round.
+- [x] A body without `success` gives `400`. Test: "a body without success is a 400 and asks no model". An extra key is a `400` too, and the fake is never called.
+- [x] A test shows a generated task id passes `TaskId`, a generated run id passes `RunId`, and a thousand generated ids are all different. `packages/core/src/id.test.ts` has three tests:
+  - "an id for every entity passes its own id schema";
+  - "a thousand ids are all different";
+  - "the first ten characters encode the time the id was made".
+- [x] A test reads the prompt template and finds none of "impaired", "disabled", "persona". Test: "the prompt template names no impairment and no persona", which reads `packages/io/src/extractor-prompt.md` and lowercases it before checking.
+- [x] With `pnpm dev` and a real key, `curl -X POST localhost:3000/tasks -H 'content-type: application/json' -d '{"story":"open Settings and click the Archive tab to see my old orders","startUrl":"http://localhost:5174/","success":{"type":"urlMatches","pattern":"**/deliveries/archive"}}'` returns a `Task` (output in the PR). It was run on 2026-10-01, on the branch's final code, against `openai/gpt-6-luna` at effort `high`, the default. It took 2.4 s:
+
+  ```
+  {"task":{"id":"task_01m3tzevvphzw3wp6mbgwr9r3m","goal":"you want to see your old orders","startUrl":"http://localhost:5174/","success":{"type":"urlMatches","pattern":"**/deliveries/archive"},"sourceStory":"open Settings and click the Archive tab to see my old orders","strippedPaths":["Settings","Archive"]},"rewritten":true}
+  HTTP 201
+  ```
+
+  The same body without `success`, on the same server, gives `HTTP 400` with `{"error":"✖ Invalid input: expected object, received undefined\n  → at success"}`.
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root. Lint checked 147 files with no fixes, typecheck passed in every package (filter's bare `tsconfig.perceive.json` included), and the tests ran 46 files, 716 tests.
 
 ## Out of scope
 
@@ -56,3 +71,36 @@ Read first, in this order:
 ## Notes for the reviewer
 
 - Try three stories of your own against a real key. If a screen name survives into a goal, the prompt or the check is too weak; say which.
+
+## Outcome
+
+What shipped, for the next reader. The design and every decision are in `docs/specs/2026-10-01-s4-01-extractor.md`.
+
+- **`POST /tasks`** (`packages/io/src/routes/tasks.ts`, `extractor.ts`) answers:
+  - `201 { task, rewritten }`;
+  - `422 { error, goal, survived }` after the repair round;
+  - `400 { error }` for a body that fails the request schema, which is strict and caps `story` at 2000 characters;
+  - `502 { error }` when the model call fails, picked by core's `WayfordError` code (`llm_…`), so io's library imports agent as types only.
+
+  A body that is not JSON at all gets Hono's own plain-text `400`.
+- **The model never sees `startUrl` or `success`.** It gets the prompt file and the story. Its answer schema is `{ goal, strippedPaths }`, with no other keywords, so every strict mode takes it. `Task.safeParse` decides.
+- **Two repair rounds, not one.** The adapter repairs a malformed answer inside one `complete`. The Extractor's own round is a second `complete` that carries the `Task` error.
+- **Core changes beyond the id module.**
+  - `task.ts` exports `strippedPathsIn`, the matcher `Task`'s refinement already used, so the `422` names screen names the same way the schema refused them.
+  - `docs/STACK.md` names `newId` in `packages/core/src/id.ts`.
+- **The id generator.** `newId(entity)` gives `<prefix>_<lowercase ULID>`. The random part comes from `crypto.getRandomValues`, typed through a local cast because filter's perceive entry compiles core with no DOM and no Node types. There is no monotonic mode.
+- **io now needs `LLM_API_KEY` to boot.** `server.ts` parses the LLM settings and builds one `Llm` at startup, with a pino logger. A `.env` without the key fails `pnpm dev` with `invalid_llm_settings`.
+- **The prompt was tightened after the first real run.**
+  - **The first run.** The model listed `"Archive tab"` in place of `"Archive"`, which weakens the whole-term check. It also wrote "the blender I bought" in a second-person goal.
+  - **The fix.** The prompt now asks for each screen name on its own and turns "I", "me" and "my" into "you" and "your".
+- **The author's probes** against a real key, with `openai/gpt-6-luna` at effort `high`, on the final prompt unless the row says otherwise. The reviewer note's three stories of the reviewer's own are still open for the PR reviewer.
+
+  | Story | Goal | `strippedPaths` | `rewritten` |
+  |---|---|---|---|
+  | open Settings and click the Archive tab to see my old orders | you want to see your old orders | Settings, Archive | true |
+  | go to Order history to find the blender I bought | you want to find the blender you bought | Order history | true |
+  | I want to see what I ordered three months ago | unchanged | none | false |
+  | you want to see what you ordered three months ago (first prompt) | unchanged | none | false |
+
+  No screen name survived into a goal. What the check cannot catch is a screen name the model leaves in the goal and also leaves off its list: `Task` knows only the seven path words and what the model says it stripped.
+- **A listed screen name loses a trailing UI noun** (tab, menu, page, button, link, section, screen) before it is stored and checked, so "Archive tab" becomes "Archive". A goal that keeps a bare "Archive" is then refused, not stored. The branch review found the gap, and a prompt sentence alone left it to the model.

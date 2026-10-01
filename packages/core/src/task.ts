@@ -60,6 +60,11 @@ function wholeTerm(term: string): RegExp {
   return new RegExp(`${lead}${escaped}${tail}`, "iu");
 }
 
+/** Which of the stripped screen names a sentence still carries, as whole terms. */
+export function strippedPathsIn(sentence: string, strippedPaths: readonly string[]): string[] {
+  return strippedPaths.filter((path) => wholeTerm(path).test(sentence));
+}
+
 /**
  * The user-facing sentence, in the user's terms. Rejecting path words here
  * rather than only in the Extractor means a task that measures the wrong thing
@@ -145,7 +150,7 @@ export const Task = z
     // stripped one has just told us what it is, so the goal is checked against
     // the list it carries. Whole terms only: stripping "Account" must not
     // outlaw a goal about accounting.
-    const kept = (task.strippedPaths ?? []).filter((path) => wholeTerm(path).test(task.goal));
+    const kept = strippedPathsIn(task.goal, task.strippedPaths ?? []);
     if (kept.length === 0) return;
     ctx.addIssue({
       code: "custom",

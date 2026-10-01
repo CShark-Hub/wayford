@@ -3,8 +3,8 @@ import { config as readEnvFile } from "dotenv";
 import { z } from "zod";
 
 // The LLM settings live in @wayford/agent (`parseLlmSettings`), which fails
-// when the key is missing. The first io route that calls the adapter must run
-// it at io's boot, from the same environment.
+// when the key is missing. `server.ts` runs it at boot, from the environment
+// this file loads.
 const ConfigSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),

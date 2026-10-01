@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { taskFixture, taskFixtures } from "./fixtures/index.js";
-import { Goal, PATH_WORDS, pathWordsIn, SuccessCondition, Task } from "./task.js";
+import { Goal, PATH_WORDS, pathWordsIn, SuccessCondition, strippedPathsIn, Task } from "./task.js";
 
 function rawFixture(id: string): Record<string, unknown> {
   return JSON.parse(JSON.stringify(taskFixture(id)));
@@ -34,6 +34,14 @@ describe("path words", () => {
 
   test("an intent is left alone", () => {
     expect(pathWordsIn("you want to know where your next parcel is going")).toEqual([]);
+  });
+});
+
+describe("stripped paths", () => {
+  test("only whole terms count, and they come back in the caller's spelling", () => {
+    expect(strippedPathsIn("see your Archive", ["Archive", "Settings"])).toEqual(["Archive"]);
+    expect(strippedPathsIn("see your archive", ["Archive"])).toEqual(["Archive"]);
+    expect(strippedPathsIn("help with accounting", ["Account"])).toEqual([]);
   });
 });
 

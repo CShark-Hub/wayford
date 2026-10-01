@@ -1,3 +1,4 @@
+import { fakeLlm } from "@wayford/agent/fake";
 import { runEventFixtures } from "@wayford/core/fixtures";
 import { describe, expect, test } from "vitest";
 import { createApp } from "./app.js";
@@ -44,7 +45,7 @@ const lastIndex = runEventFixtures.length - 1;
 
 describe("GET /health", () => {
   test("answers ok as JSON", async () => {
-    const res = await createApp().request("/health");
+    const res = await createApp({ llm: fakeLlm({}) }).request("/health");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/^application\/json/);
     expect(await res.text()).toBe('{"ok":true}');
@@ -52,7 +53,7 @@ describe("GET /health", () => {
 });
 
 describe("GET /runs/:id/events", () => {
-  const app = createApp({ replaySpacingMs: 0 });
+  const app = createApp({ llm: fakeLlm({}), replaySpacingMs: 0 });
 
   test("replays the fixture run as SSE, one message per RunEvent, named by its type", async () => {
     const res = await app.request("/runs/fixture/events");
@@ -99,7 +100,7 @@ describe("GET /runs/:id/events", () => {
   });
 
   test("spaces the events 300 ms apart by default, so a person can watch them arrive", async () => {
-    const res = await createApp().request("/runs/fixture/events");
+    const res = await createApp({ llm: fakeLlm({}) }).request("/runs/fixture/events");
     const [first, second] = await readSse(res, 2);
     if (!first || !second) throw new Error("expected two messages");
     // Timers may fire a millisecond early; 290 still rules out "no spacing".
