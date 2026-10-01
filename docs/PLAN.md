@@ -15,11 +15,11 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A5 | Demo target is our own small target app with tunable CSS variables. One real public site is used for a single credibility run. | default |
 | A6 | Preview runs the real filter code on the live target app, with a stored-snapshot fallback. | default |
 | A7 | Ring shows 3 to 5 personas, each with the event stream and per-step screenshots. No live video: cut to keep the hackathon scope small. | m0-08 |
-| A8 | Boundary sweep covers one axis (contrast) with the axis selector present but disabled. | default |
+| A8 | Boundary sweep covers two axes: contrast on Vera and the attention cap `maxElements` on Kai. The axis selector offers those two. | default, 2026-10-01 |
 | A9 | Report is structured findings rendered by the UI. The Analyst fills recommendation and hypothesis fields, never free prose. | default |
 | A10 | Avatars are procedural SVG derived from the profile seed and dimensions. No generated images. | default |
-| A11 | Four hand-written personas: Ada, Milo, Vera and Zoya (`docs/RULES.md`, "Persona composition"). PersonaLayer is cited as provenance where thresholds match. | default, m0-02 |
-| A12 | Perception dimension in full. Behaviour: one dice (double click). Knowledge: observation only, never in the Actor prompt template (`docs/RULES.md` pipeline, F5 AC6). Pattern rules K1 and K4 are a week 4 stretch (`s1-03`). Vocabulary (K2 masking, `[unfamiliar term]`) and readability (K3), `docs/RULES.md` stage 4: week 4 or the "what next" slide. | default, issue #19 |
+| A11 | Five hand-written personas: Ada, Kai, Milo, Vera and Zoya (`docs/RULES.md`, "Persona composition"). Kai sees everything Ada sees and differs only in knowledge, attention and memory; Kai lands with `s1-04`. PersonaLayer is cited as provenance where thresholds match. | default, m0-02, 2026-10-01 |
+| A12 | Perception dimension in full. Knowledge: pattern rules K1 and K4 in week 3 (`s1-03`), vocabulary K2 (`[unfamiliar term]`) in week 4 (`s1-05`), both in the observation only, never in the Actor prompt template (`docs/RULES.md` pipeline, F5 AC6). Attention: A1 in week 3 (`s1-03`); A3 is a week 4 stretch, A2 the "what next" slide. Memory: M1 (`s2-10`). Behaviour: one dice (double click) and the budget. Readability (K3): the "what next" slide. | default, issue #19, 2026-10-01 |
 | A13 | LLM access through OpenRouter with one key and a 50 USD cap. Adapter is OpenAI-compatible so any key works. Jev (A22) comes through the same key. | default |
 | A14 | Whole team works in TypeScript. | default |
 | A15 | SQLite through Drizzle at start. Postgres is one config change later. | default |
@@ -28,12 +28,14 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A18 | Team members run different coding agents (Claude Code, Codex, Cursor). Task files follow the `AGENTS.md` convention that all of them read. | default |
 | A19 | Project name is **Wayford**. Workspace scope `@wayford/*`. Rationale in `AGENTS.md`, section "On the name". | Tomasz, 2026-09-17 |
 | A20 | The run seed drives every perception decision and every dice roll. The profile seed only draws the avatar. A run set uses the same seed list for every persona and runs each persona once per seed, so personas are compared on the same dice. The Actor's LLM calls send one provider seed per run, derived from the run seed; a provider may ignore it, so the run records it and nothing relies on it. A sweep runs one run set per swept value and reuses the seed set on purpose (F9 AC3), so every value is compared on the same dice (and is sent the same provider seeds). | m0-08, issues #20 and #22 |
-| A21 | Streams are areas of the code, not people. Anyone may claim any task whose dependencies are merged; `tasks/BOARD.md` suggests a split into four slots so nobody waits. | Tomasz, 2026-09-25 |
+| A21 | Streams are areas of the code, not people. No task is assigned to a person: whoever has time takes the next unowned task whose dependencies are merged. `tasks/BOARD.md` and the dependency map in `docs/ROADMAP.md` show what can start after what. | Tomasz, 2026-09-25, 2026-10-01 |
 | A22 | The Actor has two backends behind one seam: an LLM, the default, and Jev, a decision model that returns a probability per option instead of text. A run set uses one backend. Decision, limits and gate: `docs/adr/0001-jev-actor-backend.md`. | Tomasz, 2026-09-26 |
 
 ## Goal
 
 Given an application URL, a goal sentence and one or more capability profiles, report at what capability level the goal stops being reachable, with evidence that a developer can reproduce.
+
+A capability is more than legibility. What a persona knows, how much of a page it takes in and how much it remembers can close a route too, and a route closed only by those is one no page scanner reports. The report keeps two things apart: how often the filter left a route open, which is deterministic, and how often the persona got through, which depends on the agent and is a hypothesis about wayfinding, not a prediction of people.
 
 Pitch line: we do not answer "does it work", we answer "who does it work for".
 
@@ -138,10 +140,10 @@ Analyst output per task.
 One axis, one path.
 
 - AC1 Input: axis, range, step. Output: table of value and success rate, boundary value marked.
-- AC2 Chart with a marker on the boundary value.
+- AC2 Chart with a marker on the boundary value. Beside the success rate it shows, per value, the share of seeds whose filtered observations left a route to the goal open. That share is what the filter decided. The gap between it and the success rate is the agent's own wayfinding: a hypothesis about the route, not a measurement of the persona.
 - AC3 Sweep runs reuse the same seed set for every value.
-- AC4 The swept value is a profile threshold, a capability, never a target-app parameter, and its softness stays fixed for the whole sweep. App parameters stay fixed for the whole sweep and are recorded on every run in its start URL. That is what makes a sweep work on a site we cannot tune.
-- AC5 The boundary is the first value, counting from the laxest, whose success rate over the seed set falls below 50%. The chart states the rate. For a fixed seed the state a perception rule gives an element never improves as its threshold rises (`docs/RULES.md`). So for a goal reachable only through one link, such as the target app's hard goal, the seeds where the swept rule leaves that link visible or degraded never grow in number, and at each value successes never exceed them (`docs/RULES.md` calibration row "Sweep on contrast"). The success rate itself is not monotone: the Actor's own variance can raise it at a stricter value, and so can an attention cap (A1, A3), which may show an element that a stricter threshold freed a slot for.
+- AC4 The swept value is a profile threshold or cap, a capability, never a target-app parameter, and its softness stays fixed for the whole sweep. App parameters stay fixed for the whole sweep and are recorded on every run in its start URL. That is what makes a sweep work on a site we cannot tune.
+- AC5 The boundary is the first value, counting from the laxest, whose success rate over the seed set falls below 50%. The chart states the rate. For a fixed seed the state a perception rule gives an element never improves as its threshold rises (`docs/RULES.md`). So for a goal reachable only through one link, such as the target app's hard goal, the seeds where the swept rule leaves that link visible or degraded never grow in number, and at each value successes never exceed them (`docs/RULES.md` calibration row "Sweep on contrast"). The success rate itself is not monotone: the Actor's own variance can raise it at a stricter value, and so can an attention cap (A1, A3), which may show an element that a stricter threshold freed a slot for. On `maxElements` (Kai) the same bound holds: A1 shows a prefix of one salience order, so for a fixed seed a smaller cap never shows an element a larger one hid.
 
 ### F10 axe-core sidecar
 
@@ -150,7 +152,7 @@ One axis, one path.
 
 ### F11 Demo data
 
-- AC1 One command seeds the database with 3 personas, 2 tasks, 10 runs per persona per task, one sweep.
+- AC1 One command seeds the database with 3 personas, 2 tasks, 10 runs per persona per task, one sweep per axis.
 - AC2 The dashboard looks populated after seeding.
 
 ### F12 Recording
@@ -171,9 +173,9 @@ Screens:
 6. Report: per task, findings grouped by type.
 7. Sweep: axis, range, table, chart.
 
-Look: two registers on purpose. Input side is playful: large avatar cards, bold names, one colour per persona, race track. Output side is sober: monochrome, dense, evidence first, monospace for seeds and measurements. Dark theme by default. The persona colour is the only thing that crosses both registers.
+Weeks 1 to 3 build screens function first; week 4's design pass decides the look (`docs/ROADMAP.md`, week 4), starting from this brief. Look: two registers on purpose. Input side is playful: large avatar cards, bold names, one colour per persona, race track. Output side is sober: monochrome, dense, evidence first, monospace for seeds and measurements. Dark theme by default. The persona colour is the only thing that crosses both registers.
 
-Avatars: procedural SVG, layered parts, deterministic from the profile seed. Parts follow dimensions: thick glasses for a low contrast threshold, phone in hand for mobile, hourglass for low patience. Six animation states driven by run events (F6 AC2), done with CSS or Framer Motion.
+Avatars: procedural SVG, layered parts, deterministic from the profile seed. Parts follow dimensions: thick glasses for a low contrast threshold, phone in hand for mobile, hourglass for low patience. Six states driven by run events (F6 AC2), each a static variant of the avatar; motion was cut on 2026-10-01 to fit week 3.
 
 ## Architecture
 

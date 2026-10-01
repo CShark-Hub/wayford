@@ -58,28 +58,60 @@ Critical path: #16 → `s1-01` → `s1-02` and `s3-01`. Review those first. Dev 
 
 Monday 2026-10-05 to Sunday 2026-10-11. Written in `m0-08` and cut to what the demo needs; check each task's Context against what week 2 actually merged before starting it.
 
-| Task | Title | Size | Depends on | Slot | Owner | Status |
-|---|---|---|---|---|---|---|
-| s2-03 | Actor loop | L | s1-02, s2-01, s2-02, #19, #31, #114 | Dev 2 | | todo |
-| s3-05 | Live preview on the target app | S | s1-02, s2-02, s3-01 | Dev 3 | | todo |
-| s2-04 | Scout: ground truth per task | S | s2-03 | Dev 1 | | todo |
-| s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Dev 4 | | todo |
-| s3-03 | Ring: several personas on one task, live | L | s3-02 (s4-03 for the real-key box) | Dev 3 | | todo |
-| s3-04 | Dashboard and run detail | L | s3-02, #15 (s4-03 for the `pnpm dev` box) | Dev 1 | | todo |
-| s2-06 | Jev Actor backend | L | s2-03, s2-05 | Dev 2 | | todo |
+Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they know and take in, not only in what they see (`docs/ROADMAP.md`, week 3). To fit, `s1-03` drops A3 and the ring drops its motion (`s3-03`, now M). After a review of the plan the same day, the Actor loop is split in two (`s2-03`, `s2-10`) so the runs API can start on the bare loop, and a calibration run on the real model (`s2-11`) is the week's go/no-go.
 
-**Waves.**
+**Function first.** Week 3 screens use the shell's existing tokens and components and spend no time on the look: week 4 reworks the design of every demo screen (`docs/ROADMAP.md`, week 4). A screen is done when its acceptance boxes pass, not when it looks finished.
 
-1. Monday: `s2-03`, `s3-05`, `s3-04`, and anything left over from week 2. `s3-03` follows `s3-05` in the Dev 3 slot.
-2. After `s2-03`: `s2-04`, `s4-03`, and `s2-06` in the Dev 2 slot.
-3. After `s4-03`: the real-run acceptance boxes of `s3-03` and `s3-04`.
+| Task | Title | Size | Depends on | Owner | Status |
+|---|---|---|---|---|---|
+| s2-03 | Actor loop: observe, act, record | M | s1-02, s2-01, s2-02 | | todo |
+| s1-04 | Target app: three routes to the hard goal, and Kai | M | — | | todo |
+| s3-03 | Ring: several personas on one task, live | M | s3-02 (s4-03 and s1-04 for the real-key box) | | todo |
+| s3-04 | Dashboard and run detail | L | s3-02 (s4-03 for the `pnpm dev` box) | | todo |
+| s2-10 | Actor loop: memory, behaviour dice and budget | M | s2-03 | | todo |
+| s2-11 | Calibration run on the real model | S | s2-03, s1-04 | | todo |
+| s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | | todo |
+| s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | | todo |
+| s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | | todo |
+| s3-05 | Live preview on the target app | S | s1-02, s2-02, s3-01 (s1-04 for the new pages) | | todo |
+| s2-06 | Jev Actor backend | L | s2-03, s2-05, s2-11 | | todo |
+
+**No task is assigned to a person.** Whoever has time takes the next unowned task whose dependencies are merged, writes their name in Owner, and goes. The dependency map in `docs/ROADMAP.md` shows the same as a graph, with week 4's preliminary work.
+
+**What can start after what.**
+
+- Ready now, on `main`: `s2-03`. It may start before Monday, and it should: it is the start of the critical path.
+- Ready as soon as this plan merges: `s1-04`, `s3-03`, `s3-04`.
+- After `s2-03`: `s2-10`, `s2-04`, `s4-03` once `s4-02` is in too, and `s2-11` once `s1-04` is in too.
+- After `s1-04` and a fix for #124: `s1-03`.
+- After `s3-01`: `s3-05`.
+- After `s2-11`, with `s2-05` in: `s2-06`. It is the last week 3 task to take.
+- After `s4-03`: the real-run boxes of `s3-03` and `s3-04`.
+
+Of the ready tasks, take the critical path first. `s2-03` → `s4-03` → the real runs in the ring is the week 3 meeting point, so `s2-03` goes first and is reviewed first. Next come `s2-11`, the go/no-go: if Ada cannot reach both goals on the real model, nothing built on the loop means anything yet. Then `s1-04`, since `s1-03`, `s2-11`, `s1-05` and the week 4 sweep all wait on it.
 
 `s3-03` and `s3-04` build against the routes `s4-03` describes, with stubbed responses, and wait for its merge only for their real-run checks. That keeps three L tasks from running in series.
 
-Critical path: `s2-03` → `s4-03` → the real runs in the ring. That chain is the week 3 meeting point, so review those first. Dev 4 starts the week free on purpose: that is the room for week 2 slips and for reviewing `s2-03`. `s2-06` is off the critical path: nothing waits on it, and its gate decides whether week 4 runs on Jev.
+Scout stays in the week: without ground truth a report cannot tell a broken feature from one a persona could not find (`AGENTS.md`, "Scout is mandatory"). `s2-06` is off the critical path: nothing waits on it, and its gate decides whether week 4 runs on Jev.
 
-**Cut order, from `docs/ROADMAP.md`.** `s2-06` first: it slips to week 4 or drops, and the LLM backend stays. Then `s2-04`: a hand-written ground truth per task replaces Scout. Then the ring's animation.
+**Reviews are the bottleneck.** In week 2, PRs that needed two approvals waited 10 to 29 hours. `s1-04` and `s1-03` need two each and run one after the other. Whoever takes one asks two reviewers when they take it, not when the PR opens.
+
+**The week is full.** Eleven tasks and a fix for #124, against about eight a week (`docs/ROADMAP.md`). It fits only if `s2-03` starts this week.
+
+**Cut order, from `docs/ROADMAP.md`.** `s2-06` slips to week 4 first, and the LLM backend stays. Then the ring itself, in favour of the dashboard. Scout is not on this list.
+
+**A decision, not a task, before week 3 ends:** the 90-second demo script. It covers which personas run in the ring, on which goal, and which pages the preview shows. The one in `KONCEPCJA.md` is perception only, and it starts with a persona builder that no task builds.
 
 ## Week 4 — M4 report and sweep, M5 demo
 
-Task files are written at the end of week 3. Stretch already written: `s1-03`, the knowledge and attention stages of the filter.
+Task files are written at the end of week 3, and the week is arranged then. Preliminary content, from `docs/ROADMAP.md` week 4:
+
+- Analyst and the report screen.
+- The sweep on two axes, contrast on Vera and `maxElements` on Kai, and its screen.
+- axe-core sidecar.
+- `seed:demo`, the backup video and the public-site run.
+- **Design pass**: a rework of the look of every demo screen. Week 3 builds them function first, so this is where the look is decided. Likely more than one task: a direction and tokens first, then the screens.
+- Already written: `s1-05`, vocabulary (K2). It can start once `s1-03` and `s1-04` are merged.
+- The sweep chart shows, beside the success rate, how often the filter left a route open (`docs/PLAN.md` F9 AC2): on the attention cap the filter's own boundary is arithmetic, and the gap between the two curves is what the agent adds.
+
+That is more than eight tasks. The cut order in `docs/ROADMAP.md` decides what gives way. Stretch: A3, the option cap, cut from `s1-03`.

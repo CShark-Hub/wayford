@@ -3,7 +3,7 @@
 Stream: s2
 Milestone: week 3
 Size: S
-Depends on: s2-03
+Depends on: s2-03. The real-key box runs after s1-04, so the ground truth covers the app as it will be demoed.
 
 ## Context
 
@@ -13,7 +13,7 @@ Read first, in this order:
 - `docs/PLAN.md` F4
 - `packages/agent/src/` after s2-03 — the loop Scout reuses
 - `packages/core/src/task.ts` — a task and its success condition
-- `packages/target-app/README.md` section "Goals" — the two known routes
+- `packages/target-app/README.md` section "Goals" and `ROUTES` in `src/pages.ts` after s1-04 — the known routes
 
 ## Goal
 
@@ -22,12 +22,12 @@ For each task an unconstrained run records whether the goal is reachable, the pa
 ## Interface
 
 - In: `Task`
-- Out: a `GroundTruth` schema and fixture in core (task id, reached or not, the path as URLs and element keys, the target element's key and page); `scout(task)` from `@wayford/agent`; one JSON file per task under `runs/ground-truth/`
+- Out: a `GroundTruth` schema and fixture in core (task id, reached or not, the shortest path as URLs and element keys, every successful attempt's path, the target element's key and page); `scout(task)` from `@wayford/agent`; one JSON file per task under `runs/ground-truth/`
 - Files expected to change: `packages/agent/src/**`, new `packages/core/src/ground-truth.ts` with its test and fixture, `packages/core/src/fixtures/index.ts`, `packages/core/src/index.ts` (one line)
 
 ## Constraints
 
-- Full vision: a profile with no thresholds, no caps, every pattern known, and no behaviour dice. Model role `scout`. Up to 3 attempts; the shortest successful one is the ground truth, and no success is a result too.
+- Full vision: a profile with no thresholds, no caps, every pattern known, and no behaviour dice. Model role `scout`. Up to 3 attempts; the shortest successful one is the ground truth, and no success is a result too. Every successful attempt is kept with its path, so the report can say a route works even when it is not the shortest.
 - Scout's model id goes on the `GroundTruth`, because a run records only the Actor's (`ModelIds` in `packages/core/src/run.ts`). If a Scout attempt goes through `runActor`, its `runStarted` would name Scout's model as `modelIds.actor`. Say in the PR which way it goes: Scout attempts emit no `runStarted`, or they are runs and the `ModelIds` comment changes to say so.
 - Run it by hand when the target app changes. No cache and no DOM hash: we own the app and know when it changes.
 - "The Actor has no access to Scout's output" (`AGENTS.md`). A test walks the imports from the Actor entry and fails if a Scout module or the ground-truth directory appears (F4 AC3).

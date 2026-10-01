@@ -46,13 +46,13 @@ Where that meets Wayford:
 
 ## Gate
 
-`s2-06` runs the calibration check from `docs/RULES.md` on both backends with the same seeds and fills this table:
+`s2-06` runs the calibration check from `docs/RULES.md` on both backends with the same seeds, through `calibrate` (`s2-11`), and fills this table. The hard-cut row names Vera since 2026-10-01: with `s1-04` the hard goal has three routes, and only a persona whose target cut closes the entrances to the other two is left with the faint link alone.
 
 | Check | LLM | Jev |
 |---|---|---|
 | Ada, easy goal, seeds 1–10: successes | | |
 | Ada, easy goal: median steps, total cost, wall time | | |
-| Hard contrast cut of 3.0, hard goal, seeds 1–10: successes | | |
+| Vera with her contrast cut made hard (3.0, softness 0), hard goal, seeds 1–10: successes | | |
 
 Jev passes with at least 8/10 for Ada and 0/10 under the hard cut.
 
