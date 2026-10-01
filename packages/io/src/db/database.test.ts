@@ -2,9 +2,11 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { WayfordError } from "@wayford/core";
 import { profileFixtures } from "@wayford/core/fixtures";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { migrateDatabase, openDatabase, sqliteFilePath } from "./database.js";
+import { z } from "zod";
+import { migrateDatabase, openDatabase, parseRow, sqliteFilePath } from "./database.js";
 import { profiles } from "./schema.js";
 
 // Four levels up from packages/io/src/db: the directory that holds `.env`.
@@ -28,6 +30,21 @@ describe("sqliteFilePath", () => {
 
   test(":memory: stays in memory", () => {
     expect(sqliteFilePath(":memory:")).toBe(":memory:");
+  });
+});
+
+test("parseRow throws invalid_row naming the table and the id, with the ZodError on cause", () => {
+  let thrown: unknown;
+  try {
+    parseRow("runs", "run_x", z.object({ n: z.number() }), { n: "1" });
+  } catch (error) {
+    thrown = error;
+  }
+  expect(thrown).toBeInstanceOf(WayfordError);
+  expect(thrown).toMatchObject({
+    code: "invalid_row",
+    message: expect.stringContaining("runs row run_x"),
+    cause: expect.any(z.ZodError),
   });
 });
 
