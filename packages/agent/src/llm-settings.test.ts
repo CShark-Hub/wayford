@@ -116,6 +116,40 @@ describe("the role variables", () => {
   });
 });
 
+describe("LLM_ACTOR_BACKEND and LLM_JEV_MODEL", () => {
+  test("a key alone runs the Actor on the LLM, with Jev pinned to typesafe/jev-1.13", () => {
+    const settings = parseLlmSettings({ LLM_API_KEY: KEY });
+    expect(settings.actorBackend).toBe("llm");
+    expect(settings.jevModel).toBe("typesafe/jev-1.13");
+  });
+
+  test("accepts the Jev backend on the pinned model", () => {
+    const settings = parseLlmSettings({
+      LLM_API_KEY: KEY,
+      LLM_ACTOR_BACKEND: "jev",
+      LLM_JEV_MODEL: "typesafe/jev-1.13",
+    });
+    expect(settings).toMatchObject({ actorBackend: "jev", jevModel: "typesafe/jev-1.13" });
+  });
+
+  test("a backend other than llm or jev is rejected, on the line naming its variable", () => {
+    const error = settingsError({ LLM_API_KEY: KEY, LLM_ACTOR_BACKEND: "claude-code" });
+    expect(error.message).toMatch(/^ {2}LLM_ACTOR_BACKEND: \S/m);
+    expect(error.message).not.toContain("claude-code");
+  });
+
+  // ADR 0001: both change the model under a tuned run. The System One API routes a bare id
+  // under `typesafe/`, and `jev-latest` as `~typesafe/jev-latest`.
+  test.each(["~typesafe/jev-latest", "typesafe/jev-router", "jev-latest", "jev-router"])(
+    "rejects %s, which floats",
+    (model) => {
+      const error = settingsError({ LLM_API_KEY: KEY, LLM_JEV_MODEL: model });
+      expect(error.message).toMatch(/^ {2}LLM_JEV_MODEL: must name a pinned Jev version/m);
+      expect(error.message).not.toContain(model);
+    },
+  );
+});
+
 test("every offending variable gets its own line", () => {
   const error = settingsError({ LLM_BASE_URL: "http://example.com", LLM_SCOUT_EFFORT: "extreme" });
   const [header, ...lines] = error.message.split("\n");

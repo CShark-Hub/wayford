@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import { fakeLlm } from "./fake-llm.js";
 import { type ChatMessage, LlmError } from "./llm.js";
@@ -96,4 +96,62 @@ test("an empty queue throws a plain Error naming the role", async () => {
     expect(error).not.toBeInstanceOf(LlmError);
     expect((error as Error).message).toContain(role);
   }
+});
+
+describe("decide", () => {
+  const OPTIONS = { e1: 'Click the link "Home"', back: "Go back to the previous page" };
+  const QUESTION = { instructions: "Which one action do you take next?", options: OPTIONS };
+  const decide = (llm: ReturnType<typeof fakeLlm>, state = "Page: Home") =>
+    llm.decide({ role: "actor", state, question: QUESTION });
+
+  test("answers from the role's queue with canned probabilities, from model fake at zero cost", async () => {
+    const llm = fakeLlm({
+      actor: [
+        { choice: "e1", confidence: 0.9, probabilities: { e1: 1, back: 0 } },
+        { choice: "back", confidence: 0.1, probabilities: { e1: 0.5, back: 0.5 } },
+      ],
+    });
+
+    expect(await decide(llm)).toStrictEqual({
+      choice: "e1",
+      confidence: 0.9,
+      probabilities: { e1: 1, back: 0 },
+      model: "fake",
+      cost: ZERO,
+    });
+    expect((await decide(llm)).probabilities).toStrictEqual({ e1: 0.5, back: 0.5 });
+  });
+
+  test("records every request as it was sent, apart from complete's", async () => {
+    const llm = fakeLlm({
+      actor: [{ choice: "e1", confidence: 0.9, probabilities: { e1: 1, back: 0 } }],
+    });
+    const options: Record<string, string> = { ...OPTIONS };
+    await llm.decide({ role: "actor", state: "Page: Home", question: { ...QUESTION, options } });
+    // A caller that keeps one options object must not rewrite what the call recorded.
+    options.e9 = 'Click the link "Later"';
+
+    expect(llm.decideCalls).toStrictEqual([
+      { role: "actor", state: "Page: Home", question: QUESTION },
+    ]);
+    expect(llm.calls).toStrictEqual([]);
+  });
+
+  // `choiceAnswer`'s cases are llm.test.ts's; this shows the fake fails the way the adapter does.
+  test("a canned answer naming a key not offered is llm_invalid_output at zero cost", async () => {
+    const canned = { choice: "e9", confidence: 0.9, probabilities: { e1: 1, back: 0 } };
+    const error = await decide(fakeLlm({ actor: [canned] })).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(LlmError);
+    expect(error).toMatchObject({ code: "llm_invalid_output", cost: ZERO });
+    expect((error as LlmError).cause).toBeInstanceOf(z.ZodError);
+  });
+
+  test("takes from the queue complete takes from, in call order", async () => {
+    const pick = { choice: "back", confidence: 0.6, probabilities: { e1: 0.2, back: 0.8 } };
+    const llm = fakeLlm({ actor: [{ capital: "Paris" }, pick] });
+
+    await llm.complete({ role: "actor", messages: MESSAGES, schema: Capital });
+    expect((await decide(llm)).choice).toBe("back");
+  });
 });

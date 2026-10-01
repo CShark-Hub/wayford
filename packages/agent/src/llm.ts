@@ -1,16 +1,45 @@
 /**
  * The one way a package asks a model for something: `complete` sends the caller's messages to the
  * role's model on an OpenAI-compatible `/chat/completions` endpoint and returns a zod-parsed
- * object, what it cost and the sampling it was sent (`docs/PLAN.md`, "AI access").
+ * object, what it cost and the sampling it was sent (`docs/PLAN.md`, "AI access"). `decide` asks
+ * Jev one Choice question and returns a probability per option (`docs/adr/0001-jev-actor-backend.md`).
  *
  * Plain `fetch` and no SDK, so the body holds the caller's messages and the role's settings and
  * nothing else reaches the model. Every setting comes from config, so there is no provider branch
  * here either.
+ *
+ * `decide` speaks OpenRouter's System One API, as found on 2026-10-01 in the Jev guide
+ * (https://openrouter.ai/docs/guides/community/jev) and the two pages it links: the TypeSafe SDK
+ * page, which documents the System One API
+ * (https://openrouter.ai/docs/guides/community/typesafe-sdk), and the Decisions API reference,
+ * which documents the same body
+ * (https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request):
+ *
+ *   POST {baseUrl}/systemone
+ *   { "model": "typesafe/jev-1.13", "state": "<text>",
+ *     "questions": { "question": { "type": "choice", "instructions": "<text>",
+ *                                  "criteria": { "<key>": "<description>", … } } } }
+ *
+ *   → { "id": "gen-dec-…", "model": "typesafe/jev-1.13-20260917", "provider": "TypeSafe",
+ *       "answers": { "question": { "type": "choice", "choice": "<key>", "confidence": 0.75,
+ *                                  "probabilities": { "<key>": 0.84, … } } },
+ *       "usage": { "input_tokens": 476, "output_tokens": 70, "cost": 0.000019992 } }
+ *
+ * A Choice question takes up to 255 options. The docs say its probabilities sum to 1
+ * (https://docs.typesafe.ai/primitives/choice), but Jev rounds each one to two decimals, so the
+ * sum can fall short (see `Decision`).
  */
-import { type Cost, LLM_ROLES, type LlmRole, Sampling, WayfordError } from "@wayford/core";
+import {
+  type Cost,
+  LLM_ROLES,
+  type LlmRole,
+  Probability,
+  Sampling,
+  WayfordError,
+} from "@wayford/core";
 import type { Logger } from "pino";
 import { z } from "zod";
-import type { LlmSettings, RoleSettings } from "./llm-settings.js";
+import type { LlmSettings } from "./llm-settings.js";
 import { costOf, loadModelPrices, type ModelPrice, priceOf } from "./models.js";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -32,8 +61,38 @@ export type Completion<T> = {
   sampling: Sampling;
 };
 
+/** One Jev Choice question. */
+export type ChoiceQuestion = {
+  instructions: string;
+  /** Option key → what the option means, sent as Jev's `criteria`. Jev answers with these keys. */
+  options: Readonly<Record<string, string>>;
+};
+
+export type DecideRequest = { role: LlmRole; state: string; question: ChoiceQuestion };
+
+/**
+ * Jev's answer, reported and never acted on: `decide` never samples. The Actor draws from
+ * `probabilities` with the run seed (s2-06).
+ */
+export type Decision = {
+  /**
+   * One per offered key, each in [0, 1], as Jev sent them: rounded, so their sum can miss 1, and
+   * a draw goes over the sum it gets. The key order is Jev's: iterate the offered options for any
+   * order that matters.
+   */
+  probabilities: Record<string, number>;
+  /** How concentrated the probabilities are, in [0, 1]. Stored, never acted on (ADR 0001). */
+  confidence: number;
+  /** Jev's own pick, one of the offered keys. */
+  choice: string;
+  /** The configured id, the one priced. The answer may name a snapshot of it. */
+  model: string;
+  cost: Cost;
+};
+
 export type Llm = {
   complete<S extends z.ZodObject>(request: CompleteRequest<S>): Promise<Completion<z.output<S>>>;
+  decide(request: DecideRequest): Promise<Decision>;
 };
 
 export type LlmDeps = {
@@ -42,7 +101,7 @@ export type LlmDeps = {
   fetch?: typeof fetch;
   /** Tests record the backoff instead of waiting it out. */
   sleep?: (ms: number) => Promise<void>;
-  /** Per attempt. */
+  /** Per attempt, for both calls. Unset: 300 s for `complete`, 30 s for `decide`. */
   timeoutMs?: number;
 };
 
@@ -68,7 +127,10 @@ export function samplingOf(temperature: number, seed?: number): Sampling {
 }
 
 // `max` effort on an Analyst-sized prompt can think for minutes; a shorter limit cuts real calls.
-const DEFAULT_TIMEOUT_MS = 300_000;
+const COMPLETE_TIMEOUT_MS = 300_000;
+// Jev answers in 70 to 500 ms (ADR 0001). A timeout is never retried, so a hang must not stall a
+// run for the five minutes `complete` allows.
+const DECIDE_TIMEOUT_MS = 30_000;
 
 // The first attempt plus the "at most 3" retries of `docs/STACK.md`.
 const MAX_ATTEMPTS = 4;
@@ -120,31 +182,85 @@ const MaybeErrorIn2xx = z.object({
   usage: Usage.optional(),
 });
 
-/** What every attempt of one `complete` shares. `cost` is its running total. */
-type Call = { role: LlmRole; config: RoleSettings; price: ModelPrice; logger: Logger; cost: Cost };
+// The fields `decide` reads. `answers` is checked against the question in `decide`, since only
+// the question knows which keys were offered.
+const SystemOneAnswer = z.object({
+  answers: z.record(z.string(), z.unknown()),
+  usage: z.object({
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+    // OpenRouter's own figure, logged only: models.yaml prices every call.
+    cost: z.number().optional(),
+  }),
+  model: z.string().optional(),
+  provider: z.string().optional(),
+});
+
+/** The name of the one question `decide` asks per call, and of its answer. */
+const QUESTION_KEY = "question";
 
 /**
- * One attempt, classified. Only a 2xx reports `usage`: the answer, or a host that failed inside
+ * Jev's answer to a question offering `options`, as `decide` and its fake check it: a pick among
+ * the offered keys, and a probability for exactly those keys, not all zero, so the Actor has
+ * something to draw from (s2-06).
+ */
+export function choiceAnswer(options: ChoiceQuestion["options"]) {
+  // With no options, no key parses, so every answer fails.
+  const Key = z.enum(Object.keys(options) as [string, ...string[]]);
+  return z.object({
+    choice: Key,
+    confidence: Probability,
+    // Keyed by an enum, a zod 4 record is exhaustive: a missing key and an unknown one both fail.
+    // The sum is not held to 1: Jev rounds each value to two decimals, so a long tail of small
+    // ones rounds to zero and can take a tenth with it.
+    probabilities: z
+      .record(Key, Probability)
+      .refine(
+        (p) => Object.values(p).some((v) => v > 0),
+        "at least one probability must be above zero",
+      ),
+  });
+}
+
+/** What every attempt of one call shares. `cost` is its running total. */
+type Call = { role: LlmRole; model: string; price: ModelPrice; logger: Logger; cost: Cost };
+
+/** Token counts as each endpoint's usage maps onto them, before they are priced. */
+type Tokens = { tokensIn: number; tokensOut: number };
+
+/**
+ * One attempt, classified. Only a 2xx reports usage: the answer, or a host that failed inside
  * one. `what` names the failure for the error message.
  */
-type Attempt =
+type Attempt<T> =
   | {
       kind: "ok";
       status: number;
-      content: string | null;
-      usage: Usage;
+      value: T;
+      tokens: Tokens;
       served?: string | undefined;
       host?: string | undefined;
+      reportedUsd?: number | undefined;
     }
-  | {
-      kind: "retry" | "fail";
-      code: "llm_request_failed" | "llm_bad_response";
-      outcome: string;
-      what: string;
-      status?: number;
-      usage?: Usage;
-      cause?: unknown;
-    };
+  | Failure;
+
+type Failure = {
+  kind: "retry" | "fail";
+  code: "llm_request_failed" | "llm_bad_response";
+  outcome: string;
+  what: string;
+  status?: number;
+  tokens?: Tokens;
+  cause?: unknown;
+};
+
+/** Where one kind of call goes, and how its answers are read. */
+type Endpoint<T> = {
+  url: string;
+  timeoutMs: number;
+  /** Reads a 2xx. `attempt` fails or retries every other status before it gets here. */
+  classify: (status: number, json: unknown, text: string) => Attempt<T>;
+};
 
 type Parsed<T> =
   | { ok: true; value: T }
@@ -154,8 +270,20 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
   const prices = loadModelPrices();
   // Every role up front, so an unknown model fails at boot and not on the first Analyst call.
   for (const role of LLM_ROLES) priceOf(prices, settings.roles[role].model);
+  // And Jev's, whatever the backend, for the same reason.
+  priceOf(prices, settings.jevModel);
 
-  const endpoint = `${settings.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  const baseUrl = settings.baseUrl.replace(/\/+$/, "");
+  const chat: Endpoint<string | null> = {
+    url: `${baseUrl}/chat/completions`,
+    timeoutMs: deps.timeoutMs ?? COMPLETE_TIMEOUT_MS,
+    classify: classifyChat,
+  };
+  const systemOne: Endpoint<unknown> = {
+    url: `${baseUrl}/systemone`,
+    timeoutMs: deps.timeoutMs ?? DECIDE_TIMEOUT_MS,
+    classify: classifyDecision,
+  };
   const headers = {
     authorization: `Bearer ${settings.apiKey}`,
     "content-type": "application/json",
@@ -163,14 +291,14 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
   const send = deps.fetch ?? fetch;
   const sleep =
     deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  async function attempt(payload: string): Promise<Attempt> {
+  async function attempt<T>(endpoint: Endpoint<T>, payload: string): Promise<Attempt<T>> {
+    const { url, timeoutMs } = endpoint;
     const signal = AbortSignal.timeout(timeoutMs);
     let response: Response;
     let text: string;
     try {
-      response = await send(endpoint, { method: "POST", headers, body: payload, signal });
+      response = await send(url, { method: "POST", headers, body: payload, signal });
       // Whole, before anything uses it: a body cut off midway rejects here and is retried as a
       // network error, never parsed as half an answer.
       text = await response.text();
@@ -184,40 +312,42 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
       const what = `a network error: ${networkReason(error)}`;
       return { kind: "retry", code: "llm_request_failed", outcome: "network", what, cause: error };
     }
-    return classify(response.status, parseJson(text), text);
+    const json = parseJson(text);
+    if (!response.ok) return httpFailure(response.status, json, text);
+    return endpoint.classify(response.status, json, text);
   }
 
-  /** One round: the same bytes until a chat completion, or until retrying cannot help. */
-  async function post(
+  /** A new call on `model`, at zero cost. `bindings` join the role and model on its log lines. */
+  function newCall(role: LlmRole, model: string, bindings: object = {}): Call {
+    const logger = deps.logger.child({ role, model, ...bindings });
+    const cost = { tokensIn: 0, tokensOut: 0, usd: 0 };
+    return { role, model, price: priceOf(prices, model), logger, cost };
+  }
+
+  /** One round: the same bytes until an answer, or until retrying cannot help. */
+  async function post<T>(
     call: Call,
-    round: "answer" | "repair",
+    round: "answer" | "repair" | "decide",
+    endpoint: Endpoint<T>,
     body: object,
-  ): Promise<string | null> {
-    // Never a message, the content, the key or a header.
+  ): Promise<T> {
+    // Never a message, the state, the options, the content, the key or a header.
     const logger = call.logger.child({ round });
     // Serialised once, so every attempt sends the same complete request, whatever the caller
-    // does with its message array meanwhile.
+    // does with its message array or its options meanwhile.
     const payload = JSON.stringify(body);
     for (let n = 1; ; n++) {
       if (n > 1) await sleep(FIRST_BACKOFF_MS * 2 ** (n - 2));
-      const result = await attempt(payload);
-      if (result.usage !== undefined) {
-        const { prompt_tokens, completion_tokens } = result.usage;
-        call.cost = addCost(call.cost, costOf(call.price, prompt_tokens, completion_tokens));
+      const result = await attempt(endpoint, payload);
+      if (result.tokens !== undefined) {
+        const { tokensIn, tokensOut } = result.tokens;
+        call.cost = addCost(call.cost, costOf(call.price, tokensIn, tokensOut));
       }
       if (result.kind === "ok") {
-        const { status, usage, served, host } = result;
-        const line = {
-          attempt: n,
-          outcome: "ok",
-          status,
-          tokensIn: usage.prompt_tokens,
-          tokensOut: usage.completion_tokens,
-          served,
-          host,
-        };
+        const { status, tokens, served, host, reportedUsd } = result;
+        const line = { attempt: n, outcome: "ok", status, ...tokens, served, host, reportedUsd };
         logger.info(line, "llm attempt");
-        return result.content;
+        return result.value;
       }
       logger.warn({ attempt: n, outcome: result.outcome, status: result.status }, "llm attempt");
       if (result.kind === "fail") throw failed(call, result, `failed with ${result.what}`);
@@ -233,20 +363,18 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
     const { role, messages, schema, seed } = request;
     const config = settings.roles[role];
     const sampling = samplingOf(config.temperature, seed);
-    const price = priceOf(prices, config.model);
     // The effort is on every line because the run record has no field for it yet.
-    const logger = deps.logger.child({ role, model: config.model, effort: config.effort });
-    const call: Call = { role, config, price, logger, cost: { tokensIn: 0, tokensOut: 0, usd: 0 } };
+    const call = newCall(role, config.model, { effort: config.effort });
     const body = {
       model: config.model,
       messages,
       temperature: config.temperature,
       ...(seed === undefined ? {} : { seed }),
       ...(config.effort === undefined ? {} : { reasoning: { effort: config.effort } }),
-      response_format: responseFormat(price, schema),
+      response_format: responseFormat(call.price, schema),
     };
 
-    const answer = await post(call, "answer", body);
+    const answer = await post(call, "answer", chat, body);
     const first = parseAnswer(schema, answer);
     if (first.ok) return { value: first.value, model: config.model, cost: call.cost, sampling };
 
@@ -262,7 +390,7 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
     ];
     const second = parseAnswer(
       schema,
-      await post(call, "repair", { ...body, messages: repairMessages }),
+      await post(call, "repair", chat, { ...body, messages: repairMessages }),
     );
     if (second.ok) return { value: second.value, model: config.model, cost: call.cost, sampling };
     throw new LlmError(
@@ -273,29 +401,54 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
     );
   }
 
-  return { complete };
+  async function decide(request: DecideRequest): Promise<Decision> {
+    const { role, state, question } = request;
+    const model = settings.jevModel;
+    // Built before the call, from the keys offered then, whatever the caller does meanwhile.
+    const answerSchema = choiceAnswer(question.options);
+    const call = newCall(role, model);
+    const body = {
+      model,
+      state,
+      questions: {
+        [QUESTION_KEY]: {
+          type: "choice",
+          instructions: question.instructions,
+          criteria: question.options,
+        },
+      },
+    };
+
+    const parsed = answerSchema.safeParse(await post(call, "decide", systemOne, body));
+    if (parsed.success) return { ...parsed.data, model, cost: call.cost };
+    // No repair round and no retry: Jev writes no text to repair, and asking again bills the
+    // same question twice.
+    throw new LlmError(
+      "llm_invalid_output",
+      `The ${role} decision from ${model} did not answer the question asked:\n${z.prettifyError(parsed.error)}`,
+      call.cost,
+      { cause: parsed.error },
+    );
+  }
+
+  return { complete, decide };
 }
 
 /**
- * What an HTTP answer means for the round. A 429 or a 5xx is retried, and so is an error a 2xx
- * carries in its body, which counts as its own code (502 when it has none).
+ * What a 2xx chat answer means for the round. An error it carries in its body counts as its own
+ * code (502 when it has none), so a 429 or a 5xx there is retried like an HTTP one.
  */
-function classify(status: number, json: unknown, text: string): Attempt {
-  if (status < 200 || status >= 300) {
-    return failure(status, `http_${status}`, `HTTP ${status}: ${providerText(json, text)}`);
-  }
+function classifyChat(status: number, json: unknown, text: string): Attempt<string | null> {
   const inBody = MaybeErrorIn2xx.safeParse(json);
   const choice = inBody.success ? inBody.data.choices?.[0] : undefined;
   const error = inBody.success ? (inBody.data.error ?? choice?.error) : undefined;
   if (inBody.success && (error !== undefined || choice?.finish_reason === "error")) {
-    const code = typeof error?.code === "number" && Number.isInteger(error.code) ? error.code : 502;
-    const message = error === undefined ? "the answer ended in error" : errorWords(error);
     // A host that failed inside a 2xx may still bill its partial output. The output itself is
     // dropped: it never reaches a repair round.
     const { usage } = inBody.data;
     return {
-      ...failure(code, `error_in_body_${code}`, `error ${code} in a 2xx body: ${message}`),
-      ...(usage === undefined ? {} : { usage }),
+      ...errorInBody(error),
+      ...(usage === undefined ? {} : { tokens: tokensOf(usage) }),
     };
   }
   const parsed = ChatCompletion.safeParse(json);
@@ -304,21 +457,59 @@ function classify(status: number, json: unknown, text: string): Attempt {
     return { kind: "fail", code: "llm_bad_response", outcome: "bad_response", what, status };
   }
   const { choices, usage, model: served, provider: host } = parsed.data;
-  return { kind: "ok", status, content: choices[0].message.content, usage, served, host };
+  const value = choices[0].message.content;
+  return { kind: "ok", status, value, tokens: tokensOf(usage), served, host };
 }
 
-function failure(status: number, outcome: string, what: string): Attempt {
+/** As `classifyChat`, for a System One answer. Its `answers` entry is checked by `decide`. */
+function classifyDecision(status: number, json: unknown, text: string): Attempt<unknown> {
+  const inBody = ProviderError.safeParse(json);
+  if (inBody.success) return errorInBody(inBody.data.error);
+  const parsed = SystemOneAnswer.safeParse(json);
+  if (!parsed.success) {
+    const what = `HTTP ${status} that is not a System One answer: ${providerText(json, text)}`;
+    return { kind: "fail", code: "llm_bad_response", outcome: "bad_response", what, status };
+  }
+  const { answers, usage, model: served, provider: host } = parsed.data;
+  return {
+    kind: "ok",
+    status,
+    value: answers[QUESTION_KEY],
+    tokens: { tokensIn: usage.input_tokens, tokensOut: usage.output_tokens },
+    served,
+    host,
+    reportedUsd: usage.cost,
+  };
+}
+
+/** A status outside 2xx, whatever the endpoint: a 429 or a 5xx is retried, anything else fails. */
+function httpFailure(status: number, json: unknown, text: string): Failure {
+  return failure(status, `http_${status}`, `HTTP ${status}: ${providerText(json, text)}`);
+}
+
+/** An error a 2xx carries, as its own code, or 502 when it has none. */
+function errorInBody(error: z.infer<typeof ErrorObject> | undefined): Failure {
+  const code = typeof error?.code === "number" && Number.isInteger(error.code) ? error.code : 502;
+  const message = error === undefined ? "the answer ended in error" : errorWords(error);
+  return failure(code, `error_in_body_${code}`, `error ${code} in a 2xx body: ${message}`);
+}
+
+function failure(status: number, outcome: string, what: string): Failure {
   const kind = status === 429 || status >= 500 ? "retry" : "fail";
   return { kind, code: "llm_request_failed", outcome, what, status };
 }
 
-function failed(call: Call, result: Attempt & { kind: "retry" | "fail" }, says: string): LlmError {
+function failed(call: Call, result: Failure, says: string): LlmError {
   return new LlmError(
     result.code,
-    `The ${call.role} call to ${call.config.model} ${says}`,
+    `The ${call.role} call to ${call.model} ${says}`,
     call.cost,
     result.cause === undefined ? undefined : { cause: result.cause },
   );
+}
+
+function tokensOf(usage: Usage): Tokens {
+  return { tokensIn: usage.prompt_tokens, tokensOut: usage.completion_tokens };
 }
 
 function responseFormat(price: ModelPrice, schema: z.ZodObject) {

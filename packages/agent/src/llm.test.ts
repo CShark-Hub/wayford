@@ -1,7 +1,7 @@
 import { inspect } from "node:util";
 import { ActorResponse, LLM_ROLES } from "@wayford/core";
 import pino from "pino";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { z } from "zod";
 import { type ChatMessage, type Completion, createLlm, type LlmDeps, LlmError } from "./llm.js";
 import { type LlmSettings, parseLlmSettings } from "./llm-settings.js";
@@ -158,6 +158,8 @@ test("every role sends its own model, temperature and effort", async () => {
       actor: { model: "openai/gpt-6-luna", temperature: 1.3, effort: "minimal" },
       analyst: { model: "llama3.1:8b", temperature: 0 },
     },
+    actorBackend: "llm",
+    jevModel: "typesafe/jev-1.13",
   };
   const { llm, calls } = setup(
     LLM_ROLES.map(() => completion('{"ok":true}')),
@@ -529,4 +531,194 @@ test("rejects a model id missing from models.yaml at construction", () => {
       message: expect.stringContaining("openai/gpt-7-unpriced"),
     }),
   );
+});
+
+describe("decide", () => {
+  const OPTIONS = {
+    e1: 'Click the link "Home"',
+    e3: 'Click the link "Past orders"',
+    back: "Go back to the previous page",
+  };
+  const STATE = "Goal: you want to see what you ordered three months ago\nPage: Deliveries";
+  const QUESTION = { instructions: "Which one action do you take next?", options: OPTIONS };
+  const DECIDE = { role: "actor", state: STATE, question: QUESTION } as const;
+
+  const PICK = { choice: "e3", confidence: 0.75, probabilities: { e1: 0.1, e3: 0.84, back: 0.06 } };
+  // The usage of the System One example in OpenRouter's docs: 476 tokens at 0.042 USD per million.
+  const USAGE = { input_tokens: 476, output_tokens: 70, cost: 0.000019992 };
+
+  /** A System One answer to the one question `decide` asks, with the extra fields a real one has. */
+  function answer(fields: Record<string, unknown>): Response {
+    const body = {
+      id: "gen-dec-1789738314-X5e5eKGQdvR9rblyX250",
+      model: "typesafe/jev-1.13-20260917",
+      provider: "TypeSafe",
+      answers: { question: { type: "choice", ...fields } },
+      usage: USAGE,
+    };
+    return new Response(JSON.stringify(body), { status: 200 });
+  }
+
+  const picked = () => answer(PICK);
+
+  /** What `tokensIn` costs on Jev, from models.yaml. Its output tokens are free. */
+  function jevUsd(tokensIn: number): number {
+    const price = loadModelPrices()["typesafe/jev-1.13"];
+    if (price === undefined) throw new Error("models.yaml has no price for typesafe/jev-1.13");
+    expect(price.output).toBe(0);
+    return (tokensIn * price.input) / 1e6;
+  }
+
+  test("sends the state, the one question and the pinned model to System One, and nothing else", async () => {
+    // The Actor's chat model moved, so a body naming it would show here.
+    const settings = parseLlmSettings({ LLM_API_KEY: KEY, LLM_ACTOR_MODEL: "openai/gpt-6-sol" });
+    const { llm, calls } = setup([picked()], { settings });
+    await llm.decide(DECIDE);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://openrouter.ai/api/v1/systemone");
+    expect(calls[0]?.init.method).toBe("POST");
+    expect(new Headers(calls[0]?.init.headers).get("authorization")).toBe(`Bearer ${KEY}`);
+    expect(calls[0]?.body).toStrictEqual({
+      model: "typesafe/jev-1.13",
+      state: STATE,
+      questions: {
+        question: { type: "choice", instructions: QUESTION.instructions, criteria: OPTIONS },
+      },
+    });
+  });
+
+  test("returns a probability per offered key, the confidence, Jev's pick, the model and the cost", async () => {
+    const { llm } = setup([picked()]);
+    const decision = await llm.decide(DECIDE);
+
+    expect(decision).toStrictEqual({
+      probabilities: { e1: 0.1, e3: 0.84, back: 0.06 },
+      confidence: 0.75,
+      choice: "e3",
+      model: "typesafe/jev-1.13",
+      // Priced from models.yaml, output tokens at zero.
+      cost: { tokensIn: 476, tokensOut: 70, usd: expect.closeTo(jevUsd(476), 12) },
+    });
+    // OpenRouter's own figure for the same usage agrees with the table.
+    expect(decision.cost.usd).toBeCloseTo(USAGE.cost, 12);
+  });
+
+  // Jev rounds each value to two decimals, so a tail of small ones rounds to zero and the sum
+  // can fall well short of 1. The answer is still one to draw from, and comes back as sent.
+  test("accepts probabilities whose sum rounding left short of 1", async () => {
+    const rounded = { e1: 0.85, e3: 0.05, back: 0 };
+    const { llm } = setup([answer({ ...PICK, choice: "e1", probabilities: rounded })]);
+    expect((await llm.decide(DECIDE)).probabilities).toStrictEqual(rounded);
+  });
+
+  test.each([
+    [
+      "names a key not offered",
+      { ...PICK, probabilities: { e1: 0.1, e3: 0.8, back: 0.05, e9: 0.05 } },
+      "e9",
+    ],
+    ["misses an offered key", { ...PICK, probabilities: { e1: 0.16, e3: 0.84 } }, "back"],
+    ["picks a key not offered", { ...PICK, choice: "e9" }, "choice"],
+    ["has no confidence", { choice: "e3", probabilities: PICK.probabilities }, "confidence"],
+    [
+      "puts zero on every option, leaving nothing to draw",
+      { ...PICK, probabilities: { e1: 0, e3: 0, back: 0 } },
+      "above zero",
+    ],
+  ])(
+    "an answer that %s is llm_invalid_output, billed and not retried",
+    async (_, fields, named) => {
+      const { llm, calls, sleeps } = setup([answer(fields)]);
+      const error = await failure(llm.decide(DECIDE));
+
+      expect(calls).toHaveLength(1);
+      expect(sleeps).toStrictEqual([]);
+      expect(error.code).toBe("llm_invalid_output");
+      expect(error.message).toContain(named);
+      expect(error.cause).toBeInstanceOf(z.ZodError);
+      expect(error.cost).toStrictEqual({
+        tokensIn: 476,
+        tokensOut: 70,
+        usd: expect.closeTo(jevUsd(476), 12),
+      });
+    },
+  );
+
+  test("retries 429 and 503 with the same body, logging every attempt, but not 400", async () => {
+    const retried = setup([providerError(429), providerError(503), picked()]);
+    const decision = await retried.llm.decide(DECIDE);
+
+    expect(decision.choice).toBe("e3");
+    expect(retried.calls.map(({ init }) => init.body)).toStrictEqual(
+      Array(3).fill(retried.calls[0]?.init.body),
+    );
+    expect(retried.sleeps).toStrictEqual([1000, 2000]);
+    const attempt = { role: "actor", model: "typesafe/jev-1.13", round: "decide" };
+    expect(retried.lines).toMatchObject([
+      { level: 40, ...attempt, attempt: 1, outcome: "http_429", status: 429 },
+      { level: 40, ...attempt, attempt: 2, outcome: "http_503", status: 503 },
+      {
+        level: 30,
+        ...attempt,
+        attempt: 3,
+        outcome: "ok",
+        status: 200,
+        tokensIn: 476,
+        tokensOut: 70,
+        served: "typesafe/jev-1.13-20260917",
+        host: "TypeSafe",
+        reportedUsd: USAGE.cost,
+      },
+    ]);
+    // The key, the state and the options never reach a log line.
+    const logged = JSON.stringify(retried.lines);
+    for (const leak of [KEY, "three months ago", "Past orders"]) {
+      expect(logged).not.toContain(leak);
+    }
+
+    const refused = setup([providerError(400, "criteria must hold at least two options")]);
+    const error = await failure(refused.llm.decide(DECIDE));
+    expect(refused.calls).toHaveLength(1);
+    expect(refused.sleeps).toStrictEqual([]);
+    expect(error.code).toBe("llm_request_failed");
+    expect(error.message).toContain(
+      "The actor call to typesafe/jev-1.13 failed with HTTP 400: criteria must hold at least two options",
+    );
+  });
+
+  test("an error inside a 2xx counts as its code: 502 without one is retried, a 400 is not", async () => {
+    const failedHost = new Response(
+      JSON.stringify({ error: { message: "Provider returned error" } }),
+      { status: 200 },
+    );
+    const retried = setup([failedHost, picked()]);
+    expect((await retried.llm.decide(DECIDE)).choice).toBe("e3");
+    expect(retried.lines.map(({ outcome }) => outcome)).toStrictEqual(["error_in_body_502", "ok"]);
+
+    const refused = setup([providerError(400, "Provider returned error", 200)]);
+    const error = await failure(refused.llm.decide(DECIDE));
+    expect(refused.calls).toHaveLength(1);
+    expect(error.code).toBe("llm_request_failed");
+    expect(refused.lines.map(({ outcome }) => outcome)).toStrictEqual(["error_in_body_400"]);
+  });
+
+  test("a 2xx that is not a System One answer is llm_bad_response, not retried", async () => {
+    const { llm, calls } = setup([completion('{"ok":true}')]);
+    const error = await failure(llm.decide(DECIDE));
+
+    expect(calls).toHaveLength(1);
+    expect(error.code).toBe("llm_bad_response");
+    expect(error.message).toContain("not a System One answer");
+  });
+
+  test("rejects a Jev model missing from models.yaml at construction", () => {
+    const settings = parseLlmSettings({ LLM_API_KEY: KEY, LLM_JEV_MODEL: "typesafe/jev-9.99" });
+    expect(() => setup([], { settings })).toThrow(
+      expect.objectContaining({
+        code: "llm_unknown_model",
+        message: expect.stringContaining("typesafe/jev-9.99"),
+      }),
+    );
+  });
 });

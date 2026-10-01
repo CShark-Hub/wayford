@@ -50,6 +50,16 @@ anthropic/claude-opus-5.5:
   input: 4.00
   output: 20.00
 
+# Not on the ladder: Jev, the Actor's second backend, through `decide`
+# (docs/adr/0001-jev-actor-backend.md). System One models are missing from
+# /api/v1/models; this is the list price from
+# https://openrouter.ai/api/v1/models/typesafe/jev-1.13/endpoints on 2026-10-01.
+typesafe/jev-1.13:
+  # One host (TypeSafe), 32k context for the state and the question. Output
+  # tokens are free. `jsonSchema` does not apply: Jev answers no schema.
+  input: 0.042
+  output: 0
+
 # Not on the ladder: local Ollama, the emergency fallback of docs/PLAN.md
 # "AI access". Priced with JSON mode, the one user of that path today.
 "llama3.1:8b":

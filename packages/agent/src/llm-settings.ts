@@ -6,6 +6,9 @@
  * The role defaults are the "While we build" column of the team's model ladder ("Wayford —
  * Model ladder for AI testing", Tomasz Nowakowski, 2026-09-25): a fresh `.env` needs only the
  * key, and escalating a role to a stronger model is one line of config.
+ *
+ * Beside the roles: which backend picks the Actor's actions, and Jev's pinned model id
+ * (`docs/adr/0001-jev-actor-backend.md`).
  */
 import { LLM_ROLES, WayfordError } from "@wayford/core";
 import { z } from "zod";
@@ -56,6 +59,20 @@ function roleSettings(ladderEffort: Effort) {
     );
 }
 
+/**
+ * A Jev id that floats: `jev-latest` or the router, bare or under a prefix, such as the
+ * `typesafe/` the System One API puts on a bare id, or OpenRouter's `~typesafe/` alias. Each
+ * changes the model under a tuned run (ADR 0001).
+ */
+const FLOATING_JEV_ID = /(^|\/)jev-(latest|router)$/;
+
+const JevModel = z
+  .string()
+  .refine(
+    (id) => !FLOATING_JEV_ID.test(id),
+    "must name a pinned Jev version such as typesafe/jev-1.13; an alias or the router changes the model under a tuned run (docs/adr/0001-jev-actor-backend.md)",
+  );
+
 const Settings = z.object({
   baseUrl: LlmBaseUrl.default("https://openrouter.ai/api/v1"),
   apiKey: z
@@ -69,6 +86,10 @@ const Settings = z.object({
     actor: roleSettings("high"),
     analyst: roleSettings("max"),
   }),
+  /** What picks the Actor's actions. A run set uses one, and nothing falls back to the other. */
+  actorBackend: z.enum(["llm", "jev"]).default("llm"),
+  /** The model `decide` sends every question to, whatever role asks. */
+  jevModel: JevModel.default("typesafe/jev-1.13"),
 });
 
 export type LlmSettings = z.output<typeof Settings>;
@@ -78,12 +99,22 @@ function roleVariable(...parts: string[]): string {
   return `LLM_${parts.join("_").toUpperCase()}`;
 }
 
+/**
+ * The variable behind every setting outside the roles. One spelling, to read a variable and to
+ * name it; a new setting without one fails to compile.
+ */
+const VARIABLES = {
+  baseUrl: "LLM_BASE_URL",
+  apiKey: "LLM_API_KEY",
+  actorBackend: "LLM_ACTOR_BACKEND",
+  jevModel: "LLM_JEV_MODEL",
+} as const satisfies Record<Exclude<keyof LlmSettings, "roles">, string>;
+
 /** The variable behind a parse issue, so each line names what to fix in `.env`. */
 function variableAt(path: readonly PropertyKey[]): string {
-  if (path[0] === "baseUrl") return "LLM_BASE_URL";
-  if (path[0] === "apiKey") return "LLM_API_KEY";
   // A role's issue sits at ["roles", role, field].
-  return roleVariable(...path.slice(1).map(String));
+  if (path[0] === "roles") return roleVariable(...path.slice(1).map(String));
+  return VARIABLES[path[0] as keyof typeof VARIABLES];
 }
 
 /**
@@ -94,8 +125,7 @@ export function parseLlmSettings(env: Record<string, string | undefined>): LlmSe
   // An empty value counts as unset and takes the default, as in io's config.
   const read = (name: string) => env[name] || undefined;
   const parsed = Settings.safeParse({
-    baseUrl: read("LLM_BASE_URL"),
-    apiKey: read("LLM_API_KEY"),
+    ...Object.fromEntries(Object.entries(VARIABLES).map(([field, name]) => [field, read(name)])),
     roles: Object.fromEntries(
       LLM_ROLES.map((role) => [
         role,

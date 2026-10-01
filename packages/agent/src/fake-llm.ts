@@ -3,19 +3,36 @@
  * as `@wayford/agent/fake`, outside the main entry, so a server importing the adapter never
  * imports test code, as core keeps its fixtures behind `@wayford/core/fixtures`. s4-01's
  * Extractor scripts a first answer and a repair answer; s2-03's Actor loop scripts a sequence of
- * answers, and a fake that throws to reach its failure path.
+ * answers, and a fake that throws to reach its failure path; s2-06's Jev backend scripts Jev's
+ * probabilities.
  *
  * It answers from canned entries, one queue per role, and sends nothing.
  */
-import type { LlmRole } from "@wayford/core";
+import type { Cost, LlmRole } from "@wayford/core";
 import { z } from "zod";
-import { type CompleteRequest, type Completion, type Llm, LlmError, samplingOf } from "./llm.js";
+import {
+  type CompleteRequest,
+  type Completion,
+  choiceAnswer,
+  type DecideRequest,
+  type Decision,
+  type Llm,
+  LlmError,
+  samplingOf,
+} from "./llm.js";
 
-/** Per role, in the order the calls take them. An `Error` entry is thrown instead of answered. */
+/**
+ * Per role, in the order the calls take them, `complete` and `decide` from the same queue. A
+ * `decide` entry is Jev's answer, `{ choice, confidence, probabilities }`. An `Error` entry is
+ * thrown instead of answered.
+ */
 export type FakeAnswers = Partial<Record<LlmRole, unknown[]>>;
 
-/** `calls` is every request received, in order, so a test can check what its code sent. */
-export type FakeLlm = Llm & { calls: CompleteRequest<z.ZodObject>[] };
+/**
+ * `calls` is every `complete` request received and `decideCalls` every `decide` request, each in
+ * order, so a test can check what its code sent.
+ */
+export type FakeLlm = Llm & { calls: CompleteRequest<z.ZodObject>[]; decideCalls: DecideRequest[] };
 
 export function fakeLlm(
   answers: FakeAnswers,
@@ -29,6 +46,20 @@ export function fakeLlm(
     analyst: [...(answers.analyst ?? [])],
   };
   const calls: CompleteRequest<z.ZodObject>[] = [];
+  const decideCalls: DecideRequest[] = [];
+
+  /** The role's next entry. An `Error` entry is thrown instead. */
+  function take(role: LlmRole): unknown {
+    const queue = queues[role];
+    // A plain Error, not an LlmError: running out is a test that scripted too few answers, and
+    // a caller's failure path must not swallow it as a model failure.
+    if (queue.length === 0) {
+      throw new Error(`The fake LLM has no ${role} answer left: the test scripted too few.`);
+    }
+    const entry = queue.shift();
+    if (entry instanceof Error) throw entry;
+    return entry;
+  }
 
   async function complete<S extends z.ZodObject>(
     request: CompleteRequest<S>,
@@ -43,33 +74,41 @@ export function fakeLlm(
     // run could have sent.
     const sampling = samplingOf(temperatures?.[role] ?? 1, seed);
 
-    const queue = queues[role];
-    // A plain Error, not an LlmError: running out is a test that scripted too few answers, and
-    // a caller's failure path must not swallow it as a model failure.
-    if (queue.length === 0) {
-      throw new Error(`The fake LLM has no ${role} answer left: the test scripted too few.`);
-    }
-    const entry = queue.shift();
-    if (entry instanceof Error) throw entry;
-
-    const parsed = schema.safeParse(entry);
-    // The real adapter's code for an answer that misses the schema, so a caller's handling of
-    // it can be tested without a repair round to script.
+    const parsed = schema.safeParse(take(role));
+    // Without a repair round to script.
     if (!parsed.success) {
-      throw new LlmError(
-        "llm_invalid_output",
-        `The canned ${role} answer did not match the schema:\n${z.prettifyError(parsed.error)}`,
-        { tokensIn: 0, tokensOut: 0, usd: 0 },
-        { cause: parsed.error },
-      );
+      throw invalid(`The canned ${role} answer did not match the schema`, parsed.error);
     }
-    return {
-      value: parsed.data,
-      model: "fake",
-      cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
-      sampling,
-    };
+    return { value: parsed.data, model: "fake", cost: zeroCost(), sampling };
   }
 
-  return { calls, complete };
+  async function decide(request: DecideRequest): Promise<Decision> {
+    const { role, question } = request;
+    // The options as they were sent: a caller that reuses one options object must not rewrite
+    // what earlier calls recorded.
+    decideCalls.push({ ...request, question: { ...question, options: { ...question.options } } });
+
+    // Checked as the real adapter checks Jev's answer.
+    const parsed = choiceAnswer(question.options).safeParse(take(role));
+    if (!parsed.success) {
+      throw invalid(`The canned ${role} decision did not answer the question asked`, parsed.error);
+    }
+    return { ...parsed.data, model: "fake", cost: zeroCost() };
+  }
+
+  return { calls, decideCalls, complete, decide };
+}
+
+/**
+ * The real adapter's code for an answer that misses its schema, so a caller's handling of it can
+ * be tested on the fake.
+ */
+function invalid(says: string, error: z.ZodError): LlmError {
+  return new LlmError("llm_invalid_output", `${says}:\n${z.prettifyError(error)}`, zeroCost(), {
+    cause: error,
+  });
+}
+
+function zeroCost(): Cost {
+  return { tokensIn: 0, tokensOut: 0, usd: 0 };
 }

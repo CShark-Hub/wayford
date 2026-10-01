@@ -8,6 +8,7 @@
     "./fake": "./src/fake-llm.ts"
   },
   "scripts": {
+    "smoke:jev": "tsx src/smoke-jev.ts",
     "smoke:llm": "tsx src/smoke-llm.ts",
     "smoke:run": "tsx src/smoke-run.ts",
     "test": "vitest run",
