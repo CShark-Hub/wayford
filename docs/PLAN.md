@@ -19,7 +19,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A9 | Report is structured findings rendered by the UI. The Analyst fills recommendation and hypothesis fields, never free prose. | default |
 | A10 | Avatars are procedural SVG derived from the profile seed and dimensions. No generated images. | default |
 | A11 | Five hand-written personas: Ada, Kai, Milo, Vera and Zoya (`docs/RULES.md`, "Persona composition"). Kai sees everything Ada sees and differs only in knowledge, attention and memory; Kai lands with `s1-04`. PersonaLayer is cited as provenance where thresholds match. | default, m0-02, 2026-10-01 |
-| A12 | Perception dimension in full. Knowledge: pattern rules K1 and K4 in week 3 (`s1-03`), vocabulary K2 (`[unfamiliar term]`) in week 4 (`s1-05`), both in the observation only, never in the Actor prompt template (`docs/RULES.md` pipeline, F5 AC6). Attention: A1 in week 3 (`s1-03`); A3 is a week 4 stretch, A2 the "what next" slide. Memory: M1 (`s2-10`). Behaviour: one dice (double click) and the budget. Readability (K3): the "what next" slide. | default, issue #19, 2026-10-01 |
+| A12 | Perception dimension in full. Knowledge: pattern rules K1 and K4 in week 3 (`s1-03`), vocabulary K2 (`[unfamiliar term]`) in week 4 (`s1-05`), both in the observation only, never in the Actor prompt template (`docs/RULES.md` pipeline, F5 AC6). Attention: A1 in week 3 (`s1-03`); A3 is a week 4 stretch, A2 the "what next" slide. Memory: M1 (`s2-10`). Behaviour: one dice (double click) and the budget, in week 3 (`s2-10`); B2, B4 and a simulated clock for the budget are week 4 stretch tasks (`s2-07` to `s2-09`), cut before anything else. Readability (K3): the "what next" slide. | default, issue #19, 2026-10-01 |
 | A13 | LLM access through OpenRouter with one key and a 50 USD cap. Adapter is OpenAI-compatible so any key works. Jev (A22) comes through the same key. | default |
 | A14 | Whole team works in TypeScript. | default |
 | A15 | SQLite through Drizzle at start. Postgres is one config change later. | default |
@@ -134,6 +134,7 @@ Analyst output per task.
 - AC3 Every finding has a recommendation.
 - AC4 Analyst input covers all runs across all personas for the task.
 - AC5 Every finding carries its basis: the rules behind it and each rule's threshold provenance. A deterministic finding names at least one. A finding whose basis includes `folk` or `llm` keeps its type but is marked soft, with its source shown, and is never presented as hard. Each basis entry's provenance is copied in code from the named profiles' thresholds, never taken from the Analyst's output.
+- AC6 Per persona, beside the success rate over the seed set, the share of seeds whose filtered observations left a route to the goal open, as `routes` (`s1-03`) computes it. The first number depends on the agent, the second is the filter's alone ("Goal" above).
 
 ### F9 Boundary sweep
 

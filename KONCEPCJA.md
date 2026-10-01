@@ -275,6 +275,8 @@ Ostatnie **2 godziny**: generujemy dane demo (kilka person, kilka przebiegów, h
 
 ## Demo, 90 sekund
 
+> Aktualny scenariusz: `docs/DEMO.md` (od 2026-10-01). Poniżej pierwotny szkic.
+
 1. Kreator: składamy Ryszarda z klocków (4 suwaki)
 2. Podgląd: przesuwamy kontrast → **elementy znikają na żywo**
 3. Zadanie jednym zdaniem, ring startuje

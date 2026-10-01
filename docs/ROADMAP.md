@@ -103,7 +103,7 @@ Exit criteria:
 - Preview switches from fixtures to the live filter on the target app.
 - The hard goal has three routes. On `/settings/data` the filter measures no WCAG AA failure.
 - `perceive` applies K1, K4 and A1: Kai's Actor text shows the kebab on `/account` as its bare role, and `routes` prints the table of what the filter leaves each persona on each route, matching `docs/RULES.md`.
-- The 90-second demo script is written down.
+- The team has agreed on the 90-second demo script, `docs/DEMO.md`.
 
 ## Week 4 — M4 report and sweep, M5 demo
 
@@ -113,6 +113,10 @@ If `s2-06` passed its gate, the sweep and `seed:demo` run on the Jev backend; ot
 
 Design pass. Weeks 1 to 3 build every screen function first, so the look is decided here and reworked hard: the personas, preview, arena, runs, run detail, report and sweep screens. It starts on Monday with a direction and the tokens, so the report and sweep screens built this week land in the new look rather than being reworked twice. `docs/PLAN.md` "UI" is the brief it starts from, and it may change. One constraint does not change: a tool that measures who an interface works for passes its own measurement.
 
+Written already: `s1-05` (K2), `s3-06` (the preview's illustration view, moved from week 3 on 2026-10-01), and the stretch behaviour rules `s2-07` (B2), `s2-08` (B4) and `s2-09` (a simulated clock for the budget).
+
+The demo follows `docs/DEMO.md`: the screens this week builds are the ones its beats need.
+
 Exit criteria:
 
 - Analyst produces `Finding[]` over all runs for a task. The report screen renders them grouped by type with evidence links.
@@ -121,12 +125,14 @@ Exit criteria:
 - K2: Kai reads "Fulfilment ledger" on `/settings/data` with its jargon masked as `[unfamiliar term]`.
 - axe-core violations appear as measurement findings.
 - `pnpm seed:demo` fills the database with 3 personas, 2 tasks, 10 runs each, one sweep per axis.
+- The report shows, per persona, the share of seeds where the filter left a route open beside the success rate (`docs/PLAN.md` F8 AC6).
+- The demo runs end to end as `docs/DEMO.md` describes, rehearsed at least twice.
 - Backup video of the full 90 second demo exists in the repo or a shared drive.
 - One credibility run against a real public site is recorded.
 - Every demo screen follows the reworked design.
 - Wayford's own screens pass WCAG AA by the filter's own measurement: `collect` on each demo screen finds no text below 4.5:1 and no control below 24 px.
 
-Stretch, if the above is done: A3, the option cap, cut from `s1-03` to fit week 3.
+Stretch, if the above is done: A3, the option cap, cut from `s1-03` to fit week 3; then the behaviour rules beyond B1, `s2-07` (B2, scroll when stuck), `s2-08` (B4, misclick) and `s2-09` (a simulated clock for the budget).
 
 ## Dependency map, weeks 3 and 4
 
@@ -139,7 +145,6 @@ flowchart LR
   classDef ready stroke-width:3px
 
   s3_01["s3-01 Preview<br/>week 2"]
-  s4_02["s4-02 Database<br/>week 2"]
   s2_05["s2-05 Jev call<br/>week 2"]
   i124["issue #124<br/>duplicate names"]
 
@@ -160,7 +165,6 @@ flowchart LR
   s1_04 --> s2_11
   s2_03 --> s2_04
   s2_03 --> s4_03
-  s4_02 --> s4_03
   s1_04 --> s1_03
   i124 --> s1_03
   s3_01 --> s3_05
@@ -174,7 +178,7 @@ flowchart LR
   s1_04 -. real-run box .-> s3_03
   s4_03 -. real-run box .-> s3_04
 
-  class s2_03 ready
+  class s2_03,s1_04,s3_03,s3_04 ready
 ```
 
 Week 4, preliminary, with the week 3 tasks it builds on:
@@ -190,6 +194,7 @@ flowchart LR
   s3_03["s3-03"]
   s3_04["s3-04"]
   s3_05["s3-05"]
+  s2_10["s2-10"]
 
   s1_05["s1-05 Vocabulary K2"]
   design["Design direction<br/>and tokens"]
@@ -202,6 +207,10 @@ flowchart LR
   demo["seed:demo"]
   site["Public-site run"]
   video["Backup video"]
+  s3_06["s3-06 Illustration view"]
+  s2_07["s2-07 B2 scroll when stuck"]
+  s2_08["s2-08 B4 misclick"]
+  s2_09["s2-09 Simulated time"]
 
   s1_03 --> s1_05
   s1_04 --> s1_05
@@ -227,11 +236,18 @@ flowchart LR
   report --> video
   sweepUI --> video
   pass --> video
+  s3_05 --> s3_06
+  design -. new look .-> s3_06
+  s3_06 -. optional beat .-> video
+  s2_10 --> s2_07
+  s2_10 --> s2_08
+  s2_10 --> s2_09
+  s2_08 -. after .-> s2_09
 
-  class s1_05,design,analyst,report,sweep,sweepUI,axe,pass,demo,site,video prelim
+  class s1_05,design,analyst,report,sweep,sweepUI,axe,pass,demo,site,video,s3_06,s2_07,s2_08,s2_09 prelim
 ```
 
-Thick border: on `main` with every dependency merged on 2026-10-01, so it can start now. `s1-04`, `s3-03` and `s3-04` have no solid arrow in either; they join it once this plan merges. Dashed border: week 4, preliminary. Design direction has no dependency either; it is planned for week 4's Monday so the look is decided once the week 3 screens exist.
+Thick border: every dependency merged, so the task can start now. Dashed border: week 4, preliminary. Design direction has no dependency either; it is planned for week 4's Monday so the look is decided once the week 3 screens exist.
 
 ## Cut order if time runs out
 
@@ -248,5 +264,7 @@ Cut from the bottom, never from the top.
 9. axe-core sidecar. The "no WCAG failure here, and Kai still did not get through" slide reads best with it; without it, the slide cites the filter's own measurement from `s1-04`.
 10. Sweep on `maxElements`.
 11. Ring. Live video and the motion are already cut; next the ring itself, in favour of the dashboard.
-12. Jev Actor backend (`s2-06`). The LLM backend stays.
-13. Real public site run.
+12. Preview illustration view (`s3-06`). The perceived and evidence views stay.
+13. Jev Actor backend (`s2-06`). The LLM backend stays.
+14. Real public site run.
+15. Behaviour beyond B1 (`s2-07`, `s2-08`, `s2-09`).

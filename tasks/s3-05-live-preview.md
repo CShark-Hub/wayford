@@ -44,7 +44,7 @@ The preview draws the live target app instead of the stored fixture, on `/delive
 ## Out of scope
 
 - Pages outside the target app's `PAGES`, other app parameters, real public sites.
-- The emulated screenshot layer (F2 AC4). Optional; week 4 if time allows.
+- The emulated screenshot layer (F2 AC4): `s3-06`, week 4.
 - Knowledge and attention sliders.
 
 ## Notes for the reviewer

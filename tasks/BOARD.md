@@ -36,7 +36,7 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 | s1-02 | DOM metrics collector and the seed test on the target app | L | s1-01 | Dev 1 | Grzegorz | done |
 | s3-01 | Preview screen on the measurement fixture | L | s1-01, s3-02 | Dev 3 | | todo |
 | s4-01 | Extractor | M | s2-01 | Dev 4 | Dawid | done |
-| s4-02 | Database: runs and tasks | S | m0-07, #13, #14, #15 | Dev 2 | Dawid | review |
+| s4-02 | Database: runs and tasks | S | m0-07, #13, #14, #15 | Dev 2 | Dawid | done |
 | s2-05 | Jev decision call in the adapter | S | s2-01 | Dev 4 | Marcin | doing |
 
 `#n` in Depends on is a GitHub issue on `CShark-Hub/promptozaury` that has to be fixed first, and `PR #n` a pull request that has to be merged. Fixes live in those issues, not in task files.
@@ -80,9 +80,8 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 
 **What can start after what.**
 
-- Ready now, on `main`: `s2-03`. It may start before Monday, and it should: it is the start of the critical path.
-- Ready as soon as this plan merges: `s1-04`, `s3-03`, `s3-04`.
-- After `s2-03`: `s2-10`, `s2-04`, `s4-03` once `s4-02` is in too, and `s2-11` once `s1-04` is in too.
+- Ready now, every dependency merged: `s2-03`, `s1-04`, `s3-03`, `s3-04`. They may start before Monday, and `s2-03` should: it is the start of the critical path.
+- After `s2-03`: `s2-10`, `s2-04`, `s4-03`, and `s2-11` once `s1-04` is in too.
 - After `s1-04` and a fix for #124: `s1-03`.
 - After `s3-01`: `s3-05`.
 - After `s2-11`, with `s2-05` in: `s2-06`. It is the last week 3 task to take.
@@ -100,7 +99,7 @@ Scout stays in the week: without ground truth a report cannot tell a broken feat
 
 **Cut order, from `docs/ROADMAP.md`.** `s2-06` slips to week 4 first, and the LLM backend stays. Then the ring itself, in favour of the dashboard. Scout is not on this list.
 
-**A decision, not a task, before week 3 ends:** the 90-second demo script. It covers which personas run in the ring, on which goal, and which pages the preview shows. The one in `KONCEPCJA.md` is perception only, and it starts with a persona builder that no task builds.
+**A decision, not a task, before week 3 ends:** the 90-second demo script. A draft is in `docs/DEMO.md`: Ada, Kai and Vera on the hard goal, the preview on Vera's `/deliveries` and Kai's `/settings/data`. The team agrees on it or changes it by PR; `s3-03`, `s3-05`, the report and the sweep are built to it.
 
 ## Week 4 — M4 report and sweep, M5 demo
 
@@ -111,7 +110,19 @@ Task files are written at the end of week 3, and the week is arranged then. Prel
 - axe-core sidecar.
 - `seed:demo`, the backup video and the public-site run.
 - **Design pass**: a rework of the look of every demo screen. Week 3 builds them function first, so this is where the look is decided. Likely more than one task: a direction and tokens first, then the screens.
-- Already written: `s1-05`, vocabulary (K2). It can start once `s1-03` and `s1-04` are merged.
+- The report shows, per persona, how often the filter left a route open beside how often the persona got through (`docs/PLAN.md` F8 AC6).
 - The sweep chart shows, beside the success rate, how often the filter left a route open (`docs/PLAN.md` F9 AC2): on the attention cap the filter's own boundary is arithmetic, and the gap between the two curves is what the agent adds.
 
-That is more than eight tasks. The cut order in `docs/ROADMAP.md` decides what gives way. Stretch: A3, the option cap, cut from `s1-03`.
+Written already:
+
+| Task | Title | Size | Depends on | Owner | Status |
+|---|---|---|---|---|---|
+| s1-05 | Filter: vocabulary (K2) | M | s1-03, s1-04 | | todo |
+| s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02 (after the design direction) | | todo |
+| s2-07 | B2: scroll when stuck | S | s2-10 | | todo |
+| s2-08 | B4: misclick on small targets | M | s2-10 | | todo |
+| s2-09 | Simulated time: click speed and the budget | L | s2-10, after s2-08 | | todo |
+
+`s3-06` was planned for week 3 (PR #137) and moved here: week 3 is full, and the view is part of how the hero screen looks. `s2-07` to `s2-09` are stretch, behind the report and the sweep, and cut first. `s2-08` and `s2-09` change `docs/RULES.md`, so each takes two approvals.
+
+That is more than eight tasks. The cut order in `docs/ROADMAP.md` decides what gives way. Stretch: A3, the option cap, cut from `s1-03`, and `s2-07` to `s2-09`.
