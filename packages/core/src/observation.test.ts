@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { observationFixture } from "./fixtures/index.js";
+import { BANNED_ACTOR_WORDS, observationFixture, profileFixtures } from "./fixtures/index.js";
 import {
   ActorElement,
   AriaRole,
@@ -15,36 +15,6 @@ import {
   worstState,
 } from "./observation.js";
 import { METRIC_NAMES } from "./primitives.js";
-
-/**
- * Words our own text must never put in front of the Actor: persona names, and the vocabulary of
- * the filter and of impairment. Substrings, so a stem such as `impair` catches every form. Page
- * text is the page's, and a real page may well say "Hidden fees" or "Your profile", so a test
- * blanks it before it greps. `tasks/s2-03-actor-loop.md` holds the Actor prompt template to this
- * list too.
- */
-const BANNED = [
-  "persona",
-  "profile",
-  "impair",
-  "disab",
-  "blind",
-  "vision",
-  "sight",
-  "contrast",
-  "threshold",
-  "filter",
-  "degraded",
-  "invisible",
-  "hidden",
-  "rule",
-  "seed",
-  "wcag",
-  "ada",
-  "milo",
-  "vera",
-  "zoya",
-];
 
 const baseElement = {
   ref: "e1",
@@ -488,6 +458,22 @@ describe("Observation (what the Actor receives)", () => {
   });
 });
 
+/**
+ * Words our own text must never put in front of the Actor: persona names, and the vocabulary of
+ * the filter and of impairment. Agent's Actor prompt tests grep for them too and cannot import a
+ * test file, so they are one list, `BANNED_ACTOR_WORDS` in `./fixtures/index.ts`, next to the
+ * personas whose names it takes, and its comment says how a test matches it. The renderer test
+ * below greps that same list.
+ */
+describe("BANNED_ACTOR_WORDS (one list, shared with agent)", () => {
+  test("holds every persona fixture's name, lowercased", () => {
+    expect(profileFixtures.length).toBeGreaterThan(0);
+    for (const profile of profileFixtures) {
+      expect(BANNED_ACTOR_WORDS).toContain(profile.label.toLowerCase());
+    }
+  });
+});
+
 describe("renderObservationForModel", () => {
   const text = renderObservationForModel(toActorObservation(observationFixture));
 
@@ -524,7 +510,7 @@ describe("renderObservationForModel", () => {
     expect(blanked.hiddenCount).toBeGreaterThan(0);
     expect(blanked.belowFoldCount).toBeGreaterThan(0);
     const ours = renderObservationForModel(blanked).toLowerCase();
-    for (const word of BANNED) expect(ours).not.toContain(word);
+    for (const word of BANNED_ACTOR_WORDS) expect(ours).not.toContain(word);
   });
 
   test("names nothing the filter removed or masked", () => {

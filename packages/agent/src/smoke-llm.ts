@@ -3,8 +3,8 @@
  * key, a strict body and the cost line work end to end, and core's `ActorResponse` on `actor`
  * shows now, not in s2-03, whether the Actor model's strict mode takes that schema's keywords.
  *
- * It needs a real key in the root `.env`, and both calls are billed. It is the one file in agent
- * that reads the environment; everything else is handed its settings.
+ * It needs a real key in the root `.env`, and both calls are billed. Like the other entry scripts,
+ * `run-one.ts` among them, it reads the environment; the adapter itself is handed its settings.
  */
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";

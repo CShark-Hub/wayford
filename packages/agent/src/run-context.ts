@@ -44,6 +44,14 @@ export interface RunContext {
    */
   moveCursor(point: { x: number; y: number }): Promise<void>;
   /**
+   * Puts the real pointer back on the point the last cursor move went to, where the last action
+   * pressed; nothing before the first move. Call it before the page is settled and measured: after
+   * a navigation or a scroll Chromium updates what is hovered on a timer of its own, and this
+   * decides it now, so a step's screenshot and the next measurement see the same hover state
+   * (s2-03).
+   */
+  restorePointer(): Promise<void>;
+  /**
    * A viewport PNG of the page now, taken after step `step`'s action (core's post-action
    * screenshot). Returns its path. Call it once the action's navigation, if any, has loaded:
    * putting the cursor back evaluates in the page, which fails while a document is replaced.
@@ -72,7 +80,7 @@ const RunInputs = z.object({
 
 /**
  * Opens a run: a context with the persona's device and recordings, the cursor installed, the
- * vision emulation set, and the page loaded at the start URL.
+ * vision emulation set, and the page loaded at the start URL with no history behind it.
  *
  * Inputs that fail core's schemas throw a `WayfordError` with code `invalid_run_context`, and
  * parameters outside the target app's ranges one with `invalid_target_app_params`, before
@@ -141,6 +149,10 @@ export async function openRunContext(options: RunContextOptions): Promise<RunCon
     if (response === null || !response.ok()) {
       throw new Error(`the start URL answered ${response?.status() ?? "with no response"}`);
     }
+    // Clears the history behind the start page, so the tab's history starts there, as a fresh
+    // tab's does. A `back` at the start then goes nowhere instead of landing on the about:blank
+    // Playwright opened the page with, which the collector cannot measure (s2-03).
+    await cdp.send("Page.resetNavigationHistory");
     const video = page.video();
     if (video === null) throw new Error("the page records no video");
     return runContext({
@@ -186,7 +198,8 @@ function runContext({
   outputDir: string;
   stem: string;
 }): RunContext {
-  // Where the last move put the cursor, so a step's screenshot can put it back.
+  // Where the last move put the cursor, which is where the last action pressed: a step's screenshot
+  // draws the cursor back there, and `restorePointer` puts the real pointer back there.
   let cursorAt: { x: number; y: number } | undefined;
 
   return {
@@ -198,6 +211,10 @@ function runContext({
       await showCursor(page, point);
       cursorAt = { x: point.x, y: point.y };
       await sleep(CURSOR_HOLD_MS);
+    },
+
+    async restorePointer() {
+      if (cursorAt !== undefined) await page.mouse.move(cursorAt.x, cursorAt.y);
     },
 
     async screenshot(step) {

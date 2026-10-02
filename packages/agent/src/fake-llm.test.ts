@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import { fakeLlm } from "./fake-llm.js";
-import { type ChatMessage, LlmError } from "./llm.js";
+import { type ChatMessage, type CompleteRequest, LlmError } from "./llm.js";
 
 const MESSAGES: ChatMessage[] = [{ role: "user", content: "What is the capital of France?" }];
 
@@ -81,6 +81,33 @@ test("a canned object that fails the schema is llm_invalid_output at zero cost",
   expect(error).toMatchObject({ code: "llm_invalid_output", cost: ZERO });
   expect((error as LlmError).message).toContain("capital");
   expect((error as LlmError).cause).toBeInstanceOf(z.ZodError);
+});
+
+test("a function entry answers from the request as recorded, once per call", async () => {
+  const received: CompleteRequest<z.ZodObject>[] = [];
+  // Reads the question, as s2-03's tests read the turn to find a ref by its element's name.
+  const answerFromQuestion = (request: CompleteRequest<z.ZodObject>) => {
+    received.push(request);
+    const question = request.messages.at(-1)?.content ?? "";
+    return { capital: question.includes("Norway") ? "Oslo" : "Paris" };
+  };
+  const llm = fakeLlm({ actor: [answerFromQuestion, answerFromQuestion] });
+  const ask = (content: string) =>
+    llm.complete({ role: "actor", messages: [{ role: "user", content }], schema: Capital });
+
+  const completions = [await ask("What is the capital of France?"), await ask("And of Norway?")];
+
+  expect(completions.map(({ value }) => value.capital)).toStrictEqual(["Paris", "Oslo"]);
+  expect(received).toStrictEqual(llm.calls);
+});
+
+test("a function entry that returns an Error throws it", async () => {
+  const outage = new LlmError("llm_request_failed", "HTTP 503: overloaded", ZERO);
+  const llm = fakeLlm({ actor: [() => outage] });
+
+  const call = llm.complete({ role: "actor", messages: MESSAGES, schema: Capital });
+
+  await expect(call).rejects.toBe(outage);
 });
 
 test("an empty queue throws a plain Error naming the role", async () => {

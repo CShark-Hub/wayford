@@ -46,6 +46,44 @@ export function profileFixture(id: string): Profile {
   return found;
 }
 
+/**
+ * Words our own text must never put in front of the Actor: the persona names,
+ * and the vocabulary of the filter and of impairment (`docs/PLAN.md` F5 AC6).
+ * Core's renderer test and agent's Actor prompt tests grep for them, so they
+ * are one list, kept here beside the personas it names.
+ *
+ * A test matches each word as a substring of the lowercased text. A stem such
+ * as `impair` then catches every form, and an innocent word that holds one
+ * trips it too: "metadata", "readable" and "adapt" hold "ada"; "several",
+ * "average" and "overall" hold "vera"; "personal", "revision", "insight",
+ * "ruler", "rules" and "disabled" hold a word of the vocabulary. Our templates
+ * avoid them all. Page text, the goal and the model's own words are not ours,
+ * and a real page may well say "Hidden fees" or "Your profile", so a test
+ * blanks them before it greps.
+ *
+ * The names are the persona fixtures' labels, lowercased, in `profileFixtures`
+ * order, so a new persona is banned by its YAML alone.
+ */
+export const BANNED_ACTOR_WORDS: readonly string[] = [
+  "persona",
+  "profile",
+  "impair",
+  "disab",
+  "blind",
+  "vision",
+  "sight",
+  "contrast",
+  "threshold",
+  "filter",
+  "degraded",
+  "invisible",
+  "hidden",
+  "rule",
+  "seed",
+  "wcag",
+  ...profileFixtures.map((profile) => profile.label.toLowerCase()),
+];
+
 // ---------------------------------------------------------------------------
 // JSON fixtures: everything that is not a profile (docs/STACK.md)
 // ---------------------------------------------------------------------------

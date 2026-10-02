@@ -2,9 +2,10 @@
  * An `Llm` for other packages' tests, so none of them calls a real model or needs a key. It ships
  * as `@wayford/agent/fake`, outside the main entry, so a server importing the adapter never
  * imports test code, as core keeps its fixtures behind `@wayford/core/fixtures`. s4-01's
- * Extractor scripts a first answer and a repair answer; s2-03's Actor loop scripts a sequence of
- * answers, and a fake that throws to reach its failure path; s2-06's Jev backend scripts Jev's
- * probabilities.
+ * Extractor scripts a first answer and a repair answer; s2-03's Actor loop answers from the
+ * request, finding each ref by its element's name, since refs depend on each persona's
+ * observation, and scripts a fake that throws to reach its failure path; s2-06's Jev backend
+ * scripts Jev's probabilities.
  *
  * It answers from canned entries, one queue per role, and sends nothing.
  */
@@ -66,7 +67,8 @@ export function fakeLlm(
   ): Promise<Completion<z.output<S>>> {
     // The messages as they were sent, as the real adapter serialises them: a caller that keeps
     // pushing to one history array must not rewrite what earlier calls recorded.
-    calls.push({ ...request, messages: [...request.messages] });
+    const recorded = { ...request, messages: [...request.messages] };
+    calls.push(recorded);
     const { role, schema, seed } = request;
     // Built before an entry is taken, as `complete` builds it before sending, so a seed that
     // Sampling refuses fails here the way it fails there.
@@ -74,7 +76,14 @@ export function fakeLlm(
     // run could have sent.
     const sampling = samplingOf(temperatures?.[role] ?? 1, seed);
 
-    const parsed = schema.safeParse(take(role));
+    let entry = take(role);
+    // A function entry is called with the request as recorded, and what it returns, awaited, is
+    // the entry from here on: an Error is thrown, anything else is checked against the schema.
+    if (typeof entry === "function") {
+      entry = await entry(recorded);
+      if (entry instanceof Error) throw entry;
+    }
+    const parsed = schema.safeParse(entry);
     // Without a repair round to script.
     if (!parsed.success) {
       throw invalid(`The canned ${role} answer did not match the schema`, parsed.error);

@@ -1,0 +1,1124 @@
+/**
+ * `runActor` on the served target app, against the loop boxes of `tasks/s2-03-actor-loop.md`
+ * (`docs/specs/2026-10-01-s2-03-actor-loop.md`, "Acceptance mapping"). The app is built and served
+ * once, one Chromium serves every run, and each test writes its runs into a fresh temporary
+ * directory.
+ *
+ * No test reaches a model or a network: the Actor is `llmActor` on the fake adapter, and `fetch`
+ * throws from the moment the app is up. The fake answers by element name, read from the turn it
+ * is sent, since refs depend on what each persona was shown. A missing ref is `e99` or `e98`,
+ * which no page of the app reaches. Every answer bills a fixed `COST`, so costs can be counted.
+ */
+import { mkdirSync } from "node:fs";
+import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  type ActorResponse,
+  type Bbox,
+  type Cost,
+  type Profile,
+  type RunEvent,
+  RunResult,
+  type RunStep,
+  runResultFromEvents,
+  type Task,
+  toActorObservation,
+  WayfordError,
+} from "@wayford/core";
+import {
+  measurementFixture,
+  profileFixture,
+  profileFixtures,
+  taskFixture,
+} from "@wayford/core/fixtures";
+import { perceive } from "@wayford/filter";
+import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
+import pino from "pino";
+import { type Browser, chromium } from "playwright";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import type { z } from "zod";
+import { actorTurn } from "./actor-backend.js";
+import { runActor } from "./actor-loop.js";
+import { type FakeLlm, fakeLlm } from "./fake-llm.js";
+import type { HistoryStep } from "./history.js";
+import { type CompleteRequest, type Llm, LlmError } from "./llm.js";
+import { actorMessages, llmActor } from "./llm-actor.js";
+import { parseLlmSettings } from "./llm-settings.js";
+import { TARGET_APP_DEFAULTS } from "./start-url.js";
+
+// Building the app and launching Chromium take longer than vitest's 5 s hook default, and a run
+// records, encodes and saves a video.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
+
+const RUN_SEED = 7;
+
+// Not zero, so a step's cost is seen to be its own calls'. The dollars are a power of two, so
+// sums of them are exact.
+const COST: Cost = { tokensIn: 1000, tokensOut: 100, usd: 0.125 };
+
+/** What `n` answers cost. */
+function costOf(n: number): Cost {
+  return { tokensIn: n * COST.tokensIn, tokensOut: n * COST.tokensOut, usd: n * COST.usd };
+}
+
+// "fake" has no price in models.yaml, so no run here can build the real adapter by mistake.
+const settings = parseLlmSettings({ LLM_API_KEY: "test-key", LLM_ACTOR_MODEL: "fake" });
+
+const quiet = pino({ level: "silent" });
+
+let app: TargetApp;
+let browser: Browser;
+let runsDir: string;
+
+beforeAll(async () => {
+  browser = await chromium.launch().catch((error: unknown) => {
+    throw new Error(
+      "Chromium did not launch. If it is not installed, run " +
+        "`pnpm --filter @wayford/agent exec playwright install --only-shell chromium`.",
+      { cause: error },
+    );
+  });
+  app = await serveTargetApp();
+  // The box "passes with a scripted fake adapter and no network": from here on a run that reached
+  // for a network would fail.
+  vi.stubGlobal("fetch", () => {
+    throw new Error("a test reached for the network");
+  });
+});
+
+afterAll(async () => {
+  vi.unstubAllGlobals();
+  await browser?.close();
+  await app?.close();
+});
+
+beforeEach(async () => {
+  runsDir = await mkdtemp(join(tmpdir(), "wayford-runs-"));
+});
+
+afterEach(async () => {
+  // A test that failed half way can leave a context open, and its video would hold the directory.
+  await Promise.all(browser.contexts().map((context) => context.close()));
+  await rm(runsDir, { recursive: true, force: true, maxRetries: 3 });
+});
+
+// ---------------------------------------------------------------------------
+// Scripted answers
+// ---------------------------------------------------------------------------
+
+type Request = CompleteRequest<z.ZodObject>;
+
+const GIVE_UP: ActorResponse = { narration: "I cannot find it here.", action: { type: "giveUp" } };
+
+const SCROLL_DOWN: ActorResponse = {
+  narration: "Maybe it is further down.",
+  action: { type: "scroll", direction: "down" },
+};
+
+// No narration, so its step gets no narration event.
+const BACK: ActorResponse = { narration: "", action: { type: "back" } };
+
+/** An answer naming a ref that no page of the target app gives out. */
+function missing(ref: "e99" | "e98"): ActorResponse {
+  return { narration: `The ${ref} one.`, action: { type: "click", ref } };
+}
+
+/** A page line of the observation text, such as `[e3] link "Deliveries" at 410,25`. */
+const PAGE_LINE = /^\[(e[1-9][0-9]*)\] (.*)$/;
+
+/**
+ * The first page line that names `<role> "<name>"`, and its ref, read from the turn message the
+ * request carries (`messages[1]`, there on a retry too). History lines start with "- On", so only
+ * the page is searched. Throws when the persona was not shown such an element.
+ */
+function pageLine(request: Request, role: string, name: string): { ref: string; line: string } {
+  const turn = request.messages[1]?.content ?? "";
+  const named = `${role} ${JSON.stringify(name)} at `;
+  for (const line of turn.split("\n")) {
+    const match = PAGE_LINE.exec(line);
+    if (match?.[1] !== undefined && match[2]?.startsWith(named)) return { ref: match[1], line };
+  }
+  throw new Error(`the persona was not shown a ${role} named ${JSON.stringify(name)}`);
+}
+
+/** An answer that clicks the first `<role> "<name>"` of the page it is shown. */
+function click(role: string, name: string): (request: Request) => ActorResponse {
+  return (request) => ({
+    narration: `${name} looks right.`,
+    action: { type: "click", ref: pageLine(request, role, name).ref },
+  });
+}
+
+/**
+ * The fake, billing COST for each answer it gives. A thrown entry bills nothing, like a call that
+ * fails before it is answered.
+ */
+function billed(fake: FakeLlm): Llm {
+  return {
+    ...fake,
+    complete: async (request) => ({ ...(await fake.complete(request)), cost: COST }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Runs
+// ---------------------------------------------------------------------------
+
+/** A task fixture, started on the served app's home page. */
+function taskOf(id: string): Task {
+  return { ...taskFixture(id), startUrl: `${app.origin}/` };
+}
+
+interface Walked {
+  result: RunResult;
+  /** Every event `onEvent` received, in order. */
+  events: RunEvent[];
+  /** Every request the fake received, in order. */
+  calls: Request[];
+  runDir: string;
+}
+
+/**
+ * One run on the served app at its defaults, the run seed 7 and a cap of 3 unless told otherwise,
+ * the Actor answering from `answers` in order.
+ */
+async function walk(scripted: {
+  profile: Profile;
+  task: Task;
+  answers: readonly unknown[];
+  seed?: number;
+  maxSteps?: number;
+}): Promise<Walked> {
+  const fake = fakeLlm({ actor: [...scripted.answers] });
+  const events: RunEvent[] = [];
+  const result = await runActor({
+    browser,
+    profile: scripted.profile,
+    task: scripted.task,
+    seed: scripted.seed ?? RUN_SEED,
+    params: TARGET_APP_DEFAULTS,
+    runsDir,
+    backend: llmActor({ settings, llm: () => billed(fake) }),
+    logger: quiet,
+    onEvent: (event) => {
+      events.push(event);
+    },
+    maxSteps: scripted.maxSteps ?? 3,
+  });
+  // Whatever a test proves, every run returns the fold of the events it streamed.
+  expect(result).toStrictEqual(runResultFromEvents(events));
+  // And the model was shown the filter's projection of each step and nothing else: each step's
+  // first request, the one with no retry in it, is the one rebuilt from the stored evidence and
+  // the steps before it. The rebuild takes no profile, so text that depends on the persona fails
+  // here, for every persona with its own thresholds.
+  const firsts = fake.calls.filter((call) => call.messages.length === 2);
+  expect(firsts.map((call) => call.messages)).toStrictEqual(
+    result.steps
+      .slice(0, firsts.length)
+      .map((step, i) =>
+        actorMessages(
+          actorTurn(
+            scripted.task.goal,
+            toActorObservation(step.fullObservation),
+            historyOf(result.steps.slice(0, i)),
+          ),
+        ),
+      ),
+  );
+  return { result, events, calls: fake.calls, runDir: join(runsDir, result.id) };
+}
+
+/** How each step was stored. */
+function kinds(result: RunResult): string[] {
+  return result.steps.map((step) =>
+    "wasted" in step ? "wasted" : "incomplete" in step ? "incomplete" : "complete",
+  );
+}
+
+/** Step `i` of a run, failing the test when the run has none. */
+function stepAt(result: RunResult, i: number): RunStep {
+  const step = result.steps[i];
+  if (step === undefined) throw new Error(`run ${result.id} has no step ${i}`);
+  return step;
+}
+
+function urlAfter(step: RunStep | undefined): string | undefined {
+  return step !== undefined && "urlAfter" in step ? step.urlAfter : undefined;
+}
+
+/** What the model was shown at each step. */
+function texts({ result }: Walked): string[] {
+  return result.steps.map((step) => step.actorObservationText);
+}
+
+/** Every perception decision of every step, with its element, its rule and its roll. */
+function perceptionRolls(result: RunResult) {
+  return result.steps.flatMap((step) =>
+    step.fullObservation.elements.flatMap((element) =>
+      element.decisions.flatMap((decision) =>
+        decision.stage === "perception"
+          ? [
+              {
+                step: step.stepIndex,
+                key: element.key,
+                rule: decision.rule,
+                rolled: decision.rolled,
+              },
+            ]
+          : [],
+      ),
+    ),
+  );
+}
+
+/** The history each step's turn renders, rebuilt from the stored steps before it. */
+function historyOf(steps: readonly RunStep[]): HistoryStep[] {
+  return steps.map((step) => {
+    const observation = toActorObservation(step.fullObservation);
+    if ("wasted" in step) return { observation, wasted: true };
+    if (step.proposedAction === undefined) {
+      throw new Error(`step ${step.stepIndex} planned no action`);
+    }
+    return { observation, proposed: step.proposedAction };
+  });
+}
+
+/** The darkest colour channel of a PNG within a box of it, read by drawing it in a page. */
+async function darkest(path: string, box: Bbox): Promise<number> {
+  const png = (await readFile(path)).toString("base64");
+  const page = await browser.newPage();
+  try {
+    return await page.evaluate(
+      async ({ png, box }) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${png}`;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        [canvas.width, canvas.height] = [image.width, image.height];
+        const context = canvas.getContext("2d");
+        context?.drawImage(image, 0, 0);
+        const pixels = context?.getImageData(box.x, box.y, box.width, box.height).data ?? [];
+        // Every channel but alpha.
+        return Math.min(...[...pixels].filter((_, i) => i % 4 !== 3));
+      },
+      { png, box },
+    );
+  } finally {
+    await page.close();
+  }
+}
+
+/** The text of `message` between two of its lines. */
+function between(message: string, start: string, end: string): string {
+  const from = message.indexOf(start);
+  const to = message.indexOf(end, from);
+  if (from === -1 || to === -1) throw new Error(`the message has no ${start} … ${end}`);
+  return message.slice(from + start.length, to);
+}
+
+// ---------------------------------------------------------------------------
+// The boxes
+// ---------------------------------------------------------------------------
+
+test("Ada reaches the easy goal in two actions, each request the projection and nothing else, and result.json is the fold of the stream", async () => {
+  const task = taskOf("task_next-parcel");
+  // On home, the first "Your account" is the nav link. Both go to /account.
+  const { result, events, calls, runDir } = await walk({
+    profile: profileFixture("prof_ada"),
+    task,
+    answers: [click("link", "Your account"), click("link", "Delivery address")],
+  });
+
+  expect(result.outcome).toBe("success");
+  expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+  expect(result.steps.map(urlAfter)).toStrictEqual([
+    `${app.origin}/account`,
+    `${app.origin}/account/address`,
+  ]);
+  // In order, step by step, the narration before its plan, the terminal event on the last step.
+  expect(events.map((event) => `${event.type}@${event.stepIndex}`)).toStrictEqual([
+    "runStarted@0",
+    "stepObserved@0",
+    "narration@0",
+    "actionPlanned@0",
+    "actionPerformed@0",
+    "stepObserved@1",
+    "narration@1",
+    "actionPlanned@1",
+    "actionPerformed@1",
+    "runFinished@1",
+  ]);
+
+  // One request per step, no retry: `walk` has checked each is the projection rebuilt from the
+  // stored evidence, and nothing else from the page.
+  expect(calls).toHaveLength(2);
+
+  // result.json is the returned result, as two-space JSON, and both are the fold of the stream.
+  const text = await readFile(join(runDir, "result.json"), "utf8");
+  expect(text).toBe(`${JSON.stringify(result, null, 2)}\n`);
+  const stored = RunResult.parse(JSON.parse(text));
+  expect(stored).toStrictEqual(runResultFromEvents(events));
+  expect(stored).toStrictEqual(result);
+
+  // The duration is the persona's time, from runStarted to the terminal event, not the teardown.
+  const [start, end] = [events[0], events.at(-1)];
+  expect(Date.parse(end?.timestamp ?? "") - Date.parse(start?.timestamp ?? "")).toBe(
+    result.durationMs,
+  );
+
+  // The recording and each step's screenshot, stored relative to the run's own directory.
+  expect(result.videoPath).toMatch(/\.webm$/);
+  expect(result.tracePath).toMatch(/\.trace\.zip$/);
+  const files = [result.videoPath, result.tracePath, ...result.steps.map((s) => s.screenshotPath)];
+  for (const file of files) {
+    expect(file).toBeDefined();
+    const path = file ?? "";
+    expect(path.startsWith("/"), path).toBe(false);
+    expect(path).not.toContain(runsDir);
+    expect((await stat(join(runDir, path))).size, path).toBeGreaterThan(0);
+  }
+});
+
+test("Vera reads the same text on one run seed, and a changed profile seed changes no text and no roll (F5 AC1, A20)", async () => {
+  const vera = profileFixture("prof_vera");
+  const task = taskOf("task_past-order");
+  const answers = [click("link", "Deliveries"), GIVE_UP];
+  // At once: runs on one browser share nothing but the browser.
+  const [a, b, c] = await Promise.all([
+    walk({ profile: vera, task, answers }),
+    walk({ profile: vera, task, answers }),
+    walk({ profile: { ...vera, seed: vera.seed + 1 }, task, answers }),
+  ]);
+
+  // The giveUp box too: each run gives up on /deliveries after the click.
+  for (const { result } of [a, b, c]) {
+    expect(result.outcome).toBe("gave_up");
+    expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+    expect(result.steps[1]?.urlBefore).toBe(`${app.origin}/deliveries`);
+  }
+  expect(texts(b)).toStrictEqual(texts(a));
+  expect(texts(c)).toStrictEqual(texts(a));
+  // Not vacuous: the faint archive link falls in Vera's band, so at least one decision rolled.
+  const rolls = perceptionRolls(a.result);
+  expect(rolls.filter(({ rolled }) => rolled !== undefined).length).toBeGreaterThan(0);
+  expect(perceptionRolls(c.result)).toStrictEqual(rolls);
+});
+
+/**
+ * The first run seed from 1 to 200 at which `profile` sees "Order archive" degraded on the
+ * measurement fixture, which is the app's /deliveries at its defaults, and the name it reads then.
+ */
+function degradedArchive(profile: Profile): { seed: number; maskedName: string } {
+  for (let seed = 1; seed <= 200; seed++) {
+    const archive = perceive(measurementFixture, profile, seed).elements.find(
+      (element) => element.name === "Order archive",
+    );
+    if (archive?.state === "degraded" && archive.maskedName !== undefined) {
+      return { seed, maskedName: archive.maskedName };
+    }
+  }
+  throw new Error("no run seed from 1 to 200 leaves Order archive degraded");
+}
+
+test("a clicked degraded link is remembered masked in the next step's history", async () => {
+  const vera = profileFixture("prof_vera");
+  const { seed, maskedName } = degradedArchive(vera);
+  // No click can end it: its success never holds.
+  const neverDone: Task = {
+    id: "task_never-done",
+    goal: taskFixture("task_past-order").goal,
+    startUrl: `${app.origin}/`,
+    success: { type: "selectorPresent", selector: "#wayford-never-present" },
+  };
+  const clickMasked = (request: Request): ActorResponse => {
+    const { ref, line } = pageLine(request, "link", maskedName);
+    if (!line.endsWith(", partly legible")) throw new Error(`${line} is not partly legible`);
+    return { narration: "That faint one, perhaps.", action: { type: "click", ref } };
+  };
+
+  const { result, calls } = await walk({
+    profile: vera,
+    task: neverDone,
+    seed,
+    answers: [click("link", "Deliveries"), clickMasked, GIVE_UP],
+  });
+
+  expect(result.outcome).toBe("gave_up");
+  expect(kinds(result)).toStrictEqual(["complete", "complete", "complete"]);
+  expect(urlAfter(result.steps[1])).toBe(`${app.origin}/deliveries/archive`);
+  // Only the history: the archive page prints its own name in its title and heading.
+  const history = between(
+    calls[2]?.messages[1]?.content ?? "",
+    "What you have done so far:",
+    "The page you are on now:",
+  );
+  expect(history).toContain(`link ${JSON.stringify(maskedName)}`);
+  expect(history).not.toContain("Order archive");
+});
+
+test("a hard 3.0 contrast cut never shows Order archive", async () => {
+  const ada = profileFixture("prof_ada");
+  const hardCut: Profile = {
+    ...ada,
+    perception: {
+      ...ada.perception,
+      contrast: { threshold: 3, softness: 0, provenance: "wcag22" },
+    },
+  };
+
+  const { result } = await walk({
+    profile: hardCut,
+    task: taskOf("task_past-order"),
+    answers: [click("link", "Deliveries"), SCROLL_DOWN, GIVE_UP],
+  });
+
+  expect(result.outcome).toBe("gave_up");
+  for (const step of result.steps) expect(step.actorObservationText).not.toContain("Order archive");
+  // Not vacuous: a step stood on /deliveries, where the link was measured and cut by P1, with no
+  // roll, so by the hard cut and not by a band.
+  const onDeliveries = result.steps.find((step) => step.urlBefore.endsWith("/deliveries"));
+  const archive = onDeliveries?.fullObservation.elements.find(
+    (element) => element.name === "Order archive",
+  );
+  expect(archive?.state).toBe("invisible");
+  const p1 = archive?.decisions.find((d) => d.stage === "perception" && d.rule === "P1");
+  expect(p1).toBeDefined();
+  expect(p1).not.toHaveProperty("rolled");
+});
+
+test.each([
+  ["an Error", new Error("the model is down"), "Error: the model is down", costOf(0)],
+  [
+    "an LlmError (its cost joins the run's)",
+    new LlmError("llm_request_failed", "HTTP 503: overloaded\nRetry later.", COST),
+    "llm_request_failed: HTTP 503: overloaded Retry later.",
+    COST,
+  ],
+] as const)(
+  "a fake that throws %s ends runFailed with the partial step stored",
+  async (_name, thrown, error, cost) => {
+    const { result, events } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: taskOf("task_next-parcel"),
+      answers: [thrown],
+    });
+
+    expect(result.outcome).toBe("error");
+    // Its code or name, then the whole message on one line.
+    expect(events.at(-1)).toMatchObject({ type: "runFailed", stepIndex: 0, error });
+    expect(result.cost).toStrictEqual(cost);
+    // Observed, never planned.
+    expect(kinds(result)).toStrictEqual(["incomplete"]);
+    expect(result.steps[0]?.urlBefore).toBe(`${app.origin}/`);
+    expect(result.steps[0]).not.toHaveProperty("proposedAction");
+    expect(result.steps[0]).not.toHaveProperty("urlAfter");
+    expect(RunResult.safeParse(result).success).toBe(true);
+  },
+);
+
+describe("the step cap (F5 AC5)", () => {
+  test("ends a wandering run after exactly maxSteps complete steps, the same way twice", async () => {
+    const home = click("link", "Home");
+    const wander = () =>
+      walk({
+        profile: profileFixture("prof_ada"),
+        task: taskOf("task_next-parcel"),
+        maxSteps: 3,
+        answers: [home, home, home],
+      });
+    const [first, second] = await Promise.all([wander(), wander()]);
+
+    for (const { result, calls } of [first, second]) {
+      expect(result.outcome).toBe("budget_exceeded");
+      expect(kinds(result)).toStrictEqual(["complete", "complete", "complete"]);
+      expect(calls).toHaveLength(3);
+    }
+    expect(texts(second)).toStrictEqual(texts(first));
+  });
+
+  test("the goal reached on the cap-th step ends success", async () => {
+    const { result } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 2,
+      answers: [click("link", "Your account"), click("link", "Delivery address")],
+    });
+
+    expect(result.outcome).toBe("success");
+    expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+  });
+
+  test("only missing refs end on the cap with every step wasted", async () => {
+    const { result, calls } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 3,
+      answers: [
+        missing("e99"),
+        missing("e98"),
+        missing("e99"),
+        missing("e98"),
+        missing("e99"),
+        missing("e98"),
+      ],
+    });
+
+    expect(result.outcome).toBe("budget_exceeded");
+    expect(kinds(result)).toStrictEqual(["wasted", "wasted", "wasted"]);
+    // One retry per step, and no more.
+    expect(calls).toHaveLength(6);
+  });
+});
+
+describe("a missing ref", () => {
+  test("gets one retry; a second miss wastes the step with both answers, and the run goes on", async () => {
+    const task = taskOf("task_next-parcel");
+    const { result, calls } = await walk({
+      profile: profileFixture("prof_ada"),
+      task,
+      answers: [missing("e99"), missing("e98"), GIVE_UP],
+    });
+
+    expect(result.outcome).toBe("gave_up");
+    expect(kinds(result)).toStrictEqual(["wasted", "complete"]);
+    expect(result.steps[0]).toMatchObject({
+      rejected: [missing("e99"), missing("e98")],
+      cost: costOf(2),
+    });
+    expect(result.cost).toStrictEqual(costOf(3));
+    expect(RunResult.safeParse(result).success).toBe(true);
+    // The retry carries the refused answer and its ref; the next step remembers the miss.
+    const shown = toActorObservation(stepAt(result, 0).fullObservation);
+    expect(calls[1]?.messages).toStrictEqual(
+      actorMessages({
+        ...actorTurn(task.goal, shown, []),
+        retry: { refused: missing("e99"), ref: "e99" },
+      }),
+    );
+    expect(calls[2]?.messages[1]?.content).toContain(
+      "you pointed at something that was not on that page",
+    );
+  });
+
+  test("an accepted retry is acted on, and the step costs both calls", async () => {
+    const { result } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: taskOf("task_past-order"),
+      answers: [missing("e99"), click("link", "Deliveries"), GIVE_UP],
+    });
+
+    expect(result.outcome).toBe("gave_up");
+    expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+    const step = stepAt(result, 0);
+    const deliveries = toActorObservation(step.fullObservation).elements.find(
+      (element) => element.role === "link" && element.name === "Deliveries",
+    );
+    expect(step).toMatchObject({
+      proposedAction: { type: "click", ref: deliveries?.ref },
+      // The refused answer's narration stays off the record.
+      narration: "Deliveries looks right.",
+      cost: costOf(2),
+    });
+    expect(urlAfter(step)).toBe(`${app.origin}/deliveries`);
+    expect(result.cost).toStrictEqual(costOf(3));
+  });
+});
+
+test("every persona fixture sends the same first request on the same page (F5 AC6)", async () => {
+  const requests = await Promise.all(
+    profileFixtures.map(async (persona) => {
+      // No threshold, no attention cap, every pattern known and a desktop, so every persona's page
+      // is measured and perceived the same, s1-03's attention and knowledge stages included, and
+      // only the rest of the profile differs: its name, seed, behaviour and emulation.
+      const { maxElements: _cap, maxOptions: _options, ...behaviour } = persona.behaviour;
+      const bare: Profile = {
+        ...persona,
+        device: "desktop",
+        perception: { emulation: persona.perception.emulation },
+        behaviour,
+        knowledge: { ...persona.knowledge, unknownPatterns: [] },
+      };
+      const { result, calls } = await walk({
+        profile: bare,
+        task: taskOf("task_next-parcel"),
+        maxSteps: 1,
+        answers: [GIVE_UP],
+      });
+      expect(result.outcome).toBe("gave_up");
+      // The whole request: its messages, its role, its schema and any seed.
+      return calls[0];
+    }),
+  );
+
+  expect(requests).toHaveLength(profileFixtures.length);
+  expect(requests[0]).toBeDefined();
+  for (const request of requests) expect(request).toStrictEqual(requests[0]);
+});
+
+test("a back at the start page goes nowhere", async () => {
+  const { result, events } = await walk({
+    profile: profileFixture("prof_ada"),
+    task: taskOf("task_next-parcel"),
+    answers: [BACK, GIVE_UP],
+  });
+
+  expect(result.outcome).toBe("gave_up");
+  expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+  expect(urlAfter(result.steps[0])).toBe(`${app.origin}/`);
+  expect(result.steps[1]?.urlBefore).toBe(`${app.origin}/`);
+  // The back had no narration, so only the giveUp's step has a narration event.
+  const narrated = events.filter((event) => event.type === "narration");
+  expect(narrated.map((event) => event.stepIndex)).toStrictEqual([1]);
+});
+
+test("a start that answers 404 ends runFailed with no step, and result.json is still written", async () => {
+  // The target app answers a trailing slash with an empty 404.
+  const task = { ...taskOf("task_past-order"), startUrl: `${app.origin}/deliveries/` };
+
+  const { result, events, runDir } = await walk({
+    profile: profileFixture("prof_vera"),
+    task,
+    answers: [],
+  });
+
+  expect(events.map((event) => event.type)).toStrictEqual(["runStarted", "runFailed"]);
+  expect(events[1]).toMatchObject({ error: expect.stringMatching(/^run_start_failed: .*404/) });
+  expect(result.outcome).toBe("error");
+  expect(result.steps).toStrictEqual([]);
+  expect(result).not.toHaveProperty("videoPath");
+  expect(result).not.toHaveProperty("tracePath");
+  const stored = RunResult.parse(JSON.parse(await readFile(join(runDir, "result.json"), "utf8")));
+  expect(stored).toStrictEqual(result);
+});
+
+test("a pattern that can never match ends the run before a context is opened", async () => {
+  // Relative: a run's contexts have no base URL to resolve it against.
+  const task: Task = {
+    ...taskOf("task_next-parcel"),
+    success: { type: "urlMatches", pattern: "/account/address" },
+  };
+
+  const { result, events, runDir } = await walk({
+    profile: profileFixture("prof_ada"),
+    task,
+    answers: [],
+  });
+
+  expect(events.map((event) => event.type)).toStrictEqual(["runStarted", "runFailed"]);
+  expect(events[1]).toMatchObject({ error: expect.stringMatching(/^invalid_success_condition: /) });
+  expect(result.steps).toStrictEqual([]);
+  // No context, so no video and no trace, not even unfinished ones: result.json alone.
+  expect(await readdir(runDir)).toStrictEqual(["result.json"]);
+});
+
+test.each([
+  ["a maxSteps of 0", { maxSteps: 0 }],
+  ["an empty runsDir", { runsDir: "" }],
+] as const)("%s rejects with invalid_run_input before any event", async (_name, override) => {
+  const onEvent = vi.fn();
+
+  const error = await runActor({
+    browser,
+    profile: profileFixture("prof_ada"),
+    task: taskOf("task_next-parcel"),
+    seed: RUN_SEED,
+    params: TARGET_APP_DEFAULTS,
+    runsDir,
+    backend: llmActor({ settings, llm: () => fakeLlm({}) }),
+    logger: quiet,
+    onEvent,
+    ...override,
+  }).catch((reason: unknown) => reason);
+
+  expect(error).toBeInstanceOf(WayfordError);
+  expect((error as WayfordError).code).toBe("invalid_run_input");
+  expect(onEvent).not.toHaveBeenCalled();
+  expect(await readdir(runsDir)).toStrictEqual([]);
+});
+
+/** Ada on the easy goal, giving up at once, every event handed to `onEvent`. */
+function adaGivingUp(onEvent: (event: RunEvent) => void, fake: FakeLlm): Promise<RunResult> {
+  return runActor({
+    browser,
+    profile: profileFixture("prof_ada"),
+    task: taskOf("task_next-parcel"),
+    seed: RUN_SEED,
+    params: TARGET_APP_DEFAULTS,
+    runsDir,
+    backend: llmActor({ settings, llm: () => billed(fake) }),
+    logger: quiet,
+    maxSteps: 3,
+    onEvent,
+  });
+}
+
+test("the terminal event is delivered even when result.json cannot be written", async () => {
+  const delivered: RunEvent[] = [];
+
+  const error = await adaGivingUp(
+    (event) => {
+      delivered.push(event);
+      // A directory where result.json goes, so writing it fails.
+      if (event.type === "runStarted") {
+        mkdirSync(join(runsDir, event.runId, "result.json"), { recursive: true });
+      }
+    },
+    fakeLlm({ actor: [GIVE_UP] }),
+  ).catch((reason: unknown) => reason);
+
+  // The write's own error, and the run still ended in its one terminal event.
+  expect((error as NodeJS.ErrnoException).code).toBe("EISDIR");
+  expect(delivered.at(-1)).toMatchObject({ type: "runFinished", outcome: "gave_up" });
+});
+
+describe("a listener that throws", () => {
+  /** A listener that keeps every event in `delivered` and throws on the first of type `type`. */
+  const throwingOn =
+    (type: RunEvent["type"], delivered: RunEvent[]) =>
+    (event: RunEvent): void => {
+      delivered.push(event);
+      if (event.type === type) throw new Error("the listener broke");
+    };
+
+  test("on stepObserved ends the run there, before the model is asked, with its error", async () => {
+    const delivered: RunEvent[] = [];
+    const fake = fakeLlm({ actor: [GIVE_UP] });
+
+    const result = await adaGivingUp(throwingOn("stepObserved", delivered), fake);
+
+    expect(result.outcome).toBe("error");
+    expect(fake.calls).toHaveLength(0);
+    // It still gets the terminal event, which names its error.
+    expect(delivered.map((event) => event.type)).toStrictEqual([
+      "runStarted",
+      "stepObserved",
+      "runFailed",
+    ]);
+    expect(delivered.at(-1)).toMatchObject({ error: "Error: the listener broke" });
+    const stored = RunResult.parse(
+      JSON.parse(await readFile(join(runsDir, result.id, "result.json"), "utf8")),
+    );
+    expect(stored).toStrictEqual(result);
+  });
+
+  test("on the terminal event makes runActor reject with its error, the record on disk", async () => {
+    const delivered: RunEvent[] = [];
+
+    const error = await adaGivingUp(
+      throwingOn("runFinished", delivered),
+      fakeLlm({ actor: [GIVE_UP] }),
+    ).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("the listener broke");
+    const runId = delivered[0]?.runId ?? "";
+    const stored = RunResult.parse(
+      JSON.parse(await readFile(join(runsDir, runId, "result.json"), "utf8")),
+    );
+    expect(stored.outcome).toBe("gave_up");
+    expect(stored).toStrictEqual(runResultFromEvents(delivered));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pages the target app has no reason to hold
+// ---------------------------------------------------------------------------
+
+/**
+ * Three behaviours of the loop that the target app cannot show: it moves nothing, links nowhere
+ * dead and has no hover state worth measuring. A plain `node:http` server on 127.0.0.1 serves one
+ * small page for each. The runs start there, with the app's parameters on the URL, which these
+ * pages ignore.
+ */
+describe("on pages served for the purpose", () => {
+  const HTML = (title: string, style: string, body: string) =>
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>body { margin: 0; font: 18px sans-serif; background: #ffffff; color: #000000; } ${style}</style></head><body>${body}</body></html>`;
+  // One place on the screen for both links of the hover pages, so the pointer that pressed the
+  // first rests on the second after the navigation.
+  const SPOT =
+    "a { position: absolute; left: 40px; top: 40px; width: 240px; height: 48px; line-height: 48px; color: #000000; text-decoration: none; }";
+  const PAGES: Record<string, string> = {
+    // Faint for most of a second, then black: measured mid-way, it would read as low contrast.
+    "/fading": HTML(
+      "Fading",
+      "@keyframes fade { from { color: #f4f4f4; } to { color: #000000; } } a { animation: fade 600ms ease-out both; }",
+      '<p><a href="/elsewhere">Fading link</a></p>',
+    ),
+    // Nothing listens on port 9, so the browser lands on its own error page.
+    "/dead-end": HTML("Dead end", "", '<p><a href="http://127.0.0.1:9/">Old shop</a></p>'),
+    // Its link answers 204: the browser starts a navigation, its request fails, and nothing commits.
+    "/no-content": HTML("No content", "", '<p><a href="/empty">Nothing new</a></p>'),
+    "/hover-from": HTML("Hover from", SPOT, '<a href="/hover-to">Go on</a>'),
+    // Grey while the pointer is on it: 1.9:1 against the white page.
+    "/hover-to": HTML(
+      "Hover to",
+      `${SPOT} a:hover { color: #bbbbbb; }`,
+      '<a href="/hover-from">Back again</a>',
+    ),
+    // A field whose input becomes the page's title, alone in a form that Enter would submit, a
+    // link a scroll's length down, and room to scroll: what typing, scrolling and going back did
+    // can be read off the next observation.
+    "/form": HTML(
+      "Form",
+      "h1 { margin: 16px; } label { display: block; margin: 16px; } .gap { height: 860px; } .rest { height: 2000px; }",
+      '<h1>Marker</h1><form action="/form-sent"><label>Search <input type="text" name="q" oninput="document.title = \'Typed: \' + this.value"></label></form><div class="gap"></div><p><a href="/form-next">Next page</a></p><div class="rest"></div>',
+    ),
+    "/form-next": HTML("Form next", "", "<p>Somewhere else</p>"),
+    // A link into a page whose spinner never stops, so the page after the click never settles.
+    "/spin-from": HTML("Spin from", "", '<p><a href="/spin">Spinning page</a></p>'),
+    "/spin": HTML(
+      "Spin",
+      "@keyframes spin { to { transform: rotate(360deg); } } .spinner { width: 24px; height: 24px; border: 2px solid #000000; animation: spin 1s linear infinite; }",
+      '<div class="spinner"></div><p>Loading</p>',
+    ),
+  };
+
+  let server: Server;
+  let origin: string;
+
+  beforeAll(async () => {
+    server = createServer((request, response) => {
+      const path = new URL(request.url ?? "/", "http://pages.test").pathname;
+      if (path === "/empty") {
+        response.writeHead(204).end();
+        return;
+      }
+      const page = PAGES[path];
+      if (page === undefined) {
+        response.writeHead(404).end();
+        return;
+      }
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(page);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise((resolve) => server?.close(resolve));
+  });
+
+  /** A task that starts on one of these pages and whose success no step reaches. */
+  function servedTask(path: string): Task {
+    return {
+      id: "task_served-page",
+      goal: "you want to look around",
+      startUrl: `${origin}${path}`,
+      success: { type: "urlMatches", pattern: "**/never-reached" },
+    };
+  }
+
+  /** The element of step `i` named `name`, as the filter measured it. */
+  function measured(result: RunResult, i: number, name: string) {
+    const element = stepAt(result, i).fullObservation.elements.find((e) => e.name === name);
+    if (element === undefined) throw new Error(`step ${i} has no element named ${name}`);
+    return element;
+  }
+
+  test("the page is measured once its animation has ended, not mid-way", async () => {
+    const { result } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/fading"),
+      maxSteps: 1,
+      answers: [GIVE_UP],
+    });
+
+    // Black on white once settled; mid-fade it would read near 1:1.
+    expect(measured(result, 0, "Fading link").metrics.contrast).toBeGreaterThan(20);
+  });
+
+  test("a click that lands off http(s) is recorded where it landed, then ends the run off_http_page", async () => {
+    const { result, events } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/dead-end"),
+      answers: [click("link", "Old shop")],
+    });
+
+    expect(result.outcome).toBe("error");
+    expect(kinds(result)).toStrictEqual(["complete"]);
+    expect(urlAfter(result.steps[0])).toMatch(/^chrome-error:/);
+    expect(events.at(-1)).toMatchObject({
+      type: "runFailed",
+      stepIndex: 0,
+      error: expect.stringMatching(/^off_http_page: step 1 cannot observe chrome-error:/),
+    });
+  });
+
+  test("a link whose navigation never commits lands back on its page at once, not after 30 s", async () => {
+    const { result } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/no-content"),
+      answers: [click("link", "Nothing new"), GIVE_UP],
+    });
+
+    expect(result.outcome).toBe("gave_up");
+    // The page stays where it was: nothing committed.
+    expect(urlAfter(result.steps[0])).toBe(stepAt(result, 0).urlBefore);
+    // The failed request ends the wait for a commit; the 30 s commit timeout would have run out.
+    expect(result.durationMs).toBeLessThan(10_000);
+  });
+
+  test("type, scroll and back each do what they say", async () => {
+    const { result } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/form"),
+      maxSteps: 5,
+      answers: [
+        (request: Request): ActorResponse => ({
+          narration: "Let me search.",
+          action: {
+            type: "type",
+            ref: pageLine(request, "textbox", "Search").ref,
+            text: "parcel\nnow",
+          },
+        }),
+        SCROLL_DOWN,
+        click("link", "Next page"),
+        BACK,
+        GIVE_UP,
+      ],
+    });
+
+    expect(result.outcome).toBe("gave_up");
+    expect(kinds(result)).toStrictEqual([
+      "complete",
+      "complete",
+      "complete",
+      "complete",
+      "complete",
+    ]);
+    // Typed on one line, as the history tells it: the line break became a space, not an Enter that
+    // submits the form, and the field's input became the page's title.
+    expect(urlAfter(result.steps[0])).toBe(stepAt(result, 0).urlBefore);
+    expect(stepAt(result, 1).fullObservation.title).toBe("Typed: parcel now");
+    // Scrolled down by 0.8 of the 720 px viewport, at once.
+    const markerAt = (i: number) => measured(result, i, "Marker").bbox.y;
+    expect(markerAt(1) - markerAt(2)).toBe(Math.round(0.8 * 720));
+    // Went back to the page the link left.
+    expect(stepAt(result, 3).urlBefore).toBe(`${origin}/form-next`);
+    expect(urlAfter(result.steps[3])).toBe(stepAt(result, 0).urlBefore);
+  });
+
+  test("a page that never settles after a click still records where it landed, then ends the run", async () => {
+    const { result, events } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/spin-from"),
+      answers: [click("link", "Spinning page")],
+    });
+
+    expect(result.outcome).toBe("error");
+    // The click landed, so the step is complete, with no screenshot of a page that never stood still.
+    expect(kinds(result)).toStrictEqual(["complete"]);
+    expect(urlAfter(result.steps[0])).toBe(`${origin}/spin`);
+    expect(result.steps[0]).not.toHaveProperty("screenshotPath");
+    expect(events.at(-1)).toMatchObject({
+      type: "runFailed",
+      error: expect.stringMatching(/^page_not_settled: .*still running: animation "spin"/),
+    });
+  });
+
+  test("a listener that throws on a failed step's actionPerformed ends the run with its error, and the step's goes to the log", async () => {
+    const delivered: RunEvent[] = [];
+    const lines: string[] = [];
+    const logger = pino({ level: "error" }, { write: (line: string) => void lines.push(line) });
+
+    await runActor({
+      browser,
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/spin-from"),
+      seed: RUN_SEED,
+      params: TARGET_APP_DEFAULTS,
+      runsDir,
+      backend: llmActor({
+        settings,
+        llm: () => billed(fakeLlm({ actor: [click("link", "Spinning page")] })),
+      }),
+      logger,
+      onEvent: (event) => {
+        delivered.push(event);
+        if (event.type === "actionPerformed") throw new Error("the listener broke");
+      },
+    });
+
+    expect(delivered.at(-1)).toMatchObject({
+      type: "runFailed",
+      error: "Error: the listener broke",
+    });
+    // The settle that stopped the step is not lost.
+    expect(lines.some((line) => line.includes('still running: animation \\"spin\\"'))).toBe(true);
+  });
+
+  test("the pointer rests where it pressed, so the step's screenshot and the next page's measurement show its hover state", async () => {
+    const { result, runDir } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/hover-from"),
+      answers: [click("link", "Go on"), GIVE_UP],
+    });
+
+    expect(result.steps[1]?.urlBefore).toBe(`${origin}/hover-to`);
+    // Under the pointer, so hovered: grey, not the black it is without a pointer on it.
+    expect(measured(result, 1, "Back again").metrics.contrast).toBeLessThan(3);
+    // The screenshot after the click shows it so too: its text, left of the cursor drawn at the
+    // link's centre, is #bbbbbb at its darkest, where an unhovered link would be black.
+    const screenshot = join(runDir, stepAt(result, 0).screenshotPath ?? "");
+    expect(await darkest(screenshot, { x: 40, y: 40, width: 80, height: 48 })).toBeGreaterThan(150);
+  });
+});
+
+test("a recording that cannot be saved ends runFailed run_close_failed, and result.json is still written", async () => {
+  const fake = fakeLlm({ actor: [GIVE_UP] });
+  const events: RunEvent[] = [];
+
+  const result = await runActor({
+    browser,
+    profile: profileFixture("prof_ada"),
+    task: taskOf("task_next-parcel"),
+    seed: RUN_SEED,
+    params: TARGET_APP_DEFAULTS,
+    runsDir,
+    backend: llmActor({ settings, llm: () => billed(fake) }),
+    logger: quiet,
+    onEvent: (event) => {
+      events.push(event);
+      // A directory where closing the run saves its trace (`run-context.ts` names the files), so
+      // the save fails, on every platform. A mode that refuses writes does not: Windows ignores
+      // it on a directory.
+      if (event.type === "runStarted") {
+        const stem = `ada-seed${RUN_SEED}-${event.runId}`;
+        mkdirSync(join(runsDir, event.runId, `${stem}.trace.zip`), { recursive: true });
+      }
+    },
+  });
+
+  expect(result.outcome).toBe("error");
+  // The outcome the run reached stays in the message.
+  expect(events.at(-1)).toMatchObject({
+    type: "runFailed",
+    error: expect.stringMatching(
+      /^run_close_failed: the run ended gave_up, then saving its recording failed: /,
+    ),
+  });
+  expect(kinds(result)).toStrictEqual(["complete"]);
+  expect(result).not.toHaveProperty("videoPath");
+  expect(result).not.toHaveProperty("tracePath");
+  const stored = RunResult.parse(
+    JSON.parse(await readFile(join(runsDir, result.id, "result.json"), "utf8")),
+  );
+  expect(stored).toStrictEqual(result);
+});
+
+test("a run on a phone measures the page as a phone's", async () => {
+  const { result } = await walk({
+    profile: profileFixture("prof_milo"),
+    task: taskOf("task_next-parcel"),
+    maxSteps: 1,
+    answers: [GIVE_UP],
+  });
+
+  // Milo's device is a phone. The page cannot tell, so the loop passes the context's flag to the
+  // collector, and the observation records it.
+  expect(stepAt(result, 0).fullObservation.viewport.isMobile).toBe(true);
+});
