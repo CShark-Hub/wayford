@@ -34,7 +34,7 @@ Monday 2026-09-28 to Sunday 2026-10-04. Plan assumes `m0-01` … `m0-07` merged,
 | s2-02 | Run context and evidence capture | L | — | Dev 2 | Dawid | done |
 | s3-02 | Persona cards and procedural avatars | M | m0-07, PR #71 | Dev 3 | Tomasz | done |
 | s1-02 | DOM metrics collector and the seed test on the target app | L | s1-01 | Dev 1 | Grzegorz | done |
-| s3-01 | Preview screen on the measurement fixture | L | s1-01, s3-02 | Dev 3 | | todo |
+| s3-01 | Preview screen on the measurement fixture | L | s1-01, s3-02 | Dev 3 | Tomasz | review |
 | s4-01 | Extractor | M | s2-01 | Dev 4 | Dawid | done |
 | s4-02 | Database: runs and tasks | S | m0-07, #13, #14, #15 | Dev 2 | Dawid | done |
 | s2-05 | Jev decision call in the adapter | S | s2-01 | Dev 4 | Marcin | done |

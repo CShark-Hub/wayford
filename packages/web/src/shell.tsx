@@ -26,6 +26,11 @@ export function Shell() {
               </Link>
             </li>
             <li>
+              <Link to="/preview" className={NAV_LINK}>
+                Preview
+              </Link>
+            </li>
+            <li>
               <Link to="/events" className={NAV_LINK}>
                 Events
               </Link>
