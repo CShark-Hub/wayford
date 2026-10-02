@@ -136,12 +136,23 @@ Not how we know the personas are right. We do not claim that.
 | Check | Expectation |
 |---|---|
 | Persona with no thresholds (Ada) on the target app | success at or near 10/10, short path. If not, the Actor or the target app is broken, not the persona. |
-| Persona with a hard contrast cut above the hard link's contrast | 0/10 on the hard goal. The filter removed the only path. |
+| Vera with her contrast cut made hard (3.0, softness 0) | 0/10 on the hard goal. P1 removes the hard link (2.006:1), and P4 removes the entrances to routes B and C (28 px, under her 32 px cut). The filter removed every route. |
 | Vera at the target app's defaults: soft cut 3.0, band from 1.5, hard link at 2.006:1. Its 16 px font sits exactly on her 16 px font cut, on purpose, so the row also checks that `>=` passes; its 36 px box clears her 32 px target cut (issue #32) | the link reaches her degraded in about one seed in three (checked over 1000 seeds in `s1-01`) and never whole. For a fixed seed list the number of seeds where it is degraded is fixed, and hard-goal successes never exceed it. Ten seeds are too few to judge the share: at a true third, 4/10 or more happens almost half the time. |
 | Zoya at the target app's defaults | 0/10 on both goals. Her hard 24 px font cut removes every link in the app (16 to 18 px), so no route leaves the home page. That is the far end of the scale, not a broken engine (decided in `m0-08`, issue #23). |
 | axe-core violations on the target app | every P1 to P4 removal on a page corresponds to at least one axe finding on the same page, or the rule is stricter than WCAG and says so in provenance |
 | Same task, profile, run seed and Actor answers, twice (fake adapter) | identical observations and dice rolls on every step both runs reach (`docs/PLAN.md` F5 AC1). Re-running a seed on a live model is not this check: its answers can differ. |
-| Sweep on contrast | per seed, a higher threshold never gives an element a better state under the contrast rules (`s1-01` tests P1 on `perceive` alone, on a profile with no attention cap). So over the fixed seed set, the seeds where those rules leave the hard link visible or degraded never grow in number, and at each value hard-goal successes never outnumber them. The success rate itself is not monotone (`docs/PLAN.md` F9 AC5): the Actor's own variance can make a stricter value score higher, and so can an attention cap (A1, A3) once `s1-03` lands. |
+| Sweep on contrast, on a persona whose B and C entrances P4 closes, such as Vera | per seed, a higher threshold never gives an element a better state under the contrast rules (`s1-01` tests P1 on `perceive` alone, on a profile with no attention cap). So over the fixed seed set, the seeds where those rules leave the hard link visible or degraded never grow in number, and at each value hard-goal successes never outnumber them. The success rate itself is not monotone (`docs/PLAN.md` F9 AC5): the Actor's own variance can make a stricter value score higher, and so can an attention cap (A1, A3) once `s1-03` lands. For any other persona the hard link is not the only route, so the bound is not guaranteed. |
+| Kai at the target app's defaults | no perception decision on any page (seeds 1 to 100). Every difference between what the filter gives Kai and what it gives Ada comes from stages 4 to 6. |
+| `/settings/data` at the WCAG AA anchors (4.5:1, 24 px) | no element fails P1 or P4, and every element that carries text has a measured contrast, none left out for an unknown background (issue #125). |
+| What the filter leaves on each route to the hard goal | as the route table below, per persona. |
+
+The route table is what the filter is expected to leave on each route, written before `s1-03` and `s1-05` implement K1, K2, K4 and A1; they are checked against it. `ROUTES` in `packages/target-app/src/pages.ts` names the routes. If Kai's cap of 10 cuts a step on B or C, `s1-03` raises Kai's cap (its constraints).
+
+| Route | Ada | Kai | Vera | Milo | Zoya |
+|---|---|---|---|---|---|
+| A | open | open unless A1 cuts it; A1 decides once `s1-03` fixes salience | P1 decides per seed: degraded or cut | closed at the hard link (P4, 36 px under 44) | closed at home: P3 cuts every link (row "Zoya at the target app's defaults") |
+| B | open | open: the kebab shown renamed (K1, K4) | closed at the entrance (P4) | closed at the entrance (P4) | closed at home (P3) |
+| C | open | open: "Your data" shown, the term in "Fulfilment ledger" masked as `[unfamiliar term]` (K2) once `s1-05` lands | closed at the entrance (P4) | closed at the entrance (P4) | closed at home (P3) |
 
 ## Persona composition
 
@@ -151,35 +162,41 @@ A persona is a bundle. Reference points for calibrating bundles, not for labelli
 - **WCAG 2.2** anchors for perception thresholds.
 - **PersonaLayer** taxonomy of 45 profiles as a checklist of dimensions we do or do not model.
 
-Four hackathon personas, as bundles, listed in the order they are numbered
+Five hackathon personas, as bundles, listed in the order they are numbered
 here and stored on disk. Ada and Zoya are the two ends of the scale: Ada is
 what the engine looks like with nothing switched on, Zoya is every dimension at
-once. Milo and Vera are the two interesting middles.
+once, except K2 vocabulary: she sets no `domainVocabulary`, and K2 applies only
+when a profile sets it (`s1-05`). Kai, Milo and Vera are the three interesting
+middles.
 
 | Persona | Perception | Knowledge | Attention and memory | Behaviour |
 |---|---|---|---|---|
 | Ada | none | all known | unlimited | budget 120 s |
+| Kai | none | unknown: hamburger, kebab, breadcrumb, tabs, accordion (folk), everyday shop words only (folk) | `maxElements` 10, `memorySteps` 2 (folk, set against PIAAC level 1 and Cowan 2001) | budget 120 s |
 | Milo | mobile device, target 44, no contrast rule | all known | `maxElements` 20, `memorySteps` 6 | scrollWhenStuck 0.9, budget 90 s |
-| Vera | contrast 3.0 soft, font 16, target 32, `blurredVision` | unknown: hamburger, kebab, breadcrumb | `maxElements` 12, `memorySteps` 3 | doubleClick 0.8, budget 120 s |
-| Zoya | contrast 7.0 soft, font 24, target 48, `reducedContrast` | nothing known, every pattern unknown | `maxElements` 5, `maxOptions` 4, `memorySteps` 2 | doubleClick 0.9, scrollWhenStuck 0.3, budget 180 s |
+| Vera | contrast 3.0 soft, font 16, target 32, `blurredVision` | unknown: hamburger, kebab, breadcrumb | `maxElements` 20, `memorySteps` 3 | doubleClick 0.8, budget 120 s |
+| Zoya | contrast 7.0 soft, font 24, target 48, `reducedContrast` | every pattern unknown, no `domainVocabulary` (K2 off) | `maxElements` 5, `maxOptions` 4, `memorySteps` 2 | doubleClick 0.9, scrollWhenStuck 0.3, budget 180 s |
 
-The initial is the dimension the persona is defined by: **A**ll clear, **M**obile
-and motor, **V**ision, and **Z** for the far end of the scale. Alphabetical order
-is therefore the order of how much filter each one switches on, so a dashboard
-and a sweep both read left to right without sorting anything. Thresholds across
-different metrics are not comparable — Milo's 44 px target is stricter than
-Vera's 32 px — so what is ordered is the number of dimensions switched on, not a
-severity score.
+The initial is the dimension the persona is defined by: **A**ll clear,
+**K**nowledge, **M**obile and motor, **V**ision, and **Z** for the far end of the
+scale. Ada comes first, the control persona with nothing switched on, and Zoya
+last, with the most switched on. In between the order is alphabetical, so a
+dashboard and a sweep both read left to right without sorting anything. The
+middles are not ordered by how much each switches on: Kai switches on seven
+constraints (two caps, five unknown patterns), Milo three. Thresholds across
+different metrics are not comparable either — Milo's 44 px target is stricter
+than Vera's 32 px — so no order here is a severity score.
 
 Zoya is the far end on purpose. At the target app's defaults the calibration
 table above expects her at 0/10 on both goals: her 24 px font cut alone removes
 every link. That is a finding about the app, and it stays (decided in `m0-08`,
 issue #23).
 
-The contrast sweep runs on Vera. At the app's defaults contrast is the only
-metric that gates her (`tasks/m0-06-target-app.md`), so sweeping her contrast
-threshold asks the question the sweep exists for: at which value does the path
-come back.
+The contrast sweep runs on Vera. At the app's defaults, on route A contrast is
+the only metric that gates her (`tasks/m0-06-target-app.md`), and P4 closes the
+entrances to routes B and C at every contrast (`tasks/s1-04-target-app-routes.md`).
+So the sweep measures one route, and sweeping her contrast threshold asks the
+question the sweep exists for: at which value does the path come back.
 
 ## Source registry
 

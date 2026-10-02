@@ -22,6 +22,18 @@
     </header>
     <main>
       <h1>Your account</h1>
+      <div class="page-tools">
+        <button id="more-toggle" class="entrance kebab" type="button" aria-label="More options"
+                aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu">
+          <span class="kebab-icon" aria-hidden="true"></span>
+        </button>
+        <!-- biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the ARIA menu button pattern, a list with role menu, so s1-03 detects markup real sites use -->
+        <ul id="more-menu" class="more-menu" role="menu" aria-label="More options">
+          <li role="none"><a role="menuitem" href="/deliveries/archive">Past orders</a></li>
+          <li role="none"><a role="menuitem" href="/settings">Settings</a></li>
+          <li role="none"><button role="menuitem" type="button">Sign out</button></li>
+        </ul>
+      </div>
       <p class="lead">Keep your details up to date.</p>
       <ul class="cards">
         <li class="card">

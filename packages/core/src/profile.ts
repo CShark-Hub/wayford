@@ -158,8 +158,9 @@ export function conflictingPatterns(profile: Pick<Profile, "knowledge">): UiPatt
  *
  * Not a severity score and not comparable across metrics — a 44 px target
  * threshold and a 3:1 contrast threshold constrain different things and cannot
- * be added up. This counts switches, which is enough to sort a dashboard and
- * to keep the fixture set ordered from the control persona to the boundary.
+ * be added up. This counts switches, which is enough to tell the control
+ * persona, with none, from the boundary, with the most. The personas between
+ * them sort by name, not by this count (docs/RULES.md, "Persona composition").
  */
 export function constraintCount(profile: Profile): number {
   const thresholds = [

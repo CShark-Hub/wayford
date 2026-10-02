@@ -3,7 +3,7 @@ import {
   addressWithoutParams,
   applyTheme,
   isStored,
-  type MenuNav,
+  type MenuPanel,
   type MenuToggle,
   openStore,
   wireMenu,
@@ -137,7 +137,7 @@ describe("wireMenu", () => {
       setAttribute: (name, value) => void attributes.set(name, value),
       addEventListener: (_type, listener) => void listeners.push(listener),
     };
-    const nav: MenuNav = {
+    const nav: MenuPanel = {
       classList: {
         toggle: (name, force) => {
           toggles.push([name, force]);

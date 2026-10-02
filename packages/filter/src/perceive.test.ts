@@ -48,7 +48,7 @@ const ADDRESS_TEXT = "main//paragraph:Delivery address";
 const ADDRESS_LINK = "main//link:Delivery address";
 
 const KEYS = measurementFixture.elements.map((e) => e.key);
-const PERSONA_IDS = ["prof_ada", "prof_milo", "prof_vera", "prof_zoya"];
+const PERSONA_IDS = ["prof_ada", "prof_kai", "prof_milo", "prof_vera", "prof_zoya"];
 
 // ---------------------------------------------------------------------------
 // Helpers

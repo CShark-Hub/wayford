@@ -23,7 +23,7 @@ perception:
 behaviour:
   doubleClick: 0.8
   budgetSeconds: 120
-  maxElements: 12
+  maxElements: 20
   memorySteps: 3
 
 knowledge:

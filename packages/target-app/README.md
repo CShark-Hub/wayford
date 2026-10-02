@@ -16,16 +16,17 @@ Seeded runs, sweeps and the demo recording use a build (`docs/STACK.md`, "Target
 
 ## Pages
 
-The URL contract from `tasks/m0-06-target-app.md`, also defined in `src/pages.ts` as `PAGES`:
+The URL contract from `tasks/m0-06-target-app.md`, extended by `tasks/s1-04-target-app-routes.md`, also defined in `src/pages.ts` as `PAGES`:
 
 | Path | File | What it is |
 |---|---|---|
 | `/` | `index.html` | home, a big "Your account" link |
-| `/account` | `account.html` | obvious, well-labelled section |
+| `/account` | `account.html` | obvious, well-labelled section, and under its heading an icon-only "More options" menu holding "Past orders" (route B's entrance) |
 | `/account/address` | `account/address.html` | **easy goal page** |
 | `/deliveries` | `deliveries.html` | misleadingly labelled section: a big "Delivery address" link, and the low-contrast "Order archive" link at the bottom |
-| `/deliveries/archive` | `deliveries/archive.html` | **hard goal page**, linked only from `/deliveries` |
-| `/settings` | `settings.html` | a plausible wrong turn ("order history" is mentioned, not linked) |
+| `/deliveries/archive` | `deliveries/archive.html` | **hard goal page**, linked from three pages: `/deliveries`, the menu on `/account` and `/settings/data` |
+| `/settings` | `settings.html` | on route C, with a small "Your data" link under its heading (route C's entrance). It mentions the order history without linking it |
+| `/settings/data` | `settings/data.html` | what the shop keeps: seven plain links, the second of them "Fulfilment ledger" to the archive |
 
 A path that matches no page or file returns 404 (`appType: "mpa"`), never the home page. A trailing slash is no match either: `/account/` and `/deliveries/?contrast=3` return 404 with an empty body, on `dev` and `preview` alike. No redirect adds the slash or strips it, since the app has no router, so links and start URLs use the paths exactly as listed, and only `/` ends in a slash. Both servers also serve the files themselves (`/deliveries/archive.html` returns the archive page), but the goal globs below match only the extensionless paths, so reaching a `.html` file is not success. `src/dev-server.test.ts` checks this on `dev`; `preview` is still checked by hand.
 
@@ -36,7 +37,15 @@ Defined in `src/pages.ts` as `GOALS`, a copy of the two tasks in `packages/core/
 | Goal | Sentence | `urlMatches` | Route |
 |---|---|---|---|
 | easy | you want to know where your next parcel is going | `**/account/address` | Home → Your account → Delivery address, through large links. Or Home → Deliveries (nav item, or the card's small inline link) → Delivery address (large link). Two clicks either way. |
-| hard | you want to see what you ordered three months ago | `**/deliveries/archive` | Home → Deliveries → "Order archive", faint and alone at the bottom |
+| hard | you want to see what you ordered three months ago | `**/deliveries/archive` | Three routes, in `src/pages.ts` as `ROUTES`, each testing a different dimension (see below) |
+
+The hard goal's three routes. Each has an entrance, the one control only that route passes. The entrances to B and C are 28 px boxes: they pass WCAG's 24 px and fall below Vera's 32 px target cut, so P4 closes them for Vera, Milo and Zoya and leaves them open for Ada and Kai.
+
+| Route | Steps | Entrance | Tests |
+|---|---|---|---|
+| A | Home → Deliveries → "Order archive", faint and alone at the bottom | the hard link | perception (P1) |
+| B | Home → Your account → "More options", an icon-only menu → "Past orders" | the kebab | knowledge (K1, K4) |
+| C | Home → Settings → "Your data" → "Fulfilment ledger", second of seven plain links | "Your data" | knowledge (K2) and attention (A1) |
 
 ## Parameters
 
@@ -48,7 +57,7 @@ Defined in `src/pages.ts` as `GOALS`, a copy of the two tasks in `packages/core/
 
 `--bg` is fixed at `#ffffff`. **Only `.hard-link` reads these variables**, so a change moves one element across a threshold and the rest of the page stays put.
 
-With the defaults, the font meets Vera's 16 px exactly, on purpose (P3 compares with `>=`, and the calibration table in `docs/RULES.md` relies on it), and the target clears her 32 px, so **contrast is the only metric that gates her**, and a sweep of her contrast threshold has a boundary to find. 2:1 sits below her 3:1, inside her softness band, so each run's seed decides whether the link reaches her degraded (name partly masked) or not at all. Milo (target 44) still loses the link on target size; Zoya (7:1, 24 px, 48 px) loses it on all three.
+With the defaults, the font meets Vera's 16 px exactly, on purpose (P3 compares with `>=`, and the calibration table in `docs/RULES.md` relies on it), and the target clears her 32 px, so on the hard link **contrast is the only metric that gates her**, and a sweep of her contrast threshold has a boundary to find. 2:1 sits below her 3:1, inside her softness band, so each run's seed decides whether the link reaches her degraded (name partly masked) or not at all. Milo (target 44) still loses the link on target size; Zoya (7:1, 24 px, 48 px) loses it on all three. Routes B and C leave this as it is: their 28 px entrances fall below Vera's target cut at any parameters, so the hard link stays her only route.
 
 Missing or unparsable values fall back to the defaults, and out-of-range values, infinities included, are clamped.
 
@@ -65,20 +74,20 @@ Missing or unparsable values fall back to the defaults, and out-of-range values,
 
 Every glyph on every page comes from one bundled file, `public/fonts/inter-latin-wght-normal.woff2`: Inter 4, variable weight, upright, Latin subset, copied unchanged from `@fontsource-variable/inter` 5.3.0 on npm, under the SIL Open Font License (`public/fonts/OFL.txt`). There is no CDN and no system font, so text metrics no longer depend on the fonts of the machine running the browser (issue #32).
 
-- Page text is printable ASCII plus "·", and the file has all of it; a test checks every page. Any other character would be drawn from a system font, so check the font's coverage before adding one. That is why the Menu button's icon is three bars drawn in CSS, not a "☰" glyph.
+- Page text is printable ASCII plus "·", and the file has all of it; a test checks every page. Any other character would be drawn from a system font, so check the font's coverage before adding one. That is why the Menu button's icon is three bars drawn in CSS, not a "☰" glyph, and the kebab's three dots are drawn the same way.
 - `load` waits for the file: with its download held back 3 s, `goto` returned only after the font had loaded, on the dev server and on a build (Chromium 153). Measure after `load`, Playwright's default for `goto`, never after `domcontentloaded`. `font-display: block` keeps text invisible for up to 3 s rather than paint a fallback first.
 - If the file fails to load, the page falls back to a system font and `document.fonts.status` still reads `loaded`. So after `goto` a harness checks `await page.evaluate(() => document.fonts.check('16px "Inter"'))` and fails the run when it is `false`: the page would be measured in the wrong font.
 - Layout still depends on the browser build, which Playwright pins per release, and glyph positioning can differ between operating systems. Compare boxes only between runs on the same operating system and browser build. Recording the browser version on the run is issue #64.
 
 ## Other properties
 
-- No framework, no router. Plain HTML pages, one script (`src/main.ts`) for the parameters and the menu. Its logic sits in `src/page-script.ts`, tested in `page-script.test.ts`; `dev-server.test.ts` starts Vite and checks that every contract path returns 200 and an unknown path or a trailing slash returns 404.
-- Every link, button and checkbox has a visible text name, and no control is icon-only. Sub-pages mark their section in the nav with `aria-current="location"`.
-- At widths up to 640 px the nav collapses behind one "Menu" button with a three-bar icon (`aria-expanded`, `aria-controls`). This is here for the knowledge dimension.
-- Text is 17 px, headings 28 and 26 px (18 px in cards). Nav items, the Menu button and the buttons are 46 px tall, and the big links are 18 px text in 50 px boxes. Form controls inherit the page font. No fixed size sits on a persona cut (font 16 and 24 px, target 32, 44 and 48 px): on a cut an element passes only because the rules compare with `>=`, and a box there can flip on sub-pixel layout (issue #32). A test keeps it that way. The hard link at its defaults is the one exception, on purpose (see "Parameters").
+- No framework, no router. Plain HTML pages, one script (`src/main.ts`) for the parameters and the two menus. Its logic sits in `src/page-script.ts`, tested in `page-script.test.ts`; `dev-server.test.ts` starts Vite and checks that every contract path returns 200 and an unknown path or a trailing slash returns 404.
+- Every link, button and checkbox has a visible text name, except one icon-only control, the kebab, on purpose. It is route B's entrance on `/account`, a button named "More options" by its `aria-label`, with `aria-haspopup="menu"`, `aria-expanded` and `aria-controls`, and its icon is `aria-hidden`. Its menu is a `role="menu"` list of `menuitem` entries, `display: none` until opened, so a closed menu is never measured. It opens in place and pushes the content down, so an open menu covers nothing on the page. Sub-pages mark their section in the nav with `aria-current="location"`.
+- At widths up to 640 px the nav collapses behind one "Menu" button with a three-bar icon and the word "Menu" (`aria-expanded`, `aria-controls`).
+- Text is 17 px, headings 28 and 26 px (18 px in cards). Nav items, the Menu button, the buttons and the kebab's menu items are 46 px tall, and the big links are 18 px text in 50 px boxes. The two entrances, the kebab and "Your data", are 28 px boxes, and the links on `/settings/data` are 30 px tall. Form controls inherit the page font. No fixed size sits on a persona cut (font 16 and 24 px, target 32, 44 and 48 px): on a cut an element passes only because the rules compare with `>=`, and a box there can flip on sub-pixel layout (issue #32). A test keeps it that way. The hard link at its defaults is the one exception, on purpose (see "Parameters").
 - Other elements are below Vera's and Milo's target cuts whatever the parameters: the brand link (27 px tall) and the plain text links such as "Go to deliveries" and "Back to deliveries" (20 px). Both goals stay reachable through the nav and the big links. The checkboxes are 22 px, but each sits in a 46 px tall label that toggles it, and a target is the area a click activates (`docs/RULES.md`, P4, #117). So they clear Vera's and Milo's cuts and, at desktop width, stay below Zoya's 48 px.
-- Three buttons ("Change delivery address", "Request a copy of my data", "Close my account") do nothing. Neither goal needs them.
-- `target-app` imports nothing from the workspace, and no package may import it (`biome.json`). So it has no `src/index.ts`, the barrel the layout in `docs/CONVENTIONS.md` gives a package: its entries are the six HTML pages and `src/main.ts`.
+- Four buttons ("Change delivery address", "Request a copy of my data" on `/settings` and `/settings/data`, "Close my account", and "Sign out" in the kebab's menu) do nothing. Neither goal needs them.
+- `target-app` imports nothing from the workspace, and no package may import it (`biome.json`). So it has no `src/index.ts`, the barrel the layout in `docs/CONVENTIONS.md` gives a package: its entries are the seven HTML pages and `src/main.ts`.
 - The `typecheck` script runs two TypeScript programs. `tsconfig.json` holds every file, with node types for the tests and `vite.config.ts`, and it is the one editors open. `tsconfig.browser.json` checks `src` without the tests against browser types only, so page code that uses a Node API such as `process` fails the typecheck, even where an editor shows no error.
 
 Decisions, deviations from the task and open follow-ups: `tasks/m0-06-target-app.md`, sections Outcome and Follow-ups.

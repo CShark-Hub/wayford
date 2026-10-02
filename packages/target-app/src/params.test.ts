@@ -84,7 +84,7 @@ describe("defaults", () => {
     expect(contrastFor("")).toBeLessThan(3);
   });
 
-  test("font and target meet Vera's hard cuts, so contrast is the only metric that gates her", () => {
+  test("font and target meet Vera's hard cuts, so contrast is the only metric that gates her on the hard link", () => {
     expect(DEFAULT_PARAMS.fontPx).toBeGreaterThanOrEqual(16);
     expect(DEFAULT_PARAMS.targetPx).toBeGreaterThanOrEqual(32);
   });

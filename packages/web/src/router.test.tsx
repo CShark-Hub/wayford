@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import { profileFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { createAppRouter } from "./router.js";
@@ -26,10 +27,10 @@ function h2Texts(html: string): string[] {
   return [...html.matchAll(/<h2(?:\s[^>]*)?>(.*?)<\/h2>/gs)].map((heading) => heading[1] ?? "");
 }
 
-test("/personas shows the four cards in order", async () => {
+test("/personas shows the five cards in order", async () => {
   const html = await render("/personas");
-  expect(h2Texts(html)).toEqual(["Ada", "Milo", "Vera", "Zoya"]);
-  expect(html.split("<article").length - 1).toBe(4);
+  expect(h2Texts(html)).toEqual(profileFixtures.map((p) => p.label));
+  expect(html.split("<article").length - 1).toBe(profileFixtures.length);
 });
 
 test("the personas screen says none of the banned words", async () => {

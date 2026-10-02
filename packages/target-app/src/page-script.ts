@@ -58,27 +58,27 @@ export function addressWithoutParams(
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-/** The part of the Menu button that `wireMenu` uses. */
+/** The part of a toggle button, the Menu button or the kebab, that `wireMenu` uses. */
 export interface MenuToggle {
   getAttribute(name: string): string | null;
   setAttribute(name: string, value: string): void;
   addEventListener(type: "click", listener: () => void): void;
 }
 
-/** The part of the nav that `wireMenu` uses. */
-export interface MenuNav {
+/** The part of the panel a toggle opens, the nav or the kebab's menu, that `wireMenu` uses. */
+export interface MenuPanel {
   readonly classList: Pick<DOMTokenList, "toggle">;
 }
 
 /**
- * Each click flips `aria-expanded` and the nav's `open` class together. No-op when either is
+ * Each click flips `aria-expanded` and the panel's `open` class together. No-op when either is
  * missing.
  */
-export function wireMenu(toggle: MenuToggle | null, nav: MenuNav | null): void {
-  if (!toggle || !nav) return;
+export function wireMenu(toggle: MenuToggle | null, panel: MenuPanel | null): void {
+  if (!toggle || !panel) return;
   toggle.addEventListener("click", () => {
     const open = toggle.getAttribute("aria-expanded") !== "true";
     toggle.setAttribute("aria-expanded", String(open));
-    nav.classList.toggle("open", open);
+    panel.classList.toggle("open", open);
   });
 }

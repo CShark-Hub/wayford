@@ -16,6 +16,20 @@ import { build, preview } from "vite";
 
 const root = fileURLToPath(new URL("../../target-app/", import.meta.url));
 
+/**
+ * The target app's page paths, in the order of `PAGES` in its `src/pages.ts`, written out: filter
+ * may not import target-app. `target-app-routes.browser.test.ts` keeps the two equal.
+ */
+export const TARGET_APP_PATHS: readonly string[] = [
+  "/",
+  "/account",
+  "/account/address",
+  "/deliveries",
+  "/deliveries/archive",
+  "/settings",
+  "/settings/data",
+];
+
 export interface TargetApp {
   /** Like `http://localhost:51234`, with no trailing slash. */
   origin: string;

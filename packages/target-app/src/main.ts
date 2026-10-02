@@ -13,3 +13,8 @@ wireMenu(
   document.querySelector<HTMLButtonElement>("#menu-toggle"),
   document.querySelector<HTMLElement>("#site-nav"),
 );
+// The kebab on /account; a no-op on every other page.
+wireMenu(
+  document.querySelector<HTMLButtonElement>("#more-toggle"),
+  document.querySelector<HTMLElement>("#more-menu"),
+);

@@ -18,17 +18,8 @@ import { type Browser, chromium, type Locator, type Page } from "playwright";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { collect } from "./collect.js";
 import { perceive } from "./perceive.js";
-import { serveTargetApp, type TargetApp } from "./serve-target-app.js";
+import { serveTargetApp, TARGET_APP_PATHS, type TargetApp } from "./serve-target-app.js";
 
-/** The target app's pages (its README, "Pages"), written out: filter may not import it. */
-const PAGES = [
-  "/",
-  "/account",
-  "/account/address",
-  "/deliveries",
-  "/deliveries/archive",
-  "/settings",
-];
 const CONTRAST_2 = "?contrast=2&fontPx=16&targetPx=36";
 const CONTRAST_7 = "?contrast=7&fontPx=16&targetPx=36";
 const ARCHIVE = "main//link:Order archive";
@@ -144,7 +135,7 @@ test("Order archive measures within 0.01 of 2.006 and of 7.005", async () => {
   }
 });
 
-test.each(PAGES)("getByRole finds every measured element on %s", async (path) => {
+test.each(TARGET_APP_PATHS)("getByRole finds every measured element on %s", async (path) => {
   await withPage(`${path}${CONTRAST_2}`, async (page) => {
     const { elements } = await collect(page);
     expect(elements.length, "elements measured").toBeGreaterThan(0);

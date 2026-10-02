@@ -1,0 +1,43 @@
+# Bundle: docs/RULES.md, "Persona composition".
+# Sees what Ada sees. Differs from her only in knowledge, attention and memory,
+# so every difference between their runs comes from after perception. The
+# pattern and vocabulary lists are folk.
+id: prof_kai
+label: Kai
+description: >-
+  Sees the page clearly on a desktop, does not know several common interface
+  patterns, knows only everyday shop words, takes in a handful of things at a
+  time and keeps only the last couple of steps in mind.
+seed: 1027
+device: desktop
+
+perception:
+  emulation: none
+
+behaviour:
+  budgetSeconds: 120
+  maxElements: 10
+  memorySteps: 2
+
+knowledge:
+  knownPatterns:
+    [carousel, fab, infiniteScroll, swipe, search, cart, backLink]
+  unknownPatterns: [hamburger, kebab, breadcrumb, tabs, accordion]
+  domainVocabulary:
+    [
+      order,
+      orders,
+      delivery,
+      deliveries,
+      parcel,
+      address,
+      account,
+      settings,
+      basket,
+      payment,
+      receipt,
+      refund,
+      return,
+      price,
+      details,
+    ]

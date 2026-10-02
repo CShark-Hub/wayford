@@ -179,13 +179,14 @@ describe("Profile schema", () => {
 });
 
 describe("fixtures", () => {
-  test("there are four of them and each one validates", () => {
-    expect(profileFixtures).toHaveLength(4);
+  test("there are five of them and each one validates", () => {
+    expect(profileFixtures).toHaveLength(5);
     for (const fixture of profileFixtures) {
       expect(Profile.safeParse(fixture).success).toBe(true);
     }
     expect(profileFixtures.map((p) => p.id)).toEqual([
       "prof_ada",
+      "prof_kai",
       "prof_milo",
       "prof_vera",
       "prof_zoya",
@@ -292,11 +293,25 @@ describe("fixtures", () => {
     }
   });
 
-  test("alphabetical order is the order of how much filter each persona switches on", () => {
+  test("fixtures sort by name, from Ada, who switches nothing on, to Zoya, who switches on the most", () => {
+    // In between the order is the alphabet, not the count: Kai switches on more than Milo.
+    const labels = profileFixtures.map((p) => p.label);
+    expect(labels).toEqual([...labels].sort());
+    // The two ends are "the control persona switches nothing on and the boundary ..." below.
     const counts = profileFixtures.map(constraintCount);
-    expect(counts).toEqual([...counts].sort((a, b) => a - b));
-    expect(new Set(counts).size).toBe(counts.length);
-    expect(counts[0]).toBe(0);
+    expect(counts.filter((count) => count === Math.max(...counts))).toHaveLength(1);
+  });
+
+  test("Kai sees what Ada sees", () => {
+    // Kai differs from Ada only in knowledge, attention and memory.
+    const ada = profileFixture("prof_ada");
+    const kai = profileFixture("prof_kai");
+    expect(kai.perception).toStrictEqual(ada.perception);
+    expect(kai.device).toBe(ada.device);
+    const vocabulary = kai.knowledge.domainVocabulary ?? [];
+    expect(vocabulary.length).toBeGreaterThan(0);
+    expect(vocabulary).not.toContain("fulfilment");
+    expect(vocabulary).not.toContain("ledger");
   });
 
   test("the control persona switches nothing on and the boundary switches everything on", () => {

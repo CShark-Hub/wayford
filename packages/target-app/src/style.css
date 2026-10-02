@@ -219,6 +219,97 @@ h2 {
   padding-top: 8px;
 }
 
+/*
+ * The entrances to routes B and C: the kebab on /account and "Your data" on /settings. 28 px
+ * passes WCAG's 24 px and sits below Vera's 32 px cut, away from both, so sub-pixel layout flips
+ * neither. Fixed, not tunable. No other rule sizes them.
+ */
+.entrance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+/* A column, so the open menu sits in normal flow under the kebab and pushes the content down. */
+.page-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.kebab {
+  color: var(--text);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Three dots, drawn like the Menu button's bars: no glyph. */
+.kebab-icon {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  box-shadow:
+    0 -6px currentColor,
+    0 6px currentColor;
+}
+
+/*
+ * Closed, the menu is not rendered, so `collect` measures none of its entries. Open, it sits in
+ * the flow, so no measured element hides under it.
+ */
+.more-menu {
+  display: none;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(31, 35, 40, 0.15);
+}
+
+.more-menu.open {
+  display: block;
+}
+
+.more-menu a,
+.more-menu button {
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+  min-height: 46px;
+  padding: 0 14px;
+  color: var(--text);
+  background: #ffffff;
+  border: 0;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.more-menu a:hover,
+.more-menu button:hover {
+  background: #e7ecf0;
+}
+
+.data-list li {
+  padding: 6px 0;
+}
+
+.data-list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+}
+
 /* The one tunable element. Its smaller side is `--target-size` whenever the font fits in it. */
 .hard-link {
   display: inline-flex;

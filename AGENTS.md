@@ -15,7 +15,7 @@ Planning docs:
 
 - `docs/PLAN.md` — goal, requirements F1–F12 with acceptance criteria, UI, architecture, stack, locked decisions, assumptions.
 - `docs/KICKOFF.md` — week 1 assignment, how to run a task, rules for parallel agents.
-- `docs/RULES.md` — the filter pipeline, every rule with its source id, the four persona bundles. Frozen for week 2: a change takes a PR with two approvals.
+- `docs/RULES.md` — the filter pipeline, every rule with its source id, the five persona bundles. Frozen for week 2: a change takes a PR with two approvals.
 - `docs/STACK.md` — exact library picks and package import rules. `docs/CONVENTIONS.md` — layout, determinism rules, Definition of Done.
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
 - `docs/adr/` — decisions taken after the plan, one file each: context, rejected options, consequences. Read the matching one before changing what it covers.
@@ -75,7 +75,7 @@ Payoff: we defend "someone with a 3:1 contrast threshold", not "this is how plum
 
 The whole application is English: UI copy, API, schemas, identifiers, comments, fixtures, descriptions, reports. There is no i18n layer, no locale switch and no translated strings, and none are planned for the hackathon.
 
-Persona names are English too: Ada, Milo, Vera, Zoya. The initial names the dimension the persona is defined by, so the set sorts from the control persona to the boundary on its own. Polish belongs in `KONCEPCJA.md` alone.
+Persona names are English too: Ada, Kai, Milo, Vera, Zoya. The initial names each one's dimension. Ada, the control persona, comes first and Zoya, the boundary, last; the names in between sort alphabetically. Polish belongs in `KONCEPCJA.md` alone.
 
 Why: a locale layer is a week of work that wins no point in the pitch, and half-translated UI is worse than an English one. If the demo needs Polish, it needs a translated target app, not a translated tool.
 

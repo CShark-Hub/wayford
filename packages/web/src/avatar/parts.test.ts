@@ -84,17 +84,18 @@ test("each fixture's seed parts are pinned, so a persona keeps its colour and fa
   );
   expect(parts).toStrictEqual({
     Ada: { hue: 330, tuft: "curl", brows: "none", pattern: "stripes" },
+    Kai: { hue: 240, tuft: "sprout", brows: "arch", pattern: "dots" },
     Milo: { hue: 120, tuft: "curl", brows: "bar", pattern: "dots" },
     Vera: { hue: 180, tuft: "sprout", brows: "none", pattern: "stripes" },
     Zoya: { hue: 300, tuft: "curl", brows: "none", pattern: "stripes" },
   });
 });
 
-test("the four fixtures get four different hues", () => {
+test("the five fixtures get five different hues", () => {
   // Ada's and Vera's first draws are 0.584 and 0.567. Only the step between bins keeps them apart.
   const hues = profileFixtures.map((p) => avatarParts(p).hue);
-  expect(hues).toHaveLength(4);
-  expect(new Set(hues).size).toBe(4);
+  expect(hues).toHaveLength(5);
+  expect(new Set(hues).size).toBe(hues.length);
 });
 
 test("the persona colour is the avatar's hue: Vera's is oklch(0.75 0.12 180)", () => {
