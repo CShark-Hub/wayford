@@ -277,6 +277,9 @@ importers:
       pino:
         specifier: ^10.3.1
         version: 10.3.1
+      playwright:
+        specifier: ^1.63.0
+        version: 1.63.0
       zod:
         specifier: ^4.6.5
         version: 4.6.5

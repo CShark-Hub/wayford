@@ -3,21 +3,21 @@ import { LlmError } from "@wayford/agent";
 import { type FakeLlm, fakeLlm } from "@wayford/agent/fake";
 import { PATH_WORDS, pathWordsIn, Task, TaskId } from "@wayford/core";
 import { taskFixture } from "@wayford/core/fixtures";
-import { describe, expect, test } from "vitest";
-import { createApp } from "./app.js";
+import { describe, expect, onTestFinished, test } from "vitest";
 import { EXTRACTOR_PROMPT_FILE } from "./extractor.js";
+import { postJson, testApp } from "./test-app.js";
 
 // The past-order task's own start and success, so they follow the fixture the target app checks.
 const { startUrl, success } = taskFixture("task_past-order");
 
-/** POST a JSON body to `/tasks` on an app whose only model is `fake`. */
+/**
+ * POST a JSON body to `/tasks` on a new app whose only model is `fake`, on its own store, closed
+ * after the test.
+ */
 async function postBody(fake: FakeLlm, body: unknown) {
-  const res = await createApp({ llm: fake }).request("/tasks", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return { status: res.status, body: await res.json() };
+  const t = await testApp({ llm: fake });
+  onTestFinished(() => t.close());
+  return postJson(t.app, "/tasks", body);
 }
 
 /** POST a valid request for `story`. */

@@ -1,19 +1,50 @@
 /**
- * The io process: read the config, build the `Llm`, listen. Everything worth
- * testing lives in `app.ts`, so this file does nothing on import that a test
- * would want. `pnpm dev` runs it under `tsx watch`.
+ * The io process: read the config, open the database, build the Extractor's `Llm` and the Actor's
+ * backend, listen. Everything worth testing lives in `app.ts`, so this file does nothing on import
+ * that a test would want. `pnpm dev` runs it under `tsx watch`.
+ *
+ * It is the only io module that loads agent's runtime and Playwright, through `llmActor` and
+ * `chromium.ts` (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
  */
+import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
-import { createLlm, parseLlmSettings } from "@wayford/agent";
+import { createLlm, llmActor, parseLlmSettings, TARGET_APP_DEFAULTS } from "@wayford/agent";
 import pino from "pino";
 import { createApp } from "./app.js";
+import { sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
+import { migrateDatabase, openDatabase } from "./db/database.js";
+
+/**
+ * The repository's `runs/`, found from this file, as `run:one` finds it: one folder for every
+ * run's files, gitignored.
+ */
+const RUNS_DIR = fileURLToPath(new URL("../../../runs/", import.meta.url));
 
 const config = loadConfigFromEnvFile();
+const logger = pino({ level: config.LOG_LEVEL });
 // The root `.env` is already merged into `process.env` here, so its key is read too.
-const llm = createLlm(parseLlmSettings(process.env), { logger: pino({ level: config.LOG_LEVEL }) });
+const settings = parseLlmSettings(process.env);
+const llm = createLlm(settings, { logger });
+
+// Idempotent, so `pnpm dev` works on a fresh clone and on an up-to-date database alike.
+migrateDatabase(config.DATABASE_URL);
+const db = openDatabase(config.DATABASE_URL);
+
+const app = createApp({
+  llm,
+  db,
+  runsDir: RUNS_DIR,
+  // One Chromium for every run, launched by the first one.
+  run: sharedChromium(),
+  // One `Llm` per run, so each run's log lines carry its run id.
+  actor: llmActor({ settings }),
+  // The arena runs on the app's defaults (s3-03, Out of scope).
+  params: TARGET_APP_DEFAULTS,
+  logger,
+});
 
 // localhost, like the two Vite servers: the API has no auth and is not for the network.
-serve({ fetch: createApp({ llm }).fetch, port: config.PORT, hostname: "localhost" }, (info) => {
+serve({ fetch: app.fetch, port: config.PORT, hostname: "localhost" }, (info) => {
   console.log(`io listening on http://localhost:${info.port}`);
 });
