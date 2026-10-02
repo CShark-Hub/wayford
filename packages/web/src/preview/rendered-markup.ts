@@ -1,9 +1,10 @@
 /**
- * A static render of the preview, read back for its tests. No DOM library is installed
- * (`docs/STACK.md`), so the tests render with `renderToStaticMarkup` and read the markup with
- * these: React's escaping undone, a start tag's attributes and inline style, and each drawn box,
- * by its `data-ref`, `data-state`, text and the measured px inside each `calc(N * var(--px))`.
- * A style is read one property at a time. No production module imports this file.
+ * A static render, read back for the web tests. No DOM library is installed (`docs/STACK.md`), so
+ * the tests render with `renderToStaticMarkup` and read the markup with these: React's escaping
+ * undone, a start tag's attributes and inline style, a section by its heading, a `<dl>` and a
+ * table's rows, and the preview's drawn boxes, by their `data-ref`, `data-state`, text and the
+ * measured px inside each `calc(N * var(--px))`. A style is read one property at a time. No
+ * production module imports this file.
  */
 import { type Bbox, type FullObservation, toActorObservation } from "@wayford/core";
 
@@ -20,6 +21,44 @@ export function decode(html: string): string {
 /** The text a piece of markup shows, tags dropped and nothing else touched. */
 export function textOf(html: string): string {
   return decode(html.replace(/<[^>]*>/g, ""));
+}
+
+/** The text a piece of markup reads as, on one line: tags become spaces, whitespace collapses. */
+export function lineOf(html: string): string {
+  return decode(html.replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * The inner markup of the `<section>` its `<h2>` or `<h3>` labels, found by the heading's text
+ * through the section's `aria-labelledby`, so a section its heading does not label is not found.
+ * Only for a section with no section inside it: the match ends at the first `</section>`.
+ */
+export function sectionOf(html: string, heading: string): string {
+  const ids = [...html.matchAll(/<h([23]) [^>]*id="([^"]+)"[^>]*>(.*?)<\/h\1>/gs)];
+  const id = ids.find((h) => lineOf(h[3] ?? "") === heading)?.[2];
+  if (id === undefined) throw new Error(`no <h2> or <h3> reads ${heading}`);
+  const body = html.match(
+    new RegExp(`<section [^>]*aria-labelledby="${id}"[^>]*>(.*?)</section>`, "s"),
+  );
+  if (body?.[1] === undefined) throw new Error(`no section is labelled by ${heading}`);
+  return body[1];
+}
+
+/** What every `<dl>` in `html` says, each term to its description. */
+export function detailsOf(html: string): Record<string, string> {
+  const pairs = html.matchAll(/<dt(?:\s[^>]*)?>(.*?)<\/dt>\s*<dd(?:\s[^>]*)?>(.*?)<\/dd>/gs);
+  return Object.fromEntries([...pairs].map((p) => [lineOf(p[1] ?? ""), lineOf(p[2] ?? "")]));
+}
+
+/** Each table row's cell texts, header rows included. */
+export function rowsOf(html: string): string[][] {
+  return [...html.matchAll(/<tr(?:\s[^>]*)?>(.*?)<\/tr>/gs)].map((row) =>
+    [...(row[1] ?? "").matchAll(/<t[hd](?:\s[^>]*)?>(.*?)<\/t[hd]>/gs)].map((cell) =>
+      lineOf(cell[1] ?? ""),
+    ),
+  );
 }
 
 /** A start tag's attributes, each name to its decoded value. A bare attribute reads "". */
@@ -74,6 +113,17 @@ export function withoutNested(tag: string, inner: string): string {
     throw new Error(`A <${tag}> read to its first </${tag}> holds a <${tag}>: ${inner}`);
   }
   return inner;
+}
+
+/**
+ * The content of the first `<tag>` whose start tag holds `attribute`, up to the first `</tag>`
+ * after it. Every element read this way holds none of its own tag, and one that does throws.
+ */
+export function elementOf(html: string, tag: string, attribute: string): string {
+  const pattern = new RegExp(`<${tag}(?=[^>]*\\s${attribute})[^>]*>(.*?)</${tag}>`, "s");
+  const inner = html.match(pattern)?.[1];
+  if (inner === undefined) throw new Error(`No <${tag} ${attribute}>`);
+  return withoutNested(tag, inner);
 }
 
 /**

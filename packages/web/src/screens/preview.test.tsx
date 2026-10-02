@@ -23,6 +23,7 @@ import {
   captionOf,
   type Drawn,
   drawnBoxes,
+  elementOf,
   shownElements,
   textOf,
   withoutNested,
@@ -101,17 +102,6 @@ function withoutHidden(html: string): string {
       return "";
     },
   );
-}
-
-/**
- * The content of the first `<tag>` whose start tag holds `attribute`, up to the first `</tag>`
- * after it. Every element read this way holds none of its own tag, and one that does throws.
- */
-function elementOf(html: string, tag: string, attribute: string): string {
-  const pattern = new RegExp(`<${tag}(?=[^>]*\\s${attribute})[^>]*>(.*?)</${tag}>`, "s");
-  const inner = html.match(pattern)?.[1];
-  if (inner === undefined) throw new Error(`No <${tag} ${attribute}>`);
-  return withoutNested(tag, inner);
 }
 
 /** A drawn box without its ref: where it sits and what it reads. */
@@ -415,11 +405,12 @@ test("with every threshold at its maximum nothing is drawn", async () => {
   expect(drawnBoxes(html)).toEqual([]);
 });
 
-test("the shell's nav has a Preview link to /preview, between Personas and Events", async () => {
+test("the shell's nav has a Preview link to /preview, between Personas and Runs", async () => {
   const onPreview = linksOf(elementOf(await render(VERA), "nav", 'aria-label="Main"'));
   expect(onPreview.map((link) => [link.name, link.attributes.href])).toEqual([
     ["Personas", "/personas"],
     ["Preview", "/preview"],
+    ["Runs", "/runs"],
     ["Events", "/events"],
   ]);
   expect(onPreview[1]?.attributes["aria-current"]).toBe("page");
