@@ -111,9 +111,13 @@ test("a new page that never finishes loading fails page_not_settled at the deadl
 
 test("a back to a page that never finishes loading fails page_not_settled at the deadline", async () => {
   await onStartPage("/loading", async (page) => {
-    // So the page behind the start page is one whose image never arrives.
+    // So the page behind the start page is one whose image never arrives. The start page comes
+    // back under a URL of its own: Chromium turns a `goto` to the URL it last committed into a
+    // replacement, and when `/loading`'s commit has not reached it yet that is still `/start`, so
+    // `/loading` is replaced and `back` lands on a page that loads (1 run in 120 to 1100 under
+    // load on Linux, none in 1100 with the query).
     await page.goto("http://act.test/loading", { waitUntil: "commit" });
-    await page.goto("http://act.test/start");
+    await page.goto("http://act.test/start?again");
     const [error, ms] = await failure(page, { type: "back" });
     expect(error.message).toBe(
       "the page at http://act.test/loading did not finish loading within 300 ms",
