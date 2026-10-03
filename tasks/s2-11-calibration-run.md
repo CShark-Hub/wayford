@@ -40,11 +40,81 @@ One command runs the calibration set on the real model and prints a table that s
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/agent test` passes, with a fake adapter giving a fixed table: the route lookup, the end counts and the medians
-- [ ] With a real key, `calibrate` prints the table, and the PR shows it with the go/no-go result. If Ada or the hard-cut Vera misses, the PR says which run and why, and the board says so before anything is built on the loop
+- [x] `pnpm --filter @wayford/agent test` passes, with a fake adapter giving a fixed table: the route lookup, the end counts and the medians 16 files, 306 tests.
+  - `calibration.test.ts` (25 tests) uses hand-built results. It covers the route lookup, the step cap against the clock, the medians and end counts, and the go/no-go at 5 and 10 seeds, including an incomplete set and a crash on the hard-cut row.
+  - `calibration-run.browser.test.ts` (5 tests). "a fake adapter gives a fixed table" runs all five rows on seeds 1 and 2 on the served app, each run with a fresh `fakeLlm` that answers from the page it is shown. It pins successes, routes, ends, steps, tokens, cost and "go", every column but the time ones. For time, it checks that each step's model time is at least the fake's 20 ms, that each run's model time adds up to the fake's own answer times, and that 2 to 5 runs were in flight at once. Since s1-03, Kai gives up on `/account`: K1 and K4 rename the kebab. The other tests cover:
+    - the spend stopping new runs, leaving the set incomplete and unjudged;
+    - a run billed before it rejects being counted in the spend;
+    - a rejected run being an error while the others finish;
+    - `--max-usd 0.01` starting nothing.
+- [x] With a real key, `calibrate` prints the table, and the PR shows it with the go/no-go result. If Ada or the hard-cut Vera misses, the PR says which run and why, and the board says so before anything is built on the loop Run on 2026-10-03 at commit `8ebd16b`, the code this PR ships, rebased on `main` with #147 (text blocks named by their own text) and #148 (s1-03: K1, K4, A1). Luna at effort `high`, seeds 1 to 5, concurrency 5. Result: **go**.
+  - Ada reached the easy goal 5/5 and the hard goal 5/5, all by route A.
+  - The hard-cut Vera reached it 0/5: every run hit the step cap.
+  - Reported rows:
+    - Vera 1/5 (route A), four runs on the step cap.
+    - **Kai 0/5, every run on the step cap.** The filter accounts for it:
+      - On `/deliveries`, A1 (Kai's cap of 10) cut "Order archive" on every visit (57 of 57), as the RULES route table allows for route A.
+      - On `/account`, the kebab was shown, renamed "button" by K1 and K4 (37 times), and the model never clicked it.
+      - Kai never opened Settings, so route C was never tried. The runs bounced between `/deliveries` and `/account`, scrolling.
+
+      This is the hypothesis the row exists to report, not a broken engine. The row is to be rerun with s2-10's memory and clock (box 3).
+  - The set cost 0.0483 USD, 0.0019 per run, so `seed:demo` comes to about 0.12 USD. Model time was about 2.6 to 3.4 s per step.
+  - Two earlier runs, before the rebase onto #147 and #148, also gave **go**: 0.0375 USD on 2026-10-02, and 0.0374 USD at `75f8a13`. Kai matched Ada in both (5/5), since the filter had no K1, K4 or A1 yet.
+  - The output as printed, also in the PR. Only the report path is shortened; the JSON report lives under the gitignored `runs/calibration/`.
+
+    ```
+    backend      llm
+    model        openai/gpt-6-luna
+    effort       high
+    concurrency  5
+    seeds        1-5
+    max steps    20
+    Steps, model time, tokens in and wall time are medians; tokens in per step include a retry or repair,
+    and model time per step includes the adapter's retries and their backoff.
+
+    row                  reached  routes  gave up  step cap  clock  error  steps  model ms/step  tokens in/step  wall s  cost USD   verdict
+    Ada, easy                5/5       -        0         0      0      0      2           2552             869     5.5    0.0012      pass
+    Ada, hard                5/5     A:5        0         0      0      0      3           3186             865    10.4    0.0018      pass
+    Vera, hard               1/5     A:1        0         4      0      0     20           3321             990   111.7    0.0131  reported
+    Kai, hard                0/5       -        0         5      0      0     20           3414             965   257.9    0.0158  reported
+    Vera hard-cut, hard      0/5       -        0         5      0      0     20           3336             996   158.2    0.0164      pass
+
+    go/no-go   go
+    spent      0.0483 USD (estimated 0.2250 USD, limit 2.0000 USD)
+    per run    0.0019 USD mean, over 25 runs with a result
+    seed:demo  about 0.1160 USD for its 60 runs (3 personas × 2 tasks × 10 seeds); the sweeps are extra
+    report     runs/calibration/2026-10-03T11-14-19.610Z.json
+    ```
 - [ ] Needs s1-03 and s2-10. The table rerun with Kai's row, in a comment on the PR or in the s1-03 PR
-- [ ] `--max-usd 0.01` stops before any run starts
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+- [x] `--max-usd 0.01` stops before any run starts `calibration-run.browser.test.ts` "maxUsd 0.01 starts no run": the factory is never called and `runsDir` stays empty. By hand on Luna, `calibrate -- --max-usd 0.01` printed `calibration_over_budget: the estimate for 25 runs of at most 20 steps is 0.9000 USD, over the limit of 0.0100 USD` and exit 1, with no app served and no browser launched. After the branch review lowered the per-step figures, the same command prints `0.2250 USD` and still stops.
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root 79 files, 1270 tests, rebased on `main` at `5bea085` (#147 and s1-03 merged).
+
+## Outcome
+
+Built as `docs/specs/2026-10-02-s2-11-calibration-run.md` says. Its decision log has every choice, the ones taken during the build marked "(build)". What a reader of this file should know:
+
+- **Kai's box stays open.** It needs `s1-03` and `s2-10`. s1-03 has landed: K1, K4 and A1 now shape what Kai is shown, and the run in box 2 has Kai at 0/5 (A1 cuts route A; the renamed kebab goes unclicked). The rerun the box asks for waits on s2-10's memory and clock.
+- **The modules.**
+  - `calibration.ts` holds the pure parts: the set, the route lookup, ends, medians, go/no-go, the estimate and the table.
+  - `calibration-run.ts` is `calibrate()`: the runs, the model time per step, both cost guards and the report.
+  - `calibrate.ts` is the CLI alone. No test imports it, since importing it loads `.env` and starts billed runs.
+- **Routes and files outside the expected list.** The lookup uses `TARGET_APP_ROUTES` from `@wayford/filter/serve-target-app`. That is the one shared copy of the routes that s1-04 decided on, which s1-03 (#148) brought to `main` with its drift test in `routes.browser.test.ts`. This PR made the same copy first, then dropped it in the rebase, so it no longer changes `packages/filter`. The one file it changes outside the list is `tasks/s2-06-jev-actor-backend.md`, which now carries the shared CLI module as a constraint.
+- **What the table adds to the task's list.**
+  - A wall-time column, for the Jev gate.
+  - An error column.
+  - The go/no-go generalised to "at least 80% of seeds", which is 4/5 here and 8/10 for the Jev gate.
+  - A set the spend stops early reads "incomplete", and its rows are not judged. A run billed before it rejects still counts in the spend.
+- **What the run showed.**
+  - Both Vera rows end on the step cap, not by giving up: Vera wanders for 20 steps.
+  - The first estimate (0.90 USD) was 24 times what the set cost (0.0375 USD). After the run, the per-step figures came down from 8,000 tokens in and 2,000 out to 2,000 in and 500 out. The run measured about 1,000 in and 100 out. The default set now estimates 0.225 USD. It is still a first stop only; the spend check while running is the real guard.
+- **Follow-up: one CLI setup module.** `calibrate.ts` repeats `run-one.ts` almost word for word for:
+  - the `.env` and `runs/` paths;
+  - `serve()` with its port hint;
+  - the Chromium launch with its install hint;
+  - digit-only seed parsing.
+
+  A small `src/cli.ts` shared by `run:one`, `smoke:run` and `calibrate` would hold one copy. It is left out to keep this PR to its task, though `run-one.ts` and `smoke-run.ts` are in `packages/agent/src/**`. `s2-06` carries it as a constraint, since adding `--backend jev` touches both CLIs.
+- **The CLI finds `.env` from its own file**, as `run:one` does. Run in a worktree, it needs the key in the shell or a `.env` at that checkout's root.
 
 ## Out of scope
 

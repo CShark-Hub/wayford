@@ -36,6 +36,13 @@ With the actor backend set to `jev`, the Actor loop from s2-03 picks each action
 - A Jev step emits no `narration` event; its `narration` is the empty string the reducer already gives it.
 - One backend per run: `modelIds.actor` names the Jev model, `runStarted` carries no `actorSampling` (Jev takes no temperature and no seed), and the Jev backend never calls `complete`.
 - The confidence is stored and nothing reads it during a run.
+- Adding `--backend jev` to `run:one` and `calibrate` is the moment to share their setup. Today `run-one.ts` and `calibrate.ts` each hold a copy, and `smoke-run.ts` repeats part of it:
+  - the root `.env` and `runs/` paths;
+  - `serve()` with its port hint;
+  - the Chromium launch with its install hint;
+  - digit-only seed parsing.
+
+  Move them into one `packages/agent/src/cli.ts` before adding the flag, so a fourth CLI does not copy them again (`tasks/s2-11-calibration-run.md`, Outcome).
 
 ## Acceptance
 
