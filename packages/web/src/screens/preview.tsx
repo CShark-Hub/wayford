@@ -1,18 +1,26 @@
 /**
- * The preview screen, the demo's hero: a persona's perception thresholds on the left, the stored
+ * The preview screen, the demo's hero: a persona's perception thresholds on the left, a target-app
  * page as `perceive` returns it for them on the right. The URL holds every control
  * (`src/preview/search.ts`), so a preview is a link, and every render perceives the page again
  * from it. The screen decides nothing about an element: it draws what `perceive` returns, the same
  * function the Actor's observation comes from (`docs/PLAN.md` F2 AC3).
  *
+ * The page is measured live by io, on the persona's device, once per device and page (s3-05). A
+ * slider move changes neither, so it never asks io again: it only perceives the measurement it
+ * has once more. With io or the target app down, the screen draws the stored measurement under a
+ * banner that says so (F2 AC5).
+ *
  * Function first: week 4's design pass decides the look (`docs/PLAN.md` "UI"). Until then the one
  * accent is the persona colour, set once as `--persona` on the screen's root.
  */
+import { useQuery } from "@tanstack/react-query";
 import { createRoute, Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { METRIC_NAMES, type MetricName } from "@wayford/core";
+import { METRIC_NAMES, type MetricName, type PageMeasurement } from "@wayford/core";
 import { perceive } from "@wayford/filter/perceive";
 import { cn } from "cn";
 import { useEffect, useRef } from "react";
+import { Button } from "#components/ui/button";
+import { measurementQuery } from "../api/measure.js";
 import { Avatar } from "../avatar/avatar.js";
 import { personaColour } from "../avatar/parts.js";
 import { bundledMeasurement, bundledProfiles } from "../bundled-fixtures.js";
@@ -20,8 +28,11 @@ import { PerceivedPage } from "../preview/perceived-page.js";
 import {
   CUT_SLIDERS,
   isOff,
+  PREVIEW_PAGES,
+  type PreviewPage,
   PreviewSearch,
   type PreviewState,
+  pageSearch,
   personaSearch,
   resolvePreview,
   SEED_SLIDER,
@@ -44,8 +55,16 @@ const METRIC: Record<MetricName, { label: string; unit: string }> = {
   targetPx: { label: "Target size", unit: " px" },
 };
 
-/** The id of the stored page's title, which names the stage. */
+/** The id of the page's title, which names the stage. */
 const PAGE_TITLE_ID = "preview-page-title";
+
+/** What the fallback banner says the stored page is: `/deliveries` on desktop, 1280 × 720. */
+const STORED_PAGE = (() => {
+  const { width, height, isMobile } = bundledMeasurement.viewport;
+  const path = new URL(bundledMeasurement.url).pathname;
+  const device = isMobile ? "mobile" : "desktop";
+  return `the stored ${path}, measured on ${device} at the target app's default parameters (${width} × ${height})`;
+})();
 
 /** One segment of a segmented control, the persona switcher's or the View control's. */
 const SEGMENT =
@@ -370,18 +389,88 @@ function ViewControl({
   );
 }
 
+/**
+ * One link per preview page, to this preview on that page, with persona, seed, sliders and view
+ * as they are. A page is a place, so it is a link and Back returns to the page before, as for the
+ * persona switcher.
+ *
+ * TanStack marks a link current when its search is part of the URL's, so the `/deliveries` link,
+ * which leaves `page` out, would read as current on every page. `explicitUndefined` makes a key the
+ * link leaves out one the URL must not have, so only the current page's link is marked.
+ */
+function PagePicker({ search, current }: { search: PreviewSearch; current: PreviewPage }) {
+  return (
+    <nav aria-label="Page">
+      <ul className="flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1">
+        {PREVIEW_PAGES.map((page) => {
+          const isCurrent = page === current;
+          return (
+            <li key={page}>
+              <Link
+                to="/preview"
+                search={pageSearch(search, page)}
+                activeOptions={{ explicitUndefined: true }}
+                resetScroll={false}
+                aria-current={isCurrent ? "page" : undefined}
+                className={cn(SEGMENT, "px-3 font-mono", isCurrent ? ACTIVE_SEGMENT : IDLE_SEGMENT)}
+              >
+                {page}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/**
+ * The banner over the stored page: the live page is unavailable, why, and a way to ask io again.
+ * Asking again puts the query back to pending, so the stage shows its "Measuring" line until io
+ * answers.
+ */
+function StoredBanner({ failure, retry }: { failure: string; retry: () => void }) {
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-t-2 border-t-(--persona) bg-muted/50 px-4 py-3 text-sm"
+    >
+      <p className="min-w-0 flex-1">
+        {`The live page is unavailable: ${failure}. Showing ${STORED_PAGE}.`}
+      </p>
+      <Button variant="outline" size="sm" onClick={retry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The screen
 // ---------------------------------------------------------------------------
 
 export function PreviewScreen() {
   const navigate = previewRoute.useNavigate();
-  const state = resolvePreview(previewRoute.useSearch());
+  const search = previewRoute.useSearch();
+  const state = resolvePreview(search);
+  // Keyed by the persona's device and the page alone, and never stale, so a slider move finds it
+  // in the cache and asks io nothing (`src/api/measure.ts`).
+  const device = state.persona.device;
+  const live = useQuery(measurementQuery(device, state.page));
   // Perceived again on every render, with no memo: a render follows a URL change, and `perceive`
-  // on the stored page stays far inside its 5 ms budget (`bench:perceive`). It gets the whole
-  // persona, so the caps and unknown patterns a run applies apply here too (F2 AC3). s3-05 swaps
-  // in the live page's measurement here.
-  const observation = perceive(bundledMeasurement, state.profile, state.seed);
+  // on a page stays far inside its 5 ms budget (`bench:perceive`). It gets the whole persona, so
+  // the caps and unknown patterns a run applies apply here too (F2 AC3).
+  const perceived = (measurement: PageMeasurement) =>
+    perceive(measurement, state.profile, state.seed);
+  // What the stage draws: the live page, or the stored one, with why, once the live one failed.
+  // While it loads, nothing: the stored `/deliveries` drawn under another page's name would be the
+  // wrong page.
+  const stage =
+    live.data !== undefined
+      ? { observation: perceived(live.data), failure: undefined }
+      : live.isError
+        ? { observation: perceived(bundledMeasurement), failure: live.error.message }
+        : undefined;
   // Who the page was perceived for. "thresholds edited" whenever a slider moved them, so a moved
   // bundle is never presented as the persona.
   const subject = `${state.persona.label}${state.edited ? ", thresholds edited" : ""}, seed ${state.seed}`;
@@ -405,20 +494,44 @@ export function PreviewScreen() {
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold">Preview</h1>
         <p className="text-sm text-muted-foreground">
-          The stored page as perceive returns it. Every slider move runs the same filter the Actor
-          uses.
+          A target-app page as perceive returns it. Every slider move runs the same filter the Actor
+          uses, here in the browser.
         </p>
       </header>
       <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <ControlPanel state={state} onMove={move} onRelease={release} />
         <section aria-labelledby={PAGE_TITLE_ID} className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id={PAGE_TITLE_ID} className="font-medium">
-              {observation.title}
-            </h2>
+            <PagePicker search={search} current={state.page} />
             <ViewControl evidence={state.evidence} onChange={showEvidence} />
           </div>
-          <PerceivedPage observation={observation} evidence={state.evidence} subject={subject} />
+          <h2 id={PAGE_TITLE_ID} className="font-medium">
+            {stage?.observation.title ?? state.page}
+          </h2>
+          {stage === undefined ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              {`Measuring ${state.page} on the target app, on ${device}…`}
+            </p>
+          ) : (
+            <>
+              {stage.failure === undefined ? (
+                <p className="font-mono text-xs text-muted-foreground">
+                  {`Live: ${stage.observation.url} on ${device}, at the target app's default parameters.`}
+                </p>
+              ) : (
+                <StoredBanner failure={stage.failure} retry={() => void live.refetch()} />
+              )}
+              {/* At most the measured viewport's width, so a phone's page is drawn at a phone's
+                  width rather than stretched across the pane. */}
+              <div className="w-full" style={{ maxWidth: `${stage.observation.viewport.width}px` }}>
+                <PerceivedPage
+                  observation={stage.observation}
+                  evidence={state.evidence}
+                  subject={subject}
+                />
+              </div>
+            </>
+          )}
         </section>
       </div>
     </div>

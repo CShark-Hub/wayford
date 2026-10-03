@@ -3,17 +3,19 @@
  * backend, listen. Everything worth testing lives in `app.ts`, so this file does nothing on import
  * that a test would want. `pnpm dev` runs it under `tsx watch`.
  *
- * It is the only io module that loads agent's runtime and Playwright, through `llmActor` and
- * `chromium.ts` (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
+ * It is the only io module that loads agent's runtime and Playwright, through `llmActor`,
+ * `chromium.ts` and `live-measure.ts` (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log,
+ * "The barrel").
  */
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createLlm, llmActor, parseLlmSettings, TARGET_APP_DEFAULTS } from "@wayford/agent";
 import pino from "pino";
 import { createApp } from "./app.js";
-import { sharedChromium } from "./chromium.js";
+import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
 import { migrateDatabase, openDatabase } from "./db/database.js";
+import { liveMeasure } from "./live-measure.js";
 import { exitOnTermination } from "./shutdown.js";
 
 /**
@@ -22,7 +24,11 @@ import { exitOnTermination } from "./shutdown.js";
  */
 const RUNS_DIR = fileURLToPath(new URL("../../../runs/", import.meta.url));
 
-// Before the first run launches Chromium: Playwright's handlers keep a SIGTERM from ending io.
+/** The target app, where `pnpm dev` and its production preview both serve it (`docs/STACK.md`, "Ports"). */
+const TARGET_APP_ORIGIN = "http://localhost:5174";
+
+// Before the first run or measurement launches Chromium: Playwright's handlers keep a SIGTERM
+// from ending io.
 exitOnTermination();
 
 const config = loadConfigFromEnvFile();
@@ -35,12 +41,16 @@ const llm = createLlm(settings, { logger });
 migrateDatabase(config.DATABASE_URL);
 const db = openDatabase(config.DATABASE_URL);
 
+// One Chromium for every run and every measurement, launched by the first one.
+const browser = sharedBrowser();
+
 const app = createApp({
   llm,
   db,
   runsDir: RUNS_DIR,
-  // One Chromium for every run, launched by the first one.
-  run: sharedChromium(),
+  run: sharedChromium(browser),
+  // The preview's live page (s3-05), at the app's defaults like the arena's runs.
+  measure: liveMeasure({ browser, origin: TARGET_APP_ORIGIN }),
   // One `Llm` per run, so each run's log lines carry its run id.
   actor: llmActor({ settings }),
   // The arena runs on the app's defaults (s3-03, Out of scope).

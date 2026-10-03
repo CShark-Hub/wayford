@@ -10,6 +10,8 @@
  * - `contrastSoftness`, `fontPxSoftness`, `targetPxSoftness`: 0 to 1. Absent or invalid, the
  *   persona's own, or 0.
  * - `evidence`: `true` for the evidence view. Anything else, off.
+ * - `page`: one of `PREVIEW_PAGES`, the target-app page the preview perceives. Absent or invalid,
+ *   `/deliveries`.
  *
  * Every param is optional in the URL and defaulted in `resolvePreview`, so a short link is as
  * canonical as a long one.
@@ -29,6 +31,17 @@ const DEFAULT_PERSONA = "prof_vera";
 
 /** The seed a link without one opens. It stands in for a run seed, so it is never the profile's. */
 const DEFAULT_SEED = 1;
+
+/**
+ * The target-app pages the preview offers (s3-05): `/deliveries`, where the hard goal's main route
+ * leaves, and the pages routes B and C reach the archive from. io measures any of the app's pages;
+ * these are the ones the demo shows (`docs/DEMO.md`).
+ */
+export const PREVIEW_PAGES = ["/deliveries", "/account", "/settings/data"] as const;
+export type PreviewPage = (typeof PREVIEW_PAGES)[number];
+
+/** The page a link without one opens: the one the stored measurement is of. */
+const DEFAULT_PAGE: PreviewPage = "/deliveries";
 
 /**
  * Slider bounds per metric. `off` is the lowest position and means "this metric does not gate". A
@@ -89,6 +102,7 @@ export const PreviewSearch = z.object({
   targetPx: thresholdParam("targetPx"),
   targetPxSoftness: softnessParam,
   evidence: z.literal(true).optional().catch(undefined),
+  page: z.enum(PREVIEW_PAGES).optional().catch(undefined),
 });
 export type PreviewSearch = z.infer<typeof PreviewSearch>;
 
@@ -118,6 +132,8 @@ export type PreviewState = {
    */
   edited: boolean;
   evidence: boolean;
+  /** The target-app page perceived. */
+  page: PreviewPage;
 };
 
 /**
@@ -158,20 +174,39 @@ export function resolvePreview(search: PreviewSearch): PreviewState {
     profile: { ...persona, perception },
     edited,
     evidence: search.evidence === true,
+    page: search.page ?? DEFAULT_PAGE,
   };
 }
 
 /**
- * The search a persona link navigates to: the new persona on the same seed and view. The
+ * The search a persona link navigates to: the new persona on the same seed, view and page. The
  * thresholds and softness are dropped, so they fall back to the new persona's own. The seed stays,
  * because it stands in for a run seed, and a run set compares personas on the same seeds
- * (`docs/PLAN.md`, A20).
+ * (`docs/PLAN.md`, A20). The page is left out at its default, so a short link stays short.
  */
 export function personaSearch(
-  state: Pick<PreviewState, "seed" | "evidence">,
+  state: Pick<PreviewState, "seed" | "evidence" | "page">,
   personaId: string,
 ): PreviewSearch {
-  return { persona: personaId, seed: state.seed, evidence: state.evidence ? true : undefined };
+  return {
+    persona: personaId,
+    seed: state.seed,
+    evidence: state.evidence ? true : undefined,
+    page: pageParam(state.page),
+  };
+}
+
+/**
+ * The search a page link navigates to: everything as it is, on `page`. The sliders stay, since
+ * they are the persona's, not the page's.
+ */
+export function pageSearch(search: PreviewSearch, page: PreviewPage): PreviewSearch {
+  return { ...search, page: pageParam(page) };
+}
+
+/** A page as the URL holds it: absent at the default. */
+function pageParam(page: PreviewPage): PreviewPage | undefined {
+  return page === DEFAULT_PAGE ? undefined : page;
 }
 
 /** What a metric's sliders show: the URL's value, else the persona's own, else `off` and 0. */

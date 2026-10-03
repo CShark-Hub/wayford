@@ -11,7 +11,7 @@ import { WayfordError } from "@wayford/core";
 import { profileFixture, taskFixture } from "@wayford/core/fixtures";
 import type { Browser } from "playwright";
 import { expect, test, vi } from "vitest";
-import { sharedChromium } from "./chromium.js";
+import { sharedBrowser, sharedChromium } from "./chromium.js";
 import type { RunFn } from "./runner.js";
 import { noBackend, quiet } from "./test-app.js";
 
@@ -57,7 +57,7 @@ function fakeChromium(...failures: Error[]) {
 
 test("runs that start together share one launch, and later runs reuse its browser", async () => {
   const { launch } = fakeChromium();
-  const run = sharedChromium(launch);
+  const run = sharedChromium(sharedBrowser(launch));
 
   await Promise.all([runPastTheBrowser(run), runPastTheBrowser(run), runPastTheBrowser(run)]);
   expect(launch).toHaveBeenCalledTimes(1);
@@ -68,7 +68,7 @@ test("runs that start together share one launch, and later runs reuse its browse
 
 test("a run after the browser disconnects launches a new one", async () => {
   const { launch, browsers } = fakeChromium();
-  const run = sharedChromium(launch);
+  const run = sharedChromium(sharedBrowser(launch));
   await runPastTheBrowser(run);
 
   // As a browser that crashed does.
@@ -85,7 +85,7 @@ test("a launch that rejects fails the run with the install command, and the next
     "browserType.launch: Executable doesn't exist at /nowhere/headless_shell",
   );
   const { launch } = fakeChromium(failure);
-  const run = sharedChromium(launch);
+  const run = sharedChromium(sharedBrowser(launch));
 
   const error = await run(capped()).catch((thrown: unknown) => thrown);
   expect(error).toBeInstanceOf(WayfordError);

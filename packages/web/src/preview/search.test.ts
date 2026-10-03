@@ -9,8 +9,10 @@ import { perceive } from "@wayford/filter/perceive";
 import { expect, test } from "vitest";
 import {
   CUT_SLIDERS,
+  PREVIEW_PAGES,
   PreviewSearch,
   type PreviewState,
+  pageSearch,
   personaSearch,
   resolvePreview,
   softnessKey,
@@ -34,6 +36,7 @@ test("a link without persona or seed opens Vera at seed 1", () => {
   expect(state.seed).toBe(1);
   expect(state.edited).toBe(false);
   expect(state.evidence).toBe(false);
+  expect(state.page).toBe("/deliveries");
 });
 
 test("a present but invalid key comes back as undefined, overrides the raw query, and falls back", () => {
@@ -49,6 +52,7 @@ test("a present but invalid key comes back as undefined, overrides the raw query
     targetPx: null,
     targetPxSoftness: true,
     evidence: false,
+    page: "/nowhere",
   };
   expect({ ...query, ...validate(query) }).toStrictEqual({
     persona: undefined,
@@ -60,6 +64,7 @@ test("a present but invalid key comes back as undefined, overrides the raw query
     targetPx: undefined,
     targetPxSoftness: undefined,
     evidence: undefined,
+    page: undefined,
   });
   // Each falls back on its own, an unknown persona to Vera and the rest to her own values.
   expect(resolvePreview(validate(query))).toStrictEqual(stateOf({}));
@@ -275,7 +280,7 @@ test("a persona link keeps the seed and the evidence toggle and drops every thre
     evidence: true,
   });
   const link = personaSearch(resolvePreview(moved), "prof_zoya");
-  expect(link).toStrictEqual({ persona: "prof_zoya", seed: 7, evidence: true });
+  expect(link).toStrictEqual({ persona: "prof_zoya", seed: 7, evidence: true, page: undefined });
   // So Zoya opens at her own values, unedited, on Vera's seed (`docs/PLAN.md`, A20).
   const zoya = resolvePreview(link);
   expect(zoya.persona).toStrictEqual(profileFixture("prof_zoya"));
@@ -287,10 +292,30 @@ test("a persona link keeps the seed and the evidence toggle and drops every thre
     persona: "prof_milo",
     seed: 7,
     evidence: undefined,
+    page: undefined,
   });
   expect(personaSearch(stateOf({}), "prof_milo")).toStrictEqual({
     persona: "prof_milo",
     seed: 1,
     evidence: undefined,
+    page: undefined,
+  });
+});
+
+test("each preview page is a page param, and anything else falls back to /deliveries", () => {
+  for (const page of PREVIEW_PAGES) expect(stateOf({ page }).page).toBe(page);
+  // Pages io measures but the preview does not offer, and paths the target app does not have.
+  for (const page of ["/", "/settings", "/nowhere", "deliveries", 3]) {
+    expect(validate({ page }).page, String(page)).toBeUndefined();
+    expect(stateOf({ page }).page, String(page)).toBe("/deliveries");
+  }
+});
+
+test("a page link back to /deliveries leaves the page param out", () => {
+  // Keeping persona, seed, sliders and view is `preview.test.tsx`'s page-control test.
+  const onData = validate({ persona: "prof_vera", page: "/settings/data" });
+  expect(pageSearch(onData, "/deliveries")).toStrictEqual({
+    persona: "prof_vera",
+    page: undefined,
   });
 });

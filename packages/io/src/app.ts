@@ -2,16 +2,18 @@ import type { Llm } from "@wayford/agent";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { healthRoute } from "./routes/health.js";
+import { type MeasureFn, measureRoute } from "./routes/measure.js";
 import { profilesRoute } from "./routes/profiles.js";
 import { runsRoute } from "./routes/runs.js";
 import { tasksRoute } from "./routes/tasks.js";
 import { createRunner, type RunnerOptions } from "./runner.js";
 
 /**
- * What the app runs on: the runner's options, the Extractor's `Llm`, and the pause between two
- * replayed events of the fixture run (300 ms when absent).
+ * What the app runs on: the runner's options, the Extractor's `Llm`, how a target-app page is
+ * measured for the preview, and the pause between two replayed events of the fixture run (300 ms
+ * when absent).
  */
-export type AppOptions = RunnerOptions & { llm: Llm; replaySpacingMs?: number };
+export type AppOptions = RunnerOptions & { llm: Llm; measure: MeasureFn; replaySpacingMs?: number };
 
 /** `application/json`, with or without parameters such as `charset`. */
 const JSON_BODY = /^application\/json\s*(;|$)/i;
@@ -39,6 +41,7 @@ export function createApp(options: AppOptions) {
       await next();
     })
     .route("/health", healthRoute())
+    .route("/measure", measureRoute(options))
     .route("/profiles", profilesRoute())
     .route("/runs", runsRoute({ ...options, runner }))
     .route("/tasks", tasksRoute(options))

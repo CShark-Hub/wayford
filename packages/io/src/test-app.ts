@@ -25,6 +25,7 @@ import { observationFixture } from "@wayford/core/fixtures";
 import pino from "pino";
 import { type AppOptions, createApp } from "./app.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
+import type { MeasureFn } from "./routes/measure.js";
 import type { RunFn, RunnerOptions } from "./runner.js";
 
 export interface TempStore {
@@ -66,6 +67,14 @@ export const noBackend: ActorBackendFactory = () => {
   throw new Error("no io test builds an Actor backend");
 };
 
+/**
+ * A `MeasureFn` that throws if called: a test that measures says how, as `measure.test.ts` and
+ * `measure.browser.test.ts` do.
+ */
+export const noMeasure: MeasureFn = () => {
+  throw new Error("this io test measures no page");
+};
+
 /** A logger that writes nothing. */
 export const quiet = pino({ level: "silent" });
 
@@ -94,13 +103,18 @@ export type TestAppOptions = Partial<Omit<AppOptions, "db" | "runsDir">>;
 export type TestApp = TempStore & { app: ReturnType<typeof createApp> };
 
 /**
- * The whole app on a `tempStore()`, on `runnerDefaults` and the fake `Llm` with no answers.
- * `options` replaces any of them. The fixture replay keeps the route's own pace unless
+ * The whole app on a `tempStore()`, on `runnerDefaults`, the fake `Llm` with no answers and
+ * `noMeasure`. `options` replaces any of them. The fixture replay keeps the route's own pace unless
  * `replaySpacingMs` is given.
  */
 export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
   const store = await tempStore();
-  const app = createApp({ ...runnerDefaults(store), llm: fakeLlm({}), ...options });
+  const app = createApp({
+    ...runnerDefaults(store),
+    llm: fakeLlm({}),
+    measure: noMeasure,
+    ...options,
+  });
   return { ...store, app };
 }
 

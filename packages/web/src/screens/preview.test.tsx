@@ -13,11 +13,12 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { METRIC_NAMES, type Profile } from "@wayford/core";
+import { type DeviceKind, METRIC_NAMES, type PageMeasurement, type Profile } from "@wayford/core";
 import { measurementFixture, profileFixture, profileFixtures } from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter/perceive";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
+import { measurementQuery } from "../api/measure.js";
 import {
   attributesOf,
   captionOf,
@@ -28,6 +29,7 @@ import {
   textOf,
   withoutNested,
 } from "../preview/rendered-markup.js";
+import { PREVIEW_PAGES } from "../preview/search.js";
 import { createAppRouter } from "../router.js";
 
 vi.mock("@wayford/filter/perceive", async (importOriginal) => {
@@ -62,20 +64,54 @@ async function routerAt(path: string) {
 
 type AppRouter = Awaited<ReturnType<typeof routerAt>>;
 
-/** What `router` shows now: the shell and the matched screen, inside a fresh query client. */
-function renderRouter(router: AppRouter): string {
+/** io's answer for one device and page. */
+type LiveAnswer = [device: DeviceKind, page: string, measurement: PageMeasurement];
+
+/** The stored fixture as io's answer for every preview page on both devices. */
+const FIXTURE_EVERYWHERE: LiveAnswer[] = (["desktop", "mobile"] as const).flatMap((device) =>
+  PREVIEW_PAGES.map((page): LiveAnswer => [device, page, measurementFixture]),
+);
+
+/**
+ * A query client that holds io's `answers`, so a render fetches nothing. By default the stored
+ * fixture everywhere: the screen then draws `measurementFixture`, whatever the persona and page.
+ */
+function liveClient(answers: LiveAnswer[] = FIXTURE_EVERYWHERE): QueryClient {
+  const client = new QueryClient();
+  for (const [device, page, measurement] of answers) {
+    client.setQueryData(measurementQuery(device, page).queryKey, measurement);
+  }
+  return client;
+}
+
+/**
+ * A client whose measurement of `page` on `device` failed, as it does while io or the target app
+ * is down. The query neither retries nor retries on mount (`src/api/measure.ts`), so a static
+ * render keeps the failure.
+ */
+async function failedClient(device: DeviceKind, page: string): Promise<QueryClient> {
+  const client = new QueryClient();
+  await client.prefetchQuery({
+    ...measurementQuery(device, page),
+    queryFn: () => Promise.reject(new Error("target_app_unavailable: the target app did not load")),
+  });
+  return client;
+}
+
+/** What `router` shows now: the shell and the matched screen, inside `client`. */
+function renderRouter(router: AppRouter, client: QueryClient = liveClient()): string {
   return renderToStaticMarkup(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={client}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
 }
 
 /** The page at `path`. The spy is cleared first, so it holds this render's calls alone. */
-async function render(path: string): Promise<string> {
+async function render(path: string, client?: QueryClient): Promise<string> {
   const router = await routerAt(path);
   perceiveSpy.mockClear();
-  return renderRouter(router);
+  return renderRouter(router, client);
 }
 
 /**
@@ -454,5 +490,136 @@ test("the persona control links every persona on the seed and view the URL holds
       profile.label,
       `/preview?persona=${profile.id}&seed=7&evidence=true`,
     ]),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The live page (s3-05)
+// ---------------------------------------------------------------------------
+
+/** `measurementFixture` with its own title and fewer elements, so a test can tell it was drawn. */
+function liveOf(path: string, isMobile = false): PageMeasurement {
+  return {
+    ...measurementFixture,
+    url: `http://localhost:5174${path}`,
+    title: `${path} live${isMobile ? " on a phone" : ""}`,
+    viewport: isMobile
+      ? { width: 412, height: 839, deviceScaleFactor: 2.625, isMobile: true }
+      : measurementFixture.viewport,
+    elements: measurementFixture.elements.slice(0, 6),
+  };
+}
+
+/** The stage's title. */
+function titleOf(html: string): string {
+  return textOf(elementOf(html, "h2", `id="preview-page-title"`));
+}
+
+/** The text of the stage's `role="status"` banner or line, or `undefined` when it shows none. */
+function statusOf(html: string): string | undefined {
+  const banner = html.match(/<(div|p)(?=[^>]*\srole="status")[^>]*>(.*?)<\/\1>/s);
+  return banner === null ? undefined : textOf(withoutHidden(banner[2] ?? ""));
+}
+
+/** The page control's links: each name, href and `aria-current`. */
+function pageLinks(html: string) {
+  return linksOf(elementOf(html, "nav", 'aria-label="Page"')).map((link) => ({
+    name: link.name,
+    href: link.attributes.href,
+    current: link.attributes["aria-current"],
+  }));
+}
+
+test("the screen draws io's live measurement of the page, for the persona's device", async () => {
+  const live = liveOf("/deliveries");
+  const html = await render(VERA, liveClient([["desktop", "/deliveries", live]]));
+  expect(titleOf(html)).toBe("/deliveries live");
+  expect(drawnBoxes(html)).toEqual(shownElements(realPerceive(live, vera, 1)));
+  // Every perceive call was on the live page.
+  expect(perceiveSpy.mock.calls.length).toBeGreaterThan(0);
+  for (const call of perceiveSpy.mock.calls) expect(call[0]).toBe(live);
+  // No banner: a line names where the page came from.
+  expect(statusOf(html)).toBeUndefined();
+  expect(textOf(html)).toContain(
+    "Live: http://localhost:5174/deliveries on desktop, at the target app's default parameters.",
+  );
+});
+
+test("Milo, on a phone, gets the phone's measurement, drawn no wider than the phone", async () => {
+  const phone = liveOf("/deliveries", true);
+  const html = await render(
+    "/preview?persona=prof_milo",
+    liveClient([
+      ["desktop", "/deliveries", liveOf("/deliveries")],
+      ["mobile", "/deliveries", phone],
+    ]),
+  );
+  expect(titleOf(html)).toBe("/deliveries live on a phone");
+  expect(drawnBoxes(html)).toEqual(
+    shownElements(realPerceive(phone, profileFixture("prof_milo"), 1)),
+  );
+  expect(html).toContain('style="max-width:412px"');
+});
+
+test("the page in the URL is the page measured and drawn", async () => {
+  const data = liveOf("/settings/data");
+  const html = await render(
+    "/preview?persona=prof_kai&page=/settings/data",
+    liveClient([["desktop", "/settings/data", data]]),
+  );
+  expect(titleOf(html)).toBe("/settings/data live");
+  expect(drawnBoxes(html)).toEqual(shownElements(realPerceive(data, kai, 1)));
+});
+
+test("while the page is measured, nothing is drawn and a status line says so", async () => {
+  // A fresh client: the query is pending, as on the first visit.
+  const html = await render("/preview?persona=prof_vera&page=/account", new QueryClient());
+  expect(drawnBoxes(html)).toEqual([]);
+  expect(perceiveSpy).not.toHaveBeenCalled();
+  expect(titleOf(html)).toBe("/account");
+  expect(statusOf(html)).toBe("Measuring /account on the target app, on desktop…");
+});
+
+test("with the live page unavailable, the stored page is drawn under a banner that says so", async () => {
+  const html = await render(VERA, await failedClient("desktop", "/deliveries"));
+  expect(drawnBoxes(html)).toEqual(shownElements(realPerceive(measurementFixture, vera, 1)));
+  expect(titleOf(html)).toBe(measurementFixture.title);
+  expect(statusOf(html)).toBe(
+    "The live page is unavailable: target_app_unavailable: the target app did not load. " +
+      "Showing the stored /deliveries, measured on desktop at the target app's default " +
+      "parameters (1280 × 720).Try again",
+  );
+  expect(textOf(html)).not.toContain("Live: ");
+});
+
+test("on another page, the fallback is still the stored /deliveries, and the banner names it", async () => {
+  const html = await render(
+    "/preview?persona=prof_kai&page=/settings/data",
+    await failedClient("desktop", "/settings/data"),
+  );
+  expect(drawnBoxes(html)).toEqual(shownElements(realPerceive(measurementFixture, kai, 1)));
+  expect(statusOf(html)).toContain("Showing the stored /deliveries");
+  // The picker still says which page was asked for.
+  expect(pageLinks(html).find((link) => link.current === "page")?.name).toBe("/settings/data");
+});
+
+test("the page control links each page with persona, seed, sliders and view kept", async () => {
+  const html = await render("/preview?persona=prof_zoya&seed=7&contrast=2.5&evidence=true");
+  const kept = "persona=prof_zoya&seed=7&contrast=2.5&evidence=true";
+  expect(pageLinks(html)).toEqual([
+    { name: "/deliveries", href: `/preview?${kept}`, current: "page" },
+    { name: "/account", href: `/preview?${kept}&page=%2Faccount`, current: undefined },
+    {
+      name: "/settings/data",
+      href: `/preview?${kept}&page=%2Fsettings%2Fdata`,
+      current: undefined,
+    },
+  ]);
+});
+
+test("a persona link keeps the page the URL holds", async () => {
+  const html = await render("/preview?persona=prof_vera&seed=7&page=/account");
+  expect(personaLink(html, "prof_kai").attributes.href).toBe(
+    "/preview?persona=prof_kai&seed=7&page=%2Faccount",
   );
 });

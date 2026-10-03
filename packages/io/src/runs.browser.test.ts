@@ -15,7 +15,7 @@ import { taskFixture } from "@wayford/core/fixtures";
 import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
 import { type Browser, chromium } from "playwright";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { sharedChromium } from "./chromium.js";
+import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { saveTask } from "./db/tasks.js";
 import type { StartedRun } from "./runner.js";
 import { postJson, readEvents, type TestApp, testApp } from "./test-app.js";
@@ -64,11 +64,13 @@ const browsers: Browser[] = [];
 beforeAll(async () => {
   target = await serveTargetApp();
   io = await testApp({
-    run: sharedChromium(async () => {
-      const browser = await chromium.launch();
-      browsers.push(browser);
-      return browser;
-    }),
+    run: sharedChromium(
+      sharedBrowser(async () => {
+        const browser = await chromium.launch();
+        browsers.push(browser);
+        return browser;
+      }),
+    ),
     // A fresh fake per run, so two runs at once never share a queue of answers.
     actor: llmActor({ settings, llm: () => fakeLlm({ actor: [easyRoute, easyRoute, easyRoute] }) }),
   });

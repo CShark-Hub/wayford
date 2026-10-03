@@ -1,7 +1,8 @@
 /**
  * `runActor` on one shared Chromium (s4-03): the `RunFn` that `server.ts` hands the runner. Every
- * run opens its own context on the one browser (F6 AC1). The first run launches it, not the boot,
- * so `pnpm dev` stays quick for API work that never runs anything
+ * run opens its own context on the one browser (F6 AC1), and so does every live measurement of a
+ * target-app page (s3-05, `live-measure.ts`). The first caller launches it, not the boot, so
+ * `pnpm dev` stays quick for API work that never runs anything
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, "chromium.ts" and decision log, "The browser").
  *
  * It stays out of io's barrel (spec, decision log, "The barrel"): it loads agent's runtime and
@@ -12,21 +13,26 @@ import { WayfordError } from "@wayford/core";
 import { type Browser, chromium } from "playwright";
 import type { RunFn } from "./runner.js";
 
+/** The one Chromium, launched by its first caller and handed to every caller after it. */
+export type SharedBrowser = () => Promise<Browser>;
+
 /**
- * `runActor` on one Chromium for every run: launched by the first run, reused, launched again
- * after a disconnect. It holds the launch's promise, not the browser, so runs that start together
- * await one launch, and five first runs still launch one browser. A launch that rejects fails
- * every run waiting on it with `browser_launch_failed`, which the runner streams as each run's
- * `runFailed`, and the next run launches again. Nothing here closes the browser: Playwright's
- * signal handlers close it on SIGINT, SIGTERM and SIGHUP, and its `exit` hook kills it when the
- * process exits. Playwright exits only on SIGINT; `shutdown.ts` makes io exit on the other two.
+ * One Chromium for every run and every measurement (s3-05): launched by the first caller, reused,
+ * launched again after a disconnect. It holds the launch's promise, not the browser, so callers
+ * that start together await one launch, and five first runs still launch one browser. A launch
+ * that rejects fails every caller waiting on it with `browser_launch_failed`, which the runner
+ * streams as each run's `runFailed`, and the next caller launches again. Nothing here closes the
+ * browser: Playwright's SIGINT handler closes it and exits; on SIGTERM and SIGHUP `shutdown.ts`
+ * exits first, and Playwright's `exit` hook kills it.
  */
-export function sharedChromium(launch: () => Promise<Browser> = () => chromium.launch()): RunFn {
+export function sharedBrowser(
+  launch: () => Promise<Browser> = () => chromium.launch(),
+): SharedBrowser {
   // The launch in flight or done, cleared when its browser disconnects or it rejects. Only its own
   // handlers clear it, and a new launch starts only once it is cleared.
   let current: Promise<Browser> | undefined;
 
-  function shared(): Promise<Browser> {
+  return () => {
     if (current !== undefined) return current;
     current = launch().then(
       (browser) => {
@@ -41,10 +47,16 @@ export function sharedChromium(launch: () => Promise<Browser> = () => chromium.l
       },
     );
     return current;
-  }
+  };
+}
 
+/**
+ * `runActor` on `browser`: every run opens its own context on the one browser (F6 AC1). No
+ * default: a browser of its own would be a second Chromium beside the measurements' one.
+ */
+export function sharedChromium(browser: SharedBrowser): RunFn {
   // `runActor` opens the run's context on the browser and never closes the browser.
-  return async (options) => runActor({ ...options, browser: await shared() });
+  return async (options) => runActor({ ...options, browser: await browser() });
 }
 
 /**
