@@ -416,3 +416,26 @@ test("the caption says evidence, not perception, in the evidence view only, for 
     `The page as perceive returns it for ${SUBJECT}.`,
   );
 });
+
+/** Each drawn box's name, and whether it wraps its name rather than keep it on one line. */
+function wrapsByName(html: string): Map<string, boolean> {
+  return new Map(
+    divsWith(html, "data-state").map(({ attributes, inner }) => {
+      const classes = (attributes.class ?? "").split(" ");
+      return [textOf(inner), classes.includes("whitespace-normal")];
+    }),
+  );
+}
+
+test("a text block more than one line tall wraps its name; a control and a one-line block do not", () => {
+  const lead = measured(LEAD);
+  // The lead paragraph as a phone measures it: 180 px wide, three lines of its 17 px text.
+  const phone = withElement(LEAD, (e) => ({ ...e, bbox: { ...e.bbox, width: 180, height: 76.5 } }));
+  const onPhone = wrapsByName(render(observe(phone, ada, 1), { evidence: false }));
+  expect(onPhone.get(lead.name)).toBe(true);
+  // A nav link is 46 px tall at 17 px, room for two lines, but a control keeps its name on one.
+  expect(onPhone.get("Your account")).toBe(false);
+  // On the desktop page the paragraph is one line tall, and keeps to it.
+  const onDesktop = wrapsByName(render(observe(measurementFixture, ada, 1), { evidence: false }));
+  expect(onDesktop.get(lead.name)).toBe(false);
+});

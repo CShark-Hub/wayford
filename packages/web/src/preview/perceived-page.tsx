@@ -43,6 +43,21 @@ function boxStyle(element: ObservedElement) {
   };
 }
 
+/** The target app's body line height (`packages/target-app/src/style.css`), Tailwind's `leading-normal`. */
+const TEXT_LINE_HEIGHT = 1.5;
+
+/**
+ * Whether a box holds more than one line of its text: a text block over one and a half lines tall,
+ * as a paragraph that wraps on a phone. Its name then wraps inside the box at the page's line
+ * height. A text block is an element with no target size, which the collector measures on controls
+ * only; a control, and a text block one line tall, keep their name on one line.
+ */
+function holdsLines(element: ObservedElement): boolean {
+  if (element.metrics.targetPx !== undefined) return false;
+  const lineHeight = (element.metrics.fontPx ?? DEFAULT_FONT_PX) * TEXT_LINE_HEIGHT;
+  return element.bbox.height > 1.5 * lineHeight;
+}
+
 /** One measured px is `--px` on screen, since the viewport's width is the pane's. */
 function canvasStyle(width: number, height: number) {
   return { "--px": `calc(100cqw / ${width})`, height: scaled(height) };
@@ -109,7 +124,8 @@ function ShownBox({
       data-ref={element.ref}
       data-state={element.state}
       className={cn(
-        "absolute flex items-center whitespace-nowrap leading-none",
+        "absolute flex items-center",
+        holdsLines(element) ? "whitespace-normal leading-normal" : "whitespace-nowrap leading-none",
         muted ? "text-muted-foreground" : "text-foreground",
         roleLook(element.role),
       )}
