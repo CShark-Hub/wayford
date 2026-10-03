@@ -102,7 +102,7 @@ describe("truncateRatio", () => {
     ["keeps an exact ratio: 3 is 3", 3, 3],
     ["keeps the top of the scale: 21 is 21", 21, 21],
     // 2.006 × 1000 is 2005.9999999999998 in floating point: without the guard it would be 2.005.
-    ["absorbs float noise: RULES' 2.006 stays 2.006", 2.006, 2.006],
+    ["absorbs float noise: 2.006 stays 2.006", 2.006, 2.006],
   ])("%s", (_claim, ratio, truncated) => {
     expect(truncateRatio(ratio)).toBe(truncated);
   });

@@ -10,19 +10,14 @@ const main: Landmark[] = [{ role: "main" }];
 /** `/deliveries` as the spec's table lists it: kind, role, name, landmark path. */
 const DELIVERIES: [kind: "control" | "text", role: string, name: string, path: Landmark[]][] = [
   ["control", "link", "Quillmere", banner],
-  ["text", "listitem", "Home", nav],
   ["control", "link", "Home", nav],
-  ["text", "listitem", "Your account", nav],
   ["control", "link", "Your account", nav],
-  ["text", "listitem", "Deliveries", nav],
   ["control", "link", "Deliveries", nav],
-  ["text", "listitem", "Settings", nav],
   ["control", "link", "Settings", nav],
   ["text", "heading", "Deliveries", main],
   ["text", "paragraph", "Parcels on the way and how you like to receive them.", main],
   ["text", "heading", "On the way", main],
   ["text", "listitem", "1 parcel in transit, expected Friday between 10:00 and 14:00.", main],
-  ["text", "paragraph", "Delivery address", main],
   ["control", "link", "Delivery address", main],
   ["text", "heading", "Delivery preferences", main],
   ["control", "checkbox", "Leave with a neighbour if I am out", main],
@@ -66,9 +61,9 @@ describe("measurementFixture", () => {
     expect(measurementFixture.scroll).toEqual({ x: 0, y: 0 });
   });
 
-  test("the 19 elements come in measurement order, each keyed by elementKey", () => {
+  test("the 14 elements come in measurement order, each keyed by elementKey", () => {
     const elements = measurementFixture.elements;
-    expect(elements).toHaveLength(19);
+    expect(elements).toHaveLength(14);
     expect(elements.map((e) => e.key)).toEqual(
       DELIVERIES.map(([, role, name, path]) => elementKey({ role, name, path })),
     );

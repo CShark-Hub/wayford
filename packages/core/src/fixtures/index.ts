@@ -121,9 +121,12 @@ export const observationFixture: FullObservation = readJson("observation.json", 
  * headless, where Playwright hides scrollbars. A browser that shows a classic
  * 15 px scrollbar, as a headed one does on Windows, moves the centred content
  * 7.5 px left; with overlay scrollbars, the macOS default, it moves nothing.
+ * Regenerated on Windows for #124, which dropped five text blocks and
+ * changed no kept key, name or metric. One link's box came out 1/64 px
+ * narrower, as it does on unchanged code there, so the macOS boxes are kept.
  *
  * An element's contrast and font size are the worst over the runs of text it
- * draws: for a nav `li`, its link's. Everything is inside the 720 px
+ * draws, a text block's own text only (#124). Everything is inside the 720 px
  * viewport.
  *
  * Each checkbox carries the contrast and font size of its label's text
@@ -135,6 +138,8 @@ export const observationFixture: FullObservation = readJson("observation.json", 
  * - the `display: none` Menu button: a hidden element is not measured;
  * - the two `label`s, as separate text blocks: a label's text is measured on
  *   the checkbox it names;
+ * - the four nav `li`s and the `p` around the "Delivery address" link: a text
+ *   block that draws no text of its own is not measured (#124);
  * - the footer's bare text: it is not a heading, paragraph or list item.
  */
 export const measurementFixture: PageMeasurement = readJson("measurement.json", PageMeasurement);

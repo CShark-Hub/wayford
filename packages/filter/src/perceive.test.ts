@@ -44,7 +44,6 @@ const NAV_LINKS = [
 ];
 /** In Zoya's contrast band, and under her hard font cut. */
 const LEAD = "main//paragraph:Parcels on the way and how you like to receive them.";
-const ADDRESS_TEXT = "main//paragraph:Delivery address";
 const ADDRESS_LINK = "main//link:Delivery address";
 
 const KEYS = measurementFixture.elements.map((e) => e.key);
@@ -603,7 +602,7 @@ test("Milo loses the brand link and Order archive to P4", () => {
   }
   const lost = [BRAND, ARCHIVE];
   const kept = KEYS.filter((key) => !lost.includes(key));
-  expect(kept).toHaveLength(17);
+  expect(kept).toHaveLength(12);
   for (const seed of seeds(10)) {
     const full = perceive(measurementFixture, milo, seed);
     expect(shownKeys(full)).toEqual(kept);
@@ -636,7 +635,7 @@ test("Vera loses the brand link to P4", () => {
   const lost = [BRAND];
   // Order archive is in her contrast band: shown or not by the roll, the test above.
   const kept = KEYS.filter((key) => !lost.includes(key) && key !== ARCHIVE);
-  expect(kept).toHaveLength(17);
+  expect(kept).toHaveLength(12);
   for (const seed of seeds(10)) {
     const full = perceive(measurementFixture, vera, seed);
     expect(shownKeys(full).filter((key) => key !== ARCHIVE)).toEqual(kept);
@@ -662,7 +661,7 @@ test("Zoya sees only the three headings", () => {
   const { contrast, fontPx } = zoya.perception;
   if (!contrast || !fontPx) throw new Error("Zoya sets contrast and font thresholds");
   const floor = contrast.threshold * (1 - (contrast.softness ?? 0));
-  const inBand = [LEAD, ADDRESS_TEXT, ADDRESS_LINK];
+  const inBand = [LEAD, ADDRESS_LINK];
   for (const key of inBand) {
     expect(metric(key, "contrast"), key).toBeGreaterThanOrEqual(floor);
     expect(metric(key, "contrast"), key).toBeLessThan(contrast.threshold);

@@ -13,7 +13,9 @@
  * Roles follow Playwright's implicit roles, and names are a subset of accname, so that
  * `getByRole(role, { name, exact: true })` finds what a key names
  * (`docs/specs/2026-09-29-s1-02-metrics-collector.md`, "measure-page.ts" and Decision log rows 1
- * to 4). Light DOM of the top document only, no shadow roots or iframes (row 13).
+ * to 4). One exception: a text block is named by its own text, outside the controls and text
+ * blocks nested in it (row 34), so a heading that holds a link is not named as Playwright names
+ * it. Light DOM of the top document only, no shadow roots or iframes (row 13).
  */
 import type { Bbox, ElementKind, Landmark, ScrollOffset, Viewport } from "@wayford/core";
 import type { BackgroundLayer } from "./contrast.js";
@@ -31,7 +33,8 @@ export interface RawElement {
    * The text it draws, one entry per element that draws a run of it: colour, CSS px size, and the
    * backgrounds from that element out to the canvas. Under a dark colour scheme the canvas is one
    * more layer, of unknown paint (`darkCanvas`). These are the runs that draw its name, or those it
-   * draws itself when its name is drawn nowhere (`nameOf`).
+   * draws itself when its name is drawn nowhere (`nameOf`). A text block's are those of its own
+   * text only (#124).
    */
   texts?: { color: string; fontPx: number; layers: BackgroundLayer[] }[];
 }
@@ -152,6 +155,15 @@ export function measurePage(): RawPage {
   // Seen, and in the accessibility tree, so that `getByRole` finds it.
   const measurable = (el: Element) => !hiddenForAria(el) && seen(el);
 
+  // What an element is measured as, by its role: a control, a text block, or neither.
+  const kindOf = (role: string): ElementKind | undefined =>
+    CONTROLS.has(role) ? "control" : TEXT_BLOCKS.has(role) ? "text" : undefined;
+
+  // A control or text block a sighted person can see, in the accessibility tree, so inside a text
+  // block its text is not the block's (#124). The text of an `a` with no `href`, or of a link
+  // nobody sees, stays the block's.
+  const nested = (el: Element) => kindOf(roleOf(el) ?? "") !== undefined && measurable(el);
+
   // An explicit role wins, by its first token, so an unknown token leaves the element unmeasured.
   function roleOf(el: Element): string | undefined {
     const explicit = el.getAttribute("role")?.trim().split(/\s+/)[0];
@@ -193,8 +205,9 @@ export function measurePage(): RawPage {
   // nothing, though sr-only text counts; a child's aria-label or an img's alt stands for it; a
   // block child or a `<br>` is set off by spaces. `skip` is the control a label names. A source
   // hidden itself, such as an `aria-hidden` referent or label, is read `whole`, hidden children
-  // included, as accname and Playwright read it.
-  function contentOf(el: Element, skip?: Element, whole = hiddenForAria(el)): string {
+  // included, as accname and Playwright read it. `own` reads a text block's own text: a `nested`
+  // control or text block gives a space, never its text or a marker (#124).
+  function contentOf(el: Element, skip?: Element, own = false, whole = hiddenForAria(el)): string {
     let text = "";
     for (const node of el.childNodes) {
       if (node instanceof Text) text += node.data;
@@ -202,11 +215,12 @@ export function measurePage(): RawPage {
       const label = node.getAttribute("aria-label") ?? "";
       let part: string;
       if (node === skip || (!whole && hiddenForAria(node))) part = "";
+      else if (own && nested(node)) part = " ";
       else if (label.trim() !== "") part = label;
       else if (node instanceof HTMLImageElement) part = node.alt;
       else if (node instanceof SVGSVGElement)
         part = node.querySelector(":scope > title")?.textContent ?? "";
-      else part = contentOf(node, skip, whole);
+      else part = contentOf(node, skip, own, whole);
       const block = node.tagName === "BR" || getComputedStyle(node).display !== "inline";
       text += block ? ` ${part} ` : part;
     }
@@ -248,17 +262,27 @@ export function measurePage(): RawPage {
   // `skip`, each once, in document order. That passes over an sr-only span's text and a 0 px label's.
   // Text hidden for aria is out of the name, and out of these, unless `root` is itself hidden and
   // so named whole, as `contentOf` reads it: an `aria-hidden` referent is still drawn (row 32).
-  function textParents(root: Element, skip?: Element): Element[] {
+  // `skip`, and with `own` every `nested` control and text block, is passed over whole.
+  function textParents(root: Element, skip?: Element, own = false): Element[] {
     const whole = hiddenForAria(root);
     const parents: Element[] = [];
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    // A walker never filters its root, and FILTER_REJECT passes over a whole subtree.
+    const walker = document.createTreeWalker(
+      root,
+      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+      (node) =>
+        node instanceof Text
+          ? NodeFilter.FILTER_ACCEPT
+          : node === skip || (own && node instanceof Element && nested(node))
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_SKIP,
+    );
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
       const parent = node.parentElement;
       if (parent === null || parents.includes(parent) || !/\S/.test(node.textContent ?? ""))
         continue;
       const named = whole || !hiddenForAria(parent);
-      if (!skip?.contains(parent) && named && seen(parent) && drawsText(parent))
-        parents.push(parent);
+      if (named && seen(parent) && drawsText(parent)) parents.push(parent);
     }
     return parents;
   }
@@ -295,7 +319,12 @@ export function measurePage(): RawPage {
   // (rows 30 to 32). A name read from text drawn elsewhere, in an `aria-labelledby` referent, a
   // label or a shown placeholder, is measured there. A name drawn nowhere, such as an `aria-label`,
   // an alt, a title or a hidden referent, leaves the element measured by the text it draws itself.
+  // A text block reads only its own text, for its name and for its runs, and one that draws none
+  // of it gets no name, so it is not measured, whatever names it (row 34).
   function nameOf(el: Element, role: string): { name: string; texts: Run[] } {
+    const own = TEXT_BLOCKS.has(role);
+    const drawers = own ? textParents(el, undefined, true) : undefined;
+    if (drawers?.length === 0) return { name: "", texts: [] };
     const refs = referents(el);
     const labels = labelable(el) && inputButtonText(el) === undefined ? [...(el.labels ?? [])] : [];
     const field = role === "textbox" || role === "searchbox";
@@ -311,7 +340,7 @@ export function measurePage(): RawPage {
         () => runsOf(labels.flatMap((label) => textParents(label, el))),
       ],
       [() => (el instanceof HTMLInputElement && el.type === "image" ? el.alt : "")],
-      [() => (NAMED_BY_CONTENT.has(role) ? contentOf(el) : "")],
+      [() => (NAMED_BY_CONTENT.has(role) ? contentOf(el, undefined, own) : "")],
       [() => el.getAttribute("title")],
       [
         () => (field ? el.getAttribute("placeholder") : ""),
@@ -326,18 +355,19 @@ export function measurePage(): RawPage {
       const name = collapse(source() ?? "");
       if (name === "") continue;
       const texts = drawn?.() ?? [];
-      return { name, texts: texts.length > 0 ? texts : runsOf(textDrawers(el)) };
+      return { name, texts: texts.length > 0 ? texts : runsOf(drawers ?? textDrawers(el)) };
     }
-    return { name: "", texts: runsOf(textDrawers(el)) };
+    return { name: "", texts: runsOf(drawers ?? textDrawers(el)) };
   }
 
   const elements: RawElement[] = [];
   // A document with no `<body>`, such as an SVG file, has nothing to measure.
   for (const el of document.querySelectorAll("body *")) {
     const role = roleOf(el) ?? "";
-    const kind = CONTROLS.has(role) ? "control" : TEXT_BLOCKS.has(role) ? "text" : undefined;
+    const kind = kindOf(role);
     if (kind === undefined || !measurable(el)) continue;
     const { name, texts } = nameOf(el, role);
+    // A text block with no name, as one that draws none of its own text has (row 34), is skipped.
     if (kind === "text" && name === "") continue;
     const { x, y, width, height } = el.getBoundingClientRect();
     // A click on a label activates its control, so a visible label is part of the target (#117).

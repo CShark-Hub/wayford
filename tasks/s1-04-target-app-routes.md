@@ -61,7 +61,7 @@ Why: today every persona differs from Ada only in what perception removed, so th
 
   That page is what lets the report say "no WCAG failure here, and Kai still did not get through".
 - No new tunable parameter. Only the hard link reads the CSS variables (`src/params.ts`).
-- **Vera's `maxElements` goes from 12 to 20, decided on 2026-10-01.** On `/deliveries` she is shown 18 elements, and "Order archive" is the least salient on contrast, font size and position, so at 12 the attention cut always removes it when perception shows it (#89). At 20 the contrast sweep measures perception, as it is meant to.
+- **Vera's `maxElements` goes from 12 to 20, decided on 2026-10-01.** On `/deliveries` she is shown 18 elements (13 since #124's text-block half, still one over a cap of 12), and "Order archive" is the least salient on contrast, font size and position, so at 12 the attention cut always removes it when perception shows it (#89). At 20 the contrast sweep measures perception, as it is meant to.
 - **The sort rule changes, decided on 2026-10-01.** The persona keeps the name Kai.
   - Alphabetical order no longer has to follow the number of constraints a persona switches on: with this bundle Kai has 7, against Milo's 3. Ada stays first, the control persona with nothing switched on, and Zoya stays last, with the most.
   - Change the test "alphabetical order is the order of how much filter each persona switches on" (`profile.test.ts:295`) to that, and update the RULES paragraph under the persona table and the `AGENTS.md` line that say otherwise. The initial still names the dimension: K for knowledge.

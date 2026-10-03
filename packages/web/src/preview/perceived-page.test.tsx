@@ -293,7 +293,8 @@ test("an invisible element is not drawn, and its name appears nowhere in the per
     expect(divsWith(html, "data-removed"), label).toEqual([]);
     const shownNames = shownElements(full).map((e) => e.name);
     for (const element of full.elements.filter((e) => e.state === "invisible")) {
-      // A name a shown element also has, like a nav item's and its link's, is drawn for that one.
+      // A name a shown element also has, like the "Deliveries" heading's and nav link's, is drawn
+      // for that one.
       if (shownNames.some((name) => name.includes(element.name))) continue;
       expect(decode(html), `${label}: ${element.name}`).not.toContain(element.name);
       checked += 1;

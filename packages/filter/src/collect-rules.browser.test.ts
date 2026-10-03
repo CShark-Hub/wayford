@@ -71,7 +71,7 @@ describe("which elements are measured, under which key", () => {
       keys: ["//paragraph:Ordinary", "//paragraph:Visible inside hidden"],
     },
     {
-      // The paragraph is padded, so its empty name keeps it out, not the 1 px rule.
+      // The paragraph is padded, so having no text keeps it out, not the 1 px rule.
       claim: "no text block with an empty name, though a control with one",
       html: `<p style="padding: 8px"></p><button style="width: 40px; height: 40px"></button>`,
       keys: ["//button:"],
@@ -128,6 +128,75 @@ describe("which elements are measured, under which key", () => {
       width: 390,
       keys: ["banner//button:Menu"],
     },
+    {
+      claim: "a text block with no text of its own is not measured; what it holds is",
+      html: `<header><nav aria-label="Main"><ul><li><a href="/">Home</a></li></ul></nav></header>
+        <main>
+          <ul><li><h2>Deliveries</h2><p>Parcels on the way.</p><a href="/deliveries">Go to deliveries</a></li></ul>
+          <p><button type="button">Close my account</button></p>
+          <h2><a href="/blog/1">Post title</a></h2>
+        </main>`,
+      keys: [
+        "banner/navigation:Main//link:Home",
+        "main//heading:Deliveries",
+        "main//paragraph:Parcels on the way.",
+        "main//link:Go to deliveries",
+        "main//button:Close my account",
+        "main//link:Post title",
+      ],
+    },
+    {
+      claim: "a text block is named by its own text, a nested control leaving a space",
+      html: `<p>Read the <a href="/terms">terms</a> before you start</p>
+        <p>Pay<a href="/now">now</a>later</p>
+        <h2>Orders <a href="/all">see all</a></h2>`,
+      keys: [
+        "//paragraph:Read the before you start",
+        "//link:terms",
+        "//paragraph:Pay later",
+        "//link:now",
+        "//heading:Orders",
+        "//link:see all",
+      ],
+    },
+    {
+      // An `a` with no href has no role, and an sr-only link is not seen: neither is measured.
+      claim: "a link that is not measured is not nested: its text stays the block's",
+      html: `${SR_ONLY}
+        <p>Read <a>this</a> now</p>
+        <p>Read more<a href="/more" class="sr-only"> about deliveries</a></p>`,
+      keys: ["//paragraph:Read this now", "//paragraph:Read more about deliveries"],
+    },
+    {
+      claim: "a text block nested in another takes its text out of the outer one",
+      html: `<ul><li>Intro <p>Details</p></li></ul>`,
+      keys: ["//listitem:Intro", "//paragraph:Details"],
+    },
+    {
+      claim: "a text block whose own text is drawn nowhere is not measured, whatever names it",
+      html: `${SR_ONLY}
+        <ul>
+          <li><span class="sr-only">Current page:</span><a href="/">Home</a></li>
+          <li><span style="font-size: 0">Icon</span><a href="/next">Next</a></li>
+          <li aria-label="Account item"><a href="/account">Account</a></li>
+          <li title="Tip"><a href="/tips">Tips</a></li>
+        </ul>
+        <span id="note">Orders note</span>
+        <p aria-labelledby="note"><a href="/orders">Orders</a></p>`,
+      keys: ["//link:Home", "//link:Next", "//link:Account", "//link:Tips", "//link:Orders"],
+    },
+    {
+      // An image is not text of the block's own, so a heading that holds only one is not measured.
+      // Text hidden for aria is out of its own text too. A separator is its own text, so a
+      // breadcrumb item is measured by it, before the link it holds.
+      claim: "the edges of own text: an image-only heading, aria-hidden text, a separator",
+      html: `<h1><img alt="Quillmere" style="display: inline-block; width: 120px; height: 40px"></h1>
+        <ul>
+          <li><span aria-hidden="true">★</span><a href="/rate">Rate</a></li>
+          <li><a href="/">Home</a> /</li>
+        </ul>`,
+      keys: ["//link:Rate", "//listitem:/", "//link:Home"],
+    },
   ])("$claim", async ({ html, width, keys }) => {
     const measurement = await measure(html, width);
     expect(measurement.elements.map((e) => e.key)).toStrictEqual(keys);
@@ -182,28 +251,37 @@ describe("what an element's text and box measure", () => {
       [["//paragraph:On white", { contrast: 21, fontPx: 16 }]],
     ],
     [
-      // #ddd on white is 1.358:1. The paragraph's name holds the link's text, so it is measured by
-      // its faintest run: a cut link must not reach the Actor through its paragraph.
-      "a text block reads the worst of the text it draws, a nested link included",
+      // #ddd on white is 1.358:1. The paragraph is named and measured by its own text (#124), so
+      // the faint link is decided on its own and its text is not in the paragraph's name.
+      "a text block reads only its own text: a faint link inside it is measured on the link",
       `<main><p>Looking for older orders?
         <a href="/archive" style="display: inline-block; height: 20px; color: #ddd">Order archive</a>
       </p></main>`,
       [
-        [
-          "main//paragraph:Looking for older orders? Order archive",
-          { contrast: 1.358, fontPx: 16 },
-        ],
+        ["main//paragraph:Looking for older orders?", { contrast: 21, fontPx: 16 }],
         ["main//link:Order archive", { contrast: 1.358, fontPx: 16, targetPx: 20 }],
       ],
     ],
     [
-      "a text block reads the smallest font it draws, a nested link's included",
-      `<p style="font-size: 20px">Need help?
+      // Own text still counts whole: a faint word of the paragraph's own is its worst run.
+      "a text block reads the worst of its own runs, a faint word included, a nested link not",
+      `<p>Need <em style="color: #ddd">help</em>?
         <a href="/help" style="display: inline-block; height: 20px; color: #000; font-size: 12px">Contact us</a>
       </p>`,
       [
-        ["//paragraph:Need help? Contact us", { contrast: 21, fontPx: 12 }],
+        ["//paragraph:Need help?", { contrast: 1.358, fontPx: 16 }],
         ["//link:Contact us", { contrast: 21, fontPx: 12, targetPx: 20 }],
+      ],
+    ],
+    [
+      // An aria-label is drawn nowhere, so the paragraph is measured by the text it draws itself.
+      "a text block named by an aria-label is measured by its own text, not a nested link's",
+      `<p aria-label="Note">Hello
+        <a href="/faint" style="display: inline-block; height: 20px; color: #ddd">faint</a>
+      </p>`,
+      [
+        ["//paragraph:Note", { contrast: 21, fontPx: 16 }],
+        ["//link:faint", { contrast: 1.358, fontPx: 16, targetPx: 20 }],
       ],
     ],
     [

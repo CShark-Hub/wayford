@@ -10,9 +10,12 @@
  * `e1..eN` in that order, so the refs follow it.
  *
  * Controls and text blocks (headings, paragraphs, list items) are measured
- * (`docs/RULES.md`, "What is measured", issues #49 and #117). The cues that
- * tell a person where to go are mostly text, so P1 and P3 read text blocks
- * too. P4 reads `targetPx` on controls only. A label is not a text block: the
+ * (`docs/RULES.md`, "What is measured", issues #49, #117 and #124). The cues
+ * that tell a person where to go are mostly text, so P1 and P3 read text
+ * blocks too. P4 reads `targetPx` on controls only. A text block's own text
+ * is the text outside the controls and text blocks nested in it: only that
+ * counts against it, and one that draws none is not measured. A label is not
+ * a text block: the
  * control it names carries the contrast and font size of the label's text.
  * When the label activates the control (a wrapping `<label>`, or `label for=`),
  * `targetPx` is the smaller side of the area a click activates, taken as one
@@ -40,8 +43,11 @@ export type ElementKind = z.infer<typeof ElementKind>;
 /**
  * One element as measured. `key` is `elementKey` over the landmark ancestors,
  * the same key the filter hashes for the element's roll. `name` is a control's
- * accessible name, a text block's visible text. `metrics` are measured values,
- * never a threshold, and each is optional: an icon has no font size.
+ * accessible name, and a text block's too, read from its own text when it is
+ * named by its content: the text outside the controls and text blocks nested
+ * in it, each of which leaves a space (#124). `metrics` are
+ * measured values, never a threshold, and each is optional: an icon has no
+ * font size.
  *
  * The key ends in `//role:name`, the shape `elementKey` builds, and that is
  * enforced below. Otherwise a fixture or collector edit could change the name
