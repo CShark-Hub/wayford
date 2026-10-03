@@ -88,7 +88,7 @@ describe("a target is named as the Actor read it", () => {
           metrics: { contrast: 12.6, fontPx: 16, targetPx: 40 },
           state: "visible",
           decisions: [{ stage: "knowledge", rule: "K1", pattern: "hamburger" }],
-          renamedName: "button, icon only",
+          renamedName: "button",
         },
       ],
     });
@@ -98,7 +98,7 @@ describe("a target is named as the Actor read it", () => {
     ]);
 
     expect(history).toBe(
-      '- On http://localhost:5174/account/address: you clicked button "button, icon only".',
+      '- On http://localhost:5174/account/address: you clicked button "button".',
     );
     expect(history).not.toContain("Menu");
   });

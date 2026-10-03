@@ -14,7 +14,7 @@ import { parse } from "yaml";
 import type { ZodType } from "zod";
 import { Action } from "../action.js";
 import { Finding } from "../finding.js";
-import { PageMeasurement } from "../measurement.js";
+import { MeasuredElement, PageMeasurement } from "../measurement.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
 import { RunEvent, RunResult } from "../run.js";
@@ -143,6 +143,23 @@ export const observationFixture: FullObservation = readJson("observation.json", 
  * - the footer's bare text: it is not a heading, paragraph or list item.
  */
 export const measurementFixture: PageMeasurement = readJson("measurement.json", PageMeasurement);
+
+/**
+ * The icon-only kebab on `/account` (`s1-04`), which `measurementFixture` does not hold: a 28 px
+ * button at 224,164 that draws no text, so it has no font size or contrast, and whose markup says
+ * it opens a menu. The kebab detector fires on it, and RULES' worked salience example is this
+ * element (`docs/RULES.md`, stages 4 and 5).
+ */
+export const kebabElement: MeasuredElement = MeasuredElement.parse({
+  key: "main//button:More options",
+  kind: "control",
+  role: "button",
+  name: "More options",
+  bbox: { x: 224, y: 164, width: 28, height: 28 },
+  metrics: { targetPx: 28 },
+  hasPopup: "menu",
+  controls: "menu",
+});
 
 /** The two goals of the target app, easy first. See `tasks/m0-06-target-app.md`. */
 export const taskFixtures: Task[] = readJson("tasks.json", Task.array());

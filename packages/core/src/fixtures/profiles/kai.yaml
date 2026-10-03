@@ -16,7 +16,7 @@ perception:
 
 behaviour:
   budgetSeconds: 120
-  maxElements: 10
+  maxElements: 11
   memorySteps: 2
 
 knowledge:

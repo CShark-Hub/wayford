@@ -5,6 +5,11 @@
  * read from the fixture, so `s1-02` can regenerate the numbers without touching this file. The
  * only numbers written here are the ones `docs/RULES.md` states: Vera's 3.0 cut with its 1.5
  * floor, and the hard 3.0 cut of the calibration table.
+ *
+ * Stages 4 and 5 (`s1-03`) have their own tests in `knowledge.test.ts` and `attention.test.ts`.
+ * A test here that is about perception unsets the persona's attention cap, as #113 has the sweep
+ * use Vera, so it reads measurement order. That a real cap which cuts nothing only puts the same
+ * evidence in salience order is `attention.test.ts`'s, for every capped persona.
  */
 import {
   FullObservation,
@@ -13,13 +18,13 @@ import {
   PageMeasurement,
   type PerceptionState,
   type Profile,
-  renderObservationForModel,
   toActorObservation,
 } from "@wayford/core";
 import { measurementFixture, profileFixture, profileFixtures } from "@wayford/core/fixtures";
 import { expect, test } from "vitest";
 import { MASK_GLYPH, maskName } from "./mask.js";
-import { perceive } from "./perceive.js";
+import { type PerceiveProfile, perceive } from "./perceive.js";
+import { actorText, observed, PERSONA_IDS, seeds, shownKeys, withCap } from "./test-support.js";
 
 // ---------------------------------------------------------------------------
 // The page
@@ -47,18 +52,13 @@ const LEAD = "main//paragraph:Parcels on the way and how you like to receive the
 const ADDRESS_LINK = "main//link:Delivery address";
 
 const KEYS = measurementFixture.elements.map((e) => e.key);
-const PERSONA_IDS = ["prof_ada", "prof_kai", "prof_milo", "prof_vera", "prof_zoya"];
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const seeds = (count: number) => Array.from({ length: count }, (_, i) => i + 1);
 const steps = (from: number, to: number, by: number) =>
   Array.from({ length: Math.round((to - from) / by) + 1 }, (_, i) => from + i * by);
-const actorText = (full: FullObservation) => renderObservationForModel(toActorObservation(full));
-const shownKeys = (full: FullObservation) =>
-  full.elements.filter((e) => e.state !== "invisible").map((e) => e.key);
 
 function measured(key: string) {
   const found = measurementFixture.elements.find((e) => e.key === key);
@@ -70,12 +70,6 @@ function metric(key: string, name: MetricName): number {
   const value = measured(key).metrics[name];
   if (value === undefined) throw new Error(`${key} has no ${name}`);
   return value;
-}
-
-function observed(full: FullObservation, key: string) {
-  const found = full.elements.find((e) => e.key === key);
-  if (!found) throw new Error(`No observed element ${key}`);
-  return found;
 }
 
 /** The roll a soft decision on the element stored, if any. */
@@ -100,14 +94,6 @@ function scrolledBy(by: number): PageMeasurement {
   });
 }
 
-/** Vera as #113 has the sweep use her: the caps unset, so only perception decides. */
-function veraUncapped(): Profile {
-  const vera = structuredClone(profileFixture("prof_vera"));
-  delete vera.behaviour.maxElements;
-  delete vera.behaviour.maxOptions;
-  return vera;
-}
-
 const RANK: Record<PerceptionState, number> = { visible: 0, degraded: 1, invisible: 2 };
 
 /**
@@ -119,7 +105,7 @@ const RANK: Record<PerceptionState, number> = { visible: 0, degraded: 1, invisib
 function sweep(
   runSeeds: readonly number[],
   thresholds: readonly number[],
-  profileAt: (threshold: number) => Pick<Profile, "perception">,
+  profileAt: (threshold: number) => PerceiveProfile,
 ): { improved: string[]; changes: number } {
   expect(new Set(KEYS).size, "keys are unique on the fixture").toBe(KEYS.length);
   expect(thresholds.every((t, i) => i === 0 || t > (thresholds[i - 1] ?? t))).toBe(true);
@@ -306,7 +292,7 @@ test("Vera sees Order archive degraded at its band position", () => {
 });
 
 test("raising the contrast threshold never improves a state", () => {
-  const vera = veraUncapped();
+  const vera = withCap(profileFixture("prof_vera"), undefined);
   const { contrast } = vera.perception;
   if (!contrast) throw new Error("Vera sets a contrast threshold");
   // Softness held at hers: changing it could move an element back (RULES, "Monotone").
@@ -315,6 +301,7 @@ test("raising the contrast threshold never improves a state", () => {
   expect(thresholds).toHaveLength(29);
   expect(thresholds.at(-1)).toBe(8);
   const { improved, changes } = sweep(seeds(200), thresholds, (threshold) => ({
+    ...vera,
     perception: { ...vera.perception, contrast: { ...contrast, threshold } },
   }));
   expect(improved).toEqual([]);
@@ -322,12 +309,13 @@ test("raising the contrast threshold never improves a state", () => {
 });
 
 test("raising the font threshold never improves a state", () => {
-  const vera = veraUncapped();
+  const vera = withCap(profileFixture("prof_vera"), undefined);
   const { fontPx } = vera.perception;
   if (!fontPx) throw new Error("Vera sets a font threshold");
   expect(fontPx.softness, "her font cut is hard").toBeUndefined();
   for (const softness of [undefined, 0.5]) {
     const { improved, changes } = sweep(seeds(50), steps(8, 32, 1), (threshold) => ({
+      ...vera,
       perception: {
         ...vera.perception,
         fontPx:
@@ -340,12 +328,13 @@ test("raising the font threshold never improves a state", () => {
 });
 
 test("raising the target threshold never improves a state", () => {
-  const vera = veraUncapped();
+  const vera = withCap(profileFixture("prof_vera"), undefined);
   const { targetPx } = vera.perception;
   if (!targetPx) throw new Error("Vera sets a target threshold");
   expect(targetPx.softness, "her target cut is hard").toBeUndefined();
   for (const softness of [undefined, 0.5]) {
     const { improved, changes } = sweep(seeds(50), steps(8, 64, 2), (threshold) => ({
+      ...vera,
       perception: {
         ...vera.perception,
         targetPx:
@@ -516,13 +505,16 @@ test("what perception removes below the viewport is not counted (#118)", () => {
       const where = `${profile.id} at run seed ${seed}`;
       const full = perceive(short, profile, seed);
       const onScreen = observed(perceive(measurementFixture, profile, seed), ARCHIVE);
+      // On screen it is the least salient element, and Kai's cap cuts it. Below the viewport
+      // A1 never reaches it: V2 removed it first, and A1 cuts only what stages 1 to 3 left shown.
+      const before = onScreen.decisions.filter((d) => d.stage !== "attention");
       // Every element below keeps its V2 decision, whatever perception did to it.
       expect(observed(full, ARCHIVE).decisions, where).toStrictEqual([
         { stage: "viewport", rule: "V2", side: "below" },
-        ...onScreen.decisions,
+        ...before,
       ]);
       // Counted only when perception alone leaves it shown: scrolling could bring it into view.
-      const shown = onScreen.state !== "invisible";
+      const shown = !before.some((d) => d.stage === "perception" && d.state === "invisible");
       expect(full.belowFoldCount, where).toBe(shown ? 1 : 0);
       expect(actorText(full).includes("more below"), where).toBe(shown);
       const parsed = FullObservation.safeParse(full);
@@ -531,8 +523,10 @@ test("what perception removes below the viewport is not counted (#118)", () => {
     }
     counted.set(profile.id, seedsCounted);
   }
-  // Ada always. Milo never (P4), nor Zoya (P1, P3 and P4). Vera on the seeds where P1 degrades it.
+  // Ada and Kai always. Milo never (P4), nor Zoya (P1, P3 and P4). Vera on the seeds where P1
+  // degrades it.
   expect(counted.get("prof_ada")).toBe(50);
+  expect(counted.get("prof_kai")).toBe(50);
   expect(counted.get("prof_milo")).toBe(0);
   expect(counted.get("prof_zoya")).toBe(0);
   expect(counted.get("prof_vera")).toBeGreaterThan(0);
@@ -593,7 +587,7 @@ test("an element left or right of the viewport is cut by V2 and not counted (#11
 });
 
 test("Milo loses the brand link and Order archive to P4", () => {
-  const milo = profileFixture("prof_milo");
+  const milo = withCap(profileFixture("prof_milo"), undefined);
   const cut = milo.perception.targetPx;
   if (!cut) throw new Error("Milo sets a target threshold");
   // A checkbox's target is the area a click activates, its label's box (#117): he keeps both.
@@ -625,7 +619,7 @@ test("Milo loses the brand link and Order archive to P4", () => {
 });
 
 test("Vera loses the brand link to P4", () => {
-  const vera = profileFixture("prof_vera");
+  const vera = withCap(profileFixture("prof_vera"), undefined);
   const cut = vera.perception.targetPx;
   if (!cut) throw new Error("Vera sets a target threshold");
   // A checkbox's target is the area a click activates, its label's box (#117): she keeps both.
@@ -657,7 +651,7 @@ test("Vera loses the brand link to P4", () => {
 });
 
 test("Zoya sees only the three headings", () => {
-  const zoya = profileFixture("prof_zoya");
+  const zoya = withCap(profileFixture("prof_zoya"), undefined);
   const { contrast, fontPx } = zoya.perception;
   if (!contrast || !fontPx) throw new Error("Zoya sets contrast and font thresholds");
   const floor = contrast.threshold * (1 - (contrast.softness ?? 0));

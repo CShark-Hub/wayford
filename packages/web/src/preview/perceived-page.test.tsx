@@ -19,7 +19,7 @@ import {
   PageMeasurement,
   type Profile,
 } from "@wayford/core";
-import { measurementFixture, profileFixture } from "@wayford/core/fixtures";
+import { kebabElement as KEBAB, measurementFixture, profileFixture } from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter/perceive";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
@@ -44,9 +44,10 @@ const BRAND = "banner//link:Quillmere";
 /** In Zoya's contrast band, and under her hard font cut. */
 const LEAD = "main//paragraph:Parcels on the way and how you like to receive them.";
 
-const SUBJECT = "Vera's thresholds, seed 1";
+const SUBJECT = "Vera, seed 1";
 
 const ada = profileFixture("prof_ada");
+const kai = profileFixture("prof_kai");
 const vera = profileFixture("prof_vera");
 const zoya = profileFixture("prof_zoya");
 
@@ -86,18 +87,14 @@ function softlyDegraded(full: FullObservation, key: string): boolean {
 // ---------------------------------------------------------------------------
 
 /** What `perceive` returns, parsed, so every case also holds core's invariants. */
-function observe(
-  measurement: PageMeasurement,
-  profile: Pick<Profile, "perception">,
-  seed: number,
-): FullObservation {
+function observe(measurement: PageMeasurement, profile: Profile, seed: number): FullObservation {
   return FullObservation.parse(perceive(measurement, profile, seed));
 }
 
 /** The observation at the first run seed from 1 to 100 for which `holds` is true. */
 function atFirstSeed(
   measurement: PageMeasurement,
-  profile: Pick<Profile, "perception">,
+  profile: Profile,
   holds: (full: FullObservation) => boolean,
 ): FullObservation {
   const seeds = Array.from({ length: 100 }, (_, i) => i + 1);
@@ -149,6 +146,30 @@ function veraBelowTheFold(): FullObservation {
   return atFirstSeed(below, vera, (full) => softlyDegraded(full, ARCHIVE));
 }
 
+/**
+ * Vera on the fixture with the kebab added and her target cut softened, as her softness slider
+ * would: her band degrades the kebab, and since she does not know the pattern she reads it by its
+ * bare role (K1, K4).
+ */
+function veraRenamedAndDegraded(): FullObservation {
+  const withKebab = PageMeasurement.parse({
+    ...measurementFixture,
+    elements: [...measurementFixture.elements, KEBAB],
+  });
+  const softTarget: Profile = {
+    ...vera,
+    perception: {
+      ...vera.perception,
+      targetPx: { threshold: threshold(vera, "targetPx"), softness: 0.5, provenance: "folk" },
+    },
+  };
+  return atFirstSeed(
+    withKebab,
+    softTarget,
+    (full) => observed(full, KEBAB.key).state === "degraded",
+  );
+}
+
 /** Ada on a page whose brand link has no font size measured. */
 function adaWithoutFontSize(): FullObservation {
   const unsized = withElement(BRAND, (e) => {
@@ -159,11 +180,12 @@ function adaWithoutFontSize(): FullObservation {
   return observe(unsized, ada, 1);
 }
 
-/** Every threshold at the top of its slider, softness 0. */
+/** Ada with every threshold at the top of its slider, softness 0. */
 function everyThresholdAtItsMaximum(): FullObservation {
   return observe(
     measurementFixture,
     {
+      ...ada,
       perception: {
         contrast: { threshold: 21, softness: 0, provenance: "folk" },
         fontPx: { threshold: 48, softness: 0, provenance: "folk" },
@@ -180,10 +202,12 @@ function cases(): Record<string, FullObservation> {
   return {
     "Ada at seed 1": observe(measurementFixture, ada, 1),
     "Milo at seed 1": observe(measurementFixture, profileFixture("prof_milo"), 1),
+    "Kai at seed 1, his cap cutting": observe(measurementFixture, kai, 1),
     "Vera, Order archive degraded": veraDegrading(),
     "Vera, Order archive removed": veraRemoving(),
     "Zoya, a soft decision under a hard one": zoyaSoftUnderHard(),
     "Vera, Order archive below the fold": veraBelowTheFold(),
+    "Vera, the kebab degraded and renamed": veraRenamedAndDegraded(),
     "Ada, Quillmere with no font size": adaWithoutFontSize(),
     "every threshold at its maximum": everyThresholdAtItsMaximum(),
   };
@@ -257,6 +281,10 @@ test("the cases hold visible, degraded and invisible elements between them", () 
     side: "below",
   });
   expect(observed(adaWithoutFontSize(), BRAND).metrics.fontPx).toBeUndefined();
+  expect(observed(veraRenamedAndDegraded(), KEBAB.key)).toMatchObject({
+    state: "degraded",
+    renamedName: "button",
+  });
   expect(everyThresholdAtItsMaximum().elements.every((e) => e.state === "invisible")).toBe(true);
 });
 
@@ -284,6 +312,43 @@ test("a degraded element shows its masked name and never its real one", () => {
     expect(box?.name).toBe(archive.maskedName);
     expect(decode(html)).not.toContain(archive.name);
   }
+});
+
+/** The refs of the drawn boxes in the muted foreground. */
+function mutedRefs(html: string): (string | undefined)[] {
+  return divsWith(html, "data-state")
+    .filter(({ attributes }) =>
+      (attributes.class ?? "").split(/\s+/).includes("text-muted-foreground"),
+    )
+    .map(({ attributes }) => attributes["data-ref"]);
+}
+
+test("a box is muted exactly when its element is degraded and not renamed", () => {
+  for (const [label, full] of Object.entries(cases())) {
+    const muted = full.elements
+      .filter((e) => e.ref !== undefined && e.state === "degraded" && e.renamedName === undefined)
+      .map((e) => e.ref);
+    for (const evidence of [false, true]) {
+      expect(mutedRefs(render(full, { evidence })), `${label}, evidence ${evidence}`).toEqual(
+        muted,
+      );
+    }
+  }
+  // A degraded element reads its masked name, muted.
+  const degraded = veraDegrading();
+  expect(mutedRefs(render(degraded, { evidence: false }))).toContain(
+    observed(degraded, ARCHIVE).ref,
+  );
+  // A renamed one is read whole, though perception degraded it: its bare role, unmuted as the loop
+  // above checks, and its real name nowhere.
+  const renamed = veraRenamedAndDegraded();
+  const kebab = observed(renamed, KEBAB.key);
+  const html = render(renamed, { evidence: false });
+  expect(drawnBoxes(html).find((box) => box.ref === kebab.ref)).toMatchObject({
+    state: "degraded",
+    name: "button",
+  });
+  expect(decode(html)).not.toContain(KEBAB.name);
 });
 
 test("an invisible element is not drawn, and its name appears nowhere in the perception view", () => {
@@ -332,11 +397,15 @@ test("a tag lists the rules that removed the element, never one that only degrad
   // Below the fold, V2 removes Order archive and Vera's band only degrades it.
   const belowHtml = render(veraBelowTheFold(), { evidence: true });
   expect(outlineOf(belowHtml, measured(ARCHIVE).name).tag).toEqual(["V2 below"]);
+  // Kai sets no threshold, so his cap is all that removes an element, and A1 is its whole tag.
+  const kaiHtml = render(observe(measurementFixture, kai, 1), { evidence: true });
+  expect(outlines(kaiHtml).length).toBeGreaterThan(0);
+  expect(outlines(kaiHtml).every((outline) => outline.tag.join() === "A1")).toBe(true);
 });
 
 test("the caption says evidence, not perception, in the evidence view only, for its subject", () => {
   const full = veraDegrading();
-  const subject = "Zoya's thresholds, edited, seed 7";
+  const subject = "Zoya, thresholds edited, seed 7";
   expect(captionOf(render(full, { evidence: false, subject }))).toBe(
     `The page as perceive returns it for ${subject}.`,
   );

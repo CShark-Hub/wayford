@@ -4,21 +4,41 @@
  * "Acceptance mapping"). The setup follows `collect.browser.test.ts`: the app built and served on
  * a free port, every page in a fresh 1280 × 720 context, the bundled font checked. Every page is
  * collected once, at the app's defaults, for the `perceive` boxes.
+ *
+ * The desktop boxes of `tasks/s1-03-knowledge-attention.md` run on the same pages
+ * (`docs/specs/2026-10-03-s1-03-knowledge-attention.md`, "Tests on real pages"): Kai reads the
+ * kebab on `/account` by its bare role, the kebab detector fires there and not on `/settings`,
+ * Zoya and Kai stay under their attention caps, and A1 never cuts Vera's route A (#89). The same
+ * Actor text twice and a smaller cap showing a subset are `attention.test.ts`'s: `perceive` is
+ * pure, so a real page adds nothing to them.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Bbox, FullObservation, PageMeasurement, Profile } from "@wayford/core";
+import {
+  type Bbox,
+  FullObservation,
+  type PageMeasurement,
+  type Profile,
+  worstState,
+} from "@wayford/core";
 import { profileFixture } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { collect } from "./collect.js";
+import { detectPattern, isKebab } from "./knowledge.js";
 import { perceive } from "./perceive.js";
-import { serveTargetApp, TARGET_APP_PATHS, type TargetApp } from "./serve-target-app.js";
+import {
+  serveTargetApp,
+  TARGET_APP_DEFAULT_QUERY,
+  TARGET_APP_PATHS,
+  type TargetApp,
+} from "./serve-target-app.js";
+import { actorText, K1_K4, observed, seeds } from "./test-support.js";
 
-/** The app's defaults (`packages/target-app/README.md`, "Parameters"). */
-const DEFAULTS = "?contrast=2&fontPx=16&targetPx=36";
 const ARCHIVE = "/deliveries/archive";
 const HARD_LINK = "main//link:Order archive";
+/** Route A's home step: the nav link "Deliveries" on `/`. */
+const NAV_DELIVERIES = "banner/navigation:Main//link:Deliveries";
 /** Route B's entrance, on `/account`, and route C's, on `/settings`. */
 const KEBAB = "main//button:More options";
 const YOUR_DATA = "main//link:Your data";
@@ -26,7 +46,7 @@ const ENTRANCES = [
   ["/account", KEBAB],
   ["/settings", YOUR_DATA],
 ] as const;
-const SEEDS = Array.from({ length: 100 }, (_, i) => i + 1);
+const SEEDS = seeds(100);
 
 let app: TargetApp;
 let browser: Browser;
@@ -46,7 +66,10 @@ beforeAll(async () => {
 // Its own hook and timeout, so seven page loads do not share the build's budget.
 beforeAll(async () => {
   for (const path of TARGET_APP_PATHS) {
-    measured.set(path, await withPage(`${path}${DEFAULTS}`, (page) => collect(page)));
+    measured.set(
+      path,
+      await withPage(`${path}${TARGET_APP_DEFAULT_QUERY}`, (page) => collect(page)),
+    );
   }
 }, 60_000);
 
@@ -81,14 +104,10 @@ function element(path: string, key: string) {
   return found;
 }
 
-function decisions(full: FullObservation, key: string) {
-  const found = full.elements.find((e) => e.key === key);
-  if (!found) throw new Error(`No observed element ${key}`);
-  return found.decisions;
-}
+const decisions = (full: FullObservation, key: string) => observed(full, key).decisions;
 
 /** True when the element carries `rule` with the state `invisible`. */
-const removedBy = (full: FullObservation, key: string, rule: "P1" | "P4") =>
+const removedBy = (full: FullObservation, key: string, rule: "P1" | "P3" | "P4") =>
   decisions(full, key).some(
     (d) => d.stage === "perception" && d.rule === rule && d.state === "invisible",
   );
@@ -105,7 +124,7 @@ test("TARGET_APP_PATHS equals the paths in target-app's PAGES", () => {
 });
 
 test("route B: the kebab opens its menu, and Past orders reaches the archive", async () => {
-  await withPage(`/account${DEFAULTS}`, async (page) => {
+  await withPage(`/account${TARGET_APP_DEFAULT_QUERY}`, async (page) => {
     const kebab = page.getByRole("button", { name: "More options" });
     const pastOrders = page.getByRole("menuitem", { name: "Past orders" });
     await expect.poll(() => kebab.getAttribute("aria-expanded")).toBe("false");
@@ -134,7 +153,7 @@ function overlaps(a: Bbox, b: Bbox, epsilon = 0.5): boolean {
 }
 
 test("the open kebab menu covers nothing the filter measures", async () => {
-  await withPage(`/account${DEFAULTS}`, async (page) => {
+  await withPage(`/account${TARGET_APP_DEFAULT_QUERY}`, async (page) => {
     await page.getByRole("button", { name: "More options" }).click();
     const { elements, viewport } = await collect(page);
     const items = elements.filter((e) => e.role === "menuitem");
@@ -179,7 +198,7 @@ test("the open kebab menu covers nothing the filter measures", async () => {
 });
 
 test("route C: Your data, then Fulfilment ledger, reaches the archive", async () => {
-  await withPage(`/settings${DEFAULTS}`, async (page) => {
+  await withPage(`/settings${TARGET_APP_DEFAULT_QUERY}`, async (page) => {
     await page.getByRole("link", { name: "Your data" }).click();
     await page.waitForURL("**/settings/data");
     await page.getByRole("link", { name: "Fulfilment ledger" }).click();
@@ -259,3 +278,162 @@ test("Vera with a hard contrast cut of 3.0 loses all three routes, seeds 1 to 10
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// s1-03: knowledge and attention on the real pages
+// ---------------------------------------------------------------------------
+
+const shown = (full: FullObservation) => full.elements.filter((e) => e.state !== "invisible");
+const cutByA1 = (full: FullObservation) =>
+  full.elements.filter((e) => e.decisions.some((d) => d.stage === "attention" && d.rule === "A1"));
+/** A box's position as the Actor text gives it: its top-left corner, rounded. */
+const position = ({ x, y }: Bbox) => `${Math.round(x)},${Math.round(y)}`;
+
+test('Kai reads the kebab on /account as button "button", 10th of 15 inside his cap of 11', () => {
+  const kai = profileFixture("prof_kai");
+  const ada = profileFixture("prof_ada");
+  expect(kai.knowledge.unknownPatterns).toContain("kebab");
+  expect(ada.knowledge.unknownPatterns).not.toContain("kebab");
+  expect(kai.behaviour.maxElements).toBe(11);
+  const at = position(element("/account", KEBAB).bbox);
+  for (const seed of SEEDS) {
+    const full = perceive(measurement("/account"), kai, seed);
+    const kebab = observed(full, KEBAB);
+    // Salience order puts it 10th of the page's 15, so A1 keeps it: shown, under its bare role.
+    expect(full.elements, `seed ${seed}`).toHaveLength(15);
+    expect(full.elements.indexOf(kebab), `seed ${seed}`).toBe(9);
+    expect(full.hiddenCount, `seed ${seed}`).toBe(4);
+    expect(kebab.decisions, `seed ${seed}`).toStrictEqual(K1_K4);
+    expect(kebab.state, `seed ${seed}`).toBe("visible");
+    expect(kebab.ref, `seed ${seed}`).toBe("e10");
+    expect(kebab.renamedName, `seed ${seed}`).toBe("button");
+    const text = actorText(full);
+    expect(text.split("\n"), `seed ${seed}`).toContain(`[e10] button "button" at ${at}`);
+    expect(text, `seed ${seed}`).not.toContain("More options");
+    // Ada knows the pattern and has no cap: the same control under its own name.
+    const adaFull = perceive(measurement("/account"), ada, seed);
+    const adaKebab = observed(adaFull, KEBAB);
+    expect(adaKebab.decisions, `seed ${seed}`).toStrictEqual([]);
+    expect(actorText(adaFull).split("\n"), `seed ${seed}`).toContain(
+      `[${adaKebab.ref}] button "More options" at ${at}`,
+    );
+  }
+});
+
+test("the kebab detector fires on /account, on the kebab alone, and on no element of /settings", () => {
+  // What it reads: a button that draws no text and whose markup says it opens a menu.
+  const kebab = element("/account", KEBAB);
+  expect(kebab.metrics.fontPx).toBeUndefined();
+  expect(kebab.hasPopup).toBe("menu");
+  expect(kebab.controls).toBe("menu");
+  // The hamburger is tried first, so this also says it does not fire on the desktop kebab.
+  expect(detectPattern(kebab)).toBe("kebab");
+  expect(
+    measurement("/account")
+      .elements.filter(isKebab)
+      .map((e) => e.key),
+  ).toStrictEqual([KEBAB]);
+  const settings = measurement("/settings").elements;
+  // Not vacuous: `/settings` has buttons for the detector to turn down.
+  expect(settings.filter((e) => e.role === "button").length, "buttons").toBeGreaterThan(0);
+  expect(settings.filter(isKebab).map((e) => e.key)).toStrictEqual([]);
+});
+
+test("Kai on /settings/data: 11 shown, 7 cut by A1, seeds 1 to 100", () => {
+  // The box of `tasks/s1-03-knowledge-attention.md`, shown ≤ cap and A1 accounting for every
+  // hide, here and for Zoya below: the counts are exact, and the parse holds `hiddenCount` to the
+  // elements with an attention decision, which perceive only ever makes A1.
+  const kai = profileFixture("prof_kai");
+  expect(kai.behaviour.maxElements).toBe(11);
+  for (const seed of SEEDS) {
+    const at = `seed ${seed}`;
+    const full = FullObservation.parse(perceive(measurement("/settings/data"), kai, seed));
+    expect(shown(full), at).toHaveLength(11);
+    expect(full.hiddenCount, at).toBe(7);
+    // Kai has no perception threshold and the page fits the viewport: A1 is all that hides.
+    for (const element of cutByA1(full)) {
+      expect(element.decisions, `${at}: ${element.key}`).toStrictEqual([
+        { stage: "attention", rule: "A1" },
+      ]);
+    }
+  }
+});
+
+test("Zoya on /: P3 leaves her 1, so her cap of 5 cuts nothing, seeds 1 to 100", () => {
+  const zoya = profileFixture("prof_zoya");
+  expect(zoya.behaviour.maxElements).toBe(5);
+  for (const seed of SEEDS) {
+    const at = `seed ${seed}`;
+    const full = FullObservation.parse(perceive(measurement("/"), zoya, seed));
+    expect(shown(full), at).toHaveLength(1);
+    expect(full.hiddenCount, at).toBe(0);
+    // The rest is her 24 px font cut's, not her attention's.
+    for (const element of full.elements.filter((e) => e.state === "invisible")) {
+      expect(removedBy(full, element.key, "P3"), `${at}: ${element.key}`).toBe(true);
+    }
+  }
+});
+
+test("Zoya on / with her perception thresholds removed: 5 shown, 11 cut by A1, seeds 1 to 100", () => {
+  // Her real profile leaves her cap nothing to cut (above). With no thresholds every element of
+  // `/` is a candidate, so the cap alone decides what she reads first.
+  const zoya = profileFixture("prof_zoya");
+  const unfiltered: Profile = { ...zoya, perception: { emulation: zoya.perception.emulation } };
+  expect(zoya.behaviour.maxElements).toBe(5);
+  for (const seed of SEEDS) {
+    const at = `seed ${seed}`;
+    const full = FullObservation.parse(perceive(measurement("/"), unfiltered, seed));
+    expect(shown(full), at).toHaveLength(5);
+    expect(full.hiddenCount, at).toBe(11);
+  }
+});
+
+test("#89 holds on headroom: / and /deliveries measure at most Vera's cap of 20", () => {
+  // At most 20 elements, so Vera's cap of 20 cannot cut on either page. Should a page grow past
+  // it, A1 can cut there, and the #89 test below must be read again on rank, not on headroom.
+  const cap = profileFixture("prof_vera").behaviour.maxElements;
+  if (cap === undefined) throw new Error("Vera sets an attention cap");
+  expect(cap).toBe(20);
+  for (const path of ["/", "/deliveries"]) {
+    expect(
+      measurement(path).elements.length,
+      `${path} measures more than Vera's cap: #89 no longer holds on headroom`,
+    ).toBeLessThanOrEqual(cap);
+  }
+});
+
+test("#89: A1 never cuts Vera's Order archive or nav Deliveries where perception shows them", () => {
+  // Her own profile, then her contrast threshold from 1.0 to 8.0 in steps of 0.25, softness kept.
+  const vera = profileFixture("prof_vera");
+  const contrast = vera.perception.contrast;
+  if (!contrast) throw new Error("Vera sets a contrast threshold");
+  const swept = Array.from({ length: 29 }, (_, i) => 1 + i * 0.25).map(
+    (threshold) =>
+      [
+        threshold.toFixed(2),
+        { ...vera, perception: { ...vera.perception, contrast: { ...contrast, threshold } } },
+      ] as const,
+  );
+  const profiles = [["her own", vera] as const, ...swept];
+  const steps = [
+    ["/", NAV_DELIVERIES],
+    ["/deliveries", HARD_LINK],
+  ] as const;
+  for (const [path, key] of steps) {
+    let shownAtOne = 0;
+    const cut: string[] = [];
+    for (const [label, profile] of profiles) {
+      for (const seed of seeds(1000)) {
+        const target = observed(perceive(measurement(path), profile, seed), key);
+        // Removed by stages 1 to 3: A1 never ranks it.
+        const before = target.decisions.filter((d) => d.stage !== "attention");
+        if (worstState(before) === "invisible") continue;
+        if (label === "1.00") shownAtOne += 1;
+        if (target.decisions.some((d) => d.stage === "attention")) cut.push(`${label}, ${seed}`);
+      }
+    }
+    // Not vacuous: at a contrast threshold of 1.0 perception shows both, so A1 had its chance.
+    expect(shownAtOne, `${key} shown by perception at threshold 1.0`).toBeGreaterThan(0);
+    expect(cut, `${key} cut by A1 (threshold, seed)`).toStrictEqual([]);
+  }
+}, 60_000);

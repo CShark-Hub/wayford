@@ -43,6 +43,7 @@ const { perceive: realPerceive } = await vi.importActual<typeof import("@wayford
   "@wayford/filter/perceive",
 );
 
+const kai = profileFixture("prof_kai");
 const vera = profileFixture("prof_vera");
 const zoya = profileFixture("prof_zoya");
 
@@ -196,6 +197,19 @@ const SLIDER_IDS = [
   "preview-seed",
 ];
 
+/**
+ * `profile` with each threshold's softness written out, 0 where it sets none: the hard cut
+ * `perceive` reads either way, and what the preview resolves a softness the URL leaves out to.
+ */
+function softnessWrittenOut(profile: Profile): Profile {
+  const perception = { ...profile.perception };
+  for (const metric of METRIC_NAMES) {
+    const cut = perception[metric];
+    if (cut !== undefined) perception[metric] = { ...cut, softness: cut.softness ?? 0 };
+  }
+  return { ...profile, perception };
+}
+
 test("Order archive is drawn at a contrast threshold of 2 and not at 3, softness 0", async () => {
   const at2 = drawnBoxes(await render(`${VERA}&contrast=2&contrastSoftness=0`));
   const at3 = drawnBoxes(await render(`${VERA}&contrast=3&contrastSoftness=0`));
@@ -211,8 +225,10 @@ test("Order archive is drawn at a contrast threshold of 2 and not at 3, softness
 
 test("the drawn elements are exactly the shown elements of perceive for the URL's values", async () => {
   // Each URL's profile, written out by hand rather than resolved by the screen's own code: a
-  // persona at its own values is the persona, and moved sliders are the values the URL names.
-  const moved: Pick<Profile, "perception"> = {
+  // persona at its own values is the persona, and moved sliders are the values the URL names, on
+  // the rest of the persona. Kai sets no threshold, so a moved slider is his whole perception.
+  const moved: Profile = {
+    ...vera,
     perception: {
       contrast: { threshold: 4.5, softness: 0.6, provenance: "folk" },
       fontPx: { threshold: 18, softness: 0.25, provenance: "folk" },
@@ -220,7 +236,7 @@ test("the drawn elements are exactly the shown elements of perceive for the URL'
       emulation: vera.perception.emulation,
     },
   };
-  const cases: { url: string; profile: Pick<Profile, "perception">; seed: number }[] = [
+  const cases: { url: string; profile: Profile; seed: number }[] = [
     ...profileFixtures.map((profile) => ({
       url: `/preview?persona=${profile.id}&seed=1`,
       profile,
@@ -231,15 +247,27 @@ test("the drawn elements are exactly the shown elements of perceive for the URL'
       profile: moved,
       seed: 7,
     },
+    {
+      url: "/preview?persona=prof_kai&seed=1&contrast=4.5&contrastSoftness=0.5",
+      profile: {
+        ...kai,
+        perception: {
+          contrast: { threshold: 4.5, softness: 0.5, provenance: "folk" },
+          emulation: "none",
+        },
+      },
+      seed: 1,
+    },
   ];
   for (const { url, profile, seed } of cases) {
     const expected = realPerceive(measurementFixture, profile, seed);
     const html = await render(url);
     expect(drawnBoxes(html), url).toEqual(shownElements(expected));
-    // The screen perceives the stored page itself, on the URL's seed.
+    // The screen perceives the stored page itself, with the URL's profile and seed.
     expect(perceiveSpy.mock.calls.length, url).toBeGreaterThan(0);
-    for (const [measurement, , callSeed] of perceiveSpy.mock.calls) {
+    for (const [measurement, callProfile, callSeed] of perceiveSpy.mock.calls) {
       expect(measurement, url).toStrictEqual(measurementFixture);
+      expect(callProfile, url).toStrictEqual(softnessWrittenOut(profile));
       expect(callSeed, url).toBe(seed);
     }
   }
@@ -311,8 +339,9 @@ test("a URL that sets every control restores every control", async () => {
   const current = personaLinks(html).filter((link) => link.attributes["aria-current"] === "page");
   expect(current.map((link) => link.name)).toEqual(["Zoya"]);
   expect(viewOf(html)).toEqual({ Perceived: "false", Evidence: "true" });
-  // And the drawing is the one those values give.
-  const profile: Pick<Profile, "perception"> = {
+  // And the drawing is the one those values give, on the rest of Zoya.
+  const profile: Profile = {
+    ...zoya,
     perception: {
       contrast: { threshold: 2.5, softness: 0.2, provenance: "folk" },
       fontPx: { threshold: 20, provenance: "folk" },
@@ -389,12 +418,10 @@ test("Perceived and Evidence carry aria-pressed in both views", async () => {
   expect(await render(VERA)).not.toContain("data-removed");
 });
 
-test("the caption names whose thresholds, and says edited once they move", async () => {
-  expect(captionOf(await render(VERA))).toBe(
-    "The page as perceive returns it for Vera's thresholds, seed 1.",
-  );
+test("the caption names the persona, and says thresholds edited once they move", async () => {
+  expect(captionOf(await render(VERA))).toBe("The page as perceive returns it for Vera, seed 1.");
   expect(captionOf(await render(`${VERA}&contrast=2`))).toBe(
-    "The page as perceive returns it for Vera's thresholds, edited, seed 1.",
+    "The page as perceive returns it for Vera, thresholds edited, seed 1.",
   );
 });
 

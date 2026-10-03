@@ -108,7 +108,7 @@ async function missedByRole(page: Page, element: MeasuredElement): Promise<strin
 // Boxes are left out, since glyph positioning differs between operating systems (the task's box
 // 2). Target sizes are compared: they came out the same on every machine measured.
 const comparable = ({ elements }: PageMeasurement) =>
-  elements.map(({ key, kind, role, name, metrics }) => ({
+  elements.map(({ key, kind, role, name, metrics, hasPopup, controls }) => ({
     key,
     kind,
     role,
@@ -116,6 +116,8 @@ const comparable = ({ elements }: PageMeasurement) =>
     contrast: metrics.contrast,
     fontPx: metrics.fontPx,
     targetPx: metrics.targetPx,
+    hasPopup,
+    controls,
   }));
 
 test("collect on /deliveries matches measurementFixture", async () => {

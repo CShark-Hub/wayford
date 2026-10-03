@@ -7,7 +7,8 @@
  * any profile and any seed, and gives the same answer each time.
  *
  * Elements are listed in measurement order. The filter numbers the shown ones
- * `e1..eN` in that order, so the refs follow it.
+ * `e1..eN` in that order, or, when the profile sets `maxElements`, in salience
+ * order (A1, `docs/RULES.md` stage 5), so the refs follow one of the two.
  *
  * Controls and text blocks (headings, paragraphs, list items) are measured
  * (`docs/RULES.md`, "What is measured", issues #49, #117 and #124). The cues
@@ -15,8 +16,8 @@
  * blocks too. P4 reads `targetPx` on controls only. A text block's own text
  * is the text outside the controls and text blocks nested in it: only that
  * counts against it, and one that draws none is not measured. A label is not
- * a text block: the
- * control it names carries the contrast and font size of the label's text.
+ * a text block: the control it names carries the contrast and font size of
+ * the label's text.
  * When the label activates the control (a wrapping `<label>`, or `label for=`),
  * `targetPx` is the smaller side of the area a click activates, taken as one
  * rectangle around the control's box and its label's box (for a label apart
@@ -40,6 +41,10 @@ import { Bbox, HttpUrl, Viewport } from "./primitives.js";
 export const ElementKind = z.enum(["control", "text"]);
 export type ElementKind = z.infer<typeof ElementKind>;
 
+/** What `aria-haspopup` says a control opens, as ARIA 1.2 reads it: `true` is `menu`. */
+export const PopupKind = z.enum(["menu", "listbox", "tree", "grid", "dialog"]);
+export type PopupKind = z.infer<typeof PopupKind>;
+
 /**
  * One element as measured. `key` is `elementKey` over the landmark ancestors,
  * the same key the filter hashes for the element's roll. `name` is a control's
@@ -47,7 +52,13 @@ export type ElementKind = z.infer<typeof ElementKind>;
  * named by its content: the text outside the controls and text blocks nested
  * in it, each of which leaves a space (#124). `metrics` are
  * measured values, never a threshold, and each is optional: an icon has no
- * font size.
+ * font size, and stage 4 reads a control with none as icon-only.
+ *
+ * `hasPopup` and `controls` are what a control's markup says it opens and
+ * operates, read for stage 4's pattern detection only (`docs/RULES.md`,
+ * "What is measured"): `aria-haspopup`, and the role of the first element its
+ * `aria-controls` names, hidden or not. Each is present only when the markup
+ * says so, never on a text block, and neither is in the key, so no roll moves.
  *
  * The key ends in `//role:name`, the shape `elementKey` builds, and that is
  * enforced below. Otherwise a fixture or collector edit could change the name
@@ -61,12 +72,18 @@ export const MeasuredElement = z
     name: z.string(),
     bbox: Bbox,
     metrics: Metrics,
+    hasPopup: PopupKind.optional(),
+    controls: AriaRole.optional(),
   })
   .strict()
   .refine((e) => e.kind === "control" || e.metrics.targetPx === undefined, {
     path: ["metrics", "targetPx"],
     message:
       'a text block carries no targetPx: P4 is for controls only (docs/RULES.md, "What is measured")',
+  })
+  .refine((e) => e.kind === "control" || (e.hasPopup === undefined && e.controls === undefined), {
+    path: ["kind"],
+    message: "a text block carries no hasPopup or controls: stage 4 reads them on controls only",
   })
   .refine((e) => e.key.endsWith(`//${e.role}:${e.name}`), {
     path: ["key"],

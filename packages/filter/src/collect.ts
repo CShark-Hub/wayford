@@ -6,10 +6,12 @@
  * imports its type only (`docs/specs/2026-09-29-s1-02-metrics-collector.md`, "collect.ts").
  */
 import {
+  AriaRole,
   type Bbox,
   elementKey,
   type MeasuredElement,
   PageMeasurement,
+  PopupKind,
   smallerSide,
   WayfordError,
 } from "@wayford/core";
@@ -50,11 +52,15 @@ export async function collect(page: Page, options: CollectOptions = {}): Promise
 /**
  * A raw element's key and metrics. Over several runs of text, the worst contrast and the smallest
  * font count; a run whose background is unknown gives no contrast. A metric the element has no
- * source for is left out.
+ * source for is left out, and so are `hasPopup` and `controls` when its markup says nothing.
  */
 function measured(raw: RawElement): MeasuredElement {
   const runs = raw.texts ?? [];
   const contrasts = runs.flatMap((run) => textContrast(run.color, run.layers) ?? []);
+  const hasPopup = popupOf(raw.hasPopup);
+  // A role that is not one lowercase word, such as `doc-toc`, is left out, so it cannot fail the
+  // measurement.
+  const controls = AriaRole.safeParse(raw.controls);
   return {
     key: elementKey(raw),
     kind: raw.kind,
@@ -68,7 +74,19 @@ function measured(raw: RawElement): MeasuredElement {
         ? { targetPx: smallerSide(around([raw.bbox, ...(raw.labels ?? [])])) }
         : {}),
     },
+    ...(hasPopup === undefined ? {} : { hasPopup }),
+    ...(controls.success ? { controls: controls.data } : {}),
   };
+}
+
+/**
+ * `aria-haspopup`, trimmed and lowercased, as ARIA 1.2 reads it: `true` is `menu`. `false`, an
+ * empty value or an unknown one opens nothing.
+ */
+function popupOf(value: string | undefined): PopupKind | undefined {
+  const read = value?.trim().toLowerCase();
+  const popup = PopupKind.safeParse(read === "true" ? "menu" : read);
+  return popup.success ? popup.data : undefined;
 }
 
 /**

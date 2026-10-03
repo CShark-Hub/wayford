@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { measurementFixture } from "./fixtures/index.js";
+import { kebabElement as kebab, measurementFixture } from "./fixtures/index.js";
 import { MeasuredElement, PageMeasurement } from "./measurement.js";
 import { elementKey, type Landmark } from "./observation.js";
 
@@ -92,6 +92,13 @@ describe("measurementFixture", () => {
     }
   });
 
+  test("no control on /deliveries says it opens or controls anything", () => {
+    for (const element of measurementFixture.elements) {
+      expect(element, element.key).not.toHaveProperty("hasPopup");
+      expect(element, element.key).not.toHaveProperty("controls");
+    }
+  });
+
   test("every element sits inside the viewport, so nothing on it is below the fold", () => {
     const { width, height } = measurementFixture.viewport;
     for (const { key, bbox } of measurementFixture.elements) {
@@ -153,6 +160,31 @@ describe("MeasuredElement (the filter's input, before any decision)", () => {
       expect(result.error?.issues).toEqual([
         expect.objectContaining({ path: ["key"], message: expect.stringContaining("//") }),
       ]);
+    }
+  });
+
+  test("a text block carries neither hasPopup nor controls: they are for controls only", () => {
+    for (const fact of [{ hasPopup: "menu" }, { controls: "navigation" }]) {
+      const result = MeasuredElement.safeParse({ ...heading, ...fact });
+      expect(result.success, JSON.stringify(fact)).toBe(false);
+      expect(result.error?.issues).toEqual([
+        expect.objectContaining({ path: ["kind"], message: expect.stringContaining("stage 4") }),
+      ]);
+    }
+  });
+
+  test("hasPopup is a popup kind as ARIA reads it, and controls one role word", () => {
+    // The collector normalises: "true" is already "menu", "false" or an unknown value left out.
+    for (const fact of [
+      { hasPopup: "true" },
+      { hasPopup: "bogus" },
+      { hasPopup: "Menu" },
+      { controls: "doc-toc" },
+      { controls: "" },
+    ]) {
+      expect(MeasuredElement.safeParse({ ...kebab, ...fact }).success, JSON.stringify(fact)).toBe(
+        false,
+      );
     }
   });
 

@@ -1,6 +1,6 @@
 /**
  * The preview's URL contract: what each search param of `/preview` means, and how a URL becomes
- * the perception `perceive` gets. The URL holds the whole preview state, so a preview is a link.
+ * the profile `perceive` gets. The URL holds the whole preview state, so a preview is a link.
  *
  * - `persona`: a bundled profile id. Absent or unknown, Vera.
  * - `seed`: a `Seed`, standing in for a run seed. Absent or invalid, 1, never the profile's seed,
@@ -15,7 +15,7 @@
  * canonical as a long one.
  *
  * Nothing here decides visibility. A threshold is passed on or left out, and `perceive` decides
- * every element from what it is passed (`docs/PLAN.md`, F2 AC3).
+ * every element from what it is passed.
  */
 import { METRIC_NAMES, type MetricName, Probability, type Profile, Seed } from "@wayford/core";
 import { z } from "zod";
@@ -106,11 +106,15 @@ export type PreviewState = {
   seed: Seed;
   /** What the sliders show: every metric, `off` included. */
   cuts: Record<MetricName, Cut>;
-  /** What `perceive` gets: a threshold for each metric that gates, and the persona's emulation. */
-  perception: Profile["perception"];
   /**
-   * Whether `perception` differs from the persona's own. The screen says "edited" when it does, so
-   * a moved slider is never presented as the persona.
+   * What `perceive` gets: the persona whole, so its caps and the patterns it does not know apply as
+   * they do in a run (`docs/PLAN.md`, F2 AC3), with the perception the sliders give in place of its
+   * own: a threshold for each metric that gates, and the persona's emulation.
+   */
+  profile: Profile;
+  /**
+   * Whether `profile.perception` differs from the persona's own. The screen says "edited" when it
+   * does, so a moved slider is never presented as the persona.
    */
   edited: boolean;
   evidence: boolean;
@@ -119,7 +123,8 @@ export type PreviewState = {
 /**
  * Resolve a validated search against its persona. Per metric, in `METRIC_NAMES` order, the URL's
  * value wins, then the persona's own, then the slider's `off` for a threshold and 0 for a
- * softness. A threshold reaches `perception` only above `off`, with its softness written out.
+ * softness. A threshold reaches the profile's perception only above `off`, with its softness
+ * written out.
  */
 export function resolvePreview(search: PreviewSearch): PreviewState {
   const id = personaIdOf(search);
@@ -150,7 +155,7 @@ export function resolvePreview(search: PreviewSearch): PreviewState {
     persona,
     seed: search.seed ?? DEFAULT_SEED,
     cuts,
-    perception,
+    profile: { ...persona, perception },
     edited,
     evidence: search.evidence === true,
   };

@@ -266,7 +266,7 @@ function MetricSliders({
         max={SOFTNESS_SLIDER.max}
         step={SOFTNESS_SLIDER.step}
         format={String}
-        disabled={state.perception[metric] === undefined}
+        disabled={state.profile.perception[metric] === undefined}
         onMove={(next) => onMove(key, next)}
         onRelease={onRelease}
       />
@@ -378,12 +378,13 @@ export function PreviewScreen() {
   const navigate = previewRoute.useNavigate();
   const state = resolvePreview(previewRoute.useSearch());
   // Perceived again on every render, with no memo: a render follows a URL change, and `perceive`
-  // on the stored page stays far inside its 5 ms budget (`bench:perceive`). s3-05 swaps in the
-  // live page's measurement here.
-  const observation = perceive(bundledMeasurement, { perception: state.perception }, state.seed);
-  // Whose thresholds the page was perceived for. "edited" whenever a slider moved them, so a
-  // moved bundle is never presented as the persona.
-  const subject = `${state.persona.label}'s thresholds${state.edited ? ", edited" : ""}, seed ${state.seed}`;
+  // on the stored page stays far inside its 5 ms budget (`bench:perceive`). It gets the whole
+  // persona, so the caps and unknown patterns a run applies apply here too (F2 AC3). s3-05 swaps
+  // in the live page's measurement here.
+  const observation = perceive(bundledMeasurement, state.profile, state.seed);
+  // Who the page was perceived for. "thresholds edited" whenever a slider moved them, so a moved
+  // bundle is never presented as the persona.
+  const subject = `${state.persona.label}${state.edited ? ", thresholds edited" : ""}, seed ${state.seed}`;
   const { move, release } = useSliderWrites(navigate);
   useRedrawTiming();
 

@@ -155,7 +155,15 @@ test("the ./perceive entry reaches only its own modules and @wayford/core", () =
   expect(walk.forbidden).toEqual([]);
   // The walk really walked: past the entry, into the modules `perceive` is built from. The set is
   // not pinned, so a later rule module behind the entry needs no edit here.
-  expect(walk.files).toEqual(expect.arrayContaining([entry, "src/band.ts", "src/mask.ts"]));
+  expect(walk.files).toEqual(
+    expect.arrayContaining([
+      entry,
+      "src/attention.ts",
+      "src/band.ts",
+      "src/knowledge.ts",
+      "src/mask.ts",
+    ]),
+  );
   expect(walk.files.length).toBeGreaterThan(1);
 });
 

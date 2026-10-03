@@ -11,6 +11,7 @@
   "scripts": {
     "bench:perceive": "tsx scripts/bench-perceive.ts",
     "fixture:measurement": "tsx scripts/measure-fixture.ts && biome format --write ../core/src/fixtures/measurement.json",
+    "routes": "tsx scripts/routes.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.perceive.json"
   },

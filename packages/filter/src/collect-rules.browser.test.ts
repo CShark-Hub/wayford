@@ -4,7 +4,7 @@
  * `http://collect.test` because `PageMeasurement.url` must be http(s). Every expected contrast is
  * worked out from WCAG 2.2's definitions, never read back from `collect`.
  */
-import { type Metrics, WayfordError } from "@wayford/core";
+import { type MeasuredElement, type Metrics, WayfordError } from "@wayford/core";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { collect } from "./collect.js";
@@ -430,6 +430,81 @@ describe("what an element's text and box measure", () => {
   ])("%s", async (_claim, html, expected) => {
     const measurement = await measure(html);
     expect(measurement.elements.map((e) => [e.key, e.metrics])).toStrictEqual(expected);
+  });
+});
+
+describe("what a control's markup says it opens, for stage 4", () => {
+  // Whatever an element carries beyond its key, kind, role, name, box and metrics: `{}` when it
+  // carries neither fact, so a field written as `undefined` fails too.
+  const facts = ({ key, kind, role, name, bbox, metrics, ...rest }: MeasuredElement) => [key, rest];
+
+  test.each<[claim: string, html: string, measured: [key: string, facts: object][]]>([
+    [
+      // ARIA 1.2: `true` is `menu`. An empty value, `false` or an unknown one opens nothing.
+      "aria-haspopup is trimmed and lowercased, true is menu, anything else is left out",
+      `<button aria-haspopup="true">True</button>
+      <button aria-haspopup=" MENU ">Upper</button>
+      <button aria-haspopup="dialog">Dialog</button>
+      <button aria-haspopup="false">False</button>
+      <button aria-haspopup="">Empty</button>
+      <button aria-haspopup="bogus">Bogus</button>`,
+      [
+        ["//button:True", { hasPopup: "menu" }],
+        ["//button:Upper", { hasPopup: "menu" }],
+        ["//button:Dialog", { hasPopup: "dialog" }],
+        ["//button:False", {}],
+        ["//button:Empty", {}],
+        ["//button:Bogus", {}],
+      ],
+    ],
+    [
+      // The phone toggle's shape: the nav it opens is display: none until it is opened.
+      "aria-controls gives the role of the element it names, hidden or not",
+      `<header>
+        <button type="button" aria-controls="site-nav">Menu</button>
+        <nav id="site-nav" aria-label="Main" style="display: none"><a href="/">Home</a></nav>
+      </header>
+      <button type="button" aria-controls="missing site-nav">Second</button>`,
+      [
+        ["banner//button:Menu", { controls: "navigation" }],
+        ["//button:Second", { controls: "navigation" }],
+      ],
+    ],
+    [
+      // `doc-toc` is no one lowercase word, so it is left out rather than failing the measurement.
+      "aria-controls naming no element, one with no role or one with a role not a word is left out",
+      `<button type="button" aria-controls="nowhere">Missing</button>
+      <button type="button" aria-controls="plain">Plain</button>
+      <div id="plain">Plain panel</div>
+      <button type="button" aria-controls="toc">Contents</button>
+      <div id="toc" role="doc-toc">Table of contents</div>`,
+      [
+        ["//button:Missing", {}],
+        ["//button:Plain", {}],
+        ["//button:Contents", {}],
+      ],
+    ],
+    [
+      // The kebab's shape on the target app's `/account`.
+      "a menu button carries both",
+      `<button type="button" aria-haspopup="menu" aria-controls="more-menu">More options</button>
+      <ul id="more-menu" role="menu" hidden><li role="menuitem">Past orders</li></ul>`,
+      [["//button:More options", { hasPopup: "menu", controls: "menu" }]],
+    ],
+    [
+      "a text block never carries either",
+      `<nav id="site-nav" aria-label="Main"><a href="/">Home</a></nav>
+      <p aria-haspopup="menu" aria-controls="site-nav">Paragraph</p>
+      <h2 aria-haspopup="true" aria-controls="site-nav">Heading</h2>`,
+      [
+        ["navigation:Main//link:Home", {}],
+        ["//paragraph:Paragraph", {}],
+        ["//heading:Heading", {}],
+      ],
+    ],
+  ])("%s", async (_claim, html, expected) => {
+    const measurement = await measure(html);
+    expect(measurement.elements.map(facts)).toStrictEqual(expected);
   });
 });
 

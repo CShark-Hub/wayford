@@ -6,9 +6,10 @@
  * `over` and exits 0 whatever the number. The budget is for a developer laptop.
  *
  * 20 warm-up calls come first, so the average is of optimised code rather than the first compile.
- * Call `i` uses persona `i % 4` (Ada, Milo, Vera, Zoya) and run seed `i + 1`, so the timed calls
- * cover seeds 1 to 100 and each persona 25 times. Their shown elements are summed and printed, so
- * every timed result is used and no call can be optimised away.
+ * Call `i` uses persona `i % 5` (Ada, Kai, Milo, Vera, Zoya) and run seed `i + 1`, so the timed
+ * calls cover seeds 1 to 100 and each persona 20 times. Kai is the persona A1 cuts on the fixture,
+ * so the timed calls rank and cut as well as decide. Their shown elements are summed and printed,
+ * so every timed result is used and no call can be optimised away.
  */
 import { measurementFixture, profileFixture } from "@wayford/core/fixtures";
 import { perceive } from "../src/perceive.js";
@@ -17,9 +18,11 @@ const WARM_UP_CALLS = 20;
 const TIMED_CALLS = 100;
 const BUDGET_MS = 5;
 
-const personas = ["prof_ada", "prof_milo", "prof_vera", "prof_zoya"].map(profileFixture);
+const personas = ["prof_ada", "prof_kai", "prof_milo", "prof_vera", "prof_zoya"].map(
+  profileFixture,
+);
 
-/** Call `i`: persona `i % 4`, run seed `i + 1`. Returns how many elements it showed. */
+/** Call `i`: persona `i % 5`, run seed `i + 1`. Returns how many elements it showed. */
 function call(i: number): number {
   const profile = personas[i % personas.length];
   if (profile === undefined) throw new Error(`no persona for call ${i}`);

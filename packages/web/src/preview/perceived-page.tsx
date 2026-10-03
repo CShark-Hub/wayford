@@ -4,14 +4,17 @@
  * only reads them, to draw each element and to tag what was removed.
  *
  * - An element with a `ref` is shown, visible or degraded: one box at its bbox, reading the name
- *   the Actor reads, which `toActorObservation` gives that ref. So a degraded box reads its masked
- *   name. Its role changes how it looks, never whether it is drawn.
+ *   the Actor reads, in the state the Actor gets, both of which `toActorObservation` gives that
+ *   ref. So a degraded box reads its masked name, muted, and a renamed one reads its bare role
+ *   whole, as the Actor does, whatever perception decided (`docs/RULES.md`, stage 4). Its role
+ *   changes how it looks, never whether it is drawn.
  * - An element with no `ref` was removed and is not drawn. In the evidence view it is a dashed
  *   outline at its bbox, tagged with the rules that removed it, with its name for screen readers.
  * - Every length is a measured CSS px times `--px`, the pane's width over the viewport's, so the
  *   drawing scales with no script and the markup carries the measured numbers.
  */
 import {
+  type ActorElement,
   decisionState,
   type ElementDecision,
   type FullObservation,
@@ -73,8 +76,8 @@ function roleLook(role: string): string {
 const TOGGLES = new Set(["checkbox", "radio"]);
 
 /**
- * One line of an outline's tag: `P1 2.005 < 3`, `V2 below`, or the bare rule id. Knowledge and
- * attention decisions come with s1-03, which can say more than the rule id.
+ * One line of an outline's tag: `P1 2.005 < 3`, `V2 below`, or the bare rule id, as for A1, the
+ * attention cap. A knowledge decision renames and never removes, so no tag lists one.
  */
 function tagLine(decision: ElementDecision): string {
   switch (decision.stage) {
@@ -87,15 +90,27 @@ function tagLine(decision: ElementDecision): string {
   }
 }
 
-/** A shown element: one box at its bbox, in the muted foreground when degraded. */
-function ShownBox({ element, name }: { element: ObservedElement; name: string }) {
+/**
+ * A shown element: one box at its bbox, reading what the Actor reads, in the muted foreground when
+ * the Actor gets it degraded. A renamed element reaches the Actor visible, read whole, so it is
+ * never drawn as partly legible. `data-state` stays perception's own, for the evidence.
+ */
+function ShownBox({
+  element,
+  actor,
+}: {
+  element: ObservedElement;
+  actor: ActorElement | undefined;
+}) {
+  const name = actor?.name ?? "";
+  const muted = actor?.state === "degraded";
   return (
     <div
       data-ref={element.ref}
       data-state={element.state}
       className={cn(
         "absolute flex items-center whitespace-nowrap leading-none",
-        element.state === "degraded" ? "text-muted-foreground" : "text-foreground",
+        muted ? "text-muted-foreground" : "text-foreground",
         roleLook(element.role),
       )}
       style={boxStyle(element)}
@@ -137,14 +152,15 @@ export function PerceivedPage({
   observation: FullObservation;
   evidence: boolean;
   /**
-   * Whose thresholds, from the screen: "Vera's thresholds, seed 1" or "Vera's thresholds, edited,
+   * Who the page was perceived for, from the screen: "Vera, seed 1" or "Vera, thresholds edited,
    * seed 1".
    */
   subject: string;
 }) {
-  // What the Actor reads, by ref: core's own projection, so no masked or renamed name is worked
-  // out twice. A ref it does not list falls back to an empty name, never the real one, as there.
-  const names = new Map(toActorObservation(observation).elements.map((e) => [e.ref, e.name]));
+  // What the Actor gets, by ref: core's own projection, so no masked or renamed name and no muted
+  // state is worked out twice. A ref it does not list is drawn with an empty name, never the real
+  // one, as there, and unmuted.
+  const actorElements = new Map(toActorObservation(observation).elements.map((e) => [e.ref, e]));
   const { width, height } = observation.viewport;
   return (
     <figure className="flex flex-col gap-3">
@@ -155,23 +171,25 @@ export function PerceivedPage({
             className="relative overflow-hidden bg-background"
             style={canvasStyle(width, height)}
           >
-            {/* Keyed by place in the measurement, which every redraw keeps, unlike a ref, which
-                moves when an element before it goes: the element that changes state is the one
-                React replaces, and the rest stay the same nodes. */}
+            {/* Keyed by place in the observation, which every redraw keeps: measurement order, or
+                salience order under a cap, and salience reads no threshold and no seed, so a
+                slider never moves an element. A ref moves when an element before it goes. So the
+                element that changes state is the one React replaces, and the rest stay the same
+                nodes. */}
             {observation.elements.map((element, index) => {
               if (element.ref !== undefined) {
                 return (
                   <ShownBox
-                    // biome-ignore lint/suspicious/noArrayIndexKey: the measurement's order is fixed, so its index is the element's identity
+                    // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
                     key={`shown:${index}`}
                     element={element}
-                    name={names.get(element.ref) ?? ""}
+                    actor={actorElements.get(element.ref)}
                   />
                 );
               }
               return evidence ? (
                 <RemovedOutline
-                  // biome-ignore lint/suspicious/noArrayIndexKey: the measurement's order is fixed, so its index is the element's identity
+                  // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
                   key={`removed:${index}`}
                   element={element}
                 />

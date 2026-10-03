@@ -3,20 +3,25 @@
  * Actor, the preview and the sweep all call `perceive`, so what the model read at a step, what the
  * preview shows and what the sweep counts come from the same code (`docs/PLAN.md`, F2 AC3).
  *
- * Zero LLM, no clock, no `Math.random`. Every number is a `hash` of the run seed and the element
- * key, so the same measurement, profile and run seed give the same observation, byte for byte.
+ * Zero LLM, no clock, no `Math.random`. Every roll is a `hash` of the run seed and the element key,
+ * and the salience order reads measured values only, so the same measurement, profile and run seed
+ * give the same observation, byte for byte.
  *
  * Browser-safe: this module and everything it reaches import `@wayford/core` and nothing else,
  * because the web preview (`s3-01`) runs it in the browser. `tsconfig.perceive.json` checks it
  * with no Node and no DOM types.
  *
- * Rules in scope (`docs/RULES.md`): V2 outside the viewport, P1 contrast, P3 font size, P4 target
- * size. The rest of the pipeline is not here yet, and nothing stands in for it.
+ * Rules in scope (`docs/RULES.md`), in pipeline order: V2 outside the viewport; P1 contrast, P3
+ * font size, P4 target size; K1 and K4, a pattern the persona does not know (`knowledge.ts`); A1,
+ * the attention cap (`attention.ts`). The rest of the pipeline is not here yet, and nothing stands
+ * in for it.
  */
 import {
+  type Behaviour,
   type ElementDecision,
   type FullObservation,
   hash,
+  type Knowledge,
   type MeasuredElement,
   type ObservedElement,
   type PageMeasurement,
@@ -27,8 +32,21 @@ import {
   type ViewportDecision,
   worstState,
 } from "@wayford/core";
+import { salienceOrder } from "./attention.js";
 import { judgeCut } from "./band.js";
+import { knowledgeDecisions } from "./knowledge.js";
 import { maskName } from "./mask.js";
+
+/**
+ * What `perceive` reads of a profile: the perception thresholds, the patterns the persona does not
+ * know, and the attention cap. A full `Profile` fits. The profile seed is not in it, because the
+ * run seed decides (`docs/PLAN.md`, A20), and neither are `knownPatterns` (RULES stage 4: they
+ * change nothing in the filter) or the other caps and dice, which are not built here.
+ */
+export type PerceiveProfile = Pick<Profile, "perception"> & {
+  knowledge: Pick<Knowledge, "unknownPatterns">;
+  behaviour: Pick<Behaviour, "maxElements">;
+};
 
 /**
  * The perception rules in scope, in rule id order, which is the order their decisions are listed
@@ -40,13 +58,21 @@ const PERCEPTION_RULES = [
   { rule: "P4", metric: "targetPx", controlsOnly: true },
 ] as const;
 
+/** One element after pass 1: as measured, with the decisions stages 1 to 4 gave it. */
+interface Decided {
+  element: MeasuredElement;
+  decisions: ElementDecision[];
+}
+
 /**
- * Decide every measured element against the profile's thresholds, in measurement order.
+ * Decide every measured element against the profile, and list them in the order the persona
+ * reads the page in.
  *
  * The run seed decides; the profile seed is never read (`docs/PLAN.md`, A20). The parameter type
- * says so: only `perception` is taken, and a full `Profile` still fits.
+ * says so: `PerceiveProfile` takes the perception thresholds, `unknownPatterns` and `maxElements`,
+ * and a full `Profile` still fits.
  *
- * Per element:
+ * Pass 1, in measurement order, stages 1 to 4 on each element:
  * - V2 first. The box is in viewport coordinates and the viewport is `[0, width) × [0, height)`.
  *   A box that starts at or past the viewport's width is right of it, and one that starts left of
  *   0 and ends at or left of 0 is left of it. The same edges on the vertical make below and
@@ -59,15 +85,26 @@ const PERCEPTION_RULES = [
  *   `belowFoldCount` only when none of them is `invisible` (#118).
  * - One roll per element, `hash(run seed, key)`, drawn at most once and only when a soft rule
  *   fails. Every soft decision on the element stores that same roll.
- * - Decisions are pushed V2, P1, P3, P4, which is pipeline order, then rule id. The state is the
- *   worst of them.
- * - A shown element gets the next ref, so refs run `e1..eN` over shown elements only. A degraded
- *   one carries its masked name.
+ * - Then K1 and K4 (`knowledgeDecisions`), on every element, those V2 or perception made invisible
+ *   too. They rename the element and leave its state alone.
+ *
+ * Stage 5, only when the profile sets `maxElements`: every element goes into one `salienceOrder`,
+ * the removed ones too. Down that order, the elements stages 1 to 3 left shown are kept up to the
+ * cap, and each later one gets A1, becomes invisible and counts in `hiddenCount`. `attention.ts`
+ * says why a smaller cap shows a prefix of the same order. With no cap the order is measurement
+ * order and `hiddenCount` is 0.
+ *
+ * Final pass, down the order:
+ * - Decisions are V2, P1, P3, P4, K1, K4, A1, which is pipeline order, then rule id. The state is
+ *   the worst of them.
+ * - The evidence lists the elements in the order, and a shown element gets the next ref, so refs
+ *   run `e1..eN` down it over shown elements only.
+ * - A renamed element carries its bare role as `renamedName`. A degraded one that was not renamed
+ *   carries its masked name; a renamed one never does, and neither does one A1 cut.
  *
  * `stepIndex` is 0 because `perceive` does not know the step. The Actor loop sets it on the
  * result, `{ ...full, stepIndex }`, and `runResultFromEvents` rejects an observation whose
- * `stepIndex` differs from its step's. `hiddenCount` is 0 until the attention rules land
- * (`s1-03`).
+ * `stepIndex` differs from its step's.
  *
  * Neither input nor output is parsed. Like `toActorObservation`, this stays pure and fast; the
  * tests parse the output. `bbox`, `metrics` and `viewport` are copies, so a caller cannot change
@@ -75,7 +112,7 @@ const PERCEPTION_RULES = [
  */
 export function perceive(
   measurement: PageMeasurement,
-  profile: Pick<Profile, "perception">,
+  profile: PerceiveProfile,
   runSeed: Seed,
 ): FullObservation {
   // A run seed outside `Seed` is a bug. `hash` would throw it only once some element needs a roll,
@@ -83,12 +120,13 @@ export function perceive(
   if (!Seed.safeParse(runSeed).success) {
     throw new RangeError(`a run seed is an integer from 0 to 4294967295, got ${runSeed}`);
   }
-  const elements: ObservedElement[] = [];
-  let shown = 0;
+  const { viewport } = measurement;
+
+  // Pass 1, in measurement order: stages 1 to 4.
   let belowFoldCount = 0;
-  for (const element of measurement.elements) {
+  const decided: Decided[] = measurement.elements.map((element) => {
     const decisions: ElementDecision[] = [];
-    const offscreen = viewportDecision(element, measurement.viewport);
+    const offscreen = viewportDecision(element, viewport);
     if (offscreen !== undefined) decisions.push(offscreen);
     const perceived = perceptionDecisions(element, profile.perception, runSeed);
     decisions.push(...perceived);
@@ -96,8 +134,36 @@ export function perceive(
     if (offscreen?.side === "below" && !perceived.some((d) => d.state === "invisible")) {
       belowFoldCount += 1;
     }
+    decisions.push(...knowledgeDecisions(element, profile.knowledge.unknownPatterns));
+    return { element, decisions };
+  });
+
+  // Stage 5: the cap keeps the most salient of what stages 1 to 3 left shown.
+  const cap = profile.behaviour.maxElements;
+  let order = decided;
+  let hiddenCount = 0;
+  if (cap !== undefined) {
+    order = salienceOrder(measurement.elements, viewport).flatMap((index) => decided[index] ?? []);
+    let kept = 0;
+    for (const { decisions } of order) {
+      // What V2 or perception removed is skipped, never cut; knowledge never hides an element.
+      if (worstState(decisions) === "invisible") continue;
+      if (kept < cap) {
+        kept += 1;
+        continue;
+      }
+      decisions.push({ stage: "attention", rule: "A1" });
+      hiddenCount += 1;
+    }
+  }
+
+  // Final pass, down the order: state, ref, rename and mask.
+  const elements: ObservedElement[] = [];
+  let shown = 0;
+  for (const { element, decisions } of order) {
     const state = worstState(decisions);
     if (state !== "invisible") shown += 1;
+    const renamed = decisions.some((d) => d.stage === "knowledge");
     elements.push({
       ...(state === "invisible" ? {} : { ref: `e${shown}` }),
       key: element.key,
@@ -107,15 +173,18 @@ export function perceive(
       metrics: { ...element.metrics },
       state,
       decisions,
-      ...(state === "degraded" ? { maskedName: maskName(runSeed, element.key, element.name) } : {}),
+      ...(state === "degraded" && !renamed
+        ? { maskedName: maskName(runSeed, element.key, element.name) }
+        : {}),
+      ...(renamed ? { renamedName: element.role } : {}),
     });
   }
   return {
     url: measurement.url,
     title: measurement.title,
     stepIndex: 0,
-    viewport: { ...measurement.viewport },
-    hiddenCount: 0,
+    viewport: { ...viewport },
+    hiddenCount,
     belowFoldCount,
     elements,
   };

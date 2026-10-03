@@ -2,9 +2,9 @@
 /// <reference lib="dom.iterable" />
 /**
  * The in-page half of `collect`: the elements a sighted person can see on the page, with their
- * role, name, landmark path, box and the computed style of the text they draw. Only what needs the
- * DOM happens here. Colours stay computed-style strings, and `contrast.ts` does the arithmetic in
- * Node, where it is tested without a browser.
+ * role, name, landmark path, box and the computed style of the text they draw, and for a control
+ * what its markup says it opens. Only what needs the DOM happens here. Colours stay computed-style
+ * strings, and `contrast.ts` does the arithmetic in Node, where it is tested without a browser.
  *
  * `measurePage` reaches the page as source, so it is one self-contained function: every helper and
  * constant lives inside it, since a module-level one or an import would not exist there. The
@@ -37,6 +37,10 @@ export interface RawElement {
    * text only (#124).
    */
   texts?: { color: string; fontPx: number; layers: BackgroundLayer[] }[];
+  /** Its `aria-haspopup` as written, on a control that has one. `collect` reads it as ARIA does. */
+  hasPopup?: string;
+  /** The role of the first element its `aria-controls` names that exists, on a control. */
+  controls?: string;
 }
 
 /** The page as it reports itself. `isMobile` is not the page's to know (spec, row 8). */
@@ -227,8 +231,8 @@ export function measurePage(): RawPage {
     return text;
   }
 
-  function referents(el: Element): HTMLElement[] {
-    return (el.getAttribute("aria-labelledby") ?? "")
+  function referents(el: Element, attribute = "aria-labelledby"): HTMLElement[] {
+    return (el.getAttribute(attribute) ?? "")
       .split(/\s+/)
       .map((id) => document.getElementById(id))
       .filter((ref) => ref !== null);
@@ -241,6 +245,13 @@ export function measurePage(): RawPage {
       collapse(refs.map((ref) => contentOf(ref)).join(" ")) ||
       collapse(el.getAttribute("aria-label"))
     );
+  }
+
+  // The role of the first element `aria-controls` names that exists, hidden or not: the nav a menu
+  // toggle opens is `display: none` until it is opened.
+  function controlledRole(el: Element): string | undefined {
+    const target = referents(el, "aria-controls")[0];
+    return target === undefined ? undefined : roleOf(target);
   }
 
   // Outermost first, each named from its label when it has one.
@@ -377,6 +388,10 @@ export function measurePage(): RawPage {
           return { x: box.x, y: box.y, width: box.width, height: box.height };
         })
       : [];
+    // Read for stage 4's pattern detection, on controls only, and left raw: `collect` cleans them.
+    const hasPopup =
+      kind === "control" ? (el.getAttribute("aria-haspopup") ?? undefined) : undefined;
+    const controls = kind === "control" ? controlledRole(el) : undefined;
     elements.push({
       kind,
       role,
@@ -385,6 +400,8 @@ export function measurePage(): RawPage {
       bbox: { x, y, width, height },
       ...(labels.length === 0 ? {} : { labels }),
       ...(texts.length === 0 ? {} : { texts }),
+      ...(hasPopup === undefined ? {} : { hasPopup }),
+      ...(controls === undefined ? {} : { controls }),
     });
   }
   return {

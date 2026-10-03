@@ -1,5 +1,10 @@
-import { METRIC_NAMES } from "@wayford/core";
-import { measurementFixture, profileFixture, profileFixtures } from "@wayford/core/fixtures";
+import { METRIC_NAMES, PageMeasurement } from "@wayford/core";
+import {
+  kebabElement,
+  measurementFixture,
+  profileFixture,
+  profileFixtures,
+} from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter/perceive";
 import { expect, test } from "vitest";
 import {
@@ -73,7 +78,7 @@ test("Vera at her own values: her thresholds and sources, with softness 0 where 
     fontPx: { threshold: 16, softness: 0 },
     targetPx: { threshold: 32, softness: 0 },
   });
-  expect(state.perception).toStrictEqual({
+  expect(state.profile.perception).toStrictEqual({
     contrast: { threshold: 3, softness: 0.5, provenance: "wcag22" },
     fontPx: { threshold: 16, softness: 0, provenance: "legge2011" },
     targetPx: { threshold: 32, softness: 0, provenance: "folk" },
@@ -83,7 +88,7 @@ test("Vera at her own values: her thresholds and sources, with softness 0 where 
 
 test("Ada resolves to no threshold at all", () => {
   const state = stateOf({ persona: "prof_ada" });
-  expect(state.perception).toStrictEqual({ emulation: "none" });
+  expect(state.profile.perception).toStrictEqual({ emulation: "none" });
   // Her sliders sit at off, each softness at 0.
   expect(state.cuts).toStrictEqual({
     contrast: { threshold: 1, softness: 0 },
@@ -95,24 +100,24 @@ test("Ada resolves to no threshold at all", () => {
 
 test("each slider's lowest position switches the persona's threshold off", () => {
   // Off fails nothing, so the threshold is left out rather than passed on as 1:1 or 0 px.
-  expect(stateOf({ persona: "prof_vera", contrast: 1 }).perception).toStrictEqual({
+  expect(stateOf({ persona: "prof_vera", contrast: 1 }).profile.perception).toStrictEqual({
     fontPx: { threshold: 16, softness: 0, provenance: "legge2011" },
     targetPx: { threshold: 32, softness: 0, provenance: "folk" },
     emulation: "blurredVision",
   });
-  expect(stateOf({ persona: "prof_vera", fontPx: 0 }).perception).toStrictEqual({
+  expect(stateOf({ persona: "prof_vera", fontPx: 0 }).profile.perception).toStrictEqual({
     contrast: { threshold: 3, softness: 0.5, provenance: "wcag22" },
     targetPx: { threshold: 32, softness: 0, provenance: "folk" },
     emulation: "blurredVision",
   });
-  expect(stateOf({ persona: "prof_vera", targetPx: 0 }).perception).toStrictEqual({
+  expect(stateOf({ persona: "prof_vera", targetPx: 0 }).profile.perception).toStrictEqual({
     contrast: { threshold: 3, softness: 0.5, provenance: "wcag22" },
     fontPx: { threshold: 16, softness: 0, provenance: "legge2011" },
     emulation: "blurredVision",
   });
   // All three at once leave Zoya with none, her sliders at off and her contrast softness kept.
   const zoya = stateOf({ persona: "prof_zoya", contrast: 1, fontPx: 0, targetPx: 0 });
-  expect(zoya.perception).toStrictEqual({ emulation: "reducedContrast" });
+  expect(zoya.profile.perception).toStrictEqual({ emulation: "reducedContrast" });
   expect(zoya.cuts).toStrictEqual({
     contrast: { threshold: 1, softness: 0.3 },
     fontPx: { threshold: 0, softness: 0 },
@@ -128,7 +133,7 @@ test("a softness under an off threshold changes nothing and is no edit", () => {
     fontPxSoftness: 0.25,
     targetPxSoftness: 1,
   });
-  expect(ada.perception).toStrictEqual({ emulation: "none" });
+  expect(ada.profile.perception).toStrictEqual({ emulation: "none" });
   // The softness sliders still show where they were moved to.
   expect(ada.cuts).toStrictEqual({
     contrast: { threshold: 1, softness: 0.5 },
@@ -138,28 +143,57 @@ test("a softness under an off threshold changes nothing and is no edit", () => {
   expect(ada.edited).toBe(false);
   // The same under a threshold the URL switched off: Vera's contrast, then its softness moved.
   expect(
-    stateOf({ persona: "prof_vera", contrast: 1, contrastSoftness: 0.9 }).perception,
-  ).toStrictEqual(stateOf({ persona: "prof_vera", contrast: 1 }).perception);
+    stateOf({ persona: "prof_vera", contrast: 1, contrastSoftness: 0.9 }).profile.perception,
+  ).toStrictEqual(stateOf({ persona: "prof_vera", contrast: 1 }).profile.perception);
+});
+
+test("the profile is the persona whole, with the sliders' perception in place of its own", () => {
+  // A moved slider changes the perception and leaves the rest, Kai's cap and patterns among it.
+  expect(stateOf({ persona: "prof_kai", contrast: 4.5 }).profile).toStrictEqual({
+    ...profileFixture("prof_kai"),
+    perception: {
+      contrast: { threshold: 4.5, softness: 0, provenance: "folk" },
+      emulation: "none",
+    },
+  });
 });
 
 test("at a persona's own values, perceive returns exactly what it returns for the persona", () => {
-  // An off threshold is left out, and a softness of 0 is the hard cut an absent one is, so an
-  // unmoved preview is the persona's own observation, not an approximation of it.
+  // An off threshold is left out, a softness of 0 is the hard cut an absent one is, and the caps
+  // and unknown patterns are the persona's own, so an unmoved preview is the persona's own
+  // observation, not an approximation of it. It runs on the fixture with the kebab added, so the
+  // unknown patterns have something to act on.
+  const page = PageMeasurement.parse({
+    ...measurementFixture,
+    elements: [...measurementFixture.elements, kebabElement],
+  });
   for (const persona of profileFixtures) {
     for (const seed of [1, 7, 4211]) {
-      const { perception } = stateOf({ persona: persona.id, seed });
-      expect(
-        perceive(measurementFixture, { perception }, seed),
-        `${persona.label}, seed ${seed}`,
-      ).toStrictEqual(perceive(measurementFixture, persona, seed));
+      const { profile } = stateOf({ persona: persona.id, seed });
+      expect(perceive(page, profile, seed), `${persona.label}, seed ${seed}`).toStrictEqual(
+        perceive(page, persona, seed),
+      );
     }
   }
+  // Not vacuous: Kai sets no threshold, and his cap of 11 still hides some of the page's 15
+  // elements, so a preview that passed his perception alone would fail above.
+  const kai = stateOf({ persona: "prof_kai" }).profile;
+  expect(perceive(page, kai, 1).hiddenCount).toBeGreaterThan(0);
+  // Nor is stage 4: a persona that does not know the kebab carries a knowledge decision on it, so
+  // a preview that dropped the unknown patterns would fail above too.
+  expect(
+    profileFixtures.some((persona) =>
+      perceive(page, persona, 1).elements.some((e) =>
+        e.decisions.some((d) => d.stage === "knowledge"),
+      ),
+    ),
+  ).toBe(true);
 });
 
 test("a threshold keeps the persona's source at the persona's own value, and folk elsewhere", () => {
   // `perceive` never reads it, but the type needs one, and a slider value cites nothing.
   const veraContrast = (query: Record<string, unknown>) =>
-    stateOf({ persona: "prof_vera", ...query }).perception.contrast;
+    stateOf({ persona: "prof_vera", ...query }).profile.perception.contrast;
   expect(veraContrast({ contrast: 3 })).toStrictEqual({
     threshold: 3,
     softness: 0.5,
@@ -178,14 +212,16 @@ test("a threshold keeps the persona's source at the persona's own value, and fol
     provenance: "wcag22",
   });
   // Milo sets a target threshold of 44 from `hig` and no contrast threshold.
-  const milo = stateOf({ persona: "prof_milo", contrast: 4.5, targetPx: 44 }).perception;
+  const milo = stateOf({ persona: "prof_milo", contrast: 4.5, targetPx: 44 }).profile.perception;
   expect(milo.contrast).toStrictEqual({ threshold: 4.5, softness: 0, provenance: "folk" });
   expect(milo.targetPx).toStrictEqual({ threshold: 44, softness: 0, provenance: "hig" });
-  expect(stateOf({ persona: "prof_milo", targetPx: 45 }).perception.targetPx).toStrictEqual({
-    threshold: 45,
-    softness: 0,
-    provenance: "folk",
-  });
+  expect(stateOf({ persona: "prof_milo", targetPx: 45 }).profile.perception.targetPx).toStrictEqual(
+    {
+      threshold: 45,
+      softness: 0,
+      provenance: "folk",
+    },
+  );
 });
 
 test("edited is false at a persona's own values, left out of the URL or written out in it", () => {
@@ -220,7 +256,7 @@ test("edited is true after any threshold or softness that changes perception", (
     for (const [own, query] of moves) {
       const moved = stateOf(query);
       const label = JSON.stringify(query);
-      expect(moved.perception, label).not.toStrictEqual(own.perception);
+      expect(moved.profile.perception, label).not.toStrictEqual(own.profile.perception);
       expect(moved.edited, label).toBe(true);
     }
   }
