@@ -306,6 +306,7 @@ async function runOne(
     const backend = options.backend(run);
     return {
       modelId: backend.modelId,
+      sampling: backend.sampling,
       async answer(turn) {
         const t0 = performance.now();
         try {

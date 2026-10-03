@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { ActorResponse, MAX_WAIT_MS } from "@wayford/core";
 import type { Logger } from "pino";
 import type { ActorBackendFactory, ActorTurn } from "./actor-backend.js";
-import { type ChatMessage, createLlm, type Llm } from "./llm.js";
+import { type ChatMessage, createLlm, type Llm, samplingOf } from "./llm.js";
 import type { LlmSettings } from "./llm-settings.js";
 
 /** A prompt file's text, and its name for an error to point at. */
@@ -92,19 +92,20 @@ export function actorMessages(turn: ActorTurn): ChatMessage[] {
 }
 
 /**
- * The LLM backend's factory. `runActor` calls it once per run with the run's logger, and each call
- * builds one `Llm` for that run, since the adapter fixes its logger per instance (`LlmDeps`). By
- * default that is `createLlm` on `settings`, which checks every role's price, so an unpriced model
- * fails before the run starts; `llm` replaces it in tests. The backend's `modelId` is the
- * configured model of its role, known before its first call.
+ * The LLM backend's factory. `runActor` calls it once per run with the run's logger and provider
+ * seed, and each call builds one `Llm` for that run, since the adapter fixes its logger per
+ * instance (`LlmDeps`). By default that is `createLlm` on `settings`, which checks every role's
+ * price, so an unpriced model fails before the run starts; `llm` replaces it in tests. The
+ * backend's `modelId` is the configured model of its role and its `sampling` that role's
+ * temperature with the run's provider seed, both known before its first call.
  *
  * `role` is `actor` unless Scout plays the part (`scout.ts`): the same prompt and loop, on Scout's
  * model. `settings.roles[role]` is the one source of the model, the temperature and the effort.
  *
- * Each answer is one `complete` on that role with `ActorResponse`; repairs and retries are the
- * adapter's own, and their cost is in the answer's. It sends no seed: s2-10 computes the provider
- * seed from the run seed. An `LlmError` propagates as it is, so the loop adds the cost it carries
- * and ends the run.
+ * Each answer is one `complete` on that role with `ActorResponse` and the run's provider seed, so
+ * every call of a run is sent the same one (A20); repairs and retries are the adapter's own, and
+ * their cost is in the answer's. An `LlmError` propagates as it is, so the loop adds the cost it
+ * carries and ends the run.
  */
 export function llmActor(options: {
   settings: LlmSettings;
@@ -116,15 +117,17 @@ export function llmActor(options: {
     role = "actor",
     llm: buildLlm = (logger: Logger) => createLlm(settings, { logger }),
   } = options;
-  return ({ logger }) => {
+  return ({ logger, providerSeed }) => {
     const llm = buildLlm(logger);
     return {
       modelId: settings.roles[role].model,
+      sampling: samplingOf(settings.roles[role].temperature, providerSeed),
       async answer(turn) {
         const completion = await llm.complete({
           role,
           messages: actorMessages(turn),
           schema: ActorResponse,
+          seed: providerSeed,
         });
         return { response: completion.value, cost: completion.cost };
       },

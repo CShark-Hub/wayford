@@ -1,18 +1,19 @@
 /**
  * The one history renderer: what the Actor has done so far, one line per step, the same text for
- * every backend. `s2-10` truncates it here (M1, `docs/RULES.md` stage 6), so no backend keeps a
- * history of its own.
+ * every backend. The persona's memory truncates it here (M1, `docs/RULES.md` stage 6): the loop
+ * passes `memorySteps` as a number, so every backend reads the same truncated text and none keeps
+ * a history of its own.
  *
  * A step holds the Actor-facing `Observation` it was shown, never the `FullObservation`, so a
  * target can only be named as the Actor read it, masked or renamed. A history that repeated the
  * name in the evidence would hand the persona what the filter took away.
  *
- * A line tells the action the Actor proposed, not the one performed: from `s2-10` the behaviour
- * dice can perform a click as a double click (B1), and "you double-clicked" would tell the model
- * what the dice did. A target is named by its role and shown name, never by its ref: every page
- * gives its refs out again, so an old ref names another element now (the fixture run's wasted
- * step reuses the page before's `e3`). No narration either: it is the model's interpretation, and
- * the Jev backend (s2-06) writes none.
+ * A line tells the action the Actor proposed, not the one performed: the behaviour dice can
+ * perform a click as a double click (B1), and "you double-clicked" would tell the model what the
+ * dice did. A target is named by its role and shown name, never by its ref: every page gives its
+ * refs out again, so an old ref names another element now (the fixture run's wasted step reuses
+ * the page before's `e3`). No narration either: it is the model's interpretation, and the Jev
+ * backend (s2-06) writes none.
  */
 import type { Action, ElementRef, Observation } from "@wayford/core";
 
@@ -28,12 +29,23 @@ export type HistoryStep =
  * The history the Actor reads: `Nothing yet.` before the first step, then one line per step,
  * oldest first, `- On <url>: you <move>.`
  *
+ * M1: with `memorySteps`, only the last `memorySteps` steps keep their lines, and one line counts
+ * the earlier ones first, `- N earlier steps not shown.`, in the register of the observation's own
+ * `N more elements not shown`. It names nothing it stands for and says nothing about the persona.
+ * A wasted step has a line, so it is a step here and counts. Absent, every step is kept.
+ *
  * A proposed ref that the step's own observation lacks throws a plain `Error`: the loop keeps a
  * step's action only once its ref was found there, so only a bug reaches it.
  */
-export function renderHistory(steps: readonly HistoryStep[]): string {
+export function renderHistory(steps: readonly HistoryStep[], memorySteps?: number): string {
   if (steps.length === 0) return "Nothing yet.";
-  return steps.map(historyLine).join("\n");
+  const kept =
+    memorySteps === undefined ? steps : steps.slice(Math.max(0, steps.length - memorySteps));
+  const lines = kept.map(historyLine);
+  const dropped = steps.length - kept.length;
+  if (dropped > 0)
+    lines.unshift(`- ${dropped} earlier ${dropped === 1 ? "step" : "steps"} not shown.`);
+  return lines.join("\n");
 }
 
 function historyLine(step: HistoryStep): string {

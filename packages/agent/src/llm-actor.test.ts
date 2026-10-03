@@ -29,6 +29,9 @@ const CLICK: ActorResponse = {
   action: { type: "click", ref: "e3" },
 };
 
+/** A run's provider seed. Any 31-bit integer: the backend sends what the run hands it. */
+const PROVIDER_SEED = 1_234_567;
+
 /** A run's logger that writes nothing. */
 function quiet(): Logger {
   return pino({ level: "silent" });
@@ -138,9 +141,12 @@ describe("actorMessages", () => {
       ...turn,
       retry: { refused: { narration: "", action: { type: "click", ref: "" } }, ref: "" },
     });
+    // The same steps to a memory of one: the history opens with M1's count line.
+    const remembered = actorTurn("", blank, history, 1);
 
     // Every kind of line our text writes is in it, so every kind is grepped: both element states,
-    // both count lines, one history line per move and the wasted one, and the retry.
+    // both count lines, one history line per move and the wasted one, M1's count line, and the
+    // retry.
     expect(new Set(blank.elements.map((element) => element.state))).toStrictEqual(
       new Set(["visible", "degraded"]),
     );
@@ -161,6 +167,9 @@ describe("actorMessages", () => {
     const lines = turn.history.split("\n");
     expect(lines).toHaveLength(moves.length);
     for (const [index, move] of moves.entries()) expect(lines[index]).toContain(`you ${move}`);
+    expect(remembered.history.split("\n")[0]).toBe(
+      `- ${moves.length - 1} earlier steps not shown.`,
+    );
     expect(messages.map((message) => message.role)).toStrictEqual([
       "system",
       "user",
@@ -170,6 +179,7 @@ describe("actorMessages", () => {
 
     const ours = [
       ...messages.map((message) => message.content),
+      remembered.history,
       JSON.stringify(z.toJSONSchema(ActorResponse)),
     ];
     for (const text of ours) {
@@ -220,22 +230,59 @@ describe("llmActor", () => {
   // Not zero, so an answer's cost is seen to be the call's own and not one made up on the way.
   const COST: Cost = { tokensIn: 1200, tokensOut: 80, usd: 0.00016 };
 
-  test("an answer is one actor call with the turn's messages, ActorResponse and no seed", async () => {
+  test("an answer is one actor call with the turn's messages, ActorResponse and the run's provider seed", async () => {
     const fake = fakeLlm({ actor: [CLICK] });
     // The fake bills nothing, so this one bills COST on top of it.
     const billed: Llm = {
       ...fake,
       complete: async (request) => ({ ...(await fake.complete(request)), cost: COST }),
     };
-    const backend = llmActor({ settings, llm: () => billed })({ logger: quiet() });
+    const backend = llmActor({ settings, llm: () => billed })({
+      logger: quiet(),
+      providerSeed: PROVIDER_SEED,
+    });
 
     const answer = await backend.answer(turn);
 
     expect(answer).toStrictEqual({ response: CLICK, cost: COST });
-    // No `seed` key at all: the provider seed is s2-10's.
     expect(fake.calls).toStrictEqual([
-      { role: "actor", messages: actorMessages(turn), schema: ActorResponse },
+      { role: "actor", messages: actorMessages(turn), schema: ActorResponse, seed: PROVIDER_SEED },
     ]);
+  });
+
+  test("every answer of a run sends the run's provider seed, a retry's included", async () => {
+    const fake = fakeLlm({ actor: [CLICK, CLICK] });
+    const backend = llmActor({ settings, llm: () => fake })({
+      logger: quiet(),
+      providerSeed: PROVIDER_SEED,
+    });
+    // The page shows e1 to e6.
+    const refused: ActorResponse = {
+      narration: "The ninth link, then.",
+      action: { type: "click", ref: "e9" },
+    };
+
+    await backend.answer(turn);
+    await backend.answer({ ...turn, retry: { refused, ref: "e9" } });
+
+    expect(fake.calls.map((call) => call.seed)).toStrictEqual([PROVIDER_SEED, PROVIDER_SEED]);
+  });
+
+  test("its sampling is the configured actor temperature and the run's provider seed, known before any call", () => {
+    const cool = parseLlmSettings({
+      LLM_API_KEY: "test-key",
+      LLM_ACTOR_MODEL: "fake",
+      LLM_ACTOR_TEMPERATURE: "0.3",
+    });
+    const fake = fakeLlm({});
+
+    const backend = llmActor({ settings: cool, llm: () => fake })({
+      logger: quiet(),
+      providerSeed: PROVIDER_SEED,
+    });
+
+    expect(backend.sampling).toStrictEqual({ temperature: 0.3, providerSeed: PROVIDER_SEED });
+    expect(fake.calls).toHaveLength(0);
   });
 
   test("the llm option is called once per run, with that run's logger", async () => {
@@ -251,8 +298,8 @@ describe("llmActor", () => {
     const first = quiet();
     const second = quiet();
 
-    const firstRun = factory({ logger: first });
-    const secondRun = factory({ logger: second });
+    const firstRun = factory({ logger: first, providerSeed: PROVIDER_SEED });
+    const secondRun = factory({ logger: second, providerSeed: PROVIDER_SEED });
     await firstRun.answer(turn);
     await firstRun.answer(turn);
     await secondRun.answer(turn);
@@ -272,14 +319,17 @@ describe("llmActor", () => {
     });
     const fake = fakeLlm({ actor: [CLICK], scout: [CLICK] });
 
-    const actor = llmActor({ settings: both, llm: () => fake })({ logger: quiet() });
-    const scout = llmActor({ settings: both, role: "scout", llm: () => fake })({
-      logger: quiet(),
-    });
+    const run = { logger: quiet(), providerSeed: PROVIDER_SEED };
+    const actor = llmActor({ settings: both, llm: () => fake })(run);
+    const scout = llmActor({ settings: both, role: "scout", llm: () => fake })(run);
     await actor.answer(turn);
     await scout.answer(turn);
 
     expect([actor.modelId, scout.modelId]).toStrictEqual(["fake", "fake-scout"]);
+    expect(scout.sampling).toStrictEqual({
+      temperature: both.roles.scout.temperature,
+      providerSeed: PROVIDER_SEED,
+    });
     // The prompt is the same; only the role, and so the model and its sampling, differ.
     expect(fake.calls.map(({ role }) => role)).toStrictEqual(["actor", "scout"]);
     expect(fake.calls[1]?.messages).toStrictEqual(actorMessages(turn));
@@ -291,7 +341,7 @@ describe("llmActor", () => {
 
     let thrown: unknown;
     try {
-      factory({ logger: quiet() });
+      factory({ logger: quiet(), providerSeed: PROVIDER_SEED });
     } catch (error) {
       thrown = error;
     }

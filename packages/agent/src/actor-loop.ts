@@ -11,8 +11,11 @@
  * kept, and the run's `RunResult` is the fold of those events (`runResultFromEvents`), the record
  * s4-03 stores and the dashboard replays.
  *
- * The behaviour dice, memory truncation, the time budget and the provider seed are s2-10's. Until
- * then every `actionPlanned` performs the action proposed, with no dice rolled.
+ * Between the answer and the plan, stage 7's dice may rewrite the action proposed (`behaviour.ts`),
+ * each roll the next draw of one behaviour stream per run, `rng(run seed)`, so a stored run replays
+ * its rolls. The history the Actor reads holds only as many steps as the persona remembers (M1,
+ * `history.ts`), every model call of a run is sent one provider seed (`providerSeedFor`), and the
+ * persona's wall-clock budget (B3) ends a run `budget_exceeded`, read from a clock a test can move.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
@@ -28,8 +31,9 @@ import {
   RunEvent,
   type RunId,
   type RunResult,
+  rng,
   runResultFromEvents,
-  type Seed,
+  Seed,
   SuccessCondition,
   type Task,
   toActorObservation,
@@ -45,7 +49,9 @@ import {
   type ActorBackend,
   type ActorBackendFactory,
   actorTurn,
+  providerSeedFor,
 } from "./actor-backend.js";
+import { behave } from "./behaviour.js";
 import { type HistoryStep, oneLine } from "./history.js";
 import { LlmError } from "./llm.js";
 import { openRunContext, type RunContext, type RunRecording } from "./run-context.js";
@@ -65,12 +71,18 @@ export interface RunActorOptions {
   browser: Browser;
   profile: Profile;
   task: Task;
-  /** The run seed, which drives every perception decision (`docs/PLAN.md` A20). */
+  /**
+   * The run seed, which drives every perception decision, every behaviour roll and the provider
+   * seed (`docs/PLAN.md` A20).
+   */
   seed: Seed;
   params: TargetAppParams;
   /** The run's files go under `<runsDir>/<runId>/`. */
   runsDir: string;
-  /** Called once per run, with the run's logger, so the backend's lines carry the run id. */
+  /**
+   * Called once per run, with the run's logger, so the backend's lines carry the run id, and the
+   * run's provider seed.
+   */
   backend: ActorBackendFactory;
   /** The run logs on `logger.child({ runId })`. */
   logger: Logger;
@@ -80,16 +92,25 @@ export interface RunActorOptions {
   onEvent?: (event: RunEvent) => void;
   /** `DEFAULT_MAX_STEPS` when absent. */
   maxSteps?: number;
+  /**
+   * The clock, in milliseconds since the epoch, `Date.now` when absent. The run reads every time
+   * through it: each event's timestamp, `durationMs`, and the persona's budget (B3), the one
+   * decision a clock makes, so a test moves it and never waits.
+   */
+  now?: () => number;
 }
 
 /**
  * Runs one persona on one task with one run seed, and returns the run's `RunResult`.
  *
- * Each step observes the page through the persona's filter, asks the backend for one action,
- * carries it out and records it. The run ends `success` when the task's condition holds after an
- * action, `gave_up` on a `giveUp`, `budget_exceeded` once `maxSteps` steps have run (wasted ones
- * included, after the other two checks), and `error` on any failure, with the step in progress
- * kept as far as its events went.
+ * Each step observes the page through the persona's filter, asks the backend for one action, rolls
+ * the behaviour dice on it, carries out what they leave and records it. The run ends `success`
+ * when the task's condition holds after an action, `gave_up` on a performed `giveUp`, and
+ * `budget_exceeded` once `maxSteps` steps have run or the persona's `budgetSeconds` have passed
+ * (B3). The clock is read once a step's action is planned, and a step past the budget there stays
+ * planned and never performed; the cap and the clock are read again at the end of every step,
+ * wasted ones included, after the other two checks. Any failure ends it `error`, with the step in
+ * progress kept as far as its events went.
  *
  * What a caller, s4-03 first, can rely on:
  * - A run that emitted `runStarted` ends with exactly one terminal event, `runFinished` or
@@ -108,12 +129,12 @@ export interface RunActorOptions {
  *   separators, so a run's folder can move as a whole.
  * - There is no module state: concurrent runs on one `Browser` share nothing but the browser.
  * - It rejects before any event only where no run can start: with `invalid_run_input` for a
- *   `maxSteps` that is not a positive integer, an empty `runsDir`, or a `runStarted` that fails
- *   its schema (a bad run id, task id, profile id, seed or start URL); with `startUrlFor`'s
- *   `invalid_target_app_params`; and with whatever the backend factory
- *   throws. Once `runStarted` is out, every failure is the run's own `runFailed`, and `runActor`
- *   rejects only when folding the events or writing `result.json` fails, or when the listener
- *   throws on the terminal event.
+ *   `maxSteps` that is not a positive integer, a seed that is not a `Seed`, an empty `runsDir`, or
+ *   a `runStarted` that fails its schema (a bad run id, task id, profile id or start URL); with
+ *   `startUrlFor`'s `invalid_target_app_params`; and with whatever the backend factory throws.
+ *   Once `runStarted` is out, every failure is the run's own `runFailed`, and `runActor` rejects
+ *   only when folding the events or writing `result.json` fails, or when the listener throws on
+ *   the terminal event.
  */
 export async function runActor(options: RunActorOptions): Promise<RunResult> {
   const { browser, profile, task, seed, params, runsDir } = options;
@@ -121,14 +142,19 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   if (!Number.isInteger(maxSteps) || maxSteps < 1) {
     throw invalidInput(`maxSteps must be a positive integer, got ${maxSteps}`);
   }
+  // Here, not only in `runStarted`'s schema: the provider seed is drawn from it before that.
+  if (!Seed.safeParse(seed).success) {
+    throw invalidInput(`the seed must be an integer from 0 to 4294967295, got ${seed}`);
+  }
   if (runsDir.length === 0) {
     throw invalidInput("runsDir is empty, so the run has nowhere to keep its files");
   }
   const startUrl = startUrlFor(task, params);
   const runId = options.runId ?? newId("run");
   const logger = options.logger.child({ runId });
-  const backend = options.backend({ logger });
-  const t0 = Date.now();
+  const backend = options.backend({ logger, providerSeed: providerSeedFor(seed) });
+  const now = options.now ?? Date.now;
+  const t0 = now();
   const started = RunEvent.safeParse({
     type: "runStarted",
     runId,
@@ -139,11 +165,14 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
     seed,
     startUrl,
     modelIds: { actor: backend.modelId },
+    ...(backend.sampling === undefined ? {} : { actorSampling: backend.sampling }),
   });
   if (!started.success) {
     const message = `Invalid run input:\n${z.prettifyError(started.error)}`;
     throw new WayfordError("invalid_run_input", message, { cause: started.error });
   }
+  // The behaviour stream (`behaviour.ts`), one per run.
+  const draw = rng(seed);
 
   // The run id parsed, so it is one path segment and the directory stays inside `runsDir`.
   const runDir = resolve(runsDir, runId);
@@ -156,7 +185,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   };
   // Parsed, so only an event its schema takes is kept: only a bug in the loop builds another.
   const emit = (event: Unstamped): void => {
-    deliver(RunEvent.parse({ ...event, runId, timestamp: new Date(Date.now()).toISOString() }));
+    deliver(RunEvent.parse({ ...event, runId, timestamp: new Date(now()).toISOString() }));
   };
   const stored = (path: string) => relative(runDir, path).split(sep).join("/");
   let cost: Cost = NO_COST;
@@ -178,6 +207,9 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
       task,
       seed,
       maxSteps,
+      draw,
+      now,
+      t0,
       logger,
       emit,
       stored,
@@ -195,7 +227,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
     ending = { error };
   }
   // The persona's time ends here. Closing the run is the tool's.
-  const endMs = Date.now();
+  const endMs = now();
   watch?.stop();
 
   let recording: RunRecording | undefined;
@@ -263,6 +295,11 @@ interface Loop {
   task: Task;
   seed: Seed;
   maxSteps: number;
+  /** The run's behaviour stream, `rng(seed)`. */
+  draw: () => number;
+  /** The run's clock, and its reading when `runStarted` was stamped, where `durationMs` starts. */
+  now: () => number;
+  t0: number;
   logger: Logger;
   /** Emits one event of the run, stamped with its id and the time. */
   emit(event: Unstamped): void;
@@ -283,30 +320,54 @@ async function walk(loop: Loop): Promise<FinishedOutcome> {
     const shown = await observe(loop, k);
     const answer = await ask(loop, k, shown, history);
     if (answer === undefined) {
+      // Nothing to roll on, so a wasted step draws nothing from the behaviour stream.
       history.push({ observation: shown, wasted: true });
     } else {
-      // 3. Plan. s2-10's behaviour dice go between the answer and the plan.
-      const { action, narration } = answer.response;
+      // 3. Plan: stage 7's dice on the action proposed, and what they leave is what is performed.
+      const { action: proposed, narration } = answer.response;
       if (narration !== "") loop.emit({ type: "narration", stepIndex: k, text: narration });
+      const { performed, dice } = behave(proposed, loop.profile.behaviour, loop.draw);
       loop.emit({
         type: "actionPlanned",
         stepIndex: k,
-        proposedAction: action,
-        performedAction: action,
-        dice: [],
+        proposedAction: proposed,
+        performedAction: performed,
+        dice,
         cost: answer.cost,
       });
+      // B3 before acting, so no late success is recorded: the step stays planned.
+      if (overBudget(loop)) return ranOut(loop, k, "budget");
       // 4. Act.
-      const arrival = await performAction(run, action, shown);
+      const arrival = await performAction(run, performed, shown);
       const met = await land(loop, k, arrival);
-      history.push({ observation: shown, proposed: action });
+      // The proposed action, not the performed one: the history tells what the Actor chose.
+      history.push({ observation: shown, proposed });
       // 5. The end checks, success first, so the last step the cap allows can still succeed.
       if (met) return "success";
-      if (action.type === "giveUp") return "gave_up";
+      // The performed one, which B2 will make a scroll in place of a giveUp (s2-07).
+      if (performed.type === "giveUp") return "gave_up";
     }
     // 6. The cap, wasted steps included, so the same seed and answers end a capped run the same.
-    if (k + 1 >= loop.maxSteps) return "budget_exceeded";
+    if (k + 1 >= loop.maxSteps) return ranOut(loop, k, "steps");
+    // B3 again, so a run of wasted steps ends on it too and no call is billed past it.
+    if (overBudget(loop)) return ranOut(loop, k, "budget");
   }
+}
+
+/** B3: whether more than the persona's `budgetSeconds` have passed since `runStarted`. */
+function overBudget(loop: Loop): boolean {
+  return loop.now() - loop.t0 > loop.profile.behaviour.budgetSeconds * 1000;
+}
+
+/**
+ * Ends the run `budget_exceeded` at step `k`. The record tells the cap from the clock only by
+ * its step count and last step against `durationMs` (`calibration.ts`'s `endOf`), so the log
+ * names the limit.
+ */
+function ranOut(loop: Loop, k: number, limit: "steps" | "budget"): "budget_exceeded" {
+  const elapsedMs = loop.now() - loop.t0;
+  loop.logger.info({ step: k, elapsedMs, limit }, "the run reached its limit");
+  return "budget_exceeded";
 }
 
 /**
@@ -347,7 +408,7 @@ async function ask(
   shown: Observation,
   history: readonly HistoryStep[],
 ): Promise<ActorAnswer | undefined> {
-  const turn = actorTurn(loop.task.goal, shown, history);
+  const turn = actorTurn(loop.task.goal, shown, history, loop.profile.behaviour.memorySteps);
   const first = await loop.answer(turn);
   const firstCheck = checkActionRef(first.response.action, shown);
   if (firstCheck.ok) return first;

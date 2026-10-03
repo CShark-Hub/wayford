@@ -147,3 +147,59 @@ test("steps read oldest first, each target looked up on the page that step was s
     "- On http://localhost:5174/account/address: you pointed at something that was not on that page, so nothing happened.",
   ]);
 });
+
+describe("memorySteps (M1)", () => {
+  const deliveries = shownPage("/deliveries", 2, [["link", "Order archive"]]);
+  const archive = shownPage("/deliveries/archive", 3, [["link", "Home"]]);
+  // Four steps whose later pages never revisit an earlier one, so a dropped step's URL or names
+  // could only reach the history through the count line.
+  const steps: HistoryStep[] = [
+    { observation: home, proposed: { type: "click", ref: "e1" } },
+    { observation: account, proposed: { type: "type", ref: "e2", text: "MB4 7QT" } },
+    { observation: deliveries, proposed: { type: "click", ref: "e1" } },
+    { observation: archive, proposed: { type: "scroll", direction: "down" } },
+  ];
+  const lines = [
+    '- On http://localhost:5174/: you clicked link "Your account".',
+    '- On http://localhost:5174/account: you typed "MB4 7QT" into textbox "Postcode".',
+    '- On http://localhost:5174/deliveries: you clicked link "Order archive".',
+    "- On http://localhost:5174/deliveries/archive: you scrolled down.",
+  ];
+
+  test("keeps the last memorySteps steps after one count line", () => {
+    expect(renderHistory(steps, 2).split("\n")).toStrictEqual([
+      "- 2 earlier steps not shown.",
+      ...lines.slice(2),
+    ]);
+  });
+
+  test("one dropped step reads 1 earlier step", () => {
+    expect(renderHistory(steps, 3).split("\n")).toStrictEqual([
+      "- 1 earlier step not shown.",
+      ...lines.slice(1),
+    ]);
+  });
+
+  test.each([
+    { label: "absent", memorySteps: undefined },
+    { label: "the step count", memorySteps: 4 },
+    { label: "over the step count", memorySteps: 5 },
+  ])("memorySteps $label keeps every step and no count line", ({ memorySteps }) => {
+    expect(renderHistory(steps, memorySteps).split("\n")).toStrictEqual(lines);
+  });
+
+  test("no step yet still reads Nothing yet.", () => {
+    expect(renderHistory([], 2)).toBe("Nothing yet.");
+  });
+
+  test("a wasted step is a step and counts toward the kept number", () => {
+    const withWasted = steps.with(2, { observation: deliveries, wasted: true });
+
+    // Had the wasted step not counted, the typing on /account would be kept too.
+    expect(renderHistory(withWasted, 2).split("\n")).toStrictEqual([
+      "- 2 earlier steps not shown.",
+      "- On http://localhost:5174/deliveries: you pointed at something that was not on that page, so nothing happened.",
+      lines[3],
+    ]);
+  });
+});

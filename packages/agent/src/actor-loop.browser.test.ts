@@ -1,8 +1,9 @@
 /**
  * `runActor` on the served target app, against the loop boxes of `tasks/s2-03-actor-loop.md`
- * (`docs/specs/2026-10-01-s2-03-actor-loop.md`, "Acceptance mapping"). The app is built and served
- * once, one Chromium serves every run, and each test writes its runs into a fresh temporary
- * directory.
+ * (`docs/specs/2026-10-01-s2-03-actor-loop.md`, "Acceptance mapping") and of
+ * `tasks/s2-10-memory-dice-budget.md` (its spec's "Acceptance mapping"). The app is built and
+ * served once, one Chromium serves every run, and each test writes its runs into a fresh
+ * temporary directory.
  *
  * No test reaches a model or a network: the Actor is `llmActor` on the fake adapter, and `fetch`
  * throws from the moment the app is up. The fake answers by element name, read from the turn it
@@ -18,11 +19,13 @@ import { join } from "node:path";
 import {
   type ActorResponse,
   type Bbox,
+  type CompleteRunStep,
   type Cost,
   type Profile,
   type RunEvent,
   RunResult,
   type RunStep,
+  rng,
   runResultFromEvents,
   type Task,
   toActorObservation,
@@ -40,7 +43,7 @@ import pino from "pino";
 import { type Browser, chromium } from "playwright";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import type { z } from "zod";
-import { actorTurn } from "./actor-backend.js";
+import { actorTurn, providerSeedFor } from "./actor-backend.js";
 import { runActor } from "./actor-loop.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
 import type { HistoryStep } from "./history.js";
@@ -182,8 +185,8 @@ interface Walked {
 }
 
 /**
- * One run on the served app at its defaults, the run seed 7 and a cap of 3 unless told otherwise,
- * the Actor answering from `answers` in order.
+ * One run on the served app at its defaults, the run seed 7, a cap of 3 and the wall clock unless
+ * told otherwise, the Actor answering from `answers` in order.
  */
 async function walk(scripted: {
   profile: Profile;
@@ -191,6 +194,7 @@ async function walk(scripted: {
   answers: readonly unknown[];
   seed?: number;
   maxSteps?: number;
+  now?: () => number;
 }): Promise<Walked> {
   const fake = fakeLlm({ actor: [...scripted.answers] });
   const events: RunEvent[] = [];
@@ -207,13 +211,23 @@ async function walk(scripted: {
       events.push(event);
     },
     maxSteps: scripted.maxSteps ?? 3,
+    ...(scripted.now === undefined ? {} : { now: scripted.now }),
   });
   // Whatever a test proves, every run returns the fold of the events it streamed.
   expect(result).toStrictEqual(runResultFromEvents(events));
+  // Every call, a retry's included, was sent the run seed's provider seed, and the record keeps
+  // it with the actor's temperature (A20). That seeds 1 and 2 differ is `actor-backend.test.ts`'s.
+  const providerSeed = providerSeedFor(scripted.seed ?? RUN_SEED);
+  for (const call of fake.calls) expect(call.seed).toBe(providerSeed);
+  expect(result.actorSampling).toStrictEqual({
+    temperature: settings.roles.actor.temperature,
+    providerSeed,
+  });
   // And the model was shown the filter's projection of each step and nothing else: each step's
   // first request, the one with no retry in it, is the one rebuilt from the stored evidence and
-  // the steps before it. The rebuild takes no profile, so text that depends on the persona fails
-  // here, for every persona with its own thresholds.
+  // the steps before it, as many of them as the persona remembers (M1). The rebuild takes no
+  // profile, so text that depends on the persona fails here, for every persona with its own
+  // thresholds.
   const firsts = fake.calls.filter((call) => call.messages.length === 2);
   expect(firsts.map((call) => call.messages)).toStrictEqual(
     result.steps
@@ -224,6 +238,7 @@ async function walk(scripted: {
             scripted.task.goal,
             toActorObservation(step.fullObservation),
             historyOf(result.steps.slice(0, i)),
+            scripted.profile.behaviour.memorySteps,
           ),
         ),
       ),
@@ -242,6 +257,15 @@ function kinds(result: RunResult): string[] {
 function stepAt(result: RunResult, i: number): RunStep {
   const step = result.steps[i];
   if (step === undefined) throw new Error(`run ${result.id} has no step ${i}`);
+  return step;
+}
+
+/** Step `i` of a run, failing the test unless its action landed. */
+function completeAt(result: RunResult, i: number): CompleteRunStep {
+  const step = stepAt(result, i);
+  if ("wasted" in step || "incomplete" in step) {
+    throw new Error(`step ${i} of run ${result.id} did not land an action`);
+  }
   return step;
 }
 
@@ -272,6 +296,11 @@ function perceptionRolls(result: RunResult) {
       ),
     ),
   );
+}
+
+/** Every step's behaviour rolls, in order: `undefined` for a step that planned no action. */
+function diceOf(result: RunResult) {
+  return result.steps.map((step) => ("dice" in step ? step.dice : undefined));
 }
 
 /** The history each step's turn renders, rebuilt from the stored steps before it. */
@@ -385,7 +414,8 @@ test("Ada reaches the easy goal in two actions, each request the projection and 
 test("Vera reads the same text on one run seed, and a changed profile seed changes no text and no roll (F5 AC1, A20)", async () => {
   const vera = profileFixture("prof_vera");
   const task = taskOf("task_past-order");
-  const answers = [click("link", "Deliveries"), GIVE_UP];
+  // Two clicks, so the second roll is the stream's second draw in every run.
+  const answers = [click("link", "Deliveries"), click("link", "Home"), GIVE_UP];
   // At once: runs on one browser share nothing but the browser.
   const [a, b, c] = await Promise.all([
     walk({ profile: vera, task, answers }),
@@ -393,11 +423,15 @@ test("Vera reads the same text on one run seed, and a changed profile seed chang
     walk({ profile: { ...vera, seed: vera.seed + 1 }, task, answers }),
   ]);
 
-  // The giveUp box too: each run gives up on /deliveries after the click.
+  // The giveUp box too: each run gives up back home, by way of /deliveries.
   for (const { result } of [a, b, c]) {
     expect(result.outcome).toBe("gave_up");
-    expect(kinds(result)).toStrictEqual(["complete", "complete"]);
-    expect(result.steps[1]?.urlBefore).toBe(`${app.origin}/deliveries`);
+    expect(kinds(result)).toStrictEqual(["complete", "complete", "complete"]);
+    expect(result.steps.map((step) => step.urlBefore)).toStrictEqual([
+      `${app.origin}/`,
+      `${app.origin}/deliveries`,
+      `${app.origin}/`,
+    ]);
   }
   expect(texts(b)).toStrictEqual(texts(a));
   expect(texts(c)).toStrictEqual(texts(a));
@@ -405,6 +439,67 @@ test("Vera reads the same text on one run seed, and a changed profile seed chang
   const rolls = perceptionRolls(a.result);
   expect(rolls.filter(({ rolled }) => rolled !== undefined).length).toBeGreaterThan(0);
   expect(perceptionRolls(c.result)).toStrictEqual(rolls);
+
+  // The behaviour dice draw the run seed's stream, never the profile seed's: B1 rolled on both
+  // clicks, the same in all three runs.
+  const dice = diceOf(a.result);
+  expect(dice.flat().filter((roll) => roll?.rule === "B1")).toHaveLength(2);
+  expect(diceOf(b.result)).toStrictEqual(dice);
+  expect(diceOf(c.result)).toStrictEqual(dice);
+  // And every call is sent the run seed's provider seed, the profile seed changed or not.
+  const seeds = a.calls.map((call) => call.seed);
+  expect(seeds).toStrictEqual(a.calls.map(() => providerSeedFor(RUN_SEED)));
+  expect(c.calls.map((call) => call.seed)).toStrictEqual(seeds);
+});
+
+test("B1 draws the behaviour stream in order, and a wasted step draws nothing", async () => {
+  // The run seed's first two draws, and a knob between them, so one click fires and one does not.
+  const draw = rng(RUN_SEED);
+  const [r1, r2] = [draw(), draw()];
+  const p = (r1 + r2) / 2;
+  expect(r1 < p).not.toBe(r2 < p);
+  const ada = profileFixture("prof_ada");
+  const clumsy: Profile = { ...ada, behaviour: { ...ada.behaviour, doubleClick: p } };
+
+  const { result } = await walk({
+    profile: clumsy,
+    task: taskOf("task_next-parcel"),
+    maxSteps: 5,
+    // A wasted step, then a click, a scroll and a click, none of them reaching the address.
+    answers: [
+      missing("e99"),
+      missing("e98"),
+      click("link", "Deliveries"),
+      SCROLL_DOWN,
+      click("link", "Order archive"),
+      GIVE_UP,
+    ],
+  });
+
+  expect(result.outcome).toBe("gave_up");
+  expect(kinds(result)).toStrictEqual(["wasted", "complete", "complete", "complete", "complete"]);
+  // The wasted step and the scroll draw nothing, so the two clicks take the first two draws.
+  expect(diceOf(result)).toStrictEqual([
+    undefined,
+    [{ rule: "B1", p, rolled: r1, fired: r1 < p }],
+    [],
+    [{ rule: "B1", p, rolled: r2, fired: r2 < p }],
+    [],
+  ]);
+  // A fired roll double-clicks what the Actor proposed to click; one that did not fire clicks it.
+  for (const [i, rolled] of [
+    [1, r1],
+    [3, r2],
+  ] as const) {
+    const { proposedAction, performedAction } = completeAt(result, i);
+    expect(proposedAction.type).toBe("click");
+    expect(performedAction).toStrictEqual(
+      rolled < p ? { ...proposedAction, type: "doubleClick" } : proposedAction,
+    );
+  }
+  // Double-clicked or not, the link went where it goes.
+  expect(urlAfter(result.steps[1])).toBe(`${app.origin}/deliveries`);
+  expect(urlAfter(result.steps[3])).toBe(`${app.origin}/deliveries/archive`);
 });
 
 /**
@@ -457,6 +552,52 @@ test("a clicked degraded link is remembered masked in the next step's history", 
   );
   expect(history).toContain(`link ${JSON.stringify(maskedName)}`);
   expect(history).not.toContain("Order archive");
+});
+
+test("Kai's prompt at step 4 holds steps 2 and 3 after a count line, Ada's every step", async () => {
+  const task = taskOf("task_past-order");
+  // The two steps Kai forgets are on / and /account, and the two he keeps neither revisit
+  // /account nor name its link.
+  const answers = [
+    click("link", "Your account"),
+    click("link", "Deliveries"),
+    click("link", "Home"),
+    SCROLL_DOWN,
+    GIVE_UP,
+  ];
+  const run = (id: string) => walk({ profile: profileFixture(id), task, maxSteps: 5, answers });
+  const [kai, ada] = await Promise.all([run("prof_kai"), run("prof_ada")]);
+  /** The history lines of the run's fifth request, step 4's. */
+  const historyAtStep4 = ({ calls }: Walked) =>
+    between(
+      calls[4]?.messages[1]?.content ?? "",
+      "What you have done so far:",
+      "The page you are on now:",
+    )
+      .trim()
+      .split("\n");
+
+  for (const { result, calls } of [kai, ada]) {
+    expect(result.outcome).toBe("gave_up");
+    expect(kinds(result)).toHaveLength(5);
+    expect(calls).toHaveLength(5);
+  }
+  // Kai's memorySteps is 2: one line counts what he forgot, and names none of it.
+  const kept = historyAtStep4(kai);
+  expect(kept).toStrictEqual([
+    "- 2 earlier steps not shown.",
+    `- On ${app.origin}/deliveries: you clicked link "Home".`,
+    `- On ${app.origin}/: you scrolled down.`,
+  ]);
+  expect(kept.join("\n")).not.toContain("Your account");
+  expect(kept.join("\n")).not.toContain("/account");
+  // Ada sets no memorySteps, so she keeps every step, with no count line.
+  expect(historyAtStep4(ada)).toStrictEqual([
+    `- On ${app.origin}/: you clicked link "Your account".`,
+    `- On ${app.origin}/account: you clicked link "Deliveries".`,
+    `- On ${app.origin}/deliveries: you clicked link "Home".`,
+    `- On ${app.origin}/: you scrolled down.`,
+  ]);
 });
 
 test("a hard 3.0 contrast cut never shows Order archive", async () => {
@@ -570,6 +711,66 @@ describe("the step cap (F5 AC5)", () => {
     expect(kinds(result)).toStrictEqual(["wasted", "wasted", "wasted"]);
     // One retry per step, and no more.
     expect(calls).toHaveLength(6);
+  });
+});
+
+describe("the budget ends a run on its clock (B3)", () => {
+  // Ada's budget is 120 s. The clock is a fake one that only an answer moves, 40 s each, so the
+  // third answer lands on the budget exactly, the fourth passes it, and the test waits for none
+  // of it.
+  const START = Date.parse("2026-10-03T12:00:00.000Z");
+
+  /** A fake clock at START, and answers that each move it 40 s on before they are given. */
+  function fakeClock() {
+    let ms = START;
+    const slow =
+      (answer: ActorResponse | ((request: Request) => ActorResponse)) =>
+      (request: Request): ActorResponse => {
+        ms += 40_000;
+        return typeof answer === "function" ? answer(request) : answer;
+      };
+    return { now: () => ms, slow };
+  }
+
+  test("an answer that comes past the budget is planned and never performed", async () => {
+    const { now, slow } = fakeClock();
+    const { result, events, calls } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 20,
+      now,
+      answers: Array.from({ length: 20 }, () => slow(click("link", "Home"))),
+    });
+
+    expect(result.outcome).toBe("budget_exceeded");
+    expect(calls).toHaveLength(4);
+    // Answered at 40 s, 80 s and exactly 120 s, still within it, so performed; answered at 160 s,
+    // past it, so planned and no more.
+    expect(kinds(result)).toStrictEqual(["complete", "complete", "complete", "incomplete"]);
+    expect(stepAt(result, 3)).toMatchObject({ proposedAction: { type: "click" } });
+    expect(stepAt(result, 3)).not.toHaveProperty("urlAfter");
+    expect(result.durationMs).toBe(160_000);
+    const planned = events.findIndex(
+      (event) => event.type === "actionPlanned" && event.stepIndex === 3,
+    );
+    expect(events.slice(planned + 1).map((event) => event.type)).toStrictEqual(["runFinished"]);
+  });
+
+  test("a run of wasted steps ends at the end of the step that passes it", async () => {
+    const { now, slow } = fakeClock();
+    const { result, calls } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 20,
+      now,
+      answers: Array.from({ length: 40 }, (_, i) => slow(missing(i % 2 === 0 ? "e99" : "e98"))),
+    });
+
+    // Two answers a step, 80 s: step 0 ends at 80 s, step 1 at 160 s, past the budget.
+    expect(result.outcome).toBe("budget_exceeded");
+    expect(kinds(result)).toStrictEqual(["wasted", "wasted"]);
+    expect(calls).toHaveLength(4);
+    expect(result.durationMs).toBe(160_000);
   });
 });
 
@@ -717,6 +918,8 @@ test("a pattern that can never match ends the run before a context is opened", a
 test.each([
   ["a maxSteps of 0", { maxSteps: 0 }],
   ["an empty runsDir", { runsDir: "" }],
+  // Checked before the provider seed is drawn from it.
+  ["a seed of -1", { seed: -1 }],
 ] as const)("%s rejects with invalid_run_input before any event", async (_name, override) => {
   const onEvent = vi.fn();
 

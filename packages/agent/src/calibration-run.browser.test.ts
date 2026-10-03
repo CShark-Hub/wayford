@@ -250,6 +250,7 @@ test("a fake adapter gives a fixed table", async () => {
     const backend = fakeBackend(run);
     return {
       modelId: backend.modelId,
+      sampling: backend.sampling,
       answer(turn) {
         peak = Math.max(peak, browser.contexts().length);
         return backend.answer(turn);
@@ -400,6 +401,7 @@ test("a run billed before it rejects counts in the spend, and stops new runs", a
     const backend = fakeBackend(run);
     return {
       modelId: backend.modelId,
+      sampling: backend.sampling,
       async answer(turn) {
         for (const name of await readdir(runsDir)) {
           await mkdir(join(runsDir, name, "result.json"), { recursive: true });
