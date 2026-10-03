@@ -8,7 +8,7 @@ A human picks it, points their agent at it, reviews the result, opens a PR.
 1. Pick an unowned task from `BOARD.md` whose dependencies are merged.
 2. Put your name next to it in `BOARD.md` and commit that change to `main` directly.
 3. Create a branch `feature/<task-id>-<slug>`, for example `feature/s1-03-knowledge-attention`.
-4. Start your agent with the task file as the first thing it reads. In Claude Code, `/start-task <id>` runs the whole flow for you: worktree, reviewed spec, plan, build, branch review (`.claude/skills/start-task/SKILL.md`). Other agents, suggested opening line:
+4. Start your agent with the task file as the first thing it reads. In Claude Code, `/start-task <id>` runs the whole flow for you: worktree, reviewed spec, plan, build, branch review (`.claude/skills/start-task/SKILL.md`). Without an id it offers the tasks you can take. In auto mode it approves the spec and plan itself and goes on to an open PR; in manual mode you approve both. Other agents, suggested opening line:
 
    ```
    Read AGENTS.md, docs/PLAN.md, docs/STACK.md, docs/CONVENTIONS.md and tasks/<id>.md. Do only what the task file says. Stop and report if the task file conflicts with the code you find.

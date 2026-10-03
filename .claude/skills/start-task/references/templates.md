@@ -10,7 +10,7 @@ Fill every section; write "none" where a section has nothing to say. Keep them a
 # <task-id> — <title>: spec
 
 Task: `tasks/<task file>.md` · Branch: `<branch>` · Date: <YYYY-MM-DD>
-Status: draft (becomes `approved <YYYY-MM-DD>` at gate 1)
+Status: draft (becomes `approved <YYYY-MM-DD>` at gate 1, `approved <YYYY-MM-DD> (auto)` when the agent approved it)
 
 ## Goal
 
@@ -57,7 +57,7 @@ What the spec review changed, and each finding rejected with its reason.
 # <task-id> — <title>: plan
 
 Spec: `docs/specs/<spec file>.md`
-Status: draft (becomes `approved <YYYY-MM-DD>` at gate 2)
+Status: draft (becomes `approved <YYYY-MM-DD>` at gate 2, `approved <YYYY-MM-DD> (auto)` when the agent approved it)
 
 | # | Step | Files | Serves box | Test first | Done when | Parallel with |
 |---|---|---|---|---|---|---|

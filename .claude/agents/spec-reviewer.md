@@ -1,6 +1,6 @@
 ---
 name: spec-reviewer
-description: Independent review of one task spec in docs/specs/ before the user approves it. Used by the start-task skill. Read-only; returns a verdict and findings.
+description: Independent review of one task spec in docs/specs/ before it is approved. Used by the start-task skill. Read-only; returns a verdict and findings.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: xhigh
