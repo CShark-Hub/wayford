@@ -18,7 +18,8 @@ import type { RunFn } from "./runner.js";
  * await one launch, and five first runs still launch one browser. A launch that rejects fails
  * every run waiting on it with `browser_launch_failed`, which the runner streams as each run's
  * `runFailed`, and the next run launches again. Nothing here closes the browser: Playwright's
- * default signal handlers do when the process gets SIGINT or SIGTERM.
+ * signal handlers close it on SIGINT, SIGTERM and SIGHUP, and its `exit` hook kills it when the
+ * process exits. Playwright exits only on SIGINT; `shutdown.ts` makes io exit on the other two.
  */
 export function sharedChromium(launch: () => Promise<Browser> = () => chromium.launch()): RunFn {
   // The launch in flight or done, cleared when its browser disconnects or it rejects. Only its own

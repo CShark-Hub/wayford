@@ -14,12 +14,16 @@ import { createApp } from "./app.js";
 import { sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
 import { migrateDatabase, openDatabase } from "./db/database.js";
+import { exitOnTermination } from "./shutdown.js";
 
 /**
  * The repository's `runs/`, found from this file, as `run:one` finds it: one folder for every
  * run's files, gitignored.
  */
 const RUNS_DIR = fileURLToPath(new URL("../../../runs/", import.meta.url));
+
+// Before the first run launches Chromium: Playwright's handlers keep a SIGTERM from ending io.
+exitOnTermination();
 
 const config = loadConfigFromEnvFile();
 const logger = pino({ level: config.LOG_LEVEL });
