@@ -66,7 +66,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 |---|---|---|---|---|---|
 | s2-03 | Actor loop: observe, act, record | M | s1-02, s2-01, s2-02 | Grzegorz | done |
 | s1-04 | Target app: three routes to the hard goal, and Kai | M | — | Grzegorz | done |
-| s3-03 | Ring: several personas on one task, live | M | s3-02 (s4-03 and s1-04 for the real-key box) | | todo |
+| s3-03 | Ring: several personas on one task, live | M | s3-02 (s4-03 and s1-04 for the real-key box) | Marcin | doing |
 | s3-04 | Dashboard and run detail | L | s3-02 (s4-03 for the `pnpm dev` box) | Tomasz | done |
 | s2-10 | Actor loop: memory, behaviour dice and budget | M | s2-03 | | todo |
 | s2-11 | Calibration run on the real model | S | s2-03, s1-04 | Grzegorz | review |
@@ -80,7 +80,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 
 **What can start after what.**
 
-- Ready now, every dependency merged: `s3-03`, `s2-10`, `s2-04`, `s3-05`. `s2-03`, `s1-04`, `s3-04` and `s4-03` are done; `s2-11` and `s1-03` (starting with #124) are taken.
+- Ready now, every dependency merged: `s2-10`, `s2-04`, `s3-05`. `s2-03`, `s1-04`, `s3-04` and `s4-03` are done; `s2-11`, `s1-03` (starting with #124) and `s3-03` are taken.
 - After `s2-03`: `s2-10`, `s2-04`, `s4-03`, and `s2-11` once `s1-04` is in too.
 - After `s1-04` and a fix for #124: `s1-03`.
 - After `s3-01`: `s3-05`.
