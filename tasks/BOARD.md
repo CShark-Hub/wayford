@@ -72,7 +72,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 | s2-11 | Calibration run on the real model | S | s2-03, s1-04 | Grzegorz | review |
 | s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Marcin | done |
 | s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | | todo |
-| s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | Dawid | doing |
+| s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | Dawid | review |
 | s3-05 | Live preview on the target app | S | s1-02, s2-02, s3-01 (s1-04 for the new pages) | | todo |
 | s2-06 | Jev Actor backend | L | s2-03, s2-05, s2-10, s2-11 | | todo |
 
@@ -82,7 +82,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 
 - Ready now, every dependency merged: `s2-10`, `s2-04`, `s3-05`. `s2-03`, `s1-04`, `s3-04` and `s4-03` are done; `s2-11`, `s1-03` (starting with #124) and `s3-03` are taken.
 - After `s2-03`: `s2-10`, `s2-04`, `s4-03`, and `s2-11` once `s1-04` is in too.
-- After `s1-04` and a fix for #124: `s1-03`.
+- After `s1-04` and a fix for #124: `s1-03`. The text-block half of #124 (PR #147, merged) is the fix it needs; #124 stays open for controls.
 - After `s3-01`: `s3-05`.
 - After `s2-11` and `s2-10`, with `s2-05` in: `s2-06`. It reads the backend seam after `s2-10` and relies on its B3. It is the last week 3 task to take.
 - After `s4-03`: the real-run boxes of `s3-03` and `s3-04`.
