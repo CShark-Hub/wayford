@@ -264,6 +264,27 @@ describe("llmActor", () => {
     expect(built.map(({ llm }) => llm.calls.length)).toStrictEqual([2, 1]);
   });
 
+  test("role picks the model and the role of every call: actor by default, scout for Scout", async () => {
+    const both = parseLlmSettings({
+      LLM_API_KEY: "test-key",
+      LLM_ACTOR_MODEL: "fake",
+      LLM_SCOUT_MODEL: "fake-scout",
+    });
+    const fake = fakeLlm({ actor: [CLICK], scout: [CLICK] });
+
+    const actor = llmActor({ settings: both, llm: () => fake })({ logger: quiet() });
+    const scout = llmActor({ settings: both, role: "scout", llm: () => fake })({
+      logger: quiet(),
+    });
+    await actor.answer(turn);
+    await scout.answer(turn);
+
+    expect([actor.modelId, scout.modelId]).toStrictEqual(["fake", "fake-scout"]);
+    // The prompt is the same; only the role, and so the model and its sampling, differ.
+    expect(fake.calls.map(({ role }) => role)).toStrictEqual(["actor", "scout"]);
+    expect(fake.calls[1]?.messages).toStrictEqual(actorMessages(turn));
+  });
+
   test("without an llm option it builds the adapter on the settings, so an unpriced model fails at the run's start", () => {
     // Built per run, not by llmActor itself.
     const factory = llmActor({ settings });

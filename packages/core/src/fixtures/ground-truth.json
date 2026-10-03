@@ -1,0 +1,72 @@
+{
+  "taskId": "task_past-order",
+  "modelId": "openai/gpt-6-luna",
+  "startUrl": "http://localhost:5174/?contrast=2&fontPx=16&targetPx=36",
+  "recordedAt": "2026-10-03T12:00:00.000Z",
+  "reached": true,
+  "attempts": [
+    {
+      "runId": "run_scout-hard-1",
+      "outcome": "success",
+      "path": {
+        "steps": [
+          {
+            "url": "http://localhost:5174/",
+            "action": "click",
+            "key": "banner/navigation:Main//link:Your account"
+          },
+          {
+            "url": "http://localhost:5174/account",
+            "action": "click",
+            "key": "main//button:More options"
+          },
+          {
+            "url": "http://localhost:5174/account",
+            "action": "click",
+            "key": "main//menuitem:Past orders"
+          }
+        ],
+        "reachedUrl": "http://localhost:5174/deliveries/archive"
+      }
+    },
+    {
+      "runId": "run_scout-hard-2",
+      "outcome": "success",
+      "path": {
+        "steps": [
+          {
+            "url": "http://localhost:5174/",
+            "action": "click",
+            "key": "banner/navigation:Main//link:Deliveries"
+          },
+          {
+            "url": "http://localhost:5174/deliveries",
+            "action": "click",
+            "key": "main//link:Order archive"
+          }
+        ],
+        "reachedUrl": "http://localhost:5174/deliveries/archive"
+      }
+    },
+    { "runId": "run_scout-hard-3", "outcome": "gave_up" }
+  ],
+  "shortest": {
+    "runId": "run_scout-hard-2",
+    "path": {
+      "steps": [
+        {
+          "url": "http://localhost:5174/",
+          "action": "click",
+          "key": "banner/navigation:Main//link:Deliveries"
+        },
+        {
+          "url": "http://localhost:5174/deliveries",
+          "action": "click",
+          "key": "main//link:Order archive"
+        }
+      ],
+      "reachedUrl": "http://localhost:5174/deliveries/archive"
+    }
+  },
+  "target": { "key": "main//link:Order archive", "page": "http://localhost:5174/deliveries" }
+}

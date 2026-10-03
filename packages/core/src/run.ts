@@ -48,9 +48,14 @@ export type LlmRole = z.infer<typeof LlmRole>;
  * Which model played the Actor in this run: the LLM's model id, or Jev's on a
  * Jev run (`docs/adr/0001-jev-actor-backend.md`). Keyed by role, like the model
  * config (`docs/PLAN.md`, "AI access"). The Actor is the only role that runs
- * inside a run: the Extractor runs once per task (`POST /tasks`), Scout once
- * per task by hand, and the Analyst once over a whole run set. Their model ids
- * belong on those records; a run that had to carry them would invent them.
+ * inside a run: the Extractor runs once per task (`POST /tasks`), and the
+ * Analyst once over a whole run set. Their model ids belong on those records; a
+ * run that had to carry them would invent them.
+ *
+ * A Scout attempt (`s2-04`) is a run too: Scout walks the task through the same
+ * loop, with its own full-vision profile, and plays the Actor's part. On such a
+ * run `actor` names Scout's model, which its `GroundTruth` records again as
+ * `modelId`.
  */
 export const ModelIds = z
   .object({

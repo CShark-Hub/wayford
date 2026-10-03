@@ -96,25 +96,33 @@ export function actorMessages(turn: ActorTurn): ChatMessage[] {
  * builds one `Llm` for that run, since the adapter fixes its logger per instance (`LlmDeps`). By
  * default that is `createLlm` on `settings`, which checks every role's price, so an unpriced model
  * fails before the run starts; `llm` replaces it in tests. The backend's `modelId` is the
- * configured Actor model, known before its first call.
+ * configured model of its role, known before its first call.
  *
- * Each answer is one `complete` on the `actor` role with `ActorResponse`; repairs and retries are
- * the adapter's own, and their cost is in the answer's. It sends no seed: s2-10 computes the
- * provider seed from the run seed. An `LlmError` propagates as it is, so the loop adds the cost it
- * carries and ends the run.
+ * `role` is `actor` unless Scout plays the part (`scout.ts`): the same prompt and loop, on Scout's
+ * model. `settings.roles[role]` is the one source of the model, the temperature and the effort.
+ *
+ * Each answer is one `complete` on that role with `ActorResponse`; repairs and retries are the
+ * adapter's own, and their cost is in the answer's. It sends no seed: s2-10 computes the provider
+ * seed from the run seed. An `LlmError` propagates as it is, so the loop adds the cost it carries
+ * and ends the run.
  */
 export function llmActor(options: {
   settings: LlmSettings;
+  role?: "actor" | "scout";
   llm?: (logger: Logger) => Llm;
 }): ActorBackendFactory {
-  const { settings, llm: buildLlm = (logger: Logger) => createLlm(settings, { logger }) } = options;
+  const {
+    settings,
+    role = "actor",
+    llm: buildLlm = (logger: Logger) => createLlm(settings, { logger }),
+  } = options;
   return ({ logger }) => {
     const llm = buildLlm(logger);
     return {
-      modelId: settings.roles.actor.model,
+      modelId: settings.roles[role].model,
       async answer(turn) {
         const completion = await llm.complete({
-          role: "actor",
+          role,
           messages: actorMessages(turn),
           schema: ActorResponse,
         });

@@ -14,6 +14,7 @@ import { parse } from "yaml";
 import type { ZodType } from "zod";
 import { Action } from "../action.js";
 import { Finding } from "../finding.js";
+import { GroundTruth } from "../ground-truth.js";
 import { MeasuredElement, PageMeasurement } from "../measurement.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
@@ -172,6 +173,15 @@ export function taskFixture(id: string): Task {
 
 /** One per member of `FINDING_TYPES`, in that order, all about the hard goal. */
 export const findingFixtures: Finding[] = readJson("findings.json", Finding.array());
+
+/**
+ * Scout on the hard goal (`s2-04`): three attempts, the first through route B
+ * (the "More options" menu on `/account`, three steps), the second through
+ * route A (the "Order archive" link on `/deliveries`, two steps), the third
+ * given up. Route A is the ground truth, and its last link is the target. The
+ * element keys are those `collect` gives on the target app.
+ */
+export const groundTruthFixture: GroundTruth = readJson("ground-truth.json", GroundTruth);
 
 /**
  * One recorded run of the persona with a 3:1 soft contrast threshold against

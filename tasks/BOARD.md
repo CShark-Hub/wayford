@@ -71,7 +71,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 | s2-10 | Actor loop: memory, behaviour dice and budget | M | s2-03 | Marcin | doing |
 | s2-11 | Calibration run on the real model | S | s2-03, s1-04 | Grzegorz | review |
 | s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Marcin | done |
-| s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | Tomasz | doing |
+| s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | Tomasz | review |
 | s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | Dawid | review |
 | s3-05 | Live preview on the target app | S | s1-02, s2-02, s3-01 (s1-04 for the new pages) | | todo |
 | s2-06 | Jev Actor backend | L | s2-03, s2-05, s2-10, s2-11 | | todo |

@@ -5,11 +5,13 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./fake": "./src/fake-llm.ts"
+    "./fake": "./src/fake-llm.ts",
+    "./scout": "./src/scout.ts"
   },
   "scripts": {
     "calibrate": "tsx src/calibrate.ts",
     "run:one": "tsx src/run-one.ts",
+    "scout": "tsx src/run-scout.ts",
     "smoke:jev": "tsx src/smoke-jev.ts",
     "smoke:llm": "tsx src/smoke-llm.ts",
     "smoke:run": "tsx src/smoke-run.ts",

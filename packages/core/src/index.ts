@@ -2,6 +2,7 @@
 export * from "./action.js";
 export * from "./error.js";
 export * from "./finding.js";
+export * from "./ground-truth.js";
 export * from "./id.js";
 export * from "./measurement.js";
 export * from "./observation.js";
