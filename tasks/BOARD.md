@@ -72,24 +72,24 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 | s2-11 | Calibration run on the real model | S | s2-03, s1-04 | Grzegorz | doing |
 | s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Marcin | done |
 | s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | | todo |
-| s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | | todo |
+| s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | Dawid | doing |
 | s3-05 | Live preview on the target app | S | s1-02, s2-02, s3-01 (s1-04 for the new pages) | | todo |
-| s2-06 | Jev Actor backend | L | s2-03, s2-05, s2-11 | | todo |
+| s2-06 | Jev Actor backend | L | s2-03, s2-05, s2-10, s2-11 | | todo |
 
 **No task is assigned to a person.** Whoever has time takes the next unowned task whose dependencies are merged, writes their name in Owner, and goes. The dependency map in `docs/ROADMAP.md` shows the same as a graph, with week 4's preliminary work.
 
 **What can start after what.**
 
-- Ready now, every dependency merged: `s2-03`, `s1-04`, `s3-03`, `s3-04`. They may start before Monday, and `s2-03` should: it is the start of the critical path.
+- Ready now, every dependency merged: `s3-03`, `s2-10`, `s2-04`, `s3-05`. `s2-03`, `s1-04`, `s3-04` and `s4-03` are done; `s2-11` and `s1-03` (starting with #124) are taken.
 - After `s2-03`: `s2-10`, `s2-04`, `s4-03`, and `s2-11` once `s1-04` is in too.
 - After `s1-04` and a fix for #124: `s1-03`.
 - After `s3-01`: `s3-05`.
-- After `s2-11`, with `s2-05` in: `s2-06`. It is the last week 3 task to take.
+- After `s2-11` and `s2-10`, with `s2-05` in: `s2-06`. It reads the backend seam after `s2-10` and relies on its B3. It is the last week 3 task to take.
 - After `s4-03`: the real-run boxes of `s3-03` and `s3-04`.
 
 Of the ready tasks, take the critical path first. `s2-03` → `s4-03` → the real runs in the ring is the week 3 meeting point, so `s2-03` goes first and is reviewed first. Next come `s2-11`, the go/no-go: if Ada cannot reach both goals on the real model, nothing built on the loop means anything yet. Then `s1-04`, since `s1-03`, `s2-11`, `s1-05` and the week 4 sweep all wait on it.
 
-`s3-03` and `s3-04` build against the routes `s4-03` describes, with stubbed responses, and wait for its merge only for their real-run checks. That keeps three L tasks from running in series.
+`s4-03` is merged, so `s3-03` builds against io's routes as they are (`packages/io/src/routes/runs.ts`, `routes/tasks.ts`), not against stubs, and reuses `s3-04`'s runs client and event stream in `packages/web/src/api/`. Its task file still describes the stubbed plan.
 
 Scout stays in the week: without ground truth a report cannot tell a broken feature from one a persona could not find (`AGENTS.md`, "Scout is mandatory"). `s2-06` is off the critical path: nothing waits on it, and its gate decides whether week 4 runs on Jev.
 
