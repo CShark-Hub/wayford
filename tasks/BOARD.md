@@ -68,7 +68,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 | s1-04 | Target app: three routes to the hard goal, and Kai | M | — | Grzegorz | done |
 | s3-03 | Ring: several personas on one task, live | M | s3-02 (s4-03 and s1-04 for the real-key box) | Marcin | review |
 | s3-04 | Dashboard and run detail | L | s3-02 (s4-03 for the `pnpm dev` box) | Tomasz | done |
-| s2-10 | Actor loop: memory, behaviour dice and budget | M | s2-03 | | todo |
+| s2-10 | Actor loop: memory, behaviour dice and budget | M | s2-03 | Marcin | doing |
 | s2-11 | Calibration run on the real model | S | s2-03, s1-04 | Grzegorz | review |
 | s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Marcin | done |
 | s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | Tomasz | doing |
