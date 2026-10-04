@@ -74,7 +74,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 | s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | Tomasz | done |
 | s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | Dawid | done |
 | s3-05 | Live preview on the target app | S | s1-02, s2-02, s3-01 (s1-04 for the new pages) | Tomasz | done |
-| s2-06 | Jev Actor backend | L | s2-03, s2-05, s2-10, s2-11 | Dawid | doing |
+| s2-06 | Jev Actor backend | L | s2-03, s2-05, s2-10, s2-11 | Dawid | review |
 
 **No task is assigned to a person.** Whoever has time takes the next unowned task whose dependencies are merged, writes their name in Owner, and goes. The dependency map in `docs/ROADMAP.md` shows the same as a graph, with week 4's preliminary work.
 
