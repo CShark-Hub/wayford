@@ -69,7 +69,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 | s3-03 | Ring: several personas on one task, live | M | s3-02 (s4-03 and s1-04 for the real-key box) | Marcin | review |
 | s3-04 | Dashboard and run detail | L | s3-02 (s4-03 for the `pnpm dev` box) | Tomasz | done |
 | s2-10 | Actor loop: memory, behaviour dice and budget | M | s2-03 | Marcin | done |
-| s2-11 | Calibration run on the real model | S | s2-03, s1-04 | Grzegorz | review |
+| s2-11 | Calibration run on the real model | S | s2-03, s1-04 | Grzegorz | done |
 | s4-03 | Runs API: start, stream, store, list | L | s2-03, s4-01, s4-02 | Marcin | done |
 | s2-04 | Scout: ground truth per task | S | s2-03 (s1-04 for the real-key box) | Tomasz | done |
 | s1-03 | Filter: knowledge and attention stages | L | s1-01, s1-02, s1-04, #124 | Dawid | done |
@@ -80,7 +80,7 @@ Widened on 2026-10-01 with `s1-04` and `s1-03`, so personas differ in what they 
 
 **What can start after what.**
 
-- Ready now, every dependency merged: none unowned. `s2-03`, `s1-04`, `s3-04`, `s4-03`, `s2-04`, `s1-03`, `s2-10` and `s3-05` are done; `s2-11` and `s3-03` are in review.
+- Ready now, every dependency merged: `s2-06`. `s2-03`, `s1-04`, `s3-04`, `s4-03`, `s2-04`, `s1-03`, `s2-10`, `s2-11` and `s3-05` are done; `s3-03` is in review.
 - After `s2-03`: `s2-10`, `s2-04`, `s4-03`, and `s2-11` once `s1-04` is in too.
 - After `s1-04` and a fix for #124: `s1-03`. The text-block half of #124 (PR #147, merged) is the fix it needs; #124 stays open for controls.
 - After `s3-01`: `s3-05`.
