@@ -92,7 +92,7 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 | s1-06 | Route-open share per persona and seed set | S | — | Marcin | doing |
 | s4-06 | axe-core sidecar | M | — | | todo |
 | s1-05 | Filter: vocabulary (K2) | M | — | Grzegorz | done |
-| s2-12 | io runs a run set on the chosen Actor backend | S | s2-06 | | todo |
+| s2-12 | io runs a run set on the chosen Actor backend | S | s2-06 | Dawid | doing |
 | s3-10 | Jev decisions in run detail | S | s2-06 | | todo |
 | s4-04 | Analyst and the report API | L | s1-06 (s4-06 for axe findings) | | todo |
 | s4-05 | Sweep: the boundary value on one capability axis | L | s1-06 (s2-12 for the Jev box) | | todo |
