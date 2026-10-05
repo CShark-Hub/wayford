@@ -117,7 +117,7 @@ Written already:
 
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
-| s1-05 | Filter: vocabulary (K2) | M | s1-03, s1-04 | | todo |
+| s1-05 | Filter: vocabulary (K2) | M | s1-03, s1-04 | Grzegorz | doing |
 | s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02 (after the design direction) | | todo |
 | s2-07 | B2: scroll when stuck | S | s2-10 | | todo |
 | s2-08 | B4: misclick on small targets | M | s2-10 | | todo |
