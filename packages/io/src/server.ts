@@ -3,13 +3,13 @@
  * backend, listen. Everything worth testing lives in `app.ts`, so this file does nothing on import
  * that a test would want. `pnpm dev` runs it under `tsx watch`.
  *
- * It is the only io module that loads agent's runtime and Playwright, through `llmActor`,
+ * It is the only io module that loads agent's runtime and Playwright, through `backendFactory`,
  * `chromium.ts` and `live-measure.ts` (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log,
  * "The barrel").
  */
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
-import { createLlm, llmActor, parseLlmSettings, TARGET_APP_DEFAULTS } from "@wayford/agent";
+import { backendFactory, createLlm, parseLlmSettings, TARGET_APP_DEFAULTS } from "@wayford/agent";
 import { targetAppJargon } from "@wayford/core/fixtures";
 import pino from "pino";
 import { createApp } from "./app.js";
@@ -36,6 +36,8 @@ const config = loadConfigFromEnvFile();
 const logger = pino({ level: config.LOG_LEVEL });
 // The root `.env` is already merged into `process.env` here, so its key is read too.
 const settings = parseLlmSettings(process.env);
+// Never the settings: they hold the key.
+logger.info({ actorBackend: settings.actorBackend }, "runs' Actor backend, from LLM_ACTOR_BACKEND");
 const llm = createLlm(settings, { logger });
 
 // Idempotent, so `pnpm dev` works on a fresh clone and on an up-to-date database alike.
@@ -52,8 +54,9 @@ const app = createApp({
   run: sharedChromium(browser),
   // The preview's live page (s3-05), at the app's defaults like the arena's runs.
   measure: liveMeasure({ browser, origin: TARGET_APP_ORIGIN }),
-  // One `Llm` per run, so each run's log lines carry its run id.
-  actor: llmActor({ settings }),
+  // The backend LLM_ACTOR_BACKEND names, as run:one and calibrate build it (#161). One `Llm` per
+  // run, so each run's log lines carry its run id.
+  actor: backendFactory(settings.actorBackend, settings),
   // The arena runs on the app's defaults (s3-03, Out of scope).
   params: TARGET_APP_DEFAULTS,
   // The target app's jargon list, so a run perceives what the preview shows (K2, s1-05).

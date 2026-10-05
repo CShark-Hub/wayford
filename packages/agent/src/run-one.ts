@@ -38,9 +38,9 @@ import {
 } from "@wayford/core/fixtures";
 import pino from "pino";
 import { runActor } from "./actor-loop.js";
+import { backendFactory } from "./backend-factory.js";
 import {
   BACKEND_USAGE,
-  backendFactory,
   launchChromium,
   loadRootEnv,
   parseSeed,

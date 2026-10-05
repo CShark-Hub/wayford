@@ -1,9 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import pino from "pino";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { backendFactory, ENV_FILE, parseSeed, RUNS_DIR, readBackend, scriptArgs } from "./cli.js";
-import { parseLlmSettings } from "./llm-settings.js";
+import { describe, expect, test } from "vitest";
+import { ENV_FILE, parseSeed, RUNS_DIR, readBackend, scriptArgs } from "./cli.js";
 
 describe("parseSeed", () => {
   test.each([
@@ -50,44 +48,6 @@ describe("readBackend", () => {
   // Only the exact names: a backend that is not one of ours is never guessed at.
   test.each(["", "JEV", "claude-code"])("%j is refused with the names it could be", (text) => {
     expect(readBackend(text)).toStrictEqual({ error: `--backend is llm or jev, got ${text}` });
-  });
-});
-
-describe("backendFactory", () => {
-  // The defaults: the ladder's model on every role, and Jev's pinned id. Both are priced, so the
-  // real adapter is built, and nothing it builds may reach the network.
-  const settings = parseLlmSettings({ LLM_API_KEY: "k" });
-  const run = { logger: pino({ level: "silent" }), providerSeed: 0, decisionDraw: () => 0.5 };
-  const network = vi.fn(() => {
-    throw new Error("a test reached the network");
-  });
-
-  beforeEach(() => {
-    network.mockClear();
-    vi.stubGlobal("fetch", network);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  test("jev builds Jev's backend: its pinned model, and no sampling, sending nothing", () => {
-    const backend = backendFactory("jev", settings)(run);
-
-    expect(backend.modelId).toBe("typesafe/jev-1.13");
-    expect(backend.sampling).toBeUndefined();
-    expect(network).not.toHaveBeenCalled();
-  });
-
-  test("llm builds the LLM backend: the actor role's model and sampling, sending nothing", () => {
-    const backend = backendFactory("llm", settings)(run);
-
-    expect(backend.modelId).toBe(settings.roles.actor.model);
-    expect(backend.sampling).toStrictEqual({
-      temperature: settings.roles.actor.temperature,
-      providerSeed: 0,
-    });
-    expect(network).not.toHaveBeenCalled();
   });
 });
 

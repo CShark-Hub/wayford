@@ -1,5 +1,6 @@
 export * from "./actor-backend.js";
 export * from "./actor-loop.js";
+export * from "./backend-factory.js";
 export * from "./device.js";
 export * from "./jev-actor.js";
 export * from "./llm.js";

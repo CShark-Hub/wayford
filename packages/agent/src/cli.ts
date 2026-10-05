@@ -1,23 +1,20 @@
 /**
  * The setup the by-hand commands share, held once (issue #153): the repository's `.env` and
  * `runs/`, the target app on the port core's task fixtures name, the Chromium launch, the seed
- * and argument reading, the factory of the Actor backend a command runs on, and the failure line. Each command
- * used to hold its own copy, and a new command would have copied it again
- * (`tasks/s2-11-calibration-run.md`, Outcome).
+ * and argument reading, and the failure line. Each command used to hold its own copy, and a new
+ * command would have copied it again (`tasks/s2-11-calibration-run.md`, Outcome). The Actor
+ * backend a command runs on is built by `backend-factory.ts`, which io shares (issue #161).
  *
- * Importing it loads no `.env`, serves nothing and launches nothing (the backends it names read
- * their prompt files), so a test can import it; a command calls what it needs. It is not in the
- * barrel: it serves the commands, not the package's users.
+ * Importing it loads no `.env`, serves nothing and launches nothing, so a test can import it; a
+ * command calls what it needs. It is not in the barrel: it serves the commands, not the
+ * package's users.
  */
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Seed, WayfordError } from "@wayford/core";
 import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
 import { type Browser, chromium } from "playwright";
-import type { ActorBackendFactory } from "./actor-backend.js";
-import { jevActor } from "./jev-actor.js";
-import { llmActor } from "./llm-actor.js";
-import { ActorBackendName, type LlmSettings } from "./llm-settings.js";
+import { ActorBackendName } from "./llm-settings.js";
 
 /**
  * The repository's `.env`, which holds the key. Found from this file, as io's `ENV_FILE` is,
@@ -97,20 +94,6 @@ export function readBackend(
   const parsed = ActorBackendName.safeParse(text);
   if (parsed.success) return { backend: parsed.data };
   return { error: `--backend is ${ActorBackendName.options.join(" or ")}, got ${text}` };
-}
-
-/**
- * The factory of the backend named, on `settings`. A run set uses one backend, and nothing falls
- * back to the other (ADR 0001 §1). The switch covers every name the settings know, so a new one
- * fails to compile here until it has a backend.
- */
-export function backendFactory(name: ActorBackendName, settings: LlmSettings): ActorBackendFactory {
-  switch (name) {
-    case "llm":
-      return llmActor({ settings });
-    case "jev":
-      return jevActor({ settings });
-  }
 }
 
 /**

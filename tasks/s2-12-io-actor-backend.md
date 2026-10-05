@@ -10,20 +10,22 @@ Depends on: s2-06
 Read first, in this order:
 
 - `docs/adr/0001-jev-actor-backend.md` — one backend per run set; the gate passed, so the sweep and `seed:demo` run on Jev
-- `packages/io/src/server.ts` — builds `llmActor` whatever `LLM_ACTOR_BACKEND` says (the follow-up named in PR #158)
+- `packages/io/src/server.ts` — builds the Actor from `LLM_ACTOR_BACKEND` through agent's `backendFactory` since #161
 - `packages/io/src/routes/runs.ts` — `RunsRequest`
 - `packages/io/src/runner.ts` — `RunnerOptions.actor`
-- `packages/agent/src/cli.ts` after s2-06 — `backendFactory`, `ActorBackendName`
+- `packages/agent/src/backend-factory.ts` — `backendFactory`; `ActorBackendName` in `llm-settings.ts`
 
 ## Goal
 
 `POST /runs` takes an optional `backend`, `llm` or `jev`, and every run of the set runs on it, so the sweep and `seed:demo` reach Jev through the same runner as the arena.
 
+#161 is fixed: io already follows `LLM_ACTOR_BACKEND` for every run. This task adds the optional per-request `backend` on top.
+
 ## Interface
 
 - In: `RunsRequest` with `backend?: "llm" | "jev"`
 - Out: the runner builds the Actor per run set from the named backend; without `backend`, io uses `LLM_ACTOR_BACKEND` (default `llm`)
-- Files expected to change: `packages/io/src/server.ts`, `runner.ts`, `routes/runs.ts`, their tests; `packages/agent/src/index.ts` if `backendFactory` has to move out of the CLI module to be importable
+- Files expected to change: `packages/io/src/server.ts`, `runner.ts`, `routes/runs.ts`, their tests
 
 ## Constraints
 

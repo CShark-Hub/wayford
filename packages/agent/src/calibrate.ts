@@ -31,6 +31,7 @@ import { parseArgs } from "node:util";
 import type { Seed } from "@wayford/core";
 import pino from "pino";
 import { DEFAULT_MAX_STEPS } from "./actor-loop.js";
+import { backendFactory } from "./backend-factory.js";
 import { calibrationSet, renderTable } from "./calibration.js";
 import {
   type CalibrationReport,
@@ -42,7 +43,6 @@ import {
 } from "./calibration-run.js";
 import {
   BACKEND_USAGE,
-  backendFactory,
   launchChromium,
   loadRootEnv,
   parseSeed,
