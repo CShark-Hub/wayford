@@ -95,7 +95,7 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 | s2-12 | io runs a run set on the chosen Actor backend | S | s2-06 | Dawid | review |
 | s3-10 | Jev decisions in run detail | S | s2-06 | | todo |
 | s4-04 | Analyst and the report API | L | s1-06 (s4-06 for axe findings) | | todo |
-| s4-05 | Sweep: the boundary value on one capability axis | L | s1-06 (s2-12 for the Jev box) | | todo |
+| s4-05 | Sweep: the boundary value on one capability axis | L | s1-06 (s2-12 for the Jev box) | Grzegorz | doing |
 | s3-11 | Design pass: the preview | M | s3-07 | | todo |
 | s3-12 | Design pass: the arena and run detail | M | s3-07, s3-03 | | todo |
 | s3-08 | Report screen | M | s4-04, s3-07 | | todo |
