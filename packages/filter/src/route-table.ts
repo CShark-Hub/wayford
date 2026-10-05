@@ -6,7 +6,7 @@
  * Pure: the page measurements come in, taken by `route-walk.ts` where a person reaches each step,
  * and `perceive` decides, with the options it is given: the target app's jargon list, so K2 is in
  * the table. `scripts/routes.ts` prints the tables, and `routes.browser.test.ts` holds them against
- * RULES.
+ * RULES. `routeOpenSeeds` reads the same closing rule over a run set's seeds, for `./routes`.
  *
  * A step's outcome is what the filter did to the step's element: shown, renamed (K1, K2, K4),
  * masked (the rules that degraded it) or cut (the rules that made it invisible: V2, P1, P3, P4, A1). When
@@ -18,6 +18,7 @@
  */
 import {
   type AriaRole,
+  type DeviceKind,
   decisionState,
   type ElementDecision,
   type ObservedElement,
@@ -28,6 +29,7 @@ import {
   type RuleId,
   type Seed,
   stageOf,
+  type TaskId,
   worstState,
 } from "@wayford/core";
 import { type PerceiveOptions, type PerceiveProfile, perceive } from "./perceive.js";
@@ -155,6 +157,25 @@ function describeOutcome(result: Pick<StepResult, "outcome" | "rules">): string 
     : `${result.outcome} (${result.rules.join(", ")})`;
 }
 
+/** Each step of the route in one seed, in route order. */
+function routeInSeed(
+  route: WalkedRoute,
+  profile: PerceiveProfile,
+  runSeed: Seed,
+  options: PerceiveOptions,
+): StepResult[] {
+  return route.steps.map((step) => stepResult(step, profile, runSeed, options));
+}
+
+/**
+ * Where a route closes in one seed: the index of its first cut step, or -1 when no step is cut and
+ * the route is open. The one place that decides it: the table's cells and `routeOpenSeeds` both
+ * read it.
+ */
+function closingStep(steps: readonly StepResult[]): number {
+  return steps.findIndex((result) => result.outcome === "cut");
+}
+
 /**
  * One route for one persona over `ROUTE_SEEDS`: every step's outcomes and ranks, and the route's
  * cell. `options` go to `perceive` as they are.
@@ -164,21 +185,20 @@ export function routeSummary(
   profile: PerceiveProfile,
   options: PerceiveOptions,
 ): RouteSummary {
-  // One column per step: its result in each seed, in seed order.
-  const columns = route.steps.map((step) =>
-    ROUTE_SEEDS.map((seed) => stepResult(step, profile, seed, options)),
-  );
+  // One row per seed: each step's result in it, in route order.
+  const rows = ROUTE_SEEDS.map((seed) => routeInSeed(route, profile, seed, options));
   // A seed closes the route at its first cut step, if it has one.
-  const closings = ROUTE_SEEDS.flatMap((_, i) => {
-    const index = columns.findIndex((column) => column[i]?.outcome === "cut");
-    const closing = columns[index]?.[i];
+  const closings = rows.flatMap((row) => {
+    const index = closingStep(row);
+    const closing = row[index];
     return closing === undefined ? [] : [{ place: stepPlace(route, index), rules: closing.rules }];
   });
   return {
     id: route.id,
     cell: routeCell(closings, ROUTE_SEEDS.length),
     steps: route.steps.map(({ measurement: _, ...step }, index) => {
-      const column = columns[index] ?? [];
+      // The step's result in each seed, in seed order.
+      const column = rows.flatMap((row) => row[index] ?? []);
       return {
         place: stepPlace(route, index),
         step,
@@ -187,6 +207,52 @@ export function routeSummary(
       };
     }),
   };
+}
+
+/** One seed of a run set, and the routes the filter left open in it. */
+export interface RouteOpenSeed {
+  seed: Seed;
+  /** The ids of the routes no step of which was cut, in walk order. Empty when every one closed. */
+  open: string[];
+}
+
+/**
+ * Per seed, in the order of `seeds`, the routes of `walked` the filter left open for `profile`. A
+ * route is open in a seed when no step of it is cut, the rule the table's cells follow. `walked` is
+ * the walk on the persona's device (`routesFor`). `options` go to `perceive` as they are: pass the
+ * jargon the runs were given, so the number is about the observations they got.
+ */
+export function routeOpenSeeds(
+  walked: readonly WalkedRoute[],
+  profile: PerceiveProfile,
+  seeds: readonly Seed[],
+  options: PerceiveOptions = {},
+): RouteOpenSeed[] {
+  return seeds.map((seed) => ({
+    seed,
+    open: walked
+      .filter((route) => closingStep(routeInSeed(route, profile, seed, options)) === -1)
+      .map((route) => route.id),
+  }));
+}
+
+/** The one task with a route table: the hard goal, the order archive the three routes lead to. */
+const HARD_GOAL_TASK_ID = "task_past-order";
+
+/**
+ * The walked routes to a task's goal on one device: the walk on `device` for the hard goal, and
+ * `undefined` for any other task, which has no route table. A screen shows `undefined` as "—",
+ * never as 0. Throws when the hard goal's routes were not walked on `device`.
+ */
+export function routesFor(
+  walks: ReadonlyMap<DeviceKind, readonly WalkedRoute[]>,
+  taskId: TaskId,
+  device: DeviceKind,
+): readonly WalkedRoute[] | undefined {
+  if (taskId !== HARD_GOAL_TASK_ID) return undefined;
+  const routes = walks.get(device);
+  if (routes === undefined) throw new Error(`the routes were not walked on ${device}`);
+  return routes;
 }
 
 /**

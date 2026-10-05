@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./perceive": "./src/perceive.ts",
+    "./routes": "./src/routes.ts",
     "./serve-target-app": "./src/serve-target-app.ts"
   },
   "scripts": {

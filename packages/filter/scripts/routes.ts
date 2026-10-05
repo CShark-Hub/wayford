@@ -11,7 +11,7 @@
  */
 import { profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import { ROUTE_SEEDS, routeSummary, type Tally, type WalkedStep } from "../src/route-table.js";
-import { walkRoutes } from "../src/route-walk.js";
+import { walkRoutes } from "../src/routes.js";
 
 const walks = await walkRoutes(profileFixtures.map((profile) => profile.device));
 const personas = profileFixtures.map((profile) => {

@@ -4,8 +4,8 @@
  * person reaches them, on each device a persona uses. No filter here: `route-table.ts` applies
  * `perceive` to what the walk measured.
  *
- * Node and Playwright, so nothing reached from `./perceive` imports it, and the package does not
- * export it: `scripts/routes.ts` and `routes.browser.test.ts` import it by path.
+ * Node and Playwright, so nothing reached from `./perceive` imports it. The package exports it
+ * from the Node-only `./routes` entry (`routes.ts`).
  *
  * Where a person reaches a step:
  * - a step on a page of its own is measured on that page as loaded, in a fresh context;

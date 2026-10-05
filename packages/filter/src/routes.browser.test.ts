@@ -1,25 +1,27 @@
 /**
  * The phone boxes of `tasks/s1-03-knowledge-attention.md` and its route table
- * (`docs/specs/2026-10-03-s1-03-knowledge-attention.md`, "Acceptance mapping"). The target app is
- * served once, by one walk of its routes on every persona's device, and every test reads the
- * measurements that walk took. The copy of target-app's routes the walk needs is checked against
- * its source here.
+ * (`docs/specs/2026-10-03-s1-03-knowledge-attention.md`, "Acceptance mapping"), and the
+ * `routeOpenSeeds` box of `tasks/s1-06-route-open-share.md`. The target app is served once, by one
+ * walk of its routes on every persona's device, and every test reads the measurements that walk
+ * took. The copy of target-app's routes the walk needs is checked against its source here.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { DeviceKind, PageMeasurement } from "@wayford/core";
-import { profileFixture, profileFixtures } from "@wayford/core/fixtures";
+import type { DeviceKind, PageMeasurement, Profile } from "@wayford/core";
+import { profileFixture, profileFixtures, taskFixture } from "@wayford/core/fixtures";
 import { beforeAll, expect, test } from "vitest";
 import { detectPattern, isHamburger, isKebab } from "./knowledge.js";
 import { perceive } from "./perceive.js";
-import { routeSummary, type WalkedRoute } from "./route-table.js";
-import { walkRoutes } from "./route-walk.js";
+import { routeSummary } from "./route-table.js";
+import { routeOpenSeeds, routesFor, type WalkedRoute, walkRoutes } from "./routes.js";
 import { TARGET_APP_ROUTES } from "./serve-target-app.js";
-import { actorText, WITH_JARGON, withKnowledge } from "./test-support.js";
+import { actorText, observed, seeds, WITH_JARGON, withKnowledge } from "./test-support.js";
 
 const RULES_MD = new URL("../../../docs/RULES.md", import.meta.url);
 const TOGGLE = "banner//button:Menu";
 const KEBAB = "main//button:More options";
+/** The hard link: route A's final link, on `/deliveries`. */
+const HARD_LINK = "main//link:Order archive";
 const RUN_SEED = 1;
 
 let walks: Map<DeviceKind, WalkedRoute[]>;
@@ -175,4 +177,58 @@ test("Kai's route C stays open: K2 renames its final link and cuts nothing", () 
     step: { page: "/settings/data", role: "link", name: "Fulfilment ledger" },
     outcomes: [{ value: "renamed (K2)", seeds: 100 }],
   });
+});
+
+const TEN_SEEDS = seeds(10);
+
+/** The persona with its contrast cut made hard, 3.0 with no softness (RULES, "Calibration"). */
+function withHardCut(profile: Profile): Profile {
+  const copy = structuredClone(profile);
+  if (copy.perception.contrast === undefined) {
+    throw new Error(`${profile.label} has no contrast threshold to cut`);
+  }
+  copy.perception.contrast.threshold = 3;
+  copy.perception.contrast.softness = 0;
+  return copy;
+}
+
+/** `routeOpenSeeds` over seeds 1 to 10, on the persona's own device. */
+const openInTen = (profile: Profile) =>
+  routeOpenSeeds(routesOn(profile.device), profile, TEN_SEEDS, WITH_JARGON);
+
+test.each([
+  ["Ada", ["A", "B", "C"], profileFixture("prof_ada")],
+  ["Kai", ["B", "C"], profileFixture("prof_kai")],
+  ["Vera with the hard cut", [], withHardCut(profileFixture("prof_vera"))],
+])("routeOpenSeeds on seeds 1 to 10: %s has %j open in every seed", (_, open, profile) => {
+  expect(openInTen(profile)).toStrictEqual(TEN_SEEDS.map((seed) => ({ seed, open })));
+});
+
+test("routeOpenSeeds on seeds 1 to 10: Vera has A alone open, in the seeds where the hard link is degraded", () => {
+  const vera = profileFixture("prof_vera");
+  const deliveries = asLoaded(vera.device, "/deliveries");
+  // Read off `perceive` alone, not through the route table.
+  const degraded = TEN_SEEDS.filter(
+    (seed) =>
+      observed(perceive(deliveries, vera, seed, WITH_JARGON), HARD_LINK).state === "degraded",
+  );
+  // Not vacuous: the roll gives both outcomes in these ten seeds.
+  expect(degraded.length).toBeGreaterThan(0);
+  expect(degraded.length).toBeLessThan(TEN_SEEDS.length);
+  expect(openInTen(vera)).toStrictEqual(
+    TEN_SEEDS.map((seed) => ({ seed, open: degraded.includes(seed) ? ["A"] : [] })),
+  );
+});
+
+test("routesFor gives the hard goal its walk on the device, and any other task undefined", () => {
+  // Ids from the fixtures, so a renamed task fails here instead of reading "—" in silence.
+  const hard = taskFixture("task_past-order");
+  const easy = taskFixture("task_next-parcel");
+  expect(routesFor(walks, hard.id, "mobile")).toBe(routesOn("mobile"));
+  // The easy goal has no route table: undefined, which a screen shows as "—", never as 0.
+  expect(routesFor(walks, easy.id, "desktop")).toBeUndefined();
+  // The hard goal on a device the caller did not walk is the caller's bug.
+  expect(() => routesFor(new Map(), hard.id, "desktop")).toThrow(
+    "the routes were not walked on desktop",
+  );
 });
