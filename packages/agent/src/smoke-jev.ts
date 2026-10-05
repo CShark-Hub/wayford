@@ -10,16 +10,12 @@
  * It needs a real key in the root `.env`, and the call is billed, at a few hundred input tokens.
  * Like `smoke-llm.ts`, it reads the environment; everything else is handed its settings.
  */
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { renderObservationForModel, toActorObservation, WayfordError } from "@wayford/core";
+import { renderObservationForModel, toActorObservation } from "@wayford/core";
 import { observationFixture } from "@wayford/core/fixtures";
 import pino from "pino";
+import { loadRootEnv, printFailure } from "./cli.js";
 import { createLlm } from "./llm.js";
 import { parseLlmSettings } from "./llm-settings.js";
-
-// Found from this file, as io's `ENV_FILE` is, because pnpm starts the script in packages/agent.
-const ENV_FILE = fileURLToPath(new URL("../../../.env", import.meta.url));
 
 // The hard goal sentence of the target app, already free of path words (`tasks/m0-06-target-app.md`).
 const GOAL = "you want to see what you ordered three months ago";
@@ -28,8 +24,7 @@ const INSTRUCTIONS =
   "You are the person using this web page, trying to reach the goal above. Which one action do you take next?";
 
 try {
-  // Node's loader skips a variable the environment already holds, so a real one wins.
-  if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
+  loadRootEnv();
   const settings = parseLlmSettings(process.env);
   // No pid or hostname in the lines: the output is pasted into a PR.
   const llm = createLlm(settings, { logger: pino({ base: null }) });
@@ -63,9 +58,6 @@ try {
     `cost: ${cost.tokensIn} in, ${cost.tokensOut} out, ${cost.usd.toFixed(8)} USD (${model}, ${ms} ms)`,
   );
 } catch (error) {
-  // `LlmError` is a `WayfordError`, so one check covers both. Never the settings: they hold the key.
-  // Anything else is a bug, printed whole with its stack.
-  if (error instanceof WayfordError) console.error(`${error.code}: ${error.message}`);
-  else console.error(error);
+  printFailure(error);
   process.exitCode = 1;
 }

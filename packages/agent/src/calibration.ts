@@ -11,7 +11,7 @@
 import { Profile, type RunId, type RunResult, type Seed, type Task } from "@wayford/core";
 import { profileFixture, taskFixture } from "@wayford/core/fixtures";
 import { TARGET_APP_ROUTES, type TargetAppRoute } from "@wayford/filter/serve-target-app";
-import type { RoleSettings } from "./llm-settings.js";
+import type { ActorBackendName, RoleSettings } from "./llm-settings.js";
 import { costOf, type ModelPrice } from "./models.js";
 
 /** The easy goal: the delivery address, two clicks from home. */
@@ -232,9 +232,9 @@ export function estimateUsd(price: ModelPrice, runs: number, maxSteps: number): 
 
 /** What the table was run on, printed above it. */
 export interface ReportHeader {
-  backendId: "llm";
+  backendId: ActorBackendName;
   model: string;
-  /** Absent: the endpoint's own default. */
+  /** Absent: the endpoint's own default. Always absent on Jev, which takes no effort. */
   effort: RoleSettings["effort"];
   concurrency: number;
   seeds: readonly Seed[];
@@ -297,10 +297,12 @@ export function renderTable(summaries: readonly RowSummary[], header: ReportHead
       )
       .join("  ")
       .trimEnd();
+  // Jev takes no effort, so "default" would read as the endpoint's own.
+  const effort = header.backendId === "jev" ? "n/a" : (header.effort ?? "default");
   return [
     `backend      ${header.backendId}`,
     `model        ${header.model}`,
-    `effort       ${header.effort ?? "default"}`,
+    `effort       ${effort}`,
     `concurrency  ${header.concurrency}`,
     `seeds        ${seedList(header.seeds)}`,
     `max steps    ${header.maxSteps}`,

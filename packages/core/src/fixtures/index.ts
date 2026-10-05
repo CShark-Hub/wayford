@@ -18,7 +18,7 @@ import { GroundTruth } from "../ground-truth.js";
 import { MeasuredElement, PageMeasurement } from "../measurement.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
-import { RunEvent, RunResult } from "../run.js";
+import { DecisionRecord, RunEvent, RunResult } from "../run.js";
 import { Task } from "../task.js";
 
 /** Directory holding the persona YAML files. */
@@ -198,3 +198,16 @@ export const runResultFixture: RunResult = readJson("run-result.json", RunResult
  * to `runResultFixture`; that equality is the ring-and-dashboard contract.
  */
 export const runEventFixtures: RunEvent[] = readJson("run-events.json", RunEvent.array());
+
+/**
+ * Jev's decision (`s2-06`) for the `/deliveries` page of `observationFixture` as the Actor saw
+ * it: ten options, one click per shown element in ref order, the degraded archive link under its
+ * masked name `Ar▒▒ive`, then scroll down, scroll up, back and give up. No hidden element is
+ * offered. The probabilities are rounded to two decimals, as Jev sends them, so they sum to 0.99,
+ * and the rolled value 0.4 scales to 0.396 of the running sums, which lands on Deliveries (`e3`).
+ * Agent's option builder is tested against these options, so the two cannot drift.
+ */
+export const decisionRecordFixture: DecisionRecord = readJson(
+  "decision-record.json",
+  DecisionRecord,
+);

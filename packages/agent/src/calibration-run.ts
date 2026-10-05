@@ -29,7 +29,7 @@ import {
   routeOf,
   summarise,
 } from "./calibration.js";
-import type { RoleSettings } from "./llm-settings.js";
+import type { ActorBackendName, RoleSettings } from "./llm-settings.js";
 import type { ModelPrice } from "./models.js";
 import { TARGET_APP_DEFAULTS } from "./start-url.js";
 
@@ -46,11 +46,16 @@ export interface CalibrateOptions {
   seeds: Seed[];
   /** The estimate must not exceed it, and no new run starts once the spend reaches it. */
   maxUsd: number;
-  /** The CLI passes `llmActor({ settings })`. */
+  /** The CLI passes `backendFactory(name, settings)`. */
   backend: ActorBackendFactory;
-  /** The Actor's model and effort, recorded in the report. The CLI passes `settings.roles.actor`. */
+  /** The name of the backend `backend` builds, recorded in the report. */
+  backendId: ActorBackendName;
+  /**
+   * The Actor's model and effort, recorded in the report. The CLI passes `settings.roles.actor`
+   * for the LLM, and `{ model: settings.jevModel }` for Jev, which takes no effort.
+   */
   actor: Pick<RoleSettings, "model" | "effort">;
-  /** The Actor model's price, for the estimate. */
+  /** The price of the model `actor` names, for the estimate. */
   price: ModelPrice;
   /** The caller's: `calibrate` never launches or closes it. */
   browser: Browser;
@@ -221,8 +226,7 @@ export async function calibrate(options: CalibrateOptions): Promise<CalibrationR
   return {
     startedAt,
     header: {
-      // The one backend until s2-06 adds the option, with "jev".
-      backendId: "llm",
+      backendId: options.backendId,
       model: options.actor.model,
       effort: options.actor.effort,
       concurrency,

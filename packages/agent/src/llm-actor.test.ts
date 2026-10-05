@@ -32,9 +32,19 @@ const CLICK: ActorResponse = {
 /** A run's provider seed. Any 31-bit integer: the backend sends what the run hands it. */
 const PROVIDER_SEED = 1_234_567;
 
+/** A run's decision stream, which only a backend that draws its action reads: this one never. */
+const DECISION_DRAW = (): number => {
+  throw new Error("the LLM backend drew from the decision stream");
+};
+
 /** A run's logger that writes nothing. */
 function quiet(): Logger {
   return pino({ level: "silent" });
+}
+
+/** What `runActor` hands a backend factory for one run, on `logger`. */
+function run(logger: Logger = quiet()) {
+  return { logger, providerSeed: PROVIDER_SEED, decisionDraw: DECISION_DRAW };
 }
 
 describe("actorMessages", () => {
@@ -237,10 +247,7 @@ describe("llmActor", () => {
       ...fake,
       complete: async (request) => ({ ...(await fake.complete(request)), cost: COST }),
     };
-    const backend = llmActor({ settings, llm: () => billed })({
-      logger: quiet(),
-      providerSeed: PROVIDER_SEED,
-    });
+    const backend = llmActor({ settings, llm: () => billed })(run());
 
     const answer = await backend.answer(turn);
 
@@ -252,10 +259,7 @@ describe("llmActor", () => {
 
   test("every answer of a run sends the run's provider seed, a retry's included", async () => {
     const fake = fakeLlm({ actor: [CLICK, CLICK] });
-    const backend = llmActor({ settings, llm: () => fake })({
-      logger: quiet(),
-      providerSeed: PROVIDER_SEED,
-    });
+    const backend = llmActor({ settings, llm: () => fake })(run());
     // The page shows e1 to e6.
     const refused: ActorResponse = {
       narration: "The ninth link, then.",
@@ -276,10 +280,7 @@ describe("llmActor", () => {
     });
     const fake = fakeLlm({});
 
-    const backend = llmActor({ settings: cool, llm: () => fake })({
-      logger: quiet(),
-      providerSeed: PROVIDER_SEED,
-    });
+    const backend = llmActor({ settings: cool, llm: () => fake })(run());
 
     expect(backend.sampling).toStrictEqual({ temperature: 0.3, providerSeed: PROVIDER_SEED });
     expect(fake.calls).toHaveLength(0);
@@ -298,8 +299,8 @@ describe("llmActor", () => {
     const first = quiet();
     const second = quiet();
 
-    const firstRun = factory({ logger: first, providerSeed: PROVIDER_SEED });
-    const secondRun = factory({ logger: second, providerSeed: PROVIDER_SEED });
+    const firstRun = factory(run(first));
+    const secondRun = factory(run(second));
     await firstRun.answer(turn);
     await firstRun.answer(turn);
     await secondRun.answer(turn);
@@ -319,9 +320,8 @@ describe("llmActor", () => {
     });
     const fake = fakeLlm({ actor: [CLICK], scout: [CLICK] });
 
-    const run = { logger: quiet(), providerSeed: PROVIDER_SEED };
-    const actor = llmActor({ settings: both, llm: () => fake })(run);
-    const scout = llmActor({ settings: both, role: "scout", llm: () => fake })(run);
+    const actor = llmActor({ settings: both, llm: () => fake })(run());
+    const scout = llmActor({ settings: both, role: "scout", llm: () => fake })(run());
     await actor.answer(turn);
     await scout.answer(turn);
 
@@ -341,7 +341,7 @@ describe("llmActor", () => {
 
     let thrown: unknown;
     try {
-      factory({ logger: quiet(), providerSeed: PROVIDER_SEED });
+      factory(run());
     } catch (error) {
       thrown = error;
     }

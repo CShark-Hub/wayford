@@ -6,20 +6,15 @@
  * It needs a real key in the root `.env`, and both calls are billed. Like the other entry scripts,
  * `run-one.ts` among them, it reads the environment; the adapter itself is handed its settings.
  */
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { ActorResponse, type LlmRole, WayfordError } from "@wayford/core";
+import { ActorResponse, type LlmRole } from "@wayford/core";
 import pino from "pino";
 import { z } from "zod";
+import { loadRootEnv, printFailure } from "./cli.js";
 import { type ChatMessage, createLlm } from "./llm.js";
 import { parseLlmSettings } from "./llm-settings.js";
 
-// Found from this file, as io's `ENV_FILE` is, because pnpm starts the script in packages/agent.
-const ENV_FILE = fileURLToPath(new URL("../../../.env", import.meta.url));
-
 try {
-  // Node's loader skips a variable the environment already holds, so a real one wins.
-  if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
+  loadRootEnv();
   const settings = parseLlmSettings(process.env);
   // No pid or hostname in the lines: the output is pasted into a PR.
   const llm = createLlm(settings, { logger: pino({ base: null }) });
@@ -56,9 +51,6 @@ try {
     },
   ]);
 } catch (error) {
-  // `LlmError` is a `WayfordError`, so one check covers both. Never the settings: they hold the key.
-  // Anything else is a bug, printed whole with its stack.
-  if (error instanceof WayfordError) console.error(`${error.code}: ${error.message}`);
-  else console.error(error);
+  printFailure(error);
   process.exitCode = 1;
 }

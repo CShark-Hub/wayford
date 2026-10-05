@@ -16,6 +16,11 @@
  * its rolls. The history the Actor reads holds only as many steps as the persona remembers (M1,
  * `history.ts`), every model call of a run is sent one provider seed (`providerSeedFor`), and the
  * persona's wall-clock budget (B3) ends a run `budget_exceeded`, read from a clock a test can move.
+ *
+ * The loop derives all three per-run streams from the seed, here and nowhere else: the behaviour
+ * stream, the provider seed, and the decision stream (`decisionDrawFor`), from which a backend that
+ * draws its action (Jev, s2-06) takes its rolled values. A backend never sees the run seed, and the
+ * record keeps how such a backend chose beside the dice, on `actionPlanned`.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
@@ -49,6 +54,7 @@ import {
   type ActorBackend,
   type ActorBackendFactory,
   actorTurn,
+  decisionDrawFor,
   providerSeedFor,
 } from "./actor-backend.js";
 import { behave } from "./behaviour.js";
@@ -72,16 +78,16 @@ export interface RunActorOptions {
   profile: Profile;
   task: Task;
   /**
-   * The run seed, which drives every perception decision, every behaviour roll and the provider
-   * seed (`docs/PLAN.md` A20).
+   * The run seed, which drives every perception decision, every behaviour roll, the provider
+   * seed (`docs/PLAN.md` A20) and the decision stream (ADR 0001 §3).
    */
   seed: Seed;
   params: TargetAppParams;
   /** The run's files go under `<runsDir>/<runId>/`. */
   runsDir: string;
   /**
-   * Called once per run, with the run's logger, so the backend's lines carry the run id, and the
-   * run's provider seed.
+   * Called once per run, with the run's logger, so the backend's lines carry the run id, the
+   * run's provider seed and the run's decision stream.
    */
   backend: ActorBackendFactory;
   /** The run logs on `logger.child({ runId })`. */
@@ -142,7 +148,8 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   if (!Number.isInteger(maxSteps) || maxSteps < 1) {
     throw invalidInput(`maxSteps must be a positive integer, got ${maxSteps}`);
   }
-  // Here, not only in `runStarted`'s schema: the provider seed is drawn from it before that.
+  // Here, not only in `runStarted`'s schema: the provider seed and the decision stream are drawn
+  // from it before that.
   if (!Seed.safeParse(seed).success) {
     throw invalidInput(`the seed must be an integer from 0 to 4294967295, got ${seed}`);
   }
@@ -152,7 +159,11 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   const startUrl = startUrlFor(task, params);
   const runId = options.runId ?? newId("run");
   const logger = options.logger.child({ runId });
-  const backend = options.backend({ logger, providerSeed: providerSeedFor(seed) });
+  const backend = options.backend({
+    logger,
+    providerSeed: providerSeedFor(seed),
+    decisionDraw: decisionDrawFor(seed),
+  });
   const now = options.now ?? Date.now;
   const t0 = now();
   const started = RunEvent.safeParse({
@@ -327,6 +338,7 @@ async function walk(loop: Loop): Promise<FinishedOutcome> {
       const { action: proposed, narration } = answer.response;
       if (narration !== "") loop.emit({ type: "narration", stepIndex: k, text: narration });
       const { performed, dice } = behave(proposed, loop.profile.behaviour, loop.draw);
+      // A backend that drew the action says how, and the record keeps it beside the dice.
       loop.emit({
         type: "actionPlanned",
         stepIndex: k,
@@ -334,6 +346,7 @@ async function walk(loop: Loop): Promise<FinishedOutcome> {
         performedAction: performed,
         dice,
         cost: answer.cost,
+        ...(answer.decision === undefined ? {} : { decision: answer.decision }),
       });
       // B3 before acting, so no late success is recorded: the step stays planned.
       if (overBudget(loop)) return ranOut(loop, k, "budget");
@@ -423,7 +436,8 @@ async function ask(
       { step: k, refused: first.response, ref: firstCheck.ref },
       "the Actor named a ref the page lacks; its retry was accepted",
     );
-    return { response: second.response, cost };
+    // The accepted answer whole, so a decision it carries is not dropped on the way.
+    return { ...second, cost };
   }
   loop.emit({
     type: "stepWasted",

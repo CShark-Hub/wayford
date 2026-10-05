@@ -60,8 +60,8 @@ export function sharedChromium(browser: SharedBrowser): RunFn {
 }
 
 /**
- * Worded as `run-one.ts` words it, since the runner streams the message to the client: what to
- * do. Why is in `cause`, which the runner's log keeps whole.
+ * Worded as agent's `launchChromium` (`cli.ts`) words it, since the runner streams the message to
+ * the client: what to do. Why is in `cause`, which the runner's log keeps whole.
  */
 function notLaunched(error: unknown): WayfordError {
   return new WayfordError(

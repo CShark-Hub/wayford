@@ -11,10 +11,9 @@
  * which no page of the app reaches. Every answer bills a fixed `COST`, so costs can be counted.
  */
 import { mkdirSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type ActorResponse,
@@ -24,7 +23,6 @@ import {
   type Profile,
   type RunEvent,
   RunResult,
-  type RunStep,
   rng,
   runResultFromEvents,
   type Task,
@@ -38,83 +36,47 @@ import {
   taskFixture,
 } from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter";
-import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
 import pino from "pino";
-import { type Browser, chromium } from "playwright";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
-import type { z } from "zod";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { actorTurn, providerSeedFor } from "./actor-backend.js";
 import { runActor } from "./actor-loop.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
-import type { HistoryStep } from "./history.js";
-import { type CompleteRequest, type Llm, LlmError } from "./llm.js";
+import { LlmError } from "./llm.js";
 import { actorMessages, llmActor } from "./llm-actor.js";
-import { parseLlmSettings } from "./llm-settings.js";
 import { TARGET_APP_DEFAULTS } from "./start-url.js";
+import {
+  app,
+  billed,
+  browser,
+  COST,
+  click,
+  diceOf,
+  GIVE_UP,
+  historyOf,
+  kinds,
+  pageLine,
+  quiet,
+  type Request,
+  RUN_SEED,
+  runsDir,
+  settings,
+  stepAt,
+  taskOf,
+  texts,
+  urlAfter,
+  useServedApp,
+} from "./test-support.js";
 
-// Building the app and launching Chromium take longer than vitest's 5 s hook default, and a run
-// records, encodes and saves a video.
-vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
-
-const RUN_SEED = 7;
-
-// Not zero, so a step's cost is seen to be its own calls'. The dollars are a power of two, so
-// sums of them are exact.
-const COST: Cost = { tokensIn: 1000, tokensOut: 100, usd: 0.125 };
+useServedApp();
 
 /** What `n` answers cost. */
 function costOf(n: number): Cost {
   return { tokensIn: n * COST.tokensIn, tokensOut: n * COST.tokensOut, usd: n * COST.usd };
 }
 
-// "fake" has no price in models.yaml, so no run here can build the real adapter by mistake.
-const settings = parseLlmSettings({ LLM_API_KEY: "test-key", LLM_ACTOR_MODEL: "fake" });
-
-const quiet = pino({ level: "silent" });
-
-let app: TargetApp;
-let browser: Browser;
-let runsDir: string;
-
-beforeAll(async () => {
-  browser = await chromium.launch().catch((error: unknown) => {
-    throw new Error(
-      "Chromium did not launch. If it is not installed, run " +
-        "`pnpm --filter @wayford/agent exec playwright install --only-shell chromium`.",
-      { cause: error },
-    );
-  });
-  app = await serveTargetApp();
-  // The box "passes with a scripted fake adapter and no network": from here on a run that reached
-  // for a network would fail.
-  vi.stubGlobal("fetch", () => {
-    throw new Error("a test reached for the network");
-  });
-});
-
-afterAll(async () => {
-  vi.unstubAllGlobals();
-  await browser?.close();
-  await app?.close();
-});
-
-beforeEach(async () => {
-  runsDir = await mkdtemp(join(tmpdir(), "wayford-runs-"));
-});
-
-afterEach(async () => {
-  // A test that failed half way can leave a context open, and its video would hold the directory.
-  await Promise.all(browser.contexts().map((context) => context.close()));
-  await rm(runsDir, { recursive: true, force: true, maxRetries: 3 });
-});
-
 // ---------------------------------------------------------------------------
 // Scripted answers
 // ---------------------------------------------------------------------------
-
-type Request = CompleteRequest<z.ZodObject>;
-
-const GIVE_UP: ActorResponse = { narration: "I cannot find it here.", action: { type: "giveUp" } };
 
 const SCROLL_DOWN: ActorResponse = {
   narration: "Maybe it is further down.",
@@ -129,51 +91,9 @@ function missing(ref: "e99" | "e98"): ActorResponse {
   return { narration: `The ${ref} one.`, action: { type: "click", ref } };
 }
 
-/** A page line of the observation text, such as `[e3] link "Deliveries" at 410,25`. */
-const PAGE_LINE = /^\[(e[1-9][0-9]*)\] (.*)$/;
-
-/**
- * The first page line that names `<role> "<name>"`, and its ref, read from the turn message the
- * request carries (`messages[1]`, there on a retry too). History lines start with "- On", so only
- * the page is searched. Throws when the persona was not shown such an element.
- */
-function pageLine(request: Request, role: string, name: string): { ref: string; line: string } {
-  const turn = request.messages[1]?.content ?? "";
-  const named = `${role} ${JSON.stringify(name)} at `;
-  for (const line of turn.split("\n")) {
-    const match = PAGE_LINE.exec(line);
-    if (match?.[1] !== undefined && match[2]?.startsWith(named)) return { ref: match[1], line };
-  }
-  throw new Error(`the persona was not shown a ${role} named ${JSON.stringify(name)}`);
-}
-
-/** An answer that clicks the first `<role> "<name>"` of the page it is shown. */
-function click(role: string, name: string): (request: Request) => ActorResponse {
-  return (request) => ({
-    narration: `${name} looks right.`,
-    action: { type: "click", ref: pageLine(request, role, name).ref },
-  });
-}
-
-/**
- * The fake, billing COST for each answer it gives. A thrown entry bills nothing, like a call that
- * fails before it is answered.
- */
-function billed(fake: FakeLlm): Llm {
-  return {
-    ...fake,
-    complete: async (request) => ({ ...(await fake.complete(request)), cost: COST }),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Runs
 // ---------------------------------------------------------------------------
-
-/** A task fixture, started on the served app's home page. */
-function taskOf(id: string): Task {
-  return { ...taskFixture(id), startUrl: `${app.origin}/` };
-}
 
 interface Walked {
   result: RunResult;
@@ -246,20 +166,6 @@ async function walk(scripted: {
   return { result, events, calls: fake.calls, runDir: join(runsDir, result.id) };
 }
 
-/** How each step was stored. */
-function kinds(result: RunResult): string[] {
-  return result.steps.map((step) =>
-    "wasted" in step ? "wasted" : "incomplete" in step ? "incomplete" : "complete",
-  );
-}
-
-/** Step `i` of a run, failing the test when the run has none. */
-function stepAt(result: RunResult, i: number): RunStep {
-  const step = result.steps[i];
-  if (step === undefined) throw new Error(`run ${result.id} has no step ${i}`);
-  return step;
-}
-
 /** Step `i` of a run, failing the test unless its action landed. */
 function completeAt(result: RunResult, i: number): CompleteRunStep {
   const step = stepAt(result, i);
@@ -267,15 +173,6 @@ function completeAt(result: RunResult, i: number): CompleteRunStep {
     throw new Error(`step ${i} of run ${result.id} did not land an action`);
   }
   return step;
-}
-
-function urlAfter(step: RunStep | undefined): string | undefined {
-  return step !== undefined && "urlAfter" in step ? step.urlAfter : undefined;
-}
-
-/** What the model was shown at each step. */
-function texts({ result }: Walked): string[] {
-  return result.steps.map((step) => step.actorObservationText);
 }
 
 /** Every perception decision of every step, with its element, its rule and its roll. */
@@ -296,23 +193,6 @@ function perceptionRolls(result: RunResult) {
       ),
     ),
   );
-}
-
-/** Every step's behaviour rolls, in order: `undefined` for a step that planned no action. */
-function diceOf(result: RunResult) {
-  return result.steps.map((step) => ("dice" in step ? step.dice : undefined));
-}
-
-/** The history each step's turn renders, rebuilt from the stored steps before it. */
-function historyOf(steps: readonly RunStep[]): HistoryStep[] {
-  return steps.map((step) => {
-    const observation = toActorObservation(step.fullObservation);
-    if ("wasted" in step) return { observation, wasted: true };
-    if (step.proposedAction === undefined) {
-      throw new Error(`step ${step.stepIndex} planned no action`);
-    }
-    return { observation, proposed: step.proposedAction };
-  });
 }
 
 /** The darkest colour channel of a PNG within a box of it, read by drawing it in a page. */
@@ -433,8 +313,8 @@ test("Vera reads the same text on one run seed, and a changed profile seed chang
       `${app.origin}/`,
     ]);
   }
-  expect(texts(b)).toStrictEqual(texts(a));
-  expect(texts(c)).toStrictEqual(texts(a));
+  expect(texts(b.result)).toStrictEqual(texts(a.result));
+  expect(texts(c.result)).toStrictEqual(texts(a.result));
   // Not vacuous: the faint archive link falls in Vera's band, so at least one decision rolled.
   const rolls = perceptionRolls(a.result);
   expect(rolls.filter(({ rolled }) => rolled !== undefined).length).toBeGreaterThan(0);
@@ -677,7 +557,7 @@ describe("the step cap (F5 AC5)", () => {
       expect(kinds(result)).toStrictEqual(["complete", "complete", "complete"]);
       expect(calls).toHaveLength(3);
     }
-    expect(texts(second)).toStrictEqual(texts(first));
+    expect(texts(second.result)).toStrictEqual(texts(first.result));
   });
 
   test("the goal reached on the cap-th step ends success", async () => {

@@ -50,11 +50,28 @@ Where that meets Wayford:
 
 | Check | LLM | Jev |
 |---|---|---|
-| Ada, easy goal, seeds 1–10: successes | | |
-| Ada, easy goal: median steps, total cost, wall time | | |
-| Vera with her contrast cut made hard (3.0, softness 0), hard goal, seeds 1–10: successes | | |
+| Ada, easy goal, seeds 1–10: successes | 10/10 | 10/10 |
+| Ada, easy goal: median steps, total cost, wall time | 2 steps, 0.0025 USD, 4.7 s | 2 steps, 0.0012 USD, 1.6 s |
+| Vera with her contrast cut made hard (3.0, softness 0), hard goal, seeds 1–10: successes | 0/10 | 0/10 |
 
 Jev passes with at least 8/10 for Ada and 0/10 under the hard cut.
+
+**Outcome, 2026-10-04: pass.** Filled by `s2-06` with `calibrate -- --backend llm --seeds 1-10` and `calibrate -- --backend jev --seeds 1-10`, run one after the other on the same machine, five runs at a time, on the branch at `39b820c`.
+
+- The LLM is `openai/gpt-6-luna` at effort `high`. Jev is `typesafe/jev-1.13`.
+- The total cost is the row's 10 runs. The wall time is the median run's `durationMs`.
+- The model's own time per step, a median, was 1,940 ms on the LLM and 247 ms on Jev.
+- These are our measurements on our target app, from one session, not Jev's published figures.
+
+The other three rows of the set, which the gate does not read:
+
+| Row | LLM | Jev |
+|---|---|---|
+| Ada, hard | 10/10, all route A | 10/10, nine by route A, one by route B |
+| Vera, hard | 3/10 | 4/10 |
+| Kai, hard | 0/10 | 0/10 |
+
+The whole set of 50 runs cost 0.0786 USD on the LLM and 0.0280 USD on Jev.
 
 - Pass: the sweep and `seed:demo` run on Jev in week 4.
 - Fail: the backend stays behind the flag with `llm` as the default, the status at the top of this file says so with the numbers, and week 4 runs on the LLM.

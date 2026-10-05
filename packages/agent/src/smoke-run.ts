@@ -12,10 +12,9 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { WayfordError } from "@wayford/core";
 import { profileFixture, taskFixture } from "@wayford/core/fixtures";
 import { serveTargetApp } from "@wayford/filter/serve-target-app";
-import { chromium } from "playwright";
+import { launchChromium, printFailure } from "./cli.js";
 import { openRunContext, type RunContext } from "./run-context.js";
 import { TARGET_APP_DEFAULTS } from "./start-url.js";
 
@@ -32,15 +31,10 @@ async function step(run: RunContext, index: number, name: string): Promise<strin
 const outputDir = process.argv[2]
   ? resolve(process.argv[2])
   : await mkdtemp(join(tmpdir(), "wayford-smoke-run-"));
+// Any free port, not core's fixture one: the task's start URL is set to this origin below.
 const app = await serveTargetApp();
 try {
-  const browser = await chromium.launch().catch((error: unknown) => {
-    throw new Error(
-      "Chromium did not launch. If it is not installed, run " +
-        "`pnpm --filter @wayford/agent exec playwright install --only-shell chromium`.",
-      { cause: error },
-    );
-  });
+  const browser = await launchChromium();
   try {
     const run = await openRunContext({
       browser,
@@ -61,9 +55,7 @@ try {
     await browser.close();
   }
 } catch (error) {
-  // Anything that is not a `WayfordError` is a bug, printed whole with its stack.
-  if (error instanceof WayfordError) console.error(`${error.code}: ${error.message}`);
-  else console.error(error);
+  printFailure(error);
   process.exitCode = 1;
 } finally {
   await app.close();

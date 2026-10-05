@@ -1,15 +1,22 @@
 /**
  * The calibration set on the real model, run by hand:
- * `pnpm --filter @wayford/agent calibrate -- [--seeds 1-5] [--max-usd 2]`. Every run has the
- * loop's default step cap, 20.
- * The Actor is the real model on the key in the root `.env`, and every run is billed. It prints
- * who reached which goal, by which route, how the other runs ended, at what speed and cost, and
- * the week 3 go/no-go; the same data goes to `runs/calibration/<timestamp>.json`, and each run to
- * `runs/<run id>/` as `run:one` writes it (`docs/specs/2026-10-02-s2-11-calibration-run.md`).
+ * `pnpm --filter @wayford/agent calibrate -- [--seeds 1-5] [--max-usd 2] [--backend llm|jev]`.
+ * Every run has the loop's default step cap, 20.
+ * The Actor runs on the backend `--backend` names, else on `LLM_ACTOR_BACKEND` (default `llm`),
+ * with the key in the root `.env`, and every run is billed. One set runs on one backend, and
+ * nothing falls back to the other. It prints who reached which goal, by which route, how the
+ * other runs ended, at what speed and cost, and the week 3 go/no-go; the same data goes to
+ * `runs/calibration/<timestamp>.json`, and each run to `runs/<run id>/` as `run:one` writes it
+ * (`docs/specs/2026-10-02-s2-11-calibration-run.md`).
  *
- * Before the app is served or a browser launched, the set's cost is estimated from the Actor
- * model's price, and over `--max-usd` nothing starts. That is an estimate only; once a run is
- * going, `calibrate()` starts no new run after the spend reaches the limit.
+ * ADR 0001's gate is filled from two sets on the same seeds: `--backend llm --seeds 1-10`, then
+ * `--backend jev --seeds 1-10`. The gate reads two rows of each table, "Ada, easy" and "Vera
+ * hard-cut, hard", not the printed go/no-go, which also judges "Ada, hard".
+ *
+ * Before the app is served or a browser launched, the set's cost is estimated from the price of
+ * the model the backend runs, the Actor's or Jev's, and over `--max-usd` nothing starts. That is
+ * an estimate only; once a run is going, `calibrate()` starts no new run after the spend reaches
+ * the limit.
  *
  * The app is served on 5174, as `run:one` serves it, so a running `pnpm dev` or target-app
  * preview has to be stopped first. The logic lives in `calibration.ts` and `calibration-run.ts`;
@@ -19,14 +26,10 @@
  * measurement. 1 for a setup failure or an estimate over the limit; 1 also for an incomplete set
  * or any `error` run, after the table and the report are written. 2 for a usage error.
  */
-import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { Seed, WayfordError } from "@wayford/core";
-import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
+import type { Seed } from "@wayford/core";
 import pino from "pino";
-import { chromium } from "playwright";
 import { DEFAULT_MAX_STEPS } from "./actor-loop.js";
 import { calibrationSet, renderTable } from "./calibration.js";
 import {
@@ -37,17 +40,22 @@ import {
   usd,
   writeReport,
 } from "./calibration-run.js";
-import { llmActor } from "./llm-actor.js";
-import { parseLlmSettings } from "./llm-settings.js";
+import {
+  BACKEND_USAGE,
+  backendFactory,
+  launchChromium,
+  loadRootEnv,
+  parseSeed,
+  printFailure,
+  RUNS_DIR,
+  readBackend,
+  scriptArgs,
+  serveOnFixturePort,
+} from "./cli.js";
+import { type ActorBackendName, parseLlmSettings } from "./llm-settings.js";
 import { loadModelPrices, priceOf } from "./models.js";
 
-// Found from this file, as run-one's are, because pnpm starts the script in packages/agent.
-const ENV_FILE = fileURLToPath(new URL("../../../.env", import.meta.url));
-const RUNS_DIR = fileURLToPath(new URL("../../../runs/", import.meta.url));
 const REPORTS_DIR = join(RUNS_DIR, "calibration");
-
-/** The port of core's task fixtures, `http://localhost:5174/`. */
-const TARGET_APP_PORT = 5174;
 
 /** Seeds 1 to 5, the task's default. */
 const DEFAULT_SEEDS: Seed[] = [1, 2, 3, 4, 5];
@@ -55,18 +63,13 @@ const DEFAULT_MAX_USD = 2;
 /** More seeds than any gate asks for (the Jev gate runs ten) is a typo, not a set. */
 const MAX_SEEDS = 100;
 
-const USAGE =
-  "usage: pnpm --filter @wayford/agent calibrate -- [--seeds <a-b | n>] [--max-usd <n>]";
+const USAGE = `usage: pnpm --filter @wayford/agent calibrate -- [--seeds <a-b | n>] [--max-usd <n>] ${BACKEND_USAGE}`;
 
 interface Arguments {
   seeds: Seed[];
   maxUsd: number;
-}
-
-/** A run seed from digits `readSeeds` has matched, or `undefined` when it is out of range. */
-function seedOf(text: string): Seed | undefined {
-  const parsed = Seed.safeParse(Number(text));
-  return parsed.success ? parsed.data : undefined;
+  /** Absent: `LLM_ACTOR_BACKEND`'s, read once `.env` is loaded. */
+  backend: ActorBackendName | undefined;
 }
 
 /** `a-b` as every seed from a to b, or `n` as that one seed; or why it cannot be read. */
@@ -74,8 +77,9 @@ function readSeeds(text: string): Seed[] | string {
   const bad = `--seeds is a range a-b or a single seed n, integers from 0 to 4294967295, got ${text}`;
   const range = /^(\d+)(?:-(\d+))?$/.exec(text);
   if (range === null) return bad;
-  const first = seedOf(range[1] ?? "");
-  const last = range[2] === undefined ? first : seedOf(range[2]);
+  // The match holds digits only, so `parseSeed` refuses a part only when it is out of range.
+  const first = parseSeed(range[1] ?? "");
+  const last = range[2] === undefined ? first : parseSeed(range[2]);
   if (first === undefined || last === undefined) return bad;
   if (first > last) return `--seeds ${text} runs backwards: the range's first seed is its lowest`;
   // Checked before the list is built, so a range of billions is refused, not allocated.
@@ -84,18 +88,19 @@ function readSeeds(text: string): Seed[] | string {
 }
 
 /**
- * The two options, or why they cannot be read. pnpm forwards the `--` that separates its own
+ * The three options, or why they cannot be read. pnpm forwards the `--` that separates its own
  * options from the script's, and `parseArgs` would read everything after it as positionals.
  */
 function readArguments(argv: readonly string[]): Arguments | string {
-  const args = argv[0] === "--" ? argv.slice(1) : [...argv];
-  let values: { seeds?: string; "max-usd"?: string };
+  const args = scriptArgs(argv);
+  let values: { seeds?: string; "max-usd"?: string; backend?: string };
   try {
     ({ values } = parseArgs({
       args,
       options: {
         seeds: { type: "string" },
         "max-usd": { type: "string" },
+        backend: { type: "string" },
       },
       strict: true,
       allowPositionals: false,
@@ -118,27 +123,10 @@ function readArguments(argv: readonly string[]): Arguments | string {
     maxUsd = /^(\d+(\.\d*)?|\.\d+)$/.test(text) ? Number(text) : Number.NaN;
     if (!(maxUsd > 0)) return `--max-usd is a positive number of USD, got ${text}`;
   }
-  return { seeds, maxUsd };
-}
 
-/**
- * Serves the build on 5174, or says why not in one line: a setup to fix, not a bug's stack. When
- * the port is taken, the line also says what most likely holds it.
- */
-async function serve(): Promise<TargetApp> {
-  try {
-    return await serveTargetApp({ port: TARGET_APP_PORT });
-  } catch (error) {
-    const reason = error instanceof Error ? (error.message.split("\n", 1)[0] ?? "") : String(error);
-    const taken = /EADDRINUSE|already in use/i.test(reason)
-      ? " Stop pnpm dev or the target-app preview, which hold that port."
-      : "";
-    throw new WayfordError(
-      "target_app_unavailable",
-      `the target app could not be served on ${TARGET_APP_PORT}: ${reason}.${taken}`,
-      { cause: error },
-    );
-  }
+  const flag = readBackend(values.backend);
+  if ("error" in flag) return flag.error;
+  return { seeds, maxUsd, backend: flag.backend };
 }
 
 /**
@@ -169,22 +157,14 @@ function verdictLines(report: CalibrationReport, errors: number, reportPath: str
   return lines.join("\n");
 }
 
-/**
- * The set, and its exit code: 0 when it finished with no error run, 1 otherwise, 2 for a backend
- * calibrate cannot run yet.
- */
+/** The set, and its exit code: 0 when it finished with no error run, 1 otherwise. */
 async function main(args: Arguments): Promise<number> {
-  // Node's loader skips a variable the environment already holds, so a real one wins.
-  if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
+  loadRootEnv();
   const settings = parseLlmSettings(process.env);
-  if (settings.actorBackend === "jev") {
-    // Never quietly the LLM under a report that says otherwise; s2-06 adds `--backend jev`.
-    console.error(
-      `LLM_ACTOR_BACKEND is jev, which calibrate cannot run until s2-06 adds --backend jev; unset it or set it to llm\n${USAGE}`,
-    );
-    return 2;
-  }
-  const price = priceOf(loadModelPrices(), settings.roles.actor.model);
+  const backendId = args.backend ?? settings.actorBackend;
+  // The estimate reads the price of the model the backend runs: Jev's on Jev, with no effort.
+  const actor = backendId === "jev" ? { model: settings.jevModel } : settings.roles.actor;
+  const price = priceOf(loadModelPrices(), actor.model);
   const rows = calibrationSet();
 
   // `calibrate()` makes this check too; made here as well, an over-budget set serves no app and
@@ -193,22 +173,17 @@ async function main(args: Arguments): Promise<number> {
 
   // Log lines to stderr, without pid or hostname, so stdout is the table alone and can be pasted.
   const logger = pino({ base: null }, pino.destination(2));
-  const app = await serve();
+  const app = await serveOnFixturePort();
   try {
-    const browser = await chromium.launch().catch((error: unknown) => {
-      throw new Error(
-        "Chromium did not launch. If it is not installed, run " +
-          "`pnpm --filter @wayford/agent exec playwright install --only-shell chromium`.",
-        { cause: error },
-      );
-    });
+    const browser = await launchChromium();
     try {
       const report = await calibrate({
         rows,
         seeds: args.seeds,
         maxUsd: args.maxUsd,
-        backend: llmActor({ settings }),
-        actor: settings.roles.actor,
+        backend: backendFactory(backendId, settings),
+        backendId,
+        actor,
         price,
         browser,
         origin: app.origin,
@@ -241,10 +216,7 @@ if (typeof args === "string") {
   try {
     process.exitCode = await main(args);
   } catch (error) {
-    // Never the settings: they hold the key. Anything that is not a `WayfordError` is a bug,
-    // printed whole with its stack.
-    if (error instanceof WayfordError) console.error(`${error.code}: ${error.message}`);
-    else console.error(error);
+    printFailure(error);
     process.exitCode = 1;
   }
 }

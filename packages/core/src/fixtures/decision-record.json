@@ -1,0 +1,38 @@
+{
+  "options": [
+    { "action": { "type": "click", "ref": "e1" }, "description": "Click [e1], the link \"Home\"" },
+    {
+      "action": { "type": "click", "ref": "e2" },
+      "description": "Click [e2], the link \"Account\""
+    },
+    {
+      "action": { "type": "click", "ref": "e3" },
+      "description": "Click [e3], the link \"Deliveries\""
+    },
+    {
+      "action": { "type": "click", "ref": "e4" },
+      "description": "Click [e4], the link \"Settings\""
+    },
+    {
+      "action": { "type": "click", "ref": "e5" },
+      "description": "Click [e5], the heading \"Your deliveries\""
+    },
+    {
+      "action": { "type": "click", "ref": "e6" },
+      "description": "Click [e6], the link \"Ar▒▒ive\""
+    },
+    {
+      "action": { "type": "scroll", "direction": "down" },
+      "description": "Scroll the page down"
+    },
+    { "action": { "type": "scroll", "direction": "up" }, "description": "Scroll the page up" },
+    { "action": { "type": "back" }, "description": "Go back to the page before" },
+    {
+      "action": { "type": "giveUp" },
+      "description": "Stop, because you think you cannot get it done here"
+    }
+  ],
+  "probabilities": [0.02, 0.05, 0.62, 0.03, 0.01, 0.12, 0.08, 0.01, 0.03, 0.02],
+  "confidence": 0.71,
+  "rolled": 0.4
+}

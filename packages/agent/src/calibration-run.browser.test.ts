@@ -11,7 +11,7 @@
  */
 import { mkdir, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { type ActorResponse, type Cost, WayfordError } from "@wayford/core";
 import { taskFixture } from "@wayford/core/fixtures";
@@ -217,6 +217,7 @@ function options(overrides: Partial<CalibrateOptions>): CalibrateOptions {
     seeds: [1, 2],
     maxUsd: 100,
     backend: fakeBackend,
+    backendId: "llm",
     actor: settings.roles.actor,
     price: LUNA,
     browser,
@@ -298,7 +299,8 @@ test("a fake adapter gives a fixed table", async () => {
   expect(report.notRun).toBe(0);
   expect(report.rows.filter((row) => row.summary.verdict === "fail")).toStrictEqual([]);
 
-  // What the set ran on, and the guards' figures: 10 runs of at most 20 steps on Luna.
+  // What the set ran on, the backend named as passed, and the guards' figures: 10 runs of at most
+  // 20 steps on Luna.
   expect(report.header).toStrictEqual({
     backendId: "llm",
     model: "fake",
@@ -355,7 +357,8 @@ test("a fake adapter gives a fixed table", async () => {
   const reportDir = join(runsDir, "calibration");
   const path = await writeReport(report, reportDir);
   expect(path.startsWith(reportDir)).toBe(true);
-  expect(path).not.toContain(":");
+  // The file's name, not its path, which starts with a drive's `C:` on Windows.
+  expect(basename(path)).not.toContain(":");
   expect(JSON.parse(await readFile(path, "utf8"))).toStrictEqual(
     JSON.parse(JSON.stringify(report)),
   );

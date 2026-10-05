@@ -1,17 +1,23 @@
 import { describe, expect, test } from "vitest";
-import type { ActorResponse } from "./action.js";
+import type { Action, ActorResponse } from "./action.js";
+import { WayfordError } from "./error.js";
 import {
+  decisionRecordFixture,
+  observationFixture,
   profileFixture,
   runEventFixtures,
   runResultFixture,
   taskFixtures,
 } from "./fixtures/index.js";
 import {
-  type CompleteRunStep,
+  CompleteRunStep,
+  DecisionRecord,
   DICE_RULES,
   DiceRoll,
   diceFires,
+  drawOption,
   type FinishedOutcome,
+  IncompleteRunStep,
   RUN_EVENT_TYPES,
   RUN_OUTCOMES,
   RunEvent,
@@ -1096,5 +1102,246 @@ describe("a stream that is not exactly one run", () => {
     if (said.type !== "narration") throw new Error("the fixture stream must narrate step 1");
     const result = runResultFromEvents(insertedAfter(i, { ...said, text: "Still looking." }));
     expect(result.steps[1]?.narration).toBe(`${said.text}\nStill looking.`);
+  });
+});
+
+describe("drawOption", () => {
+  const table: [
+    what: string,
+    probabilities: readonly number[],
+    [rolled: number, option: number][],
+  ][] = [
+    // The fixture's sum is 0.99, as Jev rounds them: 0.725 and 0.995 land where an unscaled
+    // draw would not.
+    [
+      "a sum below 1",
+      decisionRecordFixture.probabilities,
+      [
+        [0, 0],
+        [0.05, 1],
+        [0.4, 2],
+        [0.725, 3],
+        [0.732, 4],
+        [0.9, 6],
+        [0.995, 9],
+      ],
+    ],
+    // Running sums 0.6 and 1.2: 0.55 scales to 0.66, past the first option.
+    [
+      "a sum above 1",
+      [0.6, 0.6],
+      [
+        [0.45, 0],
+        [0.55, 1],
+        [0.99, 1],
+      ],
+    ],
+    [
+      "a value on a running sum, which belongs to the option after it",
+      [0.25, 0.25, 0.5],
+      [
+        [0.25, 1],
+        [0.5, 2],
+      ],
+    ],
+    // Rolled 0 included: a zero first, between or last is never drawn.
+    [
+      "zeros, never drawn",
+      [0, 0.5, 0, 0.5, 0],
+      [
+        [0, 1],
+        [0.499, 1],
+        [0.5, 3],
+        [0.999, 3],
+      ],
+    ],
+    // So small that 0.7 of it rounds up to all of it.
+    ["a subnormal total", [5e-324, 0], [[0.7, 0]]],
+  ];
+
+  test.each(table)(
+    "lands where the rolled value, scaled by the total, falls in the running sums: %s",
+    (_what, probabilities, cases) => {
+      for (const [rolled, option] of cases) {
+        expect(drawOption(probabilities, rolled), `rolled ${rolled}`).toBe(option);
+      }
+    },
+  );
+
+  test("throws a RangeError when nothing can be drawn", () => {
+    expect(() => drawOption([0, 0], 0.5)).toThrow(RangeError);
+    expect(() => drawOption([], 0.5)).toThrow(RangeError);
+    for (const rolled of [1, 1.5, -0.1, Number.NaN]) {
+      expect(() => drawOption([0.5, 0.5], rolled), `rolled ${rolled}`).toThrow(RangeError);
+    }
+  });
+});
+
+describe("DecisionRecord", () => {
+  const record = decisionRecordFixture;
+  const click = (ref: string): Action => ({ type: "click", ref });
+  const started = runEventFixtures[0];
+  if (started?.type !== "runStarted")
+    throw new Error("the fixture stream must open with runStarted");
+  // A Jev run sends no sampling settings.
+  const { actorSampling: _sampling, ...jevStart } = started;
+  const runId = started.runId;
+  const at = (second: number) => `2026-09-22T10:00:0${second}.000Z`;
+  // The observation fixture's /deliveries page, as the run's first step.
+  const observed: RunEvent = {
+    type: "stepObserved",
+    runId,
+    stepIndex: 0,
+    timestamp: at(1),
+    observation: { ...observationFixture, stepIndex: 0 },
+  };
+  /** Jev's draw on that page: Deliveries, which B1 left a click. */
+  const planned = (decision: DecisionRecord = record): RunEvent => ({
+    type: "actionPlanned",
+    runId,
+    stepIndex: 0,
+    timestamp: at(2),
+    proposedAction: click("e3"),
+    performedAction: click("e3"),
+    dice: [],
+    cost: { tokensIn: 476, tokensOut: 0, usd: 0.00002 },
+    decision,
+  });
+  const performed: RunEvent = {
+    type: "actionPerformed",
+    runId,
+    stepIndex: 0,
+    timestamp: at(3),
+    urlAfter: "http://localhost:5174/deliveries",
+  };
+  const ending = {
+    runId,
+    stepIndex: 0,
+    timestamp: at(4),
+    durationMs: 4000,
+    cost: { tokensIn: 476, tokensOut: 0, usd: 0.00002 },
+  };
+  const finished: RunEvent = { ...ending, type: "runFinished", outcome: "budget_exceeded" };
+  const failed: RunEvent = { ...ending, type: "runFailed", error: "browser context crashed" };
+  const plannedEvent = (fields: object) => ({ ...planned(), ...fields });
+  // Fixture step 0 proposed and performed a click on e3, B1 unfired.
+  const baseStep = completeStep(runResultFixture.steps[0], "fixture step 0");
+
+  test("a record with fewer probabilities than options fails to parse", () => {
+    const fewer = DecisionRecord.safeParse({
+      ...record,
+      probabilities: record.probabilities.slice(0, -1),
+    });
+    expect(fewer.success).toBe(false);
+    expect(fewer.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ["probabilities"],
+        message: "one probability per option: 10 options, 9 probabilities",
+      }),
+    ]);
+    const more = { ...record, probabilities: [...record.probabilities, 0.01] };
+    expect(DecisionRecord.safeParse(more).success).toBe(false);
+  });
+
+  test("an actionPlanned whose decision draws another option than its proposedAction fails", () => {
+    expect(RunEvent.safeParse(planned()).success).toBe(true);
+    // B1 may still double the drawn click: the decision names what was proposed, not what ran.
+    const doubled = plannedEvent({
+      performedAction: { type: "doubleClick", ref: "e3" },
+      dice: [{ rule: "B1", p: 0.8, rolled: 0.62, fired: true }],
+    });
+    expect(RunEvent.safeParse(doubled).success).toBe(true);
+
+    const other = RunEvent.safeParse(
+      plannedEvent({ proposedAction: click("e2"), performedAction: click("e2") }),
+    );
+    expect(other.success).toBe(false);
+    expect(other.error?.issues.map((issue) => issue.path)).toEqual([["decision"]]);
+    // The same numbers rolled elsewhere: 0.9 lands on scrolling down.
+    const elsewhere = plannedEvent({ decision: { ...record, rolled: 0.9 } });
+    expect(RunEvent.safeParse(elsewhere).success).toBe(false);
+
+    // A stored step holds to the same rule.
+    expect(CompleteRunStep.safeParse({ ...baseStep, decision: record }).success).toBe(true);
+    const step = { ...baseStep, proposedAction: click("e2"), performedAction: click("e2") };
+    expect(CompleteRunStep.safeParse(step).success).toBe(true);
+    expect(CompleteRunStep.safeParse({ ...step, decision: record }).success).toBe(false);
+  });
+
+  test.each([
+    ["rolled 1", { ...record, rolled: 1 }],
+    [
+      "a negative probability",
+      { ...record, probabilities: [-0.02, ...record.probabilities.slice(1)] },
+    ],
+    ["fewer probabilities than options", { ...record, probabilities: [0.02, 0.05] }],
+    ["every probability 0", { ...record, probabilities: record.probabilities.map(() => 0) }],
+  ])(
+    "an actionPlanned whose decision has %s fails to parse with zod issues and no RangeError",
+    (_what, decision) => {
+      // Zod runs the event's own refine past the record's failed checks, so the draw must not run:
+      // a RangeError out of it would throw from these `safeParse` calls and fail the test.
+      const event = plannedEvent({ decision });
+      const parsed = RunEvent.safeParse(event);
+      expect(parsed.success).toBe(false);
+      for (const issue of parsed.error?.issues ?? []) expect(issue.path[0]).toBe("decision");
+
+      const step = { ...baseStep, decision };
+      expect(RunStep.safeParse(step).success).toBe(false);
+      const { urlAfter: _urlAfter, ...unlanded } = step;
+      const cut = { ...unlanded, incomplete: true };
+      expect(IncompleteRunStep.safeParse(cut).success).toBe(false);
+    },
+  );
+
+  test("a malformed decision on an unparsed event folds to invalid_run_events, never a RangeError", () => {
+    // The fold takes events as typed; RunResult.parse is the first to read the record.
+    const unparsed = planned({ ...record, rolled: 1 });
+    expect(() => runResultFromEvents([jevStart, observed, unparsed, performed, finished])).toThrow(
+      WayfordError,
+    );
+  });
+
+  test("the fold copies a decision from actionPlanned onto the step, complete or cut off", () => {
+    const landed = runResultFromEvents([jevStart, observed, planned(), performed, finished]);
+    const step = completeStep(landed.steps[0], "the drawn step");
+    expect(step.decision).toEqual(record);
+    expect(step.proposedAction).toEqual(click("e3"));
+
+    const cut = runResultFromEvents([jevStart, observed, planned(), failed]);
+    expect(cut.outcome).toBe("error");
+    const last = cut.steps[0];
+    if (!last || !("incomplete" in last)) throw new Error("the cut-off step must be incomplete");
+    expect(last.decision).toEqual(record);
+    expect(last.proposedAction).toEqual(click("e3"));
+    expect(last.urlAfter).toBeUndefined();
+  });
+
+  test("a step planned without a decision has no decision key, so an LLM run folds as before", () => {
+    // toEqual skips a key set to undefined, so the fixture replay alone would not catch one.
+    for (const step of runResultFromEvents(runEventFixtures).steps) {
+      expect(step).not.toHaveProperty("decision");
+    }
+  });
+
+  test("an incomplete step with a decision and no audit fields fails", () => {
+    const cut = runResultFromEvents([jevStart, observed, planned(), failed]).steps[0];
+    if (!cut || !("incomplete" in cut)) throw new Error("the cut-off step must be incomplete");
+    expect(IncompleteRunStep.safeParse(cut).success).toBe(true);
+    const {
+      proposedAction: _proposed,
+      performedAction: _performed,
+      dice: _dice,
+      cost: _cost,
+      ...unplanned
+    } = cut;
+    const drewNothing = IncompleteRunStep.safeParse(unplanned);
+    expect(drewNothing.success).toBe(false);
+    expect(drewNothing.error?.issues.map((issue) => issue.path)).toEqual([["decision"]]);
+    const { decision: _decision, ...bare } = unplanned;
+    expect(IncompleteRunStep.safeParse(bare).success).toBe(true);
+    // The drawn option must still be the proposed action.
+    const other = { ...cut, proposedAction: click("e2"), performedAction: click("e2") };
+    expect(IncompleteRunStep.safeParse(other).success).toBe(false);
   });
 });

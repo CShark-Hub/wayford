@@ -421,4 +421,22 @@ describe("renderTable", () => {
     expect(lines.find((line) => line.startsWith("Vera, hard"))).toMatch(/\breported$/);
     expect(lines).toContain("seeds        7");
   });
+
+  test("a Jev header reads backend jev and effort n/a; an LLM one with no effort, default", () => {
+    const rows = [judged(row("Ada, easy"), [viaA])];
+    const header = {
+      model: "typesafe/jev-1.13",
+      effort: undefined,
+      concurrency: 5,
+      seeds: [1],
+      maxSteps: MAX_STEPS,
+    };
+    // Jev takes no effort, so "default" would read as the endpoint's own.
+    const jev = renderTable(rows, { ...header, backendId: "jev" }).split("\n");
+    expect(jev).toContain("backend      jev");
+    expect(jev).toContain("effort       n/a");
+    const llm = renderTable(rows, { ...header, backendId: "llm" }).split("\n");
+    expect(llm).toContain("backend      llm");
+    expect(llm).toContain("effort       default");
+  });
 });

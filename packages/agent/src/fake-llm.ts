@@ -5,7 +5,8 @@
  * Extractor scripts a first answer and a repair answer; s2-03's Actor loop answers from the
  * request, finding each ref by its element's name, since refs depend on each persona's
  * observation, and scripts a fake that throws to reach its failure path; s2-06's Jev backend
- * scripts Jev's probabilities.
+ * scripts Jev's probabilities from the request the same way, putting them on an option by its
+ * element's name, since refs differ per persona.
  *
  * It answers from canned entries, one queue per role, and sends nothing.
  */
@@ -25,7 +26,8 @@ import {
 /**
  * Per role, in the order the calls take them, `complete` and `decide` from the same queue. A
  * `decide` entry is Jev's answer, `{ choice, confidence, probabilities }`. An `Error` entry is
- * thrown instead of answered.
+ * thrown instead of answered. A function entry, for either call, is called with the request as
+ * recorded and answers with what it returns, so a test can answer from what it was asked.
  */
 export type FakeAnswers = Partial<Record<LlmRole, unknown[]>>;
 
@@ -62,6 +64,19 @@ export function fakeLlm(
     return entry;
   }
 
+  /**
+   * The role's next entry for one request. A function entry is called with the request as
+   * recorded, and what it returns, awaited, is the entry from here on: an Error is thrown, and
+   * anything else is for the caller to check.
+   */
+  async function entryFor(role: LlmRole, recorded: unknown): Promise<unknown> {
+    const entry = take(role);
+    if (typeof entry !== "function") return entry;
+    const answered: unknown = await entry(recorded);
+    if (answered instanceof Error) throw answered;
+    return answered;
+  }
+
   async function complete<S extends z.ZodObject>(
     request: CompleteRequest<S>,
   ): Promise<Completion<z.output<S>>> {
@@ -76,14 +91,7 @@ export function fakeLlm(
     // run could have sent.
     const sampling = samplingOf(temperatures?.[role] ?? 1, seed);
 
-    let entry = take(role);
-    // A function entry is called with the request as recorded, and what it returns, awaited, is
-    // the entry from here on: an Error is thrown, anything else is checked against the schema.
-    if (typeof entry === "function") {
-      entry = await entry(recorded);
-      if (entry instanceof Error) throw entry;
-    }
-    const parsed = schema.safeParse(entry);
+    const parsed = schema.safeParse(await entryFor(role, recorded));
     // Without a repair round to script.
     if (!parsed.success) {
       throw invalid(`The canned ${role} answer did not match the schema`, parsed.error);
@@ -95,10 +103,12 @@ export function fakeLlm(
     const { role, question } = request;
     // The options as they were sent: a caller that reuses one options object must not rewrite
     // what earlier calls recorded.
-    decideCalls.push({ ...request, question: { ...question, options: { ...question.options } } });
+    const recorded = { ...request, question: { ...question, options: { ...question.options } } };
+    decideCalls.push(recorded);
 
-    // Checked as the real adapter checks Jev's answer.
-    const parsed = choiceAnswer(question.options).safeParse(take(role));
+    // Checked as the real adapter checks Jev's answer, against the options as they were sent.
+    const options = recorded.question.options;
+    const parsed = choiceAnswer(options).safeParse(await entryFor(role, recorded));
     if (!parsed.success) {
       throw invalid(`The canned ${role} decision did not answer the question asked`, parsed.error);
     }

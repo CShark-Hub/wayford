@@ -13,24 +13,25 @@
  * reach is a result. 1 when the setup or a task failed; a failed task is printed and the next one
  * still runs, so a session on a real key is not lost. 2 for a usage error: it takes no arguments.
  */
-import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { type GroundTruth, type RunEvent, type ScoutPath, WayfordError } from "@wayford/core";
+import type { GroundTruth, RunEvent, ScoutPath } from "@wayford/core";
 import { taskFixtures } from "@wayford/core/fixtures";
-import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
 import pino from "pino";
-import { chromium } from "playwright";
+import {
+  launchChromium,
+  loadRootEnv,
+  printFailure,
+  RUNS_DIR,
+  scriptArgs,
+  serveOnFixturePort,
+} from "./cli.js";
 import { parseLlmSettings } from "./llm-settings.js";
 import { scout } from "./scout.js";
 import { TARGET_APP_DEFAULTS } from "./start-url.js";
 
-// Found from this file, as run-one's are, because pnpm starts the script in packages/agent.
-const ENV_FILE = fileURLToPath(new URL("../../../.env", import.meta.url));
-const GROUND_TRUTH_DIR = fileURLToPath(new URL("../../../runs/ground-truth/", import.meta.url));
-
-/** The port of core's task fixtures, `http://localhost:5174/`. */
-const TARGET_APP_PORT = 5174;
+// Named here, not in `cli.ts`: the Actor's commands import that module, and the Actor never
+// learns where Scout writes (`actor-isolation.test.ts`).
+const GROUND_TRUTH_DIR = join(RUNS_DIR, "ground-truth");
 
 const USAGE = "usage: pnpm --filter @wayford/agent scout";
 
@@ -91,46 +92,15 @@ function progressLine(event: RunEvent): string | undefined {
   }
 }
 
-/** Serves the build on 5174, or says why not in one line, as `run-one.ts` does. */
-async function serve(): Promise<TargetApp> {
-  try {
-    return await serveTargetApp({ port: TARGET_APP_PORT });
-  } catch (error) {
-    const reason = error instanceof Error ? (error.message.split("\n", 1)[0] ?? "") : String(error);
-    const taken = /EADDRINUSE|already in use/i.test(reason)
-      ? " Stop pnpm dev or the target-app preview, which hold that port."
-      : "";
-    throw new WayfordError(
-      "target_app_unavailable",
-      `the target app could not be served on ${TARGET_APP_PORT}: ${reason}.${taken}`,
-      { cause: error },
-    );
-  }
-}
-
-/** A failure on one line: a `WayfordError` by its code, anything else whole, with its stack. */
-function report(error: unknown): void {
-  // Never the settings: they hold the key.
-  if (error instanceof WayfordError) console.error(`${error.code}: ${error.message}`);
-  else console.error(error);
-}
-
 /** Scout on every task fixture, and the exit code. */
 async function main(): Promise<number> {
-  // Node's loader skips a variable the environment already holds, so a real one wins.
-  if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
+  loadRootEnv();
   const settings = parseLlmSettings(process.env);
   // Log lines to stderr, without pid or hostname, so stdout is the printout alone.
   const logger = pino({ base: null }, pino.destination(2));
-  const app = await serve();
+  const app = await serveOnFixturePort();
   try {
-    const browser = await chromium.launch().catch((error: unknown) => {
-      throw new Error(
-        "Chromium did not launch. If it is not installed, run " +
-          "`pnpm --filter @wayford/agent exec playwright install --only-shell chromium`.",
-        { cause: error },
-      );
-    });
+    const browser = await launchChromium();
     try {
       let failed = false;
       for (const task of taskFixtures) {
@@ -152,7 +122,7 @@ async function main(): Promise<number> {
           });
           console.log(`\n${summary(truth, usd)}`);
         } catch (error) {
-          report(error);
+          printFailure(error);
           failed = true;
         }
       }
@@ -165,8 +135,7 @@ async function main(): Promise<number> {
   }
 }
 
-// pnpm forwards the `--` that separates its own options from the script's.
-const args = process.argv.slice(2).filter((arg, i) => !(i === 0 && arg === "--"));
+const args = scriptArgs(process.argv.slice(2));
 if (args.length > 0) {
   console.error(`it takes no arguments, got ${args.join(" ")}\n${USAGE}`);
   process.exitCode = 2;
@@ -174,7 +143,7 @@ if (args.length > 0) {
   try {
     process.exitCode = await main();
   } catch (error) {
-    report(error);
+    printFailure(error);
     process.exitCode = 1;
   }
 }

@@ -159,6 +159,14 @@ export type DiceRoll = z.infer<typeof DiceRoll>;
 type DiceAudit = { proposedAction: Action; performedAction: Action; dice: DiceRoll[] };
 
 /**
+ * Whether two actions are one. Stringify is a sound equality here: every `Action` member is strict
+ * and flat, and parsed objects keep the schema's key order.
+ */
+function sameAction(a: Action | undefined, b: Action): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
  * Structural checks only: one roll per rule, B1 and B4 roll on a `click` alone,
  * a fired B1 performs a `doubleClick`, a fired B2 performs a `scroll`, and no
  * rewrite of the proposed action without a fired roll. Whether a rewrite is the
@@ -190,16 +198,131 @@ function checkDice(audit: DiceAudit, ctx: z.RefinementCtx): void {
       });
     }
   }
-  // Stringify is a sound equality here: every `Action` member is strict and
-  // flat, and parsed objects keep the schema's key order.
-  const same = JSON.stringify(audit.proposedAction) === JSON.stringify(audit.performedAction);
-  if (!same && !audit.dice.some((d) => d.fired)) {
+  if (
+    !sameAction(audit.proposedAction, audit.performedAction) &&
+    !audit.dice.some((d) => d.fired)
+  ) {
     ctx.addIssue({
       code: "custom",
       path: ["performedAction"],
       message: "without a fired roll the performed action is the proposed one",
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Decision draw
+// ---------------------------------------------------------------------------
+
+/**
+ * The option a rolled value in [0, 1) lands on: the first whose running total exceeds
+ * `rolled × total`. Scaled by the total because Jev rounds each probability, so the sum misses 1
+ * (s2-05). An option with probability 0 is never drawn. Throws a `RangeError` when nothing can be
+ * drawn (a total of 0, or `rolled` outside [0, 1)); `checkDecision` calls it only on a record
+ * `DecisionRecord` accepts, so a schema never throws it.
+ */
+export function drawOption(probabilities: readonly number[], rolled: number): number {
+  if (!(rolled >= 0 && rolled < 1)) {
+    throw new RangeError(`a rolled value is in [0, 1), not ${rolled}`);
+  }
+  const running: number[] = [];
+  let sum = 0;
+  for (const p of probabilities) {
+    sum += p;
+    running.push(sum);
+  }
+  // The total is the last running total itself, so the two agree to the last bit.
+  const total = running.at(-1) ?? 0;
+  if (!(total > 0)) {
+    throw new RangeError(`nothing can be drawn: the probabilities sum to ${total}`);
+  }
+  const reached = rolled * total;
+  // Strictly below, as in `diceFires`: an option of probability 0 adds nothing to the running
+  // total, so a value that reaches its start has already reached its end.
+  const drawn = running.findIndex((runningTotal) => reached < runningTotal);
+  // `rolled × total` is below the total unless the total is subnormal, where it can round up to
+  // it. The value then lands on the option that brought the running total to the total, which
+  // has a probability above 0.
+  return drawn === -1 ? running.indexOf(total) : drawn;
+}
+
+/**
+ * One option a decision backend was offered: the action it stands for, and the words it was
+ * offered under.
+ */
+export const DecisionOption = z.object({ action: Action, description: z.string().min(1) }).strict();
+export type DecisionOption = z.infer<typeof DecisionOption>;
+
+/**
+ * How a decision backend chose a step's action (ADR 0001 §4): the options in the order offered,
+ * one probability per option as the backend sent it (unnormalised), its confidence, and the value
+ * rolled on the run's decision stream. The action is `options[drawOption(probabilities, rolled)]`.
+ * The probabilities must number one per option, and at least one must be above zero, or nothing
+ * could be drawn. The confidence is stored, and nothing reads it during a run.
+ */
+export const DecisionRecord = z
+  .object({
+    options: z.array(DecisionOption).min(1),
+    probabilities: z.array(Probability),
+    confidence: Probability,
+    rolled: Probability.lt(1),
+  })
+  .strict()
+  .superRefine((record, ctx) => {
+    const { options, probabilities } = record;
+    if (probabilities.length !== options.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["probabilities"],
+        message: `one probability per option: ${options.length} options, ${probabilities.length} probabilities`,
+      });
+    }
+    if (!probabilities.some((p) => p > 0)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["probabilities"],
+        message: "at least one probability must be above zero, or nothing can be drawn",
+      });
+    }
+  });
+export type DecisionRecord = z.infer<typeof DecisionRecord>;
+
+/**
+ * A stored decision replays to its action: the option it draws must be the proposed action, the
+ * rule `DiceRoll.fired` applies to a roll. Proposed, not performed: stage 7 runs on what was
+ * drawn, so B1 may still double a drawn click.
+ */
+function checkDecision(
+  planned: { proposedAction: Action; decision?: DecisionRecord | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  // Zod 4 runs this refine past a failed check inside the record (`rolled` 1, a negative
+  // probability, one probability too few), and drawing on such a record could throw out of a
+  // parse. The record's own issues report it, so it is not drawn here. Nor is an absent one.
+  const parsed = DecisionRecord.safeParse(planned.decision);
+  if (!parsed.success) return;
+  const { options, probabilities, rolled } = parsed.data;
+  const drawn = drawOption(probabilities, rolled);
+  const action = options[drawn]?.action;
+  if (!sameAction(action, planned.proposedAction)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["decision"],
+      message: `the proposed action must be the option the decision draws: option ${drawn}, ${JSON.stringify(action)}`,
+    });
+  }
+}
+
+/**
+ * Every check on a planned action, wherever one is stored: its dice and, when a decision backend
+ * drew it, its draw.
+ */
+function checkPlanned(
+  planned: DiceAudit & { decision?: DecisionRecord | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  checkDice(planned, ctx);
+  checkDecision(planned, ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +336,8 @@ function checkDice(audit: DiceAudit, ctx: z.RefinementCtx): void {
  * `urlBefore` is the page the step observed; `urlAfter` is where the action
  * landed. `proposedAction` is the model's output, `performedAction` what ran
  * after the behaviour dice, and `dice` every roll in the order rolled (`[]`
- * when no rule applied).
+ * when no rule applied). On a step a decision backend (Jev) chose, `decision`
+ * records the options and the draw that gave `proposedAction`.
  *
  * A step is complete unless the run stopped partway through it: a crash
  * (`runFailed`) or the budget running out (`budget_exceeded`) after the
@@ -252,11 +376,14 @@ export const CompleteRunStep = z
     proposedAction: Action,
     performedAction: Action,
     dice: z.array(DiceRoll),
+    /** How a decision backend (Jev) chose `proposedAction`, from `actionPlanned`.
+     *  Absent when the LLM chose it. */
+    decision: DecisionRecord.optional(),
     cost: Cost,
     urlAfter: z.url(),
   })
   .strict()
-  .superRefine(checkDice);
+  .superRefine(checkPlanned);
 export type CompleteRunStep = z.infer<typeof CompleteRunStep>;
 
 /** The last step of a run that crashed or ran out of budget mid-step. See `RunStep`. */
@@ -266,6 +393,9 @@ export const IncompleteRunStep = z
     proposedAction: Action.optional(),
     performedAction: Action.optional(),
     dice: z.array(DiceRoll).optional(),
+    /** From `actionPlanned`, as on a complete step, so only beside the
+     *  three audit fields: a step that planned nothing drew nothing. */
+    decision: DecisionRecord.optional(),
     urlAfter: z.url().optional(),
     incomplete: z.literal(true),
     /** Present exactly when the audit fields are: the reducer sets all from
@@ -274,8 +404,15 @@ export const IncompleteRunStep = z
   })
   .strict()
   .superRefine((step, ctx) => {
-    const { proposedAction, performedAction, dice } = step;
+    const { proposedAction, performedAction, dice, decision } = step;
     if (proposedAction === undefined && performedAction === undefined && dice === undefined) {
+      if (decision !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["decision"],
+          message: "a decision comes with proposedAction, performedAction and dice",
+        });
+      }
       return;
     }
     if (proposedAction === undefined || performedAction === undefined || dice === undefined) {
@@ -286,7 +423,7 @@ export const IncompleteRunStep = z
       });
       return;
     }
-    checkDice({ proposedAction, performedAction, dice }, ctx);
+    checkPlanned({ proposedAction, performedAction, dice, decision }, ctx);
   });
 export type IncompleteRunStep = z.infer<typeof IncompleteRunStep>;
 
@@ -466,13 +603,18 @@ export const RunEvent = z.discriminatedUnion("type", [
       proposedAction: Action,
       performedAction: Action,
       dice: z.array(DiceRoll),
+      /** How `proposedAction` was drawn, set by a decision backend (Jev): the
+       *  options it was offered, their probabilities and the rolled value. The
+       *  LLM backend never sets it. When present, `proposedAction` must be the
+       *  option it draws. */
+      decision: DecisionRecord.optional(),
       /** Every model call made to choose this action, a repair or a retry
        *  included. Here, not on `actionPerformed`, so a run that stops before
        *  the action lands still keeps the step's bill. */
       cost: Cost,
     })
     .strict()
-    .superRefine(checkDice),
+    .superRefine(checkPlanned),
   /** The action ran. Carries where it landed and the post-action screenshot.
    *  Every action emits it, `giveUp` included: a give-up is a step whose
    *  performed action is `giveUp`, and `urlAfter` is the page the person gave
@@ -545,6 +687,8 @@ type StepDraft = {
   proposedAction?: Action;
   performedAction?: Action;
   dice?: DiceRoll[];
+  /** Set by `actionPlanned` when a decision backend drew its action. */
+  decision?: DecisionRecord;
   narration: string;
   startedAt?: string;
   endedAt?: string;
@@ -661,6 +805,7 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         draft.proposedAction = event.proposedAction;
         draft.performedAction = event.performedAction;
         draft.dice = event.dice;
+        if (event.decision !== undefined) draft.decision = event.decision;
         draft.cost = event.cost;
         break;
       }
@@ -715,11 +860,17 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         endedAt: draft.endedAt ?? terminal.timestamp,
         urlBefore: draft.urlBefore,
       };
-      // `actionPlanned` sets the three audit fields together, so one stands for all.
-      const { proposedAction, performedAction, dice } = draft;
+      // `actionPlanned` sets the three audit fields together, so one stands for all. Its
+      // decision, when it has one, travels with them onto a complete or an incomplete step.
+      const { proposedAction, performedAction, dice, decision } = draft;
       const planned =
         proposedAction !== undefined && performedAction !== undefined && dice !== undefined
-          ? { proposedAction, performedAction, dice }
+          ? {
+              proposedAction,
+              performedAction,
+              dice,
+              ...(decision === undefined ? {} : { decision }),
+            }
           : undefined;
       if (draft.wasted !== undefined) {
         if (planned !== undefined || draft.urlAfter !== undefined) {

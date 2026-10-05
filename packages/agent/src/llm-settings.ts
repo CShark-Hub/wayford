@@ -73,6 +73,13 @@ const JevModel = z
     "must name a pinned Jev version such as typesafe/jev-1.13; an alias or the router changes the model under a tuned run (docs/adr/0001-jev-actor-backend.md)",
   );
 
+/**
+ * The backends that can pick the Actor's actions: `LLM_ACTOR_BACKEND`'s values, and the by-hand
+ * commands' `--backend` (`docs/adr/0001-jev-actor-backend.md`).
+ */
+export const ActorBackendName = z.enum(["llm", "jev"]);
+export type ActorBackendName = z.infer<typeof ActorBackendName>;
+
 const Settings = z.object({
   baseUrl: LlmBaseUrl.default("https://openrouter.ai/api/v1"),
   apiKey: z
@@ -87,7 +94,7 @@ const Settings = z.object({
     analyst: roleSettings("max"),
   }),
   /** What picks the Actor's actions. A run set uses one, and nothing falls back to the other. */
-  actorBackend: z.enum(["llm", "jev"]).default("llm"),
+  actorBackend: ActorBackendName.default("llm"),
   /** The model `decide` sends every question to, whatever role asks. */
   jevModel: JevModel.default("typesafe/jev-1.13"),
 });

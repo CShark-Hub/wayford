@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import { fakeLlm } from "./fake-llm.js";
-import { type ChatMessage, type CompleteRequest, LlmError } from "./llm.js";
+import { type ChatMessage, type CompleteRequest, type DecideRequest, LlmError } from "./llm.js";
 
 const MESSAGES: ChatMessage[] = [{ role: "user", content: "What is the capital of France?" }];
 
@@ -172,6 +172,47 @@ describe("decide", () => {
     expect(error).toBeInstanceOf(LlmError);
     expect(error).toMatchObject({ code: "llm_invalid_output", cost: ZERO });
     expect((error as LlmError).cause).toBeInstanceOf(z.ZodError);
+  });
+
+  test("a function entry answers from the request as recorded, its options included", async () => {
+    const received: DecideRequest[] = [];
+    // Puts all of the weight on an option by its words, as s2-06's tests find an element by its
+    // name, since refs differ per persona.
+    const onHome = (request: DecideRequest) => {
+      received.push(request);
+      const keys = Object.keys(request.question.options);
+      const home = keys.find((key) => request.question.options[key]?.includes('"Home"')) ?? "";
+      const probabilities = Object.fromEntries(keys.map((key) => [key, key === home ? 1 : 0]));
+      return { choice: home, confidence: 0.9, probabilities };
+    };
+    const llm = fakeLlm({ actor: [onHome] });
+
+    const decision = await decide(llm);
+
+    expect(decision).toMatchObject({ choice: "e1", probabilities: { e1: 1, back: 0 } });
+    // The copy kept in decideCalls, not the caller's object.
+    expect(received).toHaveLength(1);
+    expect(received[0]).toBe(llm.decideCalls[0]);
+    expect(received[0]?.question.options).toStrictEqual(OPTIONS);
+  });
+
+  test("a function entry's answer is checked as Jev's: one naming a key not offered is llm_invalid_output", async () => {
+    const offPage = () => ({ choice: "e9", confidence: 0.9, probabilities: { e1: 1, back: 0 } });
+
+    const error = await decide(fakeLlm({ actor: [offPage] })).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(LlmError);
+    expect(error).toMatchObject({ code: "llm_invalid_output", cost: ZERO });
+    // The answer it returned was checked, not the function: the issue is the key.
+    expect((error as LlmError).message).toContain("choice");
+  });
+
+  test("a function entry that returns an Error throws it", async () => {
+    const outage = new LlmError("llm_request_failed", "HTTP 503: overloaded", ZERO);
+
+    const call = decide(fakeLlm({ actor: [async () => outage] }));
+
+    await expect(call).rejects.toBe(outage);
   });
 
   test("takes from the queue complete takes from, in call order", async () => {

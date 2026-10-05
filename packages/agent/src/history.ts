@@ -15,7 +15,7 @@
  * the page before's `e3`). No narration either: it is the model's interpretation, and the Jev
  * backend (s2-06) writes none.
  */
-import type { Action, ElementRef, Observation } from "@wayford/core";
+import type { Action, ActorElement, ElementRef, Observation } from "@wayford/core";
 
 /**
  * One step as the Actor took it: the page it was shown and the action it proposed there, or
@@ -80,10 +80,7 @@ function move(action: Action, observation: Observation): string {
   }
 }
 
-/**
- * The element `ref` named on that step's page, by its role and the name it showed, quoted as
- * `renderObservationForModel` quotes it, so the history reads the name as the page line did.
- */
+/** The element `ref` named on that step's page, as `elementName` names it. */
 function target(ref: ElementRef, observation: Observation): string {
   const element = observation.elements.find((shown) => shown.ref === ref);
   if (element === undefined) {
@@ -91,6 +88,16 @@ function target(ref: ElementRef, observation: Observation): string {
       `step ${observation.stepIndex} proposed ${ref}, which its observation does not show: a step whose ref was refused is kept as wasted`,
     );
   }
+  return elementName(element);
+}
+
+/**
+ * How an element is named in everything the Actor reads: its role and the name it showed, quoted
+ * as `renderObservationForModel` quotes it on the page line, so the name reads as the page showed
+ * it. The history and Jev's options (s2-06) both name an element through it, so they word one
+ * element the same way.
+ */
+export function elementName(element: Pick<ActorElement, "role" | "name">): string {
   return `${oneLine(element.role)} ${JSON.stringify(oneLine(element.name))}`;
 }
 
