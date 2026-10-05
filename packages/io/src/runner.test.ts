@@ -29,9 +29,9 @@ import {
 } from "./runner.js";
 import {
   FAKE_STEP_COST,
+  fakeBackends,
   fakeRun,
   gate,
-  noBackend,
   quiet,
   runnerDefaults,
   type TempStore,
@@ -123,7 +123,8 @@ test("start mints a run per seed × persona, seed-major, and returns before any 
     expect(call).toMatchObject({ task, params: TARGET_APP_DEFAULTS, runsDir: store.runsDir });
     // The runner's own list, handed on, so every run gets K2 (s1-05).
     expect(call.jargon).toBe(targetAppJargon);
-    expect(call.backend).toBe(noBackend);
+    // A set that names no backend runs on the default, `llm` in `runnerDefaults`.
+    expect(call.backend).toBe(fakeBackends.llm);
     expect(call.logger).toBe(quiet);
   }
 });

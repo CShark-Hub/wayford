@@ -9,7 +9,14 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type ActorBackendFactory, startUrlFor, TARGET_APP_DEFAULTS } from "@wayford/agent";
+import {
+  type ActorBackendFactory,
+  type ActorBackendName,
+  decisionDrawFor,
+  providerSeedFor,
+  startUrlFor,
+  TARGET_APP_DEFAULTS,
+} from "@wayford/agent";
 import { fakeLlm } from "@wayford/agent/fake";
 import {
   type Action,
@@ -59,12 +66,26 @@ export async function tempStore(): Promise<TempStore> {
   };
 }
 
-/**
- * An Actor backend factory that throws if called: no io test builds a backend. The fake run builds
- * none, and `runActor` refuses a step cap of 0 before it would.
- */
+/** An Actor backend factory that throws if called, for a slot no run reaches. */
 export const noBackend: ActorBackendFactory = () => {
-  throw new Error("no io test builds an Actor backend");
+  throw new Error("this io test builds no Actor backend");
+};
+
+/** A backend factory naming `modelId`, whose `answer` throws. */
+function fakeBackend(modelId: string): ActorBackendFactory {
+  return () => ({
+    modelId,
+    sampling: undefined,
+    answer() {
+      throw new Error("the fake run asks the Actor nothing");
+    },
+  });
+}
+
+/** One fake factory per backend name, so a test can tell which one a run was handed. */
+export const fakeBackends: Readonly<Record<ActorBackendName, ActorBackendFactory>> = {
+  llm: fakeBackend("fake-llm"),
+  jev: fakeBackend("fake-jev"),
 };
 
 /**
@@ -79,14 +100,15 @@ export const noMeasure: MeasureFn = () => {
 export const quiet = pino({ level: "silent" });
 
 /**
- * The runner's options on `store`, with nothing real behind them: `fakeRun()`, `noBackend`, the
- * target app's defaults and jargon list, and `quiet`.
+ * The runner's options on `store`, with nothing real behind them: `fakeRun()`, `fakeBackends` with
+ * `llm` the default, the target app's defaults and jargon list, and `quiet`.
  */
 export function runnerDefaults(store: TempStore): RunnerOptions {
   return {
     db: store.db,
     run: fakeRun(),
-    actor: noBackend,
+    backends: fakeBackends,
+    defaultBackend: "llm",
     params: TARGET_APP_DEFAULTS,
     jargon: targetAppJargon,
     runsDir: store.runsDir,
@@ -201,6 +223,12 @@ export function fakeRun(script: (options: RunOptions) => FakeScript = () => ({})
 
     const { profile, task, seed, params } = options;
     const runId = options.runId ?? newId("run");
+    // Built as `runActor` builds it, so `modelIds.actor` names the factory the runner handed on.
+    const backend = options.backend({
+      logger: options.logger.child({ runId }),
+      providerSeed: providerSeedFor(seed),
+      decisionDraw: decisionDrawFor(seed),
+    });
     const runDir = join(options.runsDir, runId);
     const stem = `${profile.label.toLowerCase()}-seed${seed}-${runId}`;
     const events: RunEvent[] = [];
@@ -225,7 +253,7 @@ export function fakeRun(script: (options: RunOptions) => FakeScript = () => ({})
       profileId: profile.id,
       seed,
       startUrl: startUrlFor(task, params),
-      modelIds: { actor: "fake" },
+      modelIds: { actor: backend.modelId },
       ...(options.sweep === undefined ? {} : { sweep: options.sweep }),
     });
     let cost = NO_COST;

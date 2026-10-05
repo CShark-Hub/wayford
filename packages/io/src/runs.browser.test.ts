@@ -18,7 +18,7 @@ import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { saveTask } from "./db/tasks.js";
 import type { StartedRun } from "./runner.js";
-import { postJson, readEvents, type TestApp, testApp } from "./test-app.js";
+import { noBackend, postJson, readEvents, type TestApp, testApp } from "./test-app.js";
 
 // Building the app and launching Chromium take longer than vitest's 5 s hook default, and each run
 // records, encodes and saves a video.
@@ -71,8 +71,12 @@ beforeAll(async () => {
         return browser;
       }),
     ),
-    // A fresh fake per run, so two runs at once never share a queue of answers.
-    actor: llmActor({ settings, llm: () => fakeLlm({ actor: [easyRoute, easyRoute, easyRoute] }) }),
+    backends: {
+      // A fresh fake per run, so two runs at once never share a queue of answers.
+      llm: llmActor({ settings, llm: () => fakeLlm({ actor: [easyRoute, easyRoute, easyRoute] }) }),
+      // The request names no backend, so its runs take the default, `llm`.
+      jev: noBackend,
+    },
   });
   vi.stubGlobal("fetch", () => {
     throw new Error("a test reached for the network");

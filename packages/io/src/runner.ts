@@ -15,7 +15,12 @@
  * Agent is imported as types only, so loading the runner loads neither agent's runtime nor
  * Playwright (spec, decision log, "The barrel").
  */
-import type { ActorBackendFactory, RunActorOptions, TargetAppParams } from "@wayford/agent";
+import type {
+  ActorBackendFactory,
+  ActorBackendName,
+  RunActorOptions,
+  TargetAppParams,
+} from "@wayford/agent";
 import {
   type Cost,
   newId,
@@ -42,8 +47,13 @@ export type RunFn = (options: Omit<RunActorOptions, "browser">) => Promise<RunRe
 export interface RunnerOptions {
   db: Db;
   run: RunFn;
-  /** One backend per run, built by `run`. */
-  actor: ActorBackendFactory;
+  /**
+   * The Actor's backends by name. A run set runs on one of them and nothing falls back to another
+   * (`docs/adr/0001-jev-actor-backend.md`, decision 1). `run` builds one backend per run.
+   */
+  backends: Readonly<Record<ActorBackendName, ActorBackendFactory>>;
+  /** The backend of a set that names none: `LLM_ACTOR_BACKEND`'s (`actor-backends.ts`). */
+  defaultBackend: ActorBackendName;
   /** The target app's parameters, the same for every run. */
   params: TargetAppParams;
   /**
@@ -76,9 +86,23 @@ export interface LiveRun {
   changed(): Promise<void>;
 }
 
+/** What a run set runs on beyond its task, personas and seeds, the same for every run of it. */
+export interface RunSetOptions {
+  /** The Actor backend of every run of the set: the runner's default when absent. */
+  backend?: ActorBackendName;
+}
+
 export interface Runner {
-  /** Mints one id per seed × persona, in seed-major order, and queues the runs. Returns at once. */
-  start(task: Task, profiles: readonly Profile[], seeds: readonly Seed[]): StartedRun[];
+  /**
+   * Mints one id per seed × persona, in seed-major order, and queues the runs, all on `options`.
+   * Returns at once.
+   */
+  start(
+    task: Task,
+    profiles: readonly Profile[],
+    seeds: readonly Seed[],
+    options?: RunSetOptions,
+  ): StartedRun[];
   /** The run with this id, started by this runner, or `undefined`. */
   live(id: string): LiveRun | undefined;
 }
@@ -95,7 +119,7 @@ export const MAX_CONCURRENT_RUNS = 5;
  * kept for the runner's life.
  */
 export function createRunner(options: RunnerOptions): Runner {
-  const { db, run, actor, params, jargon, runsDir, logger } = options;
+  const { db, run, backends, defaultBackend, params, jargon, runsDir, logger } = options;
   const lives = new Map<string, LiveRun>();
   const slots = slotQueue(MAX_CONCURRENT_RUNS);
 
@@ -105,7 +129,7 @@ export function createRunner(options: RunnerOptions): Runner {
    */
   async function job(
     runId: RunId,
-    inputs: { task: Task; profile: Profile; seed: Seed },
+    inputs: { task: Task; profile: Profile; seed: Seed; backend: ActorBackendFactory },
     slot: Promise<void>,
     live: LiveWriter,
   ): Promise<void> {
@@ -120,7 +144,7 @@ export function createRunner(options: RunnerOptions): Runner {
       await slot;
       let settled: Settled;
       try {
-        await run({ ...inputs, params, jargon, runsDir, backend: actor, logger, runId, onEvent });
+        await run({ ...inputs, params, jargon, runsDir, logger, runId, onEvent });
         settled = { ok: true };
       } catch (error) {
         settled = { ok: false, error };
@@ -135,7 +159,9 @@ export function createRunner(options: RunnerOptions): Runner {
   }
 
   return {
-    start(task, profiles, seeds) {
+    start(task, profiles, seeds, { backend: name = defaultBackend } = {}) {
+      // Picked once for the whole set, so its runs never mix backends.
+      const backend = backends[name];
       const started: StartedRun[] = [];
       // Seed-major: a set cut short still has whole seeds, comparable across personas (A20).
       for (const seed of seeds) {
@@ -145,7 +171,7 @@ export function createRunner(options: RunnerOptions): Runner {
           // Stored as a `LiveRun`, so a reader gets no way to publish.
           lives.set(id, live);
           // The slot is asked for now, in call order, so the queue is FIFO across `start` calls.
-          void job(id, { task, profile, seed }, slots.take(), live);
+          void job(id, { task, profile, seed, backend }, slots.take(), live);
           started.push({ id, profileId: profile.id, seed });
         }
       }

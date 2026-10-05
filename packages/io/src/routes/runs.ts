@@ -4,7 +4,8 @@
  * file validates at the edge, looks the inputs up, and serves what the runner and the database
  * hold.
  *
- * - `POST /`: a `RunsRequest`. 202 `{ runs }`, one `StartedRun` per seed × persona, seed-major.
+ * - `POST /`: a `RunsRequest`. 202 `{ runs }`, one `StartedRun` per seed × persona, seed-major,
+ *   every run on the Actor backend the request names, or the runner's default.
  *   400 `{ error }` for a body that is not a `RunsRequest`; 404 `{ error }` naming every unknown
  *   task and profile id; 415 from `createApp` for a body that is not `application/json`. On a 400,
  *   404 or 415 no run starts.
@@ -35,6 +36,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { zValidator } from "@hono/zod-validator";
+import type { ActorBackendName } from "@wayford/agent";
 import { ProfileId, type RunEvent, RunOutcome, Seed, TaskId } from "@wayford/core";
 import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { type Context, Hono } from "hono";
@@ -55,6 +57,15 @@ const MAX_SEEDS = 10;
 const unique = (items: readonly unknown[]) => new Set(items).size === items.length;
 
 /**
+ * Agent's `ActorBackendName`, spelt from its type: its value would load agent's runtime into io's
+ * barrel (s4-03, "The barrel"). A name added to or dropped from agent's fails to compile here.
+ */
+const ActorBackend = z.enum({ llm: "llm", jev: "jev" } satisfies Record<
+  ActorBackendName,
+  ActorBackendName
+>);
+
+/**
  * The body of `POST /runs`, built from core's schemas. Every persona runs on every seed (A20), so
  * a repeated seed or persona would run one persona twice on the same dice.
  */
@@ -70,6 +81,7 @@ const RunsRequest = z
       .min(1)
       .max(MAX_SEEDS)
       .refine(unique, "each seed at most once: a run set runs a persona once per seed"),
+    backend: ActorBackend.exactOptional(),
   })
   .strict();
 
@@ -118,7 +130,8 @@ export function runsRoute({ db, runner, runsDir, replaySpacingMs = 300 }: RunsRo
         if (!result.success) return c.json({ error: z.prettifyError(result.error) }, 400);
       }),
       async (c) => {
-        const { taskId, profileIds, seeds } = c.req.valid("json");
+        // What is left after the task, personas and seeds applies to the whole set: `backend`.
+        const { taskId, profileIds, seeds, ...set } = c.req.valid("json");
         const task = await loadTask(db, taskId);
         const unknown = profileIds.filter((id) => !PROFILES.has(id));
         if (task === undefined || unknown.length > 0) {
@@ -130,7 +143,7 @@ export function runsRoute({ db, runner, runsDir, replaySpacingMs = 300 }: RunsRo
         }
         // In request order, which the runner keeps within each seed.
         const profiles = profileIds.flatMap((id) => PROFILES.get(id) ?? []);
-        return c.json({ runs: runner.start(task, profiles, seeds) }, 202);
+        return c.json({ runs: runner.start(task, profiles, seeds, set) }, 202);
       },
     )
     .get(

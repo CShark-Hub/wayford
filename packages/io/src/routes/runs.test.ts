@@ -8,9 +8,11 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { parseLlmSettings } from "@wayford/agent";
 import { RunId, RunResult, runResultFromEvents } from "@wayford/core";
 import { runResultFixture, taskFixture } from "@wayford/core/fixtures";
-import { describe, expect, onTestFinished, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
+import { actorBackends } from "../actor-backends.js";
 import { saveRun } from "../db/runs.js";
 import { saveTask } from "../db/tasks.js";
 import { MAX_CONCURRENT_RUNS, type StartedRun } from "../runner.js";
@@ -24,6 +26,7 @@ import {
   readEvents,
   readSse,
   type TestApp,
+  type TestAppOptions,
   testApp,
 } from "../test-app.js";
 
@@ -32,9 +35,9 @@ const otherTask = taskFixture("task_past-order");
 // The fixture run's `runStarted` timestamp, which `saveRun` takes beside the record.
 const fixtureStartedAt = "2026-09-22T10:00:00.000Z";
 
-/** A test app on `run`, with the easy goal stored, closed after the test. */
-async function appOn(run: FakeRun = fakeRun()): Promise<TestApp> {
-  const t = await testApp({ run });
+/** A test app on `run` and `options`, with the easy goal stored, closed after the test. */
+async function appOn(run: FakeRun = fakeRun(), options: TestAppOptions = {}): Promise<TestApp> {
+  const t = await testApp({ ...options, run });
   onTestFinished(() => t.close());
   await saveTask(t.db, task);
   return t;
@@ -42,14 +45,18 @@ async function appOn(run: FakeRun = fakeRun()): Promise<TestApp> {
 
 type App = TestApp["app"];
 
-/** `POST /runs` that must start its runs, on the easy goal unless told otherwise: its runs. */
+/**
+ * `POST /runs` that must start its runs, on the easy goal unless `extra` names another task, with
+ * `extra`'s other fields in the body too: its runs.
+ */
 async function startRuns(
   app: App,
   profileIds: string[],
   seeds: number[],
-  taskId = task.id,
+  extra: Record<string, unknown> = {},
 ): Promise<StartedRun[]> {
-  const { status, body } = await postJson(app, "/runs", { taskId, profileIds, seeds });
+  const request = { taskId: task.id, profileIds, seeds, ...extra };
+  const { status, body } = await postJson(app, "/runs", request);
   expect(status).toBe(202);
   return body.runs;
 }
@@ -168,7 +175,7 @@ describe("POST /runs", () => {
     expect((await getJson(app, "/runs")).body).toStrictEqual([]);
   });
 
-  test("a repeated profile id, an empty list, 11 seeds or a key it does not know is a 400 and starts no run", async () => {
+  test("a repeated profile id, an empty list, 11 seeds, a key it does not know or a backend that is not llm or jev is a 400 and starts no run", async () => {
     const run = fakeRun();
     const { app } = await appOn(run);
     const seeds = Array.from({ length: 11 }, (_, i) => i + 1);
@@ -178,6 +185,13 @@ describe("POST /runs", () => {
       { taskId: task.id, profileIds: ["prof_ada"], seeds: [] },
       { taskId: task.id, profileIds: ["prof_ada"], seeds },
       { taskId: task.id, profileIds: ["prof_ada"], seeds: [1], maxSteps: 5 },
+      // s2-12: only a backend's exact name counts.
+      ...["other", "LLM", "", null, 1].map((backend) => ({
+        taskId: task.id,
+        profileIds: ["prof_ada"],
+        seeds: [1],
+        backend,
+      })),
     ];
 
     for (const request of refused) {
@@ -222,6 +236,59 @@ describe("POST /runs", () => {
     expect(accepted.status).toBe(202);
     const { runs }: { runs: StartedRun[] } = await accepted.json();
     for (const { id } of runs) await streamOf(app, id);
+  });
+
+  describe("on a named backend (s2-12)", () => {
+    // The fake run builds the real backends but never asks them a turn, so nothing may reach the
+    // network.
+    beforeEach(() => {
+      vi.stubGlobal("fetch", () => {
+        throw new Error("a test reached the network");
+      });
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    /** An app on the backends and default `server.ts` builds from these settings. */
+    async function appOnEnv(env: Record<string, string> = {}) {
+      const settings = parseLlmSettings({ LLM_API_KEY: "test-key", ...env });
+      const t = await appOn(fakeRun(), actorBackends(settings));
+      return { ...t, settings };
+    }
+
+    /** Ada and Vera on seeds 1 and 2, with `extra` in the body: each stored run's Actor model. */
+    async function actorsOf(app: App, extra: Record<string, unknown>): Promise<string[]> {
+      const actors: string[] = [];
+      for (const { id } of await startRuns(app, ["prof_ada", "prof_vera"], [1, 2], extra)) {
+        actors.push((await streamedAndStored(app, id)).stored.modelIds.actor);
+      }
+      return actors;
+    }
+
+    // Each name is posted opposite the default, so the request is seen to win over it.
+    test('backend "jev" runs every run on the Jev model, and "llm" on the LLM\'s, whatever the default', async () => {
+      const onLlm = await appOnEnv();
+      expect(onLlm.settings.jevModel).not.toBe(onLlm.settings.roles.actor.model);
+      expect(await actorsOf(onLlm.app, { backend: "jev" })).toStrictEqual(
+        Array(4).fill(onLlm.settings.jevModel),
+      );
+
+      const onJev = await appOnEnv({ LLM_ACTOR_BACKEND: "jev" });
+      expect(await actorsOf(onJev.app, { backend: "llm" })).toStrictEqual(
+        Array(4).fill(onJev.settings.roles.actor.model),
+      );
+    });
+
+    test("no backend follows LLM_ACTOR_BACKEND, and llm when it is unset", async () => {
+      const onJev = await appOnEnv({ LLM_ACTOR_BACKEND: "jev" });
+      expect(await actorsOf(onJev.app, {})).toStrictEqual(Array(4).fill(onJev.settings.jevModel));
+
+      const unset = await appOnEnv();
+      expect(await actorsOf(unset.app, {})).toStrictEqual(
+        Array(4).fill(unset.settings.roles.actor.model),
+      );
+    });
   });
 
   test("ten seeds, the project's seed-set size, are one request", async () => {
@@ -355,7 +422,7 @@ describe("GET /runs", () => {
     );
     await saveTask(db, otherTask);
     const easy = await startRuns(app, ["prof_ada", "prof_vera"], [1, 2]);
-    const hard = await startRuns(app, ["prof_vera"], [3], otherTask.id);
+    const hard = await startRuns(app, ["prof_vera"], [3], { taskId: otherTask.id });
     for (const { id } of [...easy, ...hard]) await streamOf(app, id);
     const on = (profileId: string, seed: number) =>
       idOn(
