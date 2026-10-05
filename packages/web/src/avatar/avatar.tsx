@@ -10,6 +10,7 @@
  */
 import type { Profile } from "@wayford/core";
 import { type AvatarParts, avatarParts, type Palette, paletteOf, round2 } from "./parts.js";
+import { type AvatarState, STATE_WORDS } from "./state.js";
 
 type Held = NonNullable<AvatarParts["held"]>;
 
@@ -20,25 +21,39 @@ const HELD_SENTENCE: Record<Held, string> = {
 
 /**
  * One sentence per dimension part drawn, in the order they are drawn, naming the capability each
- * one stands for. It is what a screen reader says, so it says what the picture claims.
+ * one stands for, then the run's state when there is one. It is what a screen reader says, so it
+ * says what the picture claims.
  */
-function titleText(profile: Profile, parts: AvatarParts): string {
+function titleText(profile: Profile, parts: AvatarParts, state: AvatarState | undefined): string {
   const sentences: string[] = [];
   if (parts.glasses) {
     sentences.push(`Glasses for a contrast threshold of ${parts.glasses.threshold}:1.`);
   }
   if (parts.held) sentences.push(HELD_SENTENCE[parts.held]);
   sentences.push(`Hourglass for a budget of ${profile.behaviour.budgetSeconds} s.`);
+  if (state) sentences.push(`Run state: ${STATE_WORDS[state].toLowerCase()}.`);
   return sentences.join(" ");
 }
 
-/** `profile`'s avatar, a 160 × 160 SVG. The same profile always renders the same markup. */
-export function Avatar({ profile, className }: { profile: Profile; className?: string }) {
+/**
+ * `profile`'s avatar, a 160 × 160 SVG. The same profile, and `state` when given, always render the
+ * same markup. Without `state` it is the persona alone; with one, the `<svg>` carries it as
+ * `data-state` and every state but idle draws its badge.
+ */
+export function Avatar({
+  profile,
+  className,
+  state,
+}: {
+  profile: Profile;
+  className?: string;
+  state?: AvatarState;
+}) {
   const parts = avatarParts(profile);
   const palette = paletteOf(parts.hue);
   return (
-    <svg viewBox="0 0 160 160" role="img" className={className}>
-      <title>{titleText(profile, parts)}</title>
+    <svg viewBox="0 0 160 160" role="img" className={className} data-state={state}>
+      <title>{titleText(profile, parts, state)}</title>
       <Background palette={palette} />
       <Body pattern={parts.pattern} palette={palette} />
       <Head palette={palette} />
@@ -47,6 +62,7 @@ export function Avatar({ profile, className }: { profile: Profile; className?: s
       {parts.glasses ? <Glasses strokeWidth={parts.glasses.strokeWidth} palette={palette} /> : null}
       {parts.held ? <HeldDevice held={parts.held} palette={palette} /> : null}
       <Hourglass patience={parts.patience} palette={palette} />
+      {state && state !== "idle" ? <StateBadge state={state} palette={palette} /> : null}
     </svg>
   );
 }
@@ -271,6 +287,49 @@ function Hourglass({ patience, palette }: { patience: number; palette: Palette }
       <path d={GLASS} fill="none" stroke={palette.ink} strokeWidth={3} strokeLinejoin="round" />
       <rect {...CAP} fill={palette.accent} y={CAP_TOP_Y} />
       <rect {...CAP} fill={palette.accent} y={CAP_BOTTOM_Y} />
+    </g>
+  );
+}
+
+/**
+ * The run's state as a badge in the top-left corner, clear of the tuft and the head: a disc in the
+ * persona's colour and one glyph in ink, both centred on (22, 22). Static, one variant per state.
+ * The face is left as it is: a mood drawn on it would diagnose the persona (`docs/DEMO.md`, "Words
+ * we do not use").
+ */
+function StateBadge({ state, palette }: { state: Exclude<AvatarState, "idle">; palette: Palette }) {
+  const stroke = {
+    fill: "none",
+    stroke: palette.ink,
+    strokeWidth: 3.5,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  } as const;
+  return (
+    <g data-part="state">
+      <circle cx={22} cy={22} r={15} fill={palette.persona} stroke={palette.ink} strokeWidth={3} />
+      {/* An arrow pointing on. */}
+      {state === "moving" ? <path d="M14 22 L29 22 M23 16 L29 22 L23 28" {...stroke} /> : null}
+      {/* Two pause bars. */}
+      {state === "stuck" ? (
+        <path d="M18 15 L18 29 M26 15 L26 29" {...stroke} strokeWidth={4.5} />
+      ) : null}
+      {/* A check mark. */}
+      {state === "done" ? <path d="M15 22.5 L20 27.5 L29 16.5" {...stroke} /> : null}
+      {/* A flag on its pole. */}
+      {state === "gaveUp" ? (
+        <>
+          <path d="M17 31 L17 13" {...stroke} />
+          <path d="M17 14 L29 18.5 L17 23 Z" fill={palette.ink} />
+        </>
+      ) : null}
+      {/* An exclamation mark. */}
+      {state === "error" ? (
+        <>
+          <path d="M22 14 L22 24" {...stroke} strokeWidth={4} />
+          <circle cx={22} cy={29.5} r={2.25} fill={palette.ink} />
+        </>
+      ) : null}
     </g>
   );
 }

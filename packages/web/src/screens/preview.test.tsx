@@ -468,11 +468,12 @@ test("with every threshold at its maximum nothing is drawn", async () => {
   expect(drawnBoxes(html)).toEqual([]);
 });
 
-test("the shell's nav has a Preview link to /preview, between Personas and Runs", async () => {
+test("the shell's nav has a Preview link to /preview, between Personas and Arena", async () => {
   const onPreview = linksOf(elementOf(await render(VERA), "nav", 'aria-label="Main"'));
   expect(onPreview.map((link) => [link.name, link.attributes.href])).toEqual([
     ["Personas", "/personas"],
     ["Preview", "/preview"],
+    ["Arena", "/arena"],
     ["Runs", "/runs"],
     ["Events", "/events"],
   ]);

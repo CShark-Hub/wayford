@@ -3,9 +3,14 @@ import { profileFixture, profileFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { Avatar } from "./avatar.js";
+import { AVATAR_STATES, type AvatarState, STATE_WORDS } from "./state.js";
 
 function render(profile: Profile): string {
   return renderToStaticMarkup(<Avatar profile={profile} />);
+}
+
+function renderAt(profile: Profile, state: AvatarState): string {
+  return renderToStaticMarkup(<Avatar profile={profile} state={state} />);
 }
 
 /** Vera with only her contrast threshold moved: her softness and provenance stay. */
@@ -116,5 +121,85 @@ test("no id, gradient or clipPath in the markup", () => {
     expect(svg, profile.label).not.toContain("url(");
     expect(svg, profile.label).not.toMatch(/gradient/i);
     expect(svg, profile.label).not.toMatch(/clippath/i);
+  }
+});
+
+/** The `data-state` the `<svg>` carries, read off its own tag. */
+function svgState(svg: string): string | undefined {
+  return svg.match(/^<svg [^>]*data-state="([^"]*)"/)?.[1];
+}
+
+/** Every run-state badge in the markup, each as its whole group. */
+function badgesOf(svg: string): string[] {
+  return [...svg.matchAll(/<g data-part="state">.*?<\/g>/g)].map((m) => m[0]);
+}
+
+test("without a state, the avatar carries no state, badge or state sentence", () => {
+  for (const profile of [...profileFixtures, tabletAda()]) {
+    const svg = render(profile);
+    expect(svg, profile.label).not.toContain("data-state");
+    expect(svg, profile.label).not.toContain('data-part="state"');
+    expect(titleOf(svg), profile.label).not.toContain("Run state");
+  }
+});
+
+test("a state adds its data-state, its badge and its title sentence, and nothing else", () => {
+  // So the face, and every other part, never changes with the state: a mood would diagnose the
+  // persona (`docs/DEMO.md`, "Words we do not use").
+  for (const profile of [...profileFixtures, tabletAda()]) {
+    for (const state of AVATAR_STATES) {
+      const stripped = renderAt(profile, state)
+        .replace(` data-state="${state}"`, "")
+        .replace(/<g data-part="state">.*?<\/g>/, "")
+        .replace(` Run state: ${STATE_WORDS[state].toLowerCase()}.`, "");
+      expect(stripped, `${profile.label}, ${state}`).toBe(render(profile));
+    }
+  }
+});
+
+test("each state sets data-state on the svg, idle included", () => {
+  const vera = profileFixture("prof_vera");
+  for (const state of AVATAR_STATES) expect(svgState(renderAt(vera, state))).toBe(state);
+});
+
+test("idle draws no badge, and every other state draws exactly one", () => {
+  const vera = profileFixture("prof_vera");
+  for (const state of AVATAR_STATES) {
+    expect(badgesOf(renderAt(vera, state)), state).toHaveLength(state === "idle" ? 0 : 1);
+  }
+});
+
+test("each state's badge differs from every other's, and holds no id", () => {
+  const vera = profileFixture("prof_vera");
+  const badges = AVATAR_STATES.filter((state) => state !== "idle").map(
+    (state) => badgesOf(renderAt(vera, state))[0] ?? "",
+  );
+  expect(new Set(badges).size).toBe(badges.length);
+  for (const badge of badges) {
+    expect(badge).not.toMatch(/\sid="/);
+    expect(badge).not.toContain("url(");
+  }
+});
+
+test("the title's last sentence names the run state", () => {
+  const vera = profileFixture("prof_vera");
+  const persona = "Glasses for a contrast threshold of 3:1. Hourglass for a budget of 120 s.";
+  expect(AVATAR_STATES.map((state) => titleOf(renderAt(vera, state)))).toStrictEqual([
+    `${persona} Run state: waiting.`,
+    `${persona} Run state: moving.`,
+    `${persona} Run state: stuck.`,
+    `${persona} Run state: done.`,
+    `${persona} Run state: gave up.`,
+    `${persona} Run state: error.`,
+  ]);
+});
+
+test("the same profile and state render the same SVG string twice", () => {
+  for (const profile of profileFixtures) {
+    for (const state of AVATAR_STATES) {
+      const first = renderAt(profile, state);
+      expect(renderAt(profile, state), `${profile.label}, ${state}`).toBe(first);
+      expect(renderAt(structuredClone(profile), state), `${profile.label}, ${state}`).toBe(first);
+    }
   }
 });

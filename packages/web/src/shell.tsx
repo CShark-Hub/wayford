@@ -31,6 +31,11 @@ export function Shell() {
               </Link>
             </li>
             <li>
+              <Link to="/arena" className={NAV_LINK}>
+                Arena
+              </Link>
+            </li>
+            <li>
               <Link to="/runs" className={NAV_LINK}>
                 Runs
               </Link>

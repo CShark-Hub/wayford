@@ -1,4 +1,5 @@
 import { createRoute, createRouter, type RouterHistory, redirect } from "@tanstack/react-router";
+import { arenaRoute } from "./screens/arena.js";
 import { eventsRoute } from "./screens/events.js";
 import { personasRoute } from "./screens/personas.js";
 import { previewRoute } from "./screens/preview.js";
@@ -18,6 +19,7 @@ const indexRoute = createRoute({
 // Each screen file exports its own route. A later screen adds its route file and one entry here.
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  arenaRoute,
   eventsRoute,
   personasRoute,
   previewRoute,

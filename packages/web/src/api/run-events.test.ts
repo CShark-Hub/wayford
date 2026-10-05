@@ -1,62 +1,8 @@
 import type { RunEvent } from "@wayford/core";
 import { runEventFixtures } from "@wayford/core/fixtures";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { FakeEventSource } from "./fake-event-source.js";
 import { type StreamStatus, subscribeToRunEvents } from "./run-events.js";
-
-type Listener = (message: MessageEvent<string>) => void;
-
-/** Stands in for the browser's EventSource. The test plays the server. */
-class FakeEventSource {
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly CLOSED = 2;
-  static last: FakeEventSource | undefined;
-
-  readyState = FakeEventSource.CONNECTING;
-  private closedByClient = false;
-  private readonly listeners = new Map<string, Listener[]>();
-
-  constructor(readonly url: string) {
-    FakeEventSource.last = this;
-  }
-
-  addEventListener(type: string, listener: Listener) {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-  }
-
-  close() {
-    this.closedByClient = true;
-    this.readyState = FakeEventSource.CLOSED;
-  }
-
-  /** Dispatch like the browser does: nothing reaches a source the page closed. */
-  emit(type: string, data = "", lastEventId = "") {
-    if (this.closedByClient) return;
-    if (type === "open") this.readyState = FakeEventSource.OPEN;
-    for (const listener of this.listeners.get(type) ?? []) {
-      listener({ data, lastEventId } as MessageEvent<string>);
-    }
-  }
-
-  /** The connection dropped: the browser fires `error` and retries on its own. */
-  drop() {
-    this.readyState = FakeEventSource.CONNECTING;
-    this.emit("error");
-  }
-
-  /** The browser gave up (a 404, or io down behind the proxy): CLOSED, then `error`. */
-  fail() {
-    this.readyState = FakeEventSource.CLOSED;
-    this.emit("error");
-  }
-
-  /** Send a whole run, numbered like io numbers it. */
-  play(events: readonly RunEvent[]) {
-    events.forEach((event, i) => {
-      this.emit(event.type, JSON.stringify(event), String(i));
-    });
-  }
-}
 
 function subscribe(runId = "fixture") {
   const received: { id: string; event: RunEvent }[] = [];
@@ -83,7 +29,7 @@ const runFailed: RunEvent = {
 };
 
 beforeEach(() => {
-  FakeEventSource.last = undefined;
+  FakeEventSource.reset();
   vi.stubGlobal("EventSource", FakeEventSource);
 });
 afterEach(() => {

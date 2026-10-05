@@ -33,8 +33,10 @@ test("/personas shows the five cards in order", async () => {
   expect(html.split("<article").length - 1).toBe(profileFixtures.length);
 });
 
-test("the personas screen says none of the banned words", async () => {
-  const html = await render("/personas");
+// The arena lists the personas too, in its start panel, and its copy says what a control cannot do
+// yet without the word the check bans.
+test.each(["/personas", "/arena"])("%s says none of the banned words", async (path) => {
+  const html = await render(path);
   // What a person or a screen reader gets: the text between tags, which holds each avatar's
   // `<title>`, and the attributes read out. Class names are code, not copy: Tailwind's `disabled:`
   // variant is not a word on the screen.
