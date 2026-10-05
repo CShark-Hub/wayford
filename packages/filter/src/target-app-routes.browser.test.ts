@@ -8,9 +8,15 @@
  * The desktop boxes of `tasks/s1-03-knowledge-attention.md` run on the same pages
  * (`docs/specs/2026-10-03-s1-03-knowledge-attention.md`, "Tests on real pages"): Kai reads the
  * kebab on `/account` by its bare role, the kebab detector fires there and not on `/settings`,
- * Zoya and Kai stay under their attention caps, and A1 never cuts Vera's route A (#89). The same
- * Actor text twice and a smaller cap showing a subset are `attention.test.ts`'s: `perceive` is
- * pure, so a real page adds nothing to them.
+ * Zoya and Kai stay under their attention caps, and A1 never cuts Vera's route A (#89). For
+ * s1-03, the same Actor text twice and a smaller cap showing a subset are `attention.test.ts`'s:
+ * `perceive` is pure, so a real page adds nothing to them.
+ *
+ * The K2 boxes of `tasks/s1-05-vocabulary.md` run on `/settings/data` with the target app's jargon
+ * list (`docs/specs/2026-10-05-s1-05-vocabulary.md`, "Acceptance mapping"): Kai reads the ledger
+ * as `[unfamiliar term]`, and the decision names the term and leaves the state alone. The
+ * five-persona test of the same Actor text twice is here, not in `attention.test.ts`, because
+ * s1-05's box needs it with K2 firing on a real page: the fixture holds no term on the list.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -21,7 +27,7 @@ import {
   type Profile,
   worstState,
 } from "@wayford/core";
-import { profileFixture } from "@wayford/core/fixtures";
+import { profileFixture, profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { collect } from "./collect.js";
@@ -33,7 +39,16 @@ import {
   TARGET_APP_PATHS,
   type TargetApp,
 } from "./serve-target-app.js";
-import { actorText, K1_K4, observed, seeds } from "./test-support.js";
+import {
+  actorText,
+  K1_K4,
+  observed,
+  PERSONA_IDS,
+  seeds,
+  WITH_JARGON,
+  withKnowledge,
+} from "./test-support.js";
+import { UNFAMILIAR } from "./vocabulary.js";
 
 const ARCHIVE = "/deliveries/archive";
 const HARD_LINK = "main//link:Order archive";
@@ -437,3 +452,91 @@ test("#89: A1 never cuts Vera's Order archive or nav Deliveries where perception
     expect(cut, `${key} cut by A1 (threshold, seed)`).toStrictEqual([]);
   }
 }, 60_000);
+
+// ---------------------------------------------------------------------------
+// s1-05: vocabulary (K2) on the real page
+// ---------------------------------------------------------------------------
+
+const DATA = "/settings/data";
+const LEDGER = "main//link:Fulfilment ledger";
+
+/** Kai with `words` added to his vocabulary. */
+function kaiKnowing(...words: string[]): Profile {
+  const kai = profileFixture("prof_kai");
+  const known = kai.knowledge.domainVocabulary ?? [];
+  return withKnowledge(kai, { domainVocabulary: [...known, ...words] });
+}
+
+test("K2: Kai reads the ledger as [unfamiliar term], Ada and a full vocabulary read it whole", () => {
+  expect(targetAppJargon).toStrictEqual(["Fulfilment ledger"]);
+  const kai = profileFixture("prof_kai");
+  // Not vacuous: neither word is in his vocabulary.
+  for (const word of ["fulfilment", "ledger"]) {
+    expect(kai.knowledge.domainVocabulary, word).not.toContain(word);
+  }
+  const at = position(element(DATA, LEDGER).bbox);
+  const readers = [
+    ["Ada", profileFixture("prof_ada")],
+    ["Kai knowing both words", kaiKnowing("fulfilment", "ledger")],
+    ["Kai knowing the phrase", kaiKnowing("fulfilment ledger")],
+  ] as const;
+  for (const seed of SEEDS) {
+    const full = perceive(measurement(DATA), kai, seed, WITH_JARGON);
+    const ledger = observed(full, LEDGER);
+    const text = actorText(full);
+    expect(text.split("\n"), `Kai, seed ${seed}`).toContain(
+      `[${ledger.ref}] link "${UNFAMILIAR}" at ${at}`,
+    );
+    expect(text, `Kai, seed ${seed}`).not.toContain("Fulfilment");
+    for (const [label, profile] of readers) {
+      const whole = perceive(measurement(DATA), profile, seed, WITH_JARGON);
+      const read = observed(whole, LEDGER);
+      const wholeText = actorText(whole);
+      expect(wholeText.split("\n"), `${label}, seed ${seed}`).toContain(
+        `[${read.ref}] link "Fulfilment ledger" at ${at}`,
+      );
+      expect(wholeText, `${label}, seed ${seed}`).not.toContain(UNFAMILIAR);
+      expect(read.decisions, `${label}, seed ${seed}`).toStrictEqual([]);
+    }
+  }
+});
+
+test("K2 is recorded with its terms and leaves the state alone", () => {
+  const kai = profileFixture("prof_kai");
+  for (const seed of SEEDS) {
+    const at = `seed ${seed}`;
+    const without = perceive(measurement(DATA), kai, seed);
+    const full = FullObservation.parse(perceive(measurement(DATA), kai, seed, WITH_JARGON));
+    const ledger = observed(full, LEDGER);
+    expect(ledger.decisions, at).toStrictEqual([
+      { stage: "knowledge", rule: "K2", terms: ["Fulfilment ledger"] },
+    ]);
+    expect(ledger.renamedName, at).toBe(UNFAMILIAR);
+    expect(ledger.state, at).toBe("visible");
+    expect("maskedName" in ledger, at).toBe(false);
+    // The ledger is the one element K2 renames on the page.
+    expect(
+      full.elements.filter((e) => e.decisions.some((d) => d.rule === "K2")).map((e) => e.key),
+      at,
+    ).toStrictEqual([LEDGER]);
+    // Every element's place, state and ref as without the list; A1 cuts the same 7.
+    const states = (o: FullObservation) => o.elements.map((e) => [e.key, e.state, e.ref]);
+    expect(states(full), at).toStrictEqual(states(without));
+    expect(shown(full), at).toHaveLength(11);
+    expect(full.hiddenCount, at).toBe(7);
+    expect(full.belowFoldCount, at).toBe(without.belowFoldCount);
+  }
+});
+
+test("five personas, seeds 1 to 100, the same Actor text twice on /settings/data", () => {
+  expect(profileFixtures.map((p) => p.id)).toStrictEqual(PERSONA_IDS);
+  for (const profile of profileFixtures) {
+    for (const seed of SEEDS) {
+      const at = `${profile.id}, seed ${seed}`;
+      const first = perceive(measurement(DATA), profile, seed, WITH_JARGON);
+      const second = perceive(measurement(DATA), profile, seed, WITH_JARGON);
+      expect(actorText(second), at).toBe(actorText(first));
+      expect(JSON.stringify(second), at).toBe(JSON.stringify(first));
+    }
+  }
+});

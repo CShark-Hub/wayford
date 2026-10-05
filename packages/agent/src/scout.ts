@@ -32,6 +32,7 @@ import {
   UI_PATTERNS,
   WayfordError,
 } from "@wayford/core";
+import { targetAppJargon } from "@wayford/core/fixtures";
 import type { Logger } from "pino";
 import type { Browser } from "playwright";
 import { runActor } from "./actor-loop.js";
@@ -101,6 +102,8 @@ export async function scout(options: ScoutOptions): Promise<GroundTruth> {
         task,
         seed,
         params: options.params,
+        // Scout's profile sets no vocabulary, so K2 never fires; passed all the same, as every run.
+        jargon: targetAppJargon,
         runsDir: join(dir, "attempts"),
         backend: llmActor({ settings, role: "scout", ...(llm && { llm }) }),
         logger: options.logger,

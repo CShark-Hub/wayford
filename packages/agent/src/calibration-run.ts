@@ -12,6 +12,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type Profile, type RunId, type RunOutcome, type Seed, WayfordError } from "@wayford/core";
+import { targetAppJargon } from "@wayford/core/fixtures";
 import type { Logger } from "pino";
 import type { Browser } from "playwright";
 import type { ActorBackendFactory } from "./actor-backend.js";
@@ -329,6 +330,7 @@ async function runOne(
       task: { ...row.task, startUrl: rebase(row.task.startUrl, options.origin) },
       seed,
       params: TARGET_APP_DEFAULTS,
+      jargon: targetAppJargon,
       runsDir: options.runsDir,
       backend: timed,
       logger: options.logger,

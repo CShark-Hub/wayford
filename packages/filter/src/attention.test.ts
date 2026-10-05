@@ -17,7 +17,7 @@ import {
   FullObservation,
   type MeasuredElement,
   type Metrics,
-  PageMeasurement,
+  type PageMeasurement,
   type Profile,
 } from "@wayford/core";
 import {
@@ -36,6 +36,7 @@ import {
   PERSONA_IDS,
   seeds,
   shownKeys,
+  WITH_KEBAB,
   withCap,
 } from "./test-support.js";
 
@@ -195,12 +196,6 @@ describe("salienceOrder", () => {
 // ---------------------------------------------------------------------------
 // perceive, with stages 4 and 5
 // ---------------------------------------------------------------------------
-
-/** The fixture with the kebab of RULES's worked example added, last in measurement order. */
-const WITH_KEBAB = PageMeasurement.parse({
-  ...measurementFixture,
-  elements: [...measurementFixture.elements, KEBAB],
-});
 
 const PAGES: [page: string, measurement: PageMeasurement][] = [
   ["the fixture", measurementFixture],

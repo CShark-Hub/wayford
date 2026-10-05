@@ -144,16 +144,31 @@ export const ViewportDecision = z
 export type ViewportDecision = z.infer<typeof ViewportDecision>;
 
 /**
- * K1, K4: the persona does not know the pattern. The name is replaced
- * (`renamedName` on the element); the state is left as perception decided.
+ * K1, K2, K4: the persona does not know the pattern (K1, K4) or a jargon term
+ * in the name (K2). The name is replaced (`renamedName` on the element); the
+ * state is left as perception decided. One schema for the stage, since a
+ * second `knowledge` member would break the discriminated union.
  */
 export const KnowledgeDecision = z
   .object({
     stage: z.literal("knowledge"),
-    rule: RuleId.extract(["K1", "K4"]),
+    rule: RuleId.extract(["K1", "K2", "K4"]),
     pattern: UiPattern.optional(),
+    /**
+     * K2: the jargon-list terms masked in the name, as the list spells them, in order of first
+     * occurrence in the name.
+     */
+    terms: z.array(z.string().min(1)).min(1).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => (d.rule === "K2") === (d.terms !== undefined), {
+    path: ["terms"],
+    message: "K2 names the terms it masked, and only K2 carries terms",
+  })
+  .refine((d) => d.rule !== "K2" || d.pattern === undefined, {
+    path: ["pattern"],
+    message: "K2 reads a term, not a pattern, so it carries no pattern",
+  });
 export type KnowledgeDecision = z.infer<typeof KnowledgeDecision>;
 
 /** A1, A3: cut by the attention or option cap. Invisible, counted in `hiddenCount`. */
@@ -224,7 +239,7 @@ export const ObservedElement = z
     state: PerceptionState,
     decisions: z.array(ElementDecision),
     maskedName: z.string().optional(),
-    /** What the Actor reads after K1 or K4. Independent of `maskedName`. */
+    /** What the Actor reads after K1, K2 or K4. Independent of `maskedName`. */
     renamedName: z.string().optional(),
   })
   .strict()

@@ -21,7 +21,7 @@ import {
   runResultFromEvents,
   WayfordError,
 } from "@wayford/core";
-import { observationFixture } from "@wayford/core/fixtures";
+import { observationFixture, targetAppJargon } from "@wayford/core/fixtures";
 import pino from "pino";
 import { type AppOptions, createApp } from "./app.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
@@ -80,7 +80,7 @@ export const quiet = pino({ level: "silent" });
 
 /**
  * The runner's options on `store`, with nothing real behind them: `fakeRun()`, `noBackend`, the
- * target app's defaults and `quiet`.
+ * target app's defaults and jargon list, and `quiet`.
  */
 export function runnerDefaults(store: TempStore): RunnerOptions {
   return {
@@ -88,6 +88,7 @@ export function runnerDefaults(store: TempStore): RunnerOptions {
     run: fakeRun(),
     actor: noBackend,
     params: TARGET_APP_DEFAULTS,
+    jargon: targetAppJargon,
     runsDir: store.runsDir,
     logger: quiet,
   };

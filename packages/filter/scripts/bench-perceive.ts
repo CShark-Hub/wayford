@@ -8,10 +8,12 @@
  * 20 warm-up calls come first, so the average is of optimised code rather than the first compile.
  * Call `i` uses persona `i % 5` (Ada, Kai, Milo, Vera, Zoya) and run seed `i + 1`, so the timed
  * calls cover seeds 1 to 100 and each persona 20 times. Kai is the persona A1 cuts on the fixture,
- * so the timed calls rank and cut as well as decide. Their shown elements are summed and printed,
- * so every timed result is used and no call can be optimised away.
+ * so the timed calls rank and cut as well as decide. Every call gets the target app's jargon list,
+ * so K2's matching runs for Kai, the persona with a vocabulary; the fixture holds no listed term,
+ * so it renames nothing. Their shown elements are summed
+ * and printed, so every timed result is used and no call can be optimised away.
  */
-import { measurementFixture, profileFixture } from "@wayford/core/fixtures";
+import { measurementFixture, profileFixture, targetAppJargon } from "@wayford/core/fixtures";
 import { perceive } from "../src/perceive.js";
 
 const WARM_UP_CALLS = 20;
@@ -26,7 +28,7 @@ const personas = ["prof_ada", "prof_kai", "prof_milo", "prof_vera", "prof_zoya"]
 function call(i: number): number {
   const profile = personas[i % personas.length];
   if (profile === undefined) throw new Error(`no persona for call ${i}`);
-  const observation = perceive(measurementFixture, profile, i + 1);
+  const observation = perceive(measurementFixture, profile, i + 1, { jargon: targetAppJargon });
   return observation.elements.filter((element) => element.ref !== undefined).length;
 }
 

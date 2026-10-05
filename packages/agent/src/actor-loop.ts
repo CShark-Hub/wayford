@@ -83,6 +83,13 @@ export interface RunActorOptions {
    */
   seed: Seed;
   params: TargetAppParams;
+  /**
+   * The target app's jargon list, `@wayford/core/fixtures` `targetAppJargon`, handed to `perceive`
+   * each step. Runs only ever drive the target app (`params`), so there is one list. Required, so
+   * typecheck finds every caller: a caller that left it out would turn K2 off without a sound. K2
+   * fires only for a profile that sets `domainVocabulary` (`docs/RULES.md` stage 4).
+   */
+  jargon: readonly string[];
   /** The run's files go under `<runsDir>/<runId>/`. */
   runsDir: string;
   /**
@@ -217,6 +224,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
       profile,
       task,
       seed,
+      jargon: options.jargon,
       maxSteps,
       draw,
       now,
@@ -305,6 +313,8 @@ interface Loop {
   profile: Profile;
   task: Task;
   seed: Seed;
+  /** The target app's jargon list, for K2 in `perceive`. */
+  jargon: readonly string[];
   maxSteps: number;
   /** The run's behaviour stream, `rng(seed)`. */
   draw: () => number;
@@ -405,7 +415,10 @@ async function observe(loop: Loop, k: number): Promise<Observation> {
     return collect(page, { isMobile });
   });
   // `perceive` does not know the step, and the fold rejects an observation of another one.
-  const full: FullObservation = { ...perceive(measurement, loop.profile, loop.seed), stepIndex: k };
+  const full: FullObservation = {
+    ...perceive(measurement, loop.profile, loop.seed, { jargon: loop.jargon }),
+    stepIndex: k,
+  };
   loop.emit({ type: "stepObserved", stepIndex: k, observation: full });
   return toActorObservation(full);
 }

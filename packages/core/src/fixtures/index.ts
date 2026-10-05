@@ -15,6 +15,7 @@ import type { ZodType } from "zod";
 import { Action } from "../action.js";
 import { Finding } from "../finding.js";
 import { GroundTruth } from "../ground-truth.js";
+import { JargonList } from "../jargon.js";
 import { MeasuredElement, PageMeasurement } from "../measurement.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
@@ -170,6 +171,14 @@ export function taskFixture(id: string): Task {
   if (!found) throw new Error(`No task fixture ${id}`);
   return found;
 }
+
+/**
+ * The target app's jargon list (`s1-05`), the terms rule K2 masks for a persona
+ * whose `domainVocabulary` lacks them. One term on purpose: "Fulfilment ledger"
+ * is the one label on the app a team member would call shop jargon. `perceive`
+ * reads no file, so callers pass these terms in.
+ */
+export const targetAppJargon: readonly string[] = readJson("jargon.json", JargonList).terms;
 
 /** One per member of `FINDING_TYPES`, in that order, all about the hard goal. */
 export const findingFixtures: Finding[] = readJson("findings.json", Finding.array());

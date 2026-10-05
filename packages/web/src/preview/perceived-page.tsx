@@ -5,8 +5,9 @@
  *
  * - An element with a `ref` is shown, visible or degraded: one box at its bbox, reading the name
  *   the Actor reads, in the state the Actor gets, both of which `toActorObservation` gives that
- *   ref. So a degraded box reads its masked name, muted, and a renamed one reads its bare role
- *   whole, as the Actor does, whatever perception decided (`docs/RULES.md`, stage 4). Its role
+ *   ref. So a degraded box reads its masked name, muted, and a renamed one reads its new name
+ *   whole (the bare role for K1 and K4, `[unfamiliar term]` in place of the term for K2), as the
+ *   Actor does, whatever perception decided (`docs/RULES.md`, stage 4). Its role
  *   changes how it looks, never whether it is drawn.
  * - An element with no `ref` was removed and is not drawn. In the evidence view it is a dashed
  *   outline at its bbox, tagged with the rules that removed it, with its name for screen readers.

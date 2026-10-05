@@ -52,8 +52,8 @@ const TD = "border-b px-2 py-1 align-top";
 
 /**
  * One decision as a line of the evidence: `P1 contrast 2.1 < 3, rolled 0.42: degraded`,
- * `V2 below`, `K1 hamburger`, `A1`. The rule is printed from the data, never from the stage, so a
- * rule a later filter emits shows by its own id.
+ * `V2 below`, `K1 hamburger`, `K2 Fulfilment ledger`, `A1`. The rule is printed from the data,
+ * never from the stage, so a rule a later filter emits shows by its own id.
  */
 export function decisionLine(decision: ElementDecision): string {
   switch (decision.stage) {
@@ -64,6 +64,8 @@ export function decisionLine(decision: ElementDecision): string {
     case "viewport":
       return `${decision.rule} ${decision.side}`;
     case "knowledge":
+      // K2 names the jargon terms it masked, K1 the pattern, K4 nothing.
+      if (decision.terms !== undefined) return `${decision.rule} ${decision.terms.join(", ")}`;
       return decision.pattern === undefined
         ? decision.rule
         : `${decision.rule} ${decision.pattern}`;

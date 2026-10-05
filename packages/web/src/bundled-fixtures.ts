@@ -1,12 +1,13 @@
 /**
- * The core fixtures the browser needs: the personas, the measured page and the goals.
- * `@wayford/core/fixtures` reads its files from disk with `node:fs`, so it is Node only and the
- * page cannot import it. Here Vite reads the same files at build time, through the `@core-fixtures`
- * alias in `vite.config.ts`: its YAML plugin turns each persona into plain data, and its own JSON
- * import does the same for the measurement and the tasks. Each is validated here as core's loader
- * does it, so the page gets the same fixtures and needs no Node polyfill and no YAML parser.
+ * The core fixtures the browser needs: the personas, the measured page, the goals and the target
+ * app's jargon list. `@wayford/core/fixtures` reads its files from disk with `node:fs`, so it is
+ * Node only and the page cannot import it. Here Vite reads the same files at build time, through
+ * the `@core-fixtures` alias in `vite.config.ts`: its YAML plugin turns each persona into plain
+ * data, and its own JSON import does the same for the measurement, the tasks and the jargon list.
+ * Each is validated here as core's loader does it, so the page gets the same fixtures and needs no
+ * Node polyfill and no YAML parser.
  */
-import { PageMeasurement, Profile, Task } from "@wayford/core";
+import { JargonList, PageMeasurement, Profile, Task } from "@wayford/core";
 import type { ZodType } from "zod";
 
 /** `source` as `schema` reads it, or an `Error` naming the file and the schema, as core's loader. */
@@ -73,3 +74,19 @@ const taskSources = import.meta.glob<unknown>("@core-fixtures/tasks.json", {
  * has.
  */
 export const bundledTasks: Task[] = single(taskSources, Task.array(), "Task[]");
+
+/** The data of `jargon.json`, keyed by its path. */
+const jargonSources = import.meta.glob<unknown>("@core-fixtures/jargon.json", {
+  import: "default",
+  eager: true,
+});
+
+/**
+ * `targetAppJargon` for the browser: the terms rule K2 masks for a persona whose vocabulary lacks
+ * them (`docs/RULES.md`, stage 4). The preview passes it to `perceive`, as a run does.
+ */
+export const bundledJargon: readonly string[] = single(
+  jargonSources,
+  JargonList,
+  "JargonList",
+).terms;

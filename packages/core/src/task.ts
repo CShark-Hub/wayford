@@ -52,8 +52,11 @@ export function pathWordsIn(sentence: string): PathWord[] {
  * A screen name as it appears in a sentence. The boundary is only asserted on
  * the ends that are word characters, so "Account" does not match "accounting"
  * and "/deliveries" still matches at the start of a phrase.
+ *
+ * Exported: K2 builds its vocabulary matcher from this pattern's source
+ * (`packages/filter/src/vocabulary.ts`), so both match a term the same way.
  */
-function wholeTerm(term: string): RegExp {
+export function wholeTerm(term: string): RegExp {
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const lead = /^\w/u.test(term) ? "\\b" : "";
   const tail = /\w$/u.test(term) ? "\\b" : "";

@@ -7,7 +7,7 @@
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { DeviceKind, PageMeasurement, Profile } from "@wayford/core";
+import type { DeviceKind, PageMeasurement } from "@wayford/core";
 import { profileFixture, profileFixtures } from "@wayford/core/fixtures";
 import { beforeAll, expect, test } from "vitest";
 import { detectPattern, isHamburger, isKebab } from "./knowledge.js";
@@ -15,7 +15,7 @@ import { perceive } from "./perceive.js";
 import { routeSummary, type WalkedRoute } from "./route-table.js";
 import { walkRoutes } from "./route-walk.js";
 import { TARGET_APP_ROUTES } from "./serve-target-app.js";
-import { actorText } from "./test-support.js";
+import { actorText, WITH_JARGON, withKnowledge } from "./test-support.js";
 
 const RULES_MD = new URL("../../../docs/RULES.md", import.meta.url);
 const TOGGLE = "banner//button:Menu";
@@ -87,14 +87,10 @@ test('on Pixel 7, Milo reads the menu toggle as "Menu"', () => {
 test("on Pixel 7, a persona that does not know the hamburger still reads the toggle's word", () => {
   const home = asLoaded("mobile", "/");
   const milo = profileFixture("prof_milo");
-  const unknown: Profile = {
-    ...milo,
-    knowledge: {
-      ...milo.knowledge,
-      knownPatterns: milo.knowledge.knownPatterns.filter((p) => p !== "hamburger"),
-      unknownPatterns: [...milo.knowledge.unknownPatterns, "hamburger"],
-    },
-  };
+  const unknown = withKnowledge(milo, {
+    knownPatterns: milo.knowledge.knownPatterns.filter((p) => p !== "hamburger"),
+    unknownPatterns: [...milo.knowledge.unknownPatterns, "hamburger"],
+  });
   const full = perceive(home, unknown, RUN_SEED);
   // The toggle draws the word "Menu", so it is read by that word: K1 and K4 rename only a control
   // that draws no text (RULES stage 4).
@@ -105,7 +101,7 @@ test("on Pixel 7, a persona that does not know the hamburger still reads the tog
   expect(toggle?.renamedName).toBeUndefined();
   expect(toggle?.decisions.filter((d) => d.stage === "knowledge")).toStrictEqual([]);
   // The walk records the toggle as a home step, shown as it is for Milo.
-  const [routeA] = routesOn("mobile").map((route) => routeSummary(route, unknown));
+  const [routeA] = routesOn("mobile").map((route) => routeSummary(route, unknown, WITH_JARGON));
   expect(routeA?.steps[0]).toMatchObject({
     place: "home",
     step: { page: "/", role: "button", name: "Menu" },
@@ -159,9 +155,24 @@ const beforeColon = (cell: string) => cell.split(":")[0]?.trim() ?? "";
 test("the walked route table matches docs/RULES.md for all five personas", () => {
   const walked: Record<string, Record<string, string>> = {};
   for (const profile of profileFixtures) {
-    const summaries = routesOn(profile.device).map((route) => routeSummary(route, profile));
+    const summaries = routesOn(profile.device).map((route) =>
+      routeSummary(route, profile, WITH_JARGON),
+    );
     walked[profile.label] = Object.fromEntries(summaries.map((s) => [s.id, beforeColon(s.cell)]));
   }
   expect(Object.keys(walked)).toStrictEqual(["Ada", "Kai", "Milo", "Vera", "Zoya"]);
   expect(walked).toStrictEqual(rulesRouteTable());
+});
+
+test("Kai's route C stays open: K2 renames its final link and cuts nothing", () => {
+  const kai = profileFixture("prof_kai");
+  const routeC = routesOn(kai.device).find((route) => route.id === "C");
+  if (!routeC) throw new Error("the walk has no route C");
+  const summary = routeSummary(routeC, kai, WITH_JARGON);
+  expect(summary.cell).toBe("open");
+  expect(summary.steps.at(-1)).toMatchObject({
+    place: "final link",
+    step: { page: "/settings/data", role: "link", name: "Fulfilment ledger" },
+    outcomes: [{ value: "renamed (K2)", seeds: 100 }],
+  });
 });

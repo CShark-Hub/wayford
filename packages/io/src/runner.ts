@@ -46,6 +46,11 @@ export interface RunnerOptions {
   actor: ActorBackendFactory;
   /** The target app's parameters, the same for every run. */
   params: TargetAppParams;
+  /**
+   * The target app's jargon list, the same for every run: `@wayford/core/fixtures`
+   * `targetAppJargon`, which `runActor` hands to `perceive` for K2.
+   */
+  jargon: readonly string[];
   /** Absolute. Each run's files go under `<runsDir>/<runId>/`. */
   runsDir: string;
   logger: Logger;
@@ -90,7 +95,7 @@ export const MAX_CONCURRENT_RUNS = 5;
  * kept for the runner's life.
  */
 export function createRunner(options: RunnerOptions): Runner {
-  const { db, run, actor, params, runsDir, logger } = options;
+  const { db, run, actor, params, jargon, runsDir, logger } = options;
   const lives = new Map<string, LiveRun>();
   const slots = slotQueue(MAX_CONCURRENT_RUNS);
 
@@ -115,7 +120,7 @@ export function createRunner(options: RunnerOptions): Runner {
       await slot;
       let settled: Settled;
       try {
-        await run({ ...inputs, params, runsDir, backend: actor, logger, runId, onEvent });
+        await run({ ...inputs, params, jargon, runsDir, backend: actor, logger, runId, onEvent });
         settled = { ok: true };
       } catch (error) {
         settled = { ok: false, error };

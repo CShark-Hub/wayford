@@ -23,7 +23,7 @@ import {
   type Task,
   toActorObservation,
 } from "@wayford/core";
-import { profileFixture, profileFixtures } from "@wayford/core/fixtures";
+import { profileFixture, profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { actorTurn, decisionDrawFor } from "./actor-backend.js";
 import { runActor } from "./actor-loop.js";
@@ -157,6 +157,7 @@ async function walkJev(scripted: {
     task: scripted.task,
     seed,
     params: TARGET_APP_DEFAULTS,
+    jargon: targetAppJargon,
     runsDir,
     backend: jevActor({ settings, llm: () => billed(fake, answered) }),
     logger: quiet,
@@ -327,6 +328,7 @@ test("a Jev run and an LLM run of Vera on the same seed and clicks roll the same
       task,
       seed: RUN_SEED,
       params: TARGET_APP_DEFAULTS,
+      jargon: targetAppJargon,
       runsDir,
       backend: llmActor({ settings, llm: () => billed(fake) }),
       logger: quiet,

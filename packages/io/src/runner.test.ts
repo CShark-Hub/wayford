@@ -7,7 +7,12 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { TARGET_APP_DEFAULTS } from "@wayford/agent";
 import { type Profile, type RunEvent, runResultFromEvents, type Seed } from "@wayford/core";
-import { profileFixture, runResultFixture, taskFixture } from "@wayford/core/fixtures";
+import {
+  profileFixture,
+  runResultFixture,
+  targetAppJargon,
+  taskFixture,
+} from "@wayford/core/fixtures";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -116,6 +121,8 @@ test("start mints a run per seed × persona, seed-major, and returns before any 
   ).toStrictEqual(started);
   for (const call of run.calls) {
     expect(call).toMatchObject({ task, params: TARGET_APP_DEFAULTS, runsDir: store.runsDir });
+    // The runner's own list, handed on, so every run gets K2 (s1-05).
+    expect(call.jargon).toBe(targetAppJargon);
     expect(call.backend).toBe(noBackend);
     expect(call.logger).toBe(quiet);
   }

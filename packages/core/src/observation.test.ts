@@ -48,6 +48,8 @@ const v2Below = { stage: "viewport", rule: "V2", side: "below" } as const;
 const v2Above = { stage: "viewport", rule: "V2", side: "above" } as const;
 const a1 = { stage: "attention", rule: "A1" } as const;
 const k1 = { stage: "knowledge", rule: "K1", pattern: "hamburger" } as const;
+const k2 = { stage: "knowledge", rule: "K2", terms: ["Fulfilment ledger"] } as const;
+const k4 = { stage: "knowledge", rule: "K4", pattern: "hamburger" } as const;
 
 /** An element cut before the Actor sees it: invisible, no ref. */
 function cut(decisions: readonly unknown[]): unknown {
@@ -89,6 +91,19 @@ describe("ElementDecision (one failed rule)", () => {
     expect(ElementDecision.safeParse({ ...p1Degraded, rolled: 1.2 }).success).toBe(false);
     expect(ElementDecision.safeParse({ ...p1Degraded, rolled: 1 }).success).toBe(false);
     expect(ElementDecision.safeParse({ ...p1Degraded, rolled: 0 }).success).toBe(true);
+  });
+
+  test("K2 names the jargon terms it masked, and only K2 carries terms", () => {
+    expect(ElementDecision.safeParse(k2).success).toBe(true);
+    expect(ElementDecision.safeParse({ stage: "knowledge", rule: "K2" }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...k2, terms: [] }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...k2, terms: [""] }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...k1, terms: ["Fulfilment ledger"] }).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...k4, terms: ["Fulfilment ledger"] }).success).toBe(false);
+  });
+
+  test("K2 reads a term, not a pattern, so it carries no pattern", () => {
+    expect(ElementDecision.safeParse({ ...k2, pattern: "hamburger" }).success).toBe(false);
   });
 
   test("each perception rule compares its own metric", () => {
@@ -195,6 +210,23 @@ describe("ObservedElement (evidence)", () => {
     expect(ObservedElement.safeParse({ ...degradedRenamed, maskedName: "Ar▒▒ive" }).success).toBe(
       false,
     );
+  });
+
+  test("knowledge decisions are listed K1, K2, K4", () => {
+    const renamed = { ...baseElement, renamedName: "link" };
+    expect(ObservedElement.safeParse({ ...renamed, decisions: [k1, k2, k4] }).success).toBe(true);
+    expect(ObservedElement.safeParse({ ...renamed, decisions: [k4, k2] }).success).toBe(false);
+    expect(ObservedElement.safeParse({ ...renamed, decisions: [k2, k1] }).success).toBe(false);
+  });
+
+  test("a K2 rename lives in renamedName and leaves the state alone, degraded or not", () => {
+    const renamed = { ...baseElement, decisions: [k2], renamedName: "[unfamiliar term]" };
+    expect(ObservedElement.safeParse(renamed).success).toBe(true);
+    const { renamedName: _renamedName, ...unnamed } = renamed;
+    expect(ObservedElement.safeParse(unnamed).success).toBe(false);
+    const degraded = { ...renamed, state: "degraded", decisions: [p1Degraded, k2] };
+    expect(ObservedElement.safeParse(degraded).success).toBe(true);
+    expect(ObservedElement.safeParse({ ...degraded, maskedName: "Ar▒▒ive" }).success).toBe(false);
   });
 
   test("attention ranks only what viewport and perception left shown", () => {

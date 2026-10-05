@@ -14,7 +14,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { type DeviceKind, METRIC_NAMES, type PageMeasurement, type Profile } from "@wayford/core";
-import { measurementFixture, profileFixture, profileFixtures } from "@wayford/core/fixtures";
+import {
+  measurementFixture,
+  profileFixture,
+  profileFixtures,
+  targetAppJargon,
+} from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter/perceive";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
@@ -296,15 +301,17 @@ test("the drawn elements are exactly the shown elements of perceive for the URL'
     },
   ];
   for (const { url, profile, seed } of cases) {
-    const expected = realPerceive(measurementFixture, profile, seed);
+    const expected = realPerceive(measurementFixture, profile, seed, { jargon: targetAppJargon });
     const html = await render(url);
     expect(drawnBoxes(html), url).toEqual(shownElements(expected));
-    // The screen perceives the stored page itself, with the URL's profile and seed.
+    // The screen perceives the stored page itself, with the URL's profile and seed, and the target
+    // app's jargon list, so K2 masks in the preview what it masks in a run.
     expect(perceiveSpy.mock.calls.length, url).toBeGreaterThan(0);
-    for (const [measurement, callProfile, callSeed] of perceiveSpy.mock.calls) {
+    for (const [measurement, callProfile, callSeed, callOptions] of perceiveSpy.mock.calls) {
       expect(measurement, url).toStrictEqual(measurementFixture);
       expect(callProfile, url).toStrictEqual(softnessWrittenOut(profile));
       expect(callSeed, url).toBe(seed);
+      expect(callOptions, url).toStrictEqual({ jargon: targetAppJargon });
     }
   }
   // The moved URL holds every state, so the comparison cannot pass on a page with nothing removed

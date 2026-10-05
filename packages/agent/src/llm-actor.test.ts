@@ -4,8 +4,15 @@ import {
   MAX_WAIT_MS,
   Observation,
   toActorObservation,
+  wholeTerm,
 } from "@wayford/core";
-import { BANNED_ACTOR_WORDS, observationFixture, taskFixture } from "@wayford/core/fixtures";
+import {
+  BANNED_ACTOR_WORDS,
+  observationFixture,
+  profileFixtures,
+  targetAppJargon,
+  taskFixture,
+} from "@wayford/core/fixtures";
 import pino, { type Logger } from "pino";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
@@ -125,34 +132,37 @@ describe("actorMessages", () => {
     expect(system).not.toMatch(/\{\{|\}\}/);
   });
 
+  // The goal, every page string, the typed text and the model's own words are not ours, and a
+  // real page may well say "Hidden fees". Blanked, what is left is the template, the two
+  // renderers' words and the answer schema.
+  const blank: Observation = {
+    ...deliveries,
+    title: "",
+    url: "",
+    elements: deliveries.elements.map((element) => ({ ...element, role: "", name: "" })),
+  };
+  /** One step per move, then a wasted one, so the history writes every kind of line. */
+  const blankHistory: HistoryStep[] = [
+    { observation: blank, proposed: { type: "click", ref: "e1" } },
+    { observation: blank, proposed: { type: "doubleClick", ref: "e1" } },
+    { observation: blank, proposed: { type: "type", ref: "e1", text: "" } },
+    { observation: blank, proposed: { type: "scroll", direction: "down" } },
+    { observation: blank, proposed: { type: "scroll", direction: "up" } },
+    { observation: blank, proposed: { type: "back" } },
+    { observation: blank, proposed: { type: "wait", ms: 1000 } },
+    { observation: blank, proposed: { type: "giveUp" } },
+    { observation: blank, wasted: true },
+  ];
+  const blankTurn = actorTurn("", blank, blankHistory);
+  /** The system, turn and retry messages with nothing of the page, the goal or the model in them. */
+  const blankMessages = actorMessages({
+    ...blankTurn,
+    retry: { refused: { narration: "", action: { type: "click", ref: "" } }, ref: "" },
+  });
+
   test("the template's own words hold no banned word (F5 AC6)", () => {
-    // The goal, every page string, the typed text and the model's own words are not ours, and a
-    // real page may well say "Hidden fees". Blanked, what is left is the template, the two
-    // renderers' words and the answer schema.
-    const blank: Observation = {
-      ...deliveries,
-      title: "",
-      url: "",
-      elements: deliveries.elements.map((element) => ({ ...element, role: "", name: "" })),
-    };
-    const history: HistoryStep[] = [
-      { observation: blank, proposed: { type: "click", ref: "e1" } },
-      { observation: blank, proposed: { type: "doubleClick", ref: "e1" } },
-      { observation: blank, proposed: { type: "type", ref: "e1", text: "" } },
-      { observation: blank, proposed: { type: "scroll", direction: "down" } },
-      { observation: blank, proposed: { type: "scroll", direction: "up" } },
-      { observation: blank, proposed: { type: "back" } },
-      { observation: blank, proposed: { type: "wait", ms: 1000 } },
-      { observation: blank, proposed: { type: "giveUp" } },
-      { observation: blank, wasted: true },
-    ];
-    const turn = actorTurn("", blank, history);
-    const messages = actorMessages({
-      ...turn,
-      retry: { refused: { narration: "", action: { type: "click", ref: "" } }, ref: "" },
-    });
     // The same steps to a memory of one: the history opens with M1's count line.
-    const remembered = actorTurn("", blank, history, 1);
+    const remembered = actorTurn("", blank, blankHistory, 1);
 
     // Every kind of line our text writes is in it, so every kind is grepped: both element states,
     // both count lines, one history line per move and the wasted one, M1's count line, and the
@@ -161,7 +171,7 @@ describe("actorMessages", () => {
       new Set(["visible", "degraded"]),
     );
     for (const line of ["partly legible", "more elements not shown", "more below"]) {
-      expect(turn.observationText).toContain(line);
+      expect(blankTurn.observationText).toContain(line);
     }
     const moves = [
       "clicked",
@@ -174,13 +184,13 @@ describe("actorMessages", () => {
       "gave up",
       "pointed at something",
     ];
-    const lines = turn.history.split("\n");
+    const lines = blankTurn.history.split("\n");
     expect(lines).toHaveLength(moves.length);
     for (const [index, move] of moves.entries()) expect(lines[index]).toContain(`you ${move}`);
     expect(remembered.history.split("\n")[0]).toBe(
       `- ${moves.length - 1} earlier steps not shown.`,
     );
-    expect(messages.map((message) => message.role)).toStrictEqual([
+    expect(blankMessages.map((message) => message.role)).toStrictEqual([
       "system",
       "user",
       "assistant",
@@ -188,13 +198,26 @@ describe("actorMessages", () => {
     ]);
 
     const ours = [
-      ...messages.map((message) => message.content),
+      ...blankMessages.map((message) => message.content),
       remembered.history,
       JSON.stringify(z.toJSONSchema(ActorResponse)),
     ];
     for (const text of ours) {
       const lower = text.toLowerCase();
       for (const word of BANNED_ACTOR_WORDS) expect(lower).not.toContain(word);
+    }
+  });
+
+  test("the templates hold no vocabulary word and no jargon term", () => {
+    // K2's word lists stay in the filter: the prompt is the same for every persona (F5 AC6).
+    const vocabularyWords = profileFixtures.flatMap((profile) =>
+      (profile.knowledge.domainVocabulary ?? []).flatMap((entry) => entry.split(/\s+/u)),
+    );
+    expect(vocabularyWords.length).toBeGreaterThan(0);
+    expect(targetAppJargon.length).toBeGreaterThan(0);
+    const words = [...vocabularyWords, ...targetAppJargon].filter((word) => word !== "");
+    for (const message of blankMessages) {
+      for (const word of words) expect(message.content).not.toMatch(wholeTerm(word));
     }
   });
 

@@ -29,7 +29,13 @@ import {
   type RunResult,
   type Seed,
 } from "@wayford/core";
-import { profileFixture, profileFixtures, taskFixture, taskFixtures } from "@wayford/core/fixtures";
+import {
+  profileFixture,
+  profileFixtures,
+  targetAppJargon,
+  taskFixture,
+  taskFixtures,
+} from "@wayford/core/fixtures";
 import pino from "pino";
 import { runActor } from "./actor-loop.js";
 import {
@@ -208,6 +214,7 @@ async function main(args: Arguments): Promise<number> {
         task: taskFixture(args.taskId),
         seed: args.seed,
         params: TARGET_APP_DEFAULTS,
+        jargon: targetAppJargon,
         runsDir: RUNS_DIR,
         backend: backendFactory(backendId, settings),
         logger,

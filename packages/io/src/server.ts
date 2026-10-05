@@ -10,6 +10,7 @@
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createLlm, llmActor, parseLlmSettings, TARGET_APP_DEFAULTS } from "@wayford/agent";
+import { targetAppJargon } from "@wayford/core/fixtures";
 import pino from "pino";
 import { createApp } from "./app.js";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
@@ -55,6 +56,8 @@ const app = createApp({
   actor: llmActor({ settings }),
   // The arena runs on the app's defaults (s3-03, Out of scope).
   params: TARGET_APP_DEFAULTS,
+  // The target app's jargon list, so a run perceives what the preview shows (K2, s1-05).
+  jargon: targetAppJargon,
   logger,
 });
 

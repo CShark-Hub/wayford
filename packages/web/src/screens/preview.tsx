@@ -23,7 +23,7 @@ import { Button } from "#components/ui/button";
 import { measurementQuery } from "../api/measure.js";
 import { Avatar } from "../avatar/avatar.js";
 import { personaColour } from "../avatar/parts.js";
-import { bundledMeasurement, bundledProfiles } from "../bundled-fixtures.js";
+import { bundledJargon, bundledMeasurement, bundledProfiles } from "../bundled-fixtures.js";
 import { PerceivedPage } from "../preview/perceived-page.js";
 import {
   CUT_SLIDERS,
@@ -459,9 +459,10 @@ export function PreviewScreen() {
   const live = useQuery(measurementQuery(device, state.page));
   // Perceived again on every render, with no memo: a render follows a URL change, and `perceive`
   // on a page stays far inside its 5 ms budget (`bench:perceive`). It gets the whole persona, so
-  // the caps and unknown patterns a run applies apply here too (F2 AC3).
+  // the caps and unknown patterns a run applies apply here too (F2 AC3). It gets the target app's
+  // jargon list too, so K2 masks here what it masks in a run.
   const perceived = (measurement: PageMeasurement) =>
-    perceive(measurement, state.profile, state.seed);
+    perceive(measurement, state.profile, state.seed, { jargon: bundledJargon });
   // What the stage draws: the live page, or the stored one, with why, once the live one failed.
   // While it loads, nothing: the stored `/deliveries` drawn under another page's name would be the
   // wrong page.

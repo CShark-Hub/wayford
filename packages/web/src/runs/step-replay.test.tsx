@@ -335,6 +335,8 @@ test("a decision line prints the rule the data names, whatever its stage", () =>
     ],
     [{ stage: "viewport", rule: "V2", side: "below" }, "V2 below"],
     [{ stage: "knowledge", rule: "K1", pattern: "hamburger" }, "K1 hamburger"],
+    [{ stage: "knowledge", rule: "K2", terms: ["Fulfilment ledger"] }, "K2 Fulfilment ledger"],
+    [{ stage: "knowledge", rule: "K2", terms: ["ledger", "SKU"] }, "K2 ledger, SKU"],
     [{ stage: "knowledge", rule: "K4" }, "K4"],
     [{ stage: "attention", rule: "A1" }, "A1"],
     [{ stage: "attention", rule: "A3" }, "A3"],

@@ -8,7 +8,7 @@
 import { EventEmitter } from "node:events";
 import { TARGET_APP_DEFAULTS } from "@wayford/agent";
 import { WayfordError } from "@wayford/core";
-import { profileFixture, taskFixture } from "@wayford/core/fixtures";
+import { profileFixture, targetAppJargon, taskFixture } from "@wayford/core/fixtures";
 import type { Browser } from "playwright";
 import { expect, test, vi } from "vitest";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
@@ -27,6 +27,7 @@ function capped(): Parameters<RunFn>[0] {
     task: taskFixture("task_next-parcel"),
     seed: 1,
     params: TARGET_APP_DEFAULTS,
+    jargon: targetAppJargon,
     runsDir: "unused",
     backend: noBackend,
     logger: quiet,

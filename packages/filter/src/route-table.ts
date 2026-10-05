@@ -4,11 +4,12 @@
  * one persona over run seeds 1 to 100, and where each route closes.
  *
  * Pure: the page measurements come in, taken by `route-walk.ts` where a person reaches each step,
- * and `perceive` decides. `scripts/routes.ts` prints the tables, and `routes.browser.test.ts` holds
- * them against RULES.
+ * and `perceive` decides, with the options it is given: the target app's jargon list, so K2 is in
+ * the table. `scripts/routes.ts` prints the tables, and `routes.browser.test.ts` holds them against
+ * RULES.
  *
- * A step's outcome is what the filter did to the step's element: shown, renamed (K1, K4), masked
- * (the rules that degraded it) or cut (the rules that made it invisible: V2, P1, P3, P4, A1). When
+ * A step's outcome is what the filter did to the step's element: shown, renamed (K1, K2, K4),
+ * masked (the rules that degraded it) or cut (the rules that made it invisible: V2, P1, P3, P4, A1). When
  * several elements share the step's role and name, as the nav and card "Your account" links on
  * `/`, the best outcome wins: shown, then renamed or masked, then cut. A tie goes to the one the
  * persona reads first: the more salient under a cap, the first measured without one. A route
@@ -29,7 +30,7 @@ import {
   stageOf,
   worstState,
 } from "@wayford/core";
-import { type PerceiveProfile, perceive } from "./perceive.js";
+import { type PerceiveOptions, type PerceiveProfile, perceive } from "./perceive.js";
 
 /** Run seeds 1 to 100, the seeds the RULES route table is computed over. */
 export const ROUTE_SEEDS: readonly Seed[] = Array.from({ length: 100 }, (_, i) => i + 1);
@@ -67,8 +68,9 @@ type Outcome = "shown" | "renamed" | "masked" | "cut";
 interface StepResult {
   outcome: Outcome;
   /**
-   * The rules behind the outcome, in pipeline order: K1 and K4 when renamed, those whose decision
-   * is `degraded` when masked, those whose decision is `invisible` when cut. None when shown.
+   * The rules behind the outcome, in pipeline order: K1, K2 and K4 when renamed, those whose
+   * decision is `degraded` when masked, those whose decision is `invisible` when cut. None when
+   * shown.
    */
   rules: RuleId[];
   /**
@@ -119,8 +121,13 @@ function stepPlace(route: WalkedRoute, index: number): StepPlace {
  * What the filter does to one step in one seed. Throws when the step's page holds no element with
  * its role and name: the walk measured the wrong page.
  */
-function stepResult(step: WalkedStep, profile: PerceiveProfile, runSeed: Seed): StepResult {
-  const observation = perceive(step.measurement, profile, runSeed);
+function stepResult(
+  step: WalkedStep,
+  profile: PerceiveProfile,
+  runSeed: Seed,
+  options: PerceiveOptions,
+): StepResult {
+  const observation = perceive(step.measurement, profile, runSeed, options);
   let best: { element: ObservedElement; outcome: Outcome; rules: RuleId[] } | undefined;
   // In the order the persona reads, and a later element replaces the best only when it does
   // strictly better.
@@ -141,7 +148,7 @@ function stepResult(step: WalkedStep, profile: PerceiveProfile, runSeed: Seed): 
   };
 }
 
-/** `shown`, or the outcome with its rules: `renamed (K1, K4)`, `cut (P3, P4)`. */
+/** `shown`, or the outcome with its rules: `renamed (K1, K2, K4)`, `cut (P3, P4)`. */
 function describeOutcome(result: Pick<StepResult, "outcome" | "rules">): string {
   return result.rules.length === 0
     ? result.outcome
@@ -150,12 +157,16 @@ function describeOutcome(result: Pick<StepResult, "outcome" | "rules">): string 
 
 /**
  * One route for one persona over `ROUTE_SEEDS`: every step's outcomes and ranks, and the route's
- * cell.
+ * cell. `options` go to `perceive` as they are.
  */
-export function routeSummary(route: WalkedRoute, profile: PerceiveProfile): RouteSummary {
+export function routeSummary(
+  route: WalkedRoute,
+  profile: PerceiveProfile,
+  options: PerceiveOptions,
+): RouteSummary {
   // One column per step: its result in each seed, in seed order.
   const columns = route.steps.map((step) =>
-    ROUTE_SEEDS.map((seed) => stepResult(step, profile, seed)),
+    ROUTE_SEEDS.map((seed) => stepResult(step, profile, seed, options)),
   );
   // A seed closes the route at its first cut step, if it has one.
   const closings = ROUTE_SEEDS.flatMap((_, i) => {

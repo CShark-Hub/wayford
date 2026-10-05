@@ -7,6 +7,9 @@
  * floor, and the hard 3.0 cut of the calibration table.
  *
  * Stages 4 and 5 (`s1-03`) have their own tests in `knowledge.test.ts` and `attention.test.ts`.
+ * K2 (`s1-05`) is tested at the end, on the fixture with lists written for the test: the match
+ * rule is `vocabulary.test.ts`'s, and the target app's list on a real page is
+ * `target-app-routes.browser.test.ts`'s.
  * A test here that is about perception unsets the persona's attention cap, as #113 has the sweep
  * use Vera, so it reads measurement order. That a real cap which cuts nothing only puts the same
  * evidence in salience order is `attention.test.ts`'s, for every capped persona.
@@ -20,11 +23,27 @@ import {
   type Profile,
   toActorObservation,
 } from "@wayford/core";
-import { measurementFixture, profileFixture, profileFixtures } from "@wayford/core/fixtures";
+import {
+  kebabElement,
+  measurementFixture,
+  profileFixture,
+  profileFixtures,
+} from "@wayford/core/fixtures";
 import { expect, test } from "vitest";
 import { MASK_GLYPH, maskName } from "./mask.js";
 import { type PerceiveProfile, perceive } from "./perceive.js";
-import { actorText, observed, PERSONA_IDS, seeds, shownKeys, withCap } from "./test-support.js";
+import {
+  actorText,
+  K1_K4,
+  observed,
+  PERSONA_IDS,
+  seeds,
+  shownKeys,
+  WITH_KEBAB,
+  withCap,
+  withKnowledge,
+} from "./test-support.js";
+import { UNFAMILIAR } from "./vocabulary.js";
 
 // ---------------------------------------------------------------------------
 // The page
@@ -731,4 +750,125 @@ test("a run seed outside Seed throws, whatever the profile", () => {
       );
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// s1-05: K2 vocabulary
+// ---------------------------------------------------------------------------
+
+const KEBAB = kebabElement.key;
+
+/** The stage 4 decisions on one element. */
+const knowledgeOf = (full: FullObservation, key: string) =>
+  observed(full, key).decisions.filter((d) => d.stage === "knowledge");
+
+/** Kai with no attention cap, so every element on the fixture is shown. */
+const uncappedKai = () => withCap(profileFixture("prof_kai"), undefined);
+
+test("K2 is off without a vocabulary or without a jargon list", () => {
+  const kai = profileFixture("prof_kai");
+  const ada = profileFixture("prof_ada");
+  expect(kai.knowledge.domainVocabulary).toBeDefined();
+  expect(ada.knowledge.domainVocabulary).toBeUndefined();
+  // "order" is in Kai's vocabulary and "archive" is not, so he does not know the phrase.
+  const jargon = ["Order archive"];
+  for (const seed of seeds(20)) {
+    // Not vacuous: with both, K2 fires on the link, which Kai's cap cuts on the fixture.
+    const on = perceive(measurementFixture, kai, seed, { jargon });
+    expect(knowledgeOf(on, ARCHIVE), `run seed ${seed}`).toStrictEqual([
+      { stage: "knowledge", rule: "K2", terms: ["Order archive"] },
+    ]);
+    const cases = [
+      ["Ada, with the list", ada, { jargon }],
+      ["Kai, no list", kai, {}],
+      ["Kai, an empty list", kai, { jargon: [] }],
+    ] as const;
+    for (const [label, profile, options] of cases) {
+      const where = `${label}, run seed ${seed}`;
+      const off = perceive(measurementFixture, profile, seed, options);
+      expect(
+        off.elements.filter((e) => e.decisions.some((d) => d.stage === "knowledge")),
+        where,
+      ).toStrictEqual([]);
+      expect(JSON.stringify(off), where).toBe(
+        JSON.stringify(perceive(measurementFixture, profile, seed)),
+      );
+    }
+  }
+});
+
+test("K1, K2, K4 are listed in that order on an element both rules hit", () => {
+  // Kai does not know the kebab, and "options" is not in his vocabulary.
+  const full = perceive(WITH_KEBAB, uncappedKai(), 1, { jargon: ["options"] });
+  const [k1, k4] = K1_K4;
+  expect(observed(full, KEBAB).decisions).toStrictEqual([
+    k1,
+    { stage: "knowledge", rule: "K2", terms: ["options"] },
+    k4,
+  ]);
+  const parsed = FullObservation.safeParse(full);
+  expect(parsed.success, `${parsed.error}`).toBe(true);
+});
+
+test("K1 and K4 win the name over K2, and K2 alone renames to its replacement", () => {
+  const kai = uncappedKai();
+  const jargon = ["options"];
+  const at = `${kebabElement.bbox.x},${kebabElement.bbox.y}`;
+  // A persona that knows the kebab, so K2 alone renames it.
+  const knowsKebab = withKnowledge(kai, {
+    unknownPatterns: kai.knowledge.unknownPatterns.filter((p) => p !== "kebab"),
+  });
+  for (const seed of seeds(20)) {
+    const where = `run seed ${seed}`;
+    const full = perceive(WITH_KEBAB, kai, seed, { jargon });
+    const kebab = observed(full, KEBAB);
+    // The bare role holds no jargon, so it already covers K2.
+    expect(kebab.renamedName, where).toBe("button");
+    expect(kebab.state, where).toBe("visible");
+    const text = actorText(full);
+    expect(text.split("\n"), where).toContain(`[${kebab.ref}] button "button" at ${at}`);
+    expect(text, where).not.toContain(UNFAMILIAR);
+    expect(text, where).not.toContain("More options");
+
+    const alone = perceive(WITH_KEBAB, knowsKebab, seed, { jargon });
+    const renamed = observed(alone, KEBAB);
+    expect(renamed.decisions, where).toStrictEqual([
+      { stage: "knowledge", rule: "K2", terms: ["options"] },
+    ]);
+    expect(renamed.renamedName, where).toBe(`More ${UNFAMILIAR}`);
+    expect(actorText(alone).split("\n"), where).toContain(
+      `[${renamed.ref}] button "More ${UNFAMILIAR}" at ${at}`,
+    );
+  }
+});
+
+test("a degraded element K2 renames reads its replacement whole", () => {
+  // Vera's contrast band degrades Order archive on some seeds. With a vocabulary that knows
+  // "order" and a list that flags "archive", K2 renames it, and the Actor reads the replacement,
+  // never a mask. The rest of the name reaches the model unmasked: the known understatement of
+  // RULES, "Several rules".
+  const profile = withKnowledge(profileFixture("prof_vera"), { domainVocabulary: ["order"] });
+  let degraded = 0;
+  for (const seed of seeds(200)) {
+    const where = `run seed ${seed}`;
+    const full = perceive(measurementFixture, profile, seed, { jargon: ["archive"] });
+    const archive = observed(full, ARCHIVE);
+    expect(
+      archive.decisions.map((d) => d.rule),
+      where,
+    ).toStrictEqual(["P1", "K2"]);
+    expect(knowledgeOf(full, ARCHIVE), where).toStrictEqual([
+      { stage: "knowledge", rule: "K2", terms: ["archive"] },
+    ]);
+    expect(archive.renamedName, where).toBe(`Order ${UNFAMILIAR}`);
+    expect("maskedName" in archive, where).toBe(false);
+    const parsed = FullObservation.safeParse(full);
+    expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+    if (archive.state !== "degraded") continue;
+    degraded += 1;
+    const text = actorText(full);
+    expect(text, where).toContain(`[${archive.ref}] link "Order ${UNFAMILIAR}" at `);
+    expect(text, where).not.toContain(MASK_GLYPH);
+  }
+  expect(degraded, "Vera's band degrades it on some seeds").toBeGreaterThan(0);
 });

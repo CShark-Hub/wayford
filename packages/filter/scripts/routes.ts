@@ -1,6 +1,6 @@
 /**
  * Prints the route table of `docs/RULES.md` with no model involved: the target app at its
- * defaults, each persona on its own device, run seeds 1 to 100.
+ * defaults, each persona on its own device, run seeds 1 to 100, with the target app's jargon list.
  *
  *   pnpm --filter @wayford/filter routes
  *
@@ -9,7 +9,7 @@
  * it: what the filter did to the step's element, and the element's A1 rank. Page paths only, never
  * the origin: the port changes from run to run.
  */
-import { profileFixtures } from "@wayford/core/fixtures";
+import { profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import { ROUTE_SEEDS, routeSummary, type Tally, type WalkedStep } from "../src/route-table.js";
 import { walkRoutes } from "../src/route-walk.js";
 
@@ -17,7 +17,10 @@ const walks = await walkRoutes(profileFixtures.map((profile) => profile.device))
 const personas = profileFixtures.map((profile) => {
   const routes = walks.get(profile.device);
   if (!routes) throw new Error(`the routes were not walked on ${profile.device}`);
-  return { profile, routes: routes.map((route) => routeSummary(route, profile)) };
+  return {
+    profile,
+    routes: routes.map((route) => routeSummary(route, profile, { jargon: targetAppJargon })),
+  };
 });
 const routeIds = personas[0]?.routes.map((route) => route.id) ?? [];
 
@@ -44,7 +47,7 @@ const lines = [
     row([id, ...personas.map(({ routes }) => routes.find((r) => r.id === id)?.cell ?? "")]),
   ),
   "",
-  "Steps. Outcome: shown, renamed (K1, K4), masked (the rules that degraded it) or cut (the rules " +
+  "Steps. Outcome: shown, renamed (K1, K2, K4), masked (the rules that degraded it) or cut (the rules " +
     "that removed it). A1 rank: the element's place among the elements stages 1 to 3 left shown, " +
     "in salience order; - when the persona has no attention cap or the element was not left shown.",
   "",

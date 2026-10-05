@@ -1,6 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { taskFixture, taskFixtures } from "./fixtures/index.js";
-import { Goal, PATH_WORDS, pathWordsIn, SuccessCondition, strippedPathsIn, Task } from "./task.js";
+import {
+  Goal,
+  PATH_WORDS,
+  pathWordsIn,
+  SuccessCondition,
+  strippedPathsIn,
+  Task,
+  wholeTerm,
+} from "./task.js";
 
 function rawFixture(id: string): Record<string, unknown> {
   return JSON.parse(JSON.stringify(taskFixture(id)));
@@ -42,6 +50,19 @@ describe("stripped paths", () => {
     expect(strippedPathsIn("see your Archive", ["Archive", "Settings"])).toEqual(["Archive"]);
     expect(strippedPathsIn("see your archive", ["Archive"])).toEqual(["Archive"]);
     expect(strippedPathsIn("help with accounting", ["Account"])).toEqual([]);
+  });
+});
+
+describe("wholeTerm", () => {
+  test("a term matches whole and in any case, with a boundary only on an end that is a word character", () => {
+    expect(wholeTerm("ledger").test("The LEDGER.")).toBe(true);
+    expect(wholeTerm("ledger").test("ledgers")).toBe(false);
+    expect(wholeTerm("C++").test("C++Builder")).toBe(true);
+  });
+
+  test("regex specials in a term are literal", () => {
+    expect(wholeTerm("C..").test("Cxx")).toBe(false);
+    expect(wholeTerm("(a.k.a.)").test("see (a.k.a.) here")).toBe(true);
   });
 });
 

@@ -33,6 +33,7 @@ import {
   measurementFixture,
   profileFixture,
   profileFixtures,
+  targetAppJargon,
   taskFixture,
 } from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter";
@@ -124,6 +125,7 @@ async function walk(scripted: {
     task: scripted.task,
     seed: scripted.seed ?? RUN_SEED,
     params: TARGET_APP_DEFAULTS,
+    jargon: targetAppJargon,
     runsDir,
     backend: llmActor({ settings, llm: () => billed(fake) }),
     logger: quiet,
@@ -739,6 +741,39 @@ test("every persona fixture sends the same first request on the same page (F5 AC
   for (const request of requests) expect(request).toStrictEqual(requests[0]);
 });
 
+test("a Kai run on /settings/data records K2 on the ledger", async () => {
+  // Not vacuous: the run gets the target app's list, and neither of its words is Kai's.
+  expect(targetAppJargon).toStrictEqual(["Fulfilment ledger"]);
+  const kai = profileFixture("prof_kai");
+  expect(kai.knowledge.domainVocabulary).toBeDefined();
+  for (const word of ["fulfilment", "ledger"]) {
+    expect(kai.knowledge.domainVocabulary).not.toContain(word);
+  }
+
+  const { result, calls } = await walk({
+    profile: kai,
+    task: { ...taskOf("task_past-order"), startUrl: `${app.origin}/settings/data` },
+    maxSteps: 1,
+    answers: [GIVE_UP],
+  });
+
+  expect(result.outcome).toBe("gave_up");
+  const step = stepAt(result, 0);
+  expect(step.urlBefore).toBe(`${app.origin}/settings/data`);
+  const ledger = step.fullObservation.elements.find(
+    (element) => element.key === "main//link:Fulfilment ledger",
+  );
+  expect(ledger?.decisions).toStrictEqual([
+    { stage: "knowledge", rule: "K2", terms: ["Fulfilment ledger"] },
+  ]);
+  expect(ledger?.renamedName).toBe("[unfamiliar term]");
+  // What the Actor was shown, stored and sent: the marker in the ledger's place, not the term.
+  const { line } = pageLine(calls[0] as Request, "link", "[unfamiliar term]");
+  expect(step.actorObservationText.split("\n")).toContain(line);
+  expect(step.actorObservationText).not.toContain("Fulfilment ledger");
+  expect(calls[0]?.messages[1]?.content).not.toContain("Fulfilment ledger");
+});
+
 test("a back at the start page goes nowhere", async () => {
   const { result, events } = await walk({
     profile: profileFixture("prof_ada"),
@@ -809,6 +844,7 @@ test.each([
     task: taskOf("task_next-parcel"),
     seed: RUN_SEED,
     params: TARGET_APP_DEFAULTS,
+    jargon: targetAppJargon,
     runsDir,
     backend: llmActor({ settings, llm: () => fakeLlm({}) }),
     logger: quiet,
@@ -830,6 +866,7 @@ function adaGivingUp(onEvent: (event: RunEvent) => void, fake: FakeLlm): Promise
     task: taskOf("task_next-parcel"),
     seed: RUN_SEED,
     params: TARGET_APP_DEFAULTS,
+    jargon: targetAppJargon,
     runsDir,
     backend: llmActor({ settings, llm: () => billed(fake) }),
     logger: quiet,
@@ -1114,6 +1151,7 @@ describe("on pages served for the purpose", () => {
       task: servedTask("/spin-from"),
       seed: RUN_SEED,
       params: TARGET_APP_DEFAULTS,
+      jargon: targetAppJargon,
       runsDir,
       backend: llmActor({
         settings,
@@ -1161,6 +1199,7 @@ test("a recording that cannot be saved ends runFailed run_close_failed, and resu
     task: taskOf("task_next-parcel"),
     seed: RUN_SEED,
     params: TARGET_APP_DEFAULTS,
+    jargon: targetAppJargon,
     runsDir,
     backend: llmActor({ settings, llm: () => billed(fake) }),
     logger: quiet,
