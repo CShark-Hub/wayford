@@ -56,7 +56,7 @@ What the spec review changed, and each finding rejected with its reason.
 ```markdown
 # <task-id> — <title>: plan
 
-Spec: `docs/specs/<spec file>.md`
+Task: `tasks/<task file>.md` · Spec: `docs/specs/<spec file>.md`, or "none" for an S task
 Status: draft (becomes `approved <YYYY-MM-DD>` at gate 2, `approved <YYYY-MM-DD> (auto)` when the agent approved it)
 
 | # | Step | Files | Serves box | Test first | Done when | Parallel with |
@@ -65,4 +65,11 @@ Status: draft (becomes `approved <YYYY-MM-DD>` at gate 2, `approved <YYYY-MM-DD>
 Notes per step, only where the table cannot hold it.
 
 The last step is always verification: `pnpm lint`, `pnpm typecheck`, `pnpm test` and every acceptance command in the task file.
+
+## Decision log
+
+| Question | Taken | Why |
+|---|---|---|
+
+An S task only. Rows added after gate 2 are marked "(build)"; phase 9 copies the log into the PR body. An M or L task writes "in the spec".
 ```

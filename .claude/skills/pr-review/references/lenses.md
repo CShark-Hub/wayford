@@ -26,7 +26,7 @@ Verdict: any blocking finding makes it **not ready**; should-fix findings or cut
 
 Every simplicity finding names the smaller alternative and roughly how many lines it removes; together they form the **cut list**. "Consider simplifying" is not a finding. "Delete `RuleRegistry` (60 lines) and call `perceive` from its one caller" is.
 
-Also report: a change to `packages/core/src/observation.ts`, `packages/core/src/measurement.ts` or `docs/RULES.md` needs two human approvals (`docs/CONVENTIONS.md`, "Git"); the rest of `packages/core` needs one.
+Also report: the PR needs one human approval, from someone who did not work on the task (`docs/CONVENTIONS.md`, "Git").
 
 ## 1. Untouchable core
 
@@ -64,7 +64,7 @@ Agent-written changes describe themselves confidently. Hold every claim against 
 - **Tests that lie.** Does each test check what its name says (issue #42 lists the usual ways it does not)? For the tests that guard acceptance boxes, break the guarded code with a one-line probe and watch the test go red. One that stays green is a finding.
 - **Comments that promise.** A comment saying the code "rejects events from other runs" is a claim; issue #24 was exactly that comment over code that accepted them.
 - **Enforcement in prose.** A doc saying something "fails lint" or "is enforced by a test": write a probe that breaks the rule and see it fail (issue #26).
-- **Description against result.** The PR description and the spec's decision log match what was built.
+- **Description against result.** The PR description and the decision log (the spec's, or for an S task the plan's, copied into the PR body) match what was built.
 - **APIs that exist.** Every API and flag exists in the installed version (check the lockfile), is not deprecated (zod 4 has `z.url()`, not `z.string().url()`), and type packages match the runtime (Node 24).
 
 ## 4. Architecture and contracts

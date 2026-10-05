@@ -52,7 +52,7 @@ Second wave, after the first merges: `m0-05` (Dev 2), `m0-07` (Dev 3 takes web, 
    ```
 
 4. Review the diff yourself before the PR. You are responsible for it, not the agent.
-5. PR against `main`, title starts with the task id, body from the template. One reviewer who did not work on the task. The filter contract (`observation.ts`, `measurement.ts`, `docs/RULES.md`) needs two.
+5. PR against `main`, title starts with the task id, body from the template. One reviewer who did not work on the task. The filter contract (`observation.ts`, `measurement.ts`, `docs/RULES.md`) took two until week 4; from week 4 it takes one (`docs/CONVENTIONS.md`, "Git").
 6. After merge, set the task to `done` in `tasks/BOARD.md`.
 
 ## Rules that keep four agents from fighting
@@ -82,7 +82,7 @@ Week 1 is done: `m0-00` to `m0-07` merged, `m0-08` planned week 2. The week 2 ta
 - Fixes from the week 1 review live in GitHub issues #13 to #51, not in task files. Fixed before Monday: the critical ones (#13 to #16), the `rng` and `hash` part of #26, and the lint failure on `main` (#55). A task that needs another issue fixed first lists it under "Depends on".
 - Wave 1 on Monday: `s1-01`, `s2-01`, `s2-02`, `s3-02`, and `s4-02` once #13 to #15 are merged. Everything else follows once those merge.
 - The same opening line for your agent as above, with the week 2 task file.
-- `s1-01` changes the filter contract: two reviewers within 48 h. Everything else needs one. `s1-01` is on the critical path, so review it before your own next task.
+- `s1-01` changes the filter contract: two reviewers within 48 h (one from week 4). Everything else needs one. `s1-01` is on the critical path, so review it before your own next task.
 
 No refinement session. The task files follow the week 1 template, and a task that turns out unclear mid-week stops and asks in its PR. Two things replace refinement instead.
 
@@ -99,7 +99,7 @@ No refinement session. The task files follow the week 1 template, and a task tha
 
 ## Settled decisions
 
-Decided in `m0-08` (PR #56, merged 2026-09-25) and written into `docs/RULES.md` and `docs/PLAN.md`. Changing one now takes a PR, with two approvals if it touches the filter contract and one otherwise (`docs/CONVENTIONS.md`, "Git"):
+Decided in `m0-08` (PR #56, merged 2026-09-25) and written into `docs/RULES.md` and `docs/PLAN.md`. Changing one now takes a PR, with one approval (`docs/CONVENTIONS.md`, "Git"); until week 4 the filter contract took two:
 
 - Soft thresholds: in the band below a soft threshold, an element is degraded when its roll falls below its position in the band, and invisible otherwise. The band floor is `threshold × (1 − softness)`. A hard cut never degrades. (`docs/RULES.md`, "Thresholds, bands and the roll"; issue #23.)
 - Zoya stays as she is and scores 0/10 on both goals at the target app's defaults. Vera is the persona for the contrast sweep. (Issue #23.)

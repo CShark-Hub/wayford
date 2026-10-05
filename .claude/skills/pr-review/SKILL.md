@@ -27,7 +27,7 @@ Best on Opus at high effort or above. If the session runs something weaker, say 
 
 Run `git fetch origin` (for a PR also `git fetch origin pull/<n>/head`, which covers forks), then review a committed head in a detached worktree so the user's checkout stays untouched: `git worktree add --detach <scratchpad>/pr-review <head sha>`. The diff under review is `git diff origin/<base>...<head sha>`. Uncommitted work is reviewed in place, and nothing you add stays.
 
-Find the intent: the task file (named in the PR body, or the task id in the branch name), its spec and plan (`docs/specs/*-<id>-*`, `docs/plans/*-<id>-*`), and each issue the PR says it fixes (`gh issue view <n>`). With no task and no issue, the PR description is the only intent; say so in the report.
+Find the intent: the task file (named in the PR body, or the task id in the branch name), its spec, when it has one (an S task has none: its task file is the spec and its decisions are in the PR body), and plan (`docs/specs/*-<id>-*`, `docs/plans/*-<id>-*`), and each issue the PR says it fixes (`gh issue view <n>`). With no task and no issue, the PR description is the only intent; say so in the report.
 
 Done when you can state in one line what the change is for, its size (`+a −d in n files`, lockfile aside) and the task's size (S, M or L).
 

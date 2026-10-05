@@ -1,17 +1,17 @@
 ---
 name: start-task
-description: Take one task from tasks/ to a reviewed, committed branch, or in auto mode to an open PR (worktree, reviewed spec, plan, orchestrated build, independent branch review, summary). Run as /start-task [task-id]; without an id it offers the tasks you can take.
+description: Take one task from tasks/ to a reviewed, committed branch, or in auto mode to an open PR (worktree, reviewed spec for an M or L task, plan, orchestrated build, independent branch review, summary). Run as /start-task [task-id]; without an id it offers the tasks you can take.
 argument-hint: "<task-id, or empty to pick from the board>"
 disable-model-invocation: true
 ---
 
 # Start task
 
-Takes one task file from `tasks/` (for example `s2-01`) to a reviewed, committed branch, and in auto mode on to an open pull request. The work runs in phases with two **gates**: nothing is planned before the spec is approved, nothing is built before the plan is approved. Between the gates, decide by **recommendation**: when a question has a sensible answer, take it, write it in the spec's decision log, and keep going. Stop only for a **blocker**.
+Takes one task file from `tasks/` (for example `s2-01`) to a reviewed, committed branch, and in auto mode on to an open pull request. The work runs in phases with two **gates**: nothing is planned before the spec is approved, nothing is built before the plan is approved. An S task has no spec (`docs/CONVENTIONS.md`, "Git"): its task file is the spec, so it skips phase 4 and gate 1. Between the gates, decide by **recommendation**: when a question has a sensible answer, take it, write it in the decision log (the spec's, or the plan's for an S task), and keep going. Stop only for a **blocker**.
 
 Task: $ARGUMENTS
 
-Phases: 0 setup · 1 resolve and mode · 2 worktree · 3 read · 4 spec and review · gate 1 · 5 plan · gate 2 · 6 build · 7 verify · 8 branch review · 9 summary and PR.
+Phases: 0 setup · 1 resolve and mode · 2 worktree · 3 read · 4 spec and review · gate 1 · 5 plan · gate 2 · 6 build · 7 verify · 8 branch review · 9 summary and PR. An S task skips phase 4 and gate 1.
 
 ## Modes
 
@@ -55,8 +55,8 @@ Run `git fetch origin` first, and read the board and the task file as `origin/ma
 2. Check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`).
 3. Ask with one AskUserQuestion call, holding:
    - **Task**, only when `$ARGUMENTS` was empty: the top four takeable tasks, the first marked "(Recommended)". The label is the task id; the description gives the title, the size, what the task unblocks and any boxes that wait. When more are takeable, name the rest in the question text; the user can type any id. When none is, skip the call: say which tasks are `doing` or `review` and what each `todo` task waits on, and stop.
-   - **Mode**, always. "Manual": "You approve the spec and the plan; I ask before claiming the task, pushing or opening the PR." "Auto": "I approve the spec and the plan once their reviews pass, claim the task on main, and finish with a ready PR and the task in review on the board. I stop only for a blocker."
-4. **Resume** a task already started. Look for a branch `feature/<task-id>-*` or a worktree `<task-id>-*` (`git branch -a`, `git worktree list`), for `docs/specs/*-<task-id>-*.md` and `docs/plans/*-<task-id>-*.md`, and for commits on the branch. Pick up at the first phase whose output is missing or not yet approved (a spec or plan is approved when its Status line says so), and say where you are resuming. The mode picked in step 3 applies from there on.
+   - **Mode**, always. "Manual": "You approve the spec, when the task has one, and the plan; I ask before claiming the task, pushing or opening the PR." "Auto": "I approve the spec, when the task has one, and the plan once their reviews pass, claim the task on main, and finish with a ready PR and the task in review on the board. I stop only for a blocker."
+4. **Resume** a task already started. Look for a branch `feature/<task-id>-*` or a worktree `<task-id>-*` (`git branch -a`, `git worktree list`), for `docs/specs/*-<task-id>-*.md` (unless the task's Size is S) and `docs/plans/*-<task-id>-*.md`, and for commits on the branch. Pick up at the first phase whose output is missing or not yet approved (a spec or plan is approved when its Status line says so), and say where you are resuming. An S task has no phase 4 to resume: without a plan it resumes at phase 5. The mode picked in step 3 applies from there on.
 
 ## 2. Worktree and branch
 
@@ -83,7 +83,9 @@ Done when you can state the goal, the files expected to change and each acceptan
 
 ## 4. Spec
 
-Write `docs/specs/<YYYY-MM-DD>-<task-id>-<short-name>.md` from the spec template in `references/templates.md`. The spec is the design: interfaces and their types, the data flow, which files change, how each acceptance box will be proven, and the decision log. Size it to the task: an S task's spec fits on one screen.
+M and L tasks only. An S task goes straight to phase 5: its task file is the spec. The branch review in phase 8 still runs for every size.
+
+Write `docs/specs/<YYYY-MM-DD>-<task-id>-<short-name>.md` from the spec template in `references/templates.md`. The spec is the design: interfaces and their types, the data flow, which files change, how each acceptance box will be proven, and the decision log. Size it to the task.
 
 Design inside the task. The task file outranks your preferences, the existing contracts in `packages/core` outrank new shapes, and hackathon-simple outranks general. Every question you settle goes in the decision log with the option taken and one line of why.
 
@@ -98,10 +100,12 @@ Then review it with fresh eyes: spawn the `spec-reviewer` agent (Agent tool, `su
 
 Write `docs/plans/<YYYY-MM-DD>-<task-id>-<short-name>.md` from the plan template in `references/templates.md`: ordered steps, each with its files, the acceptance box it serves, the test written first, and the command that proves the step done. Mark which steps can run in parallel: steps with disjoint files, and never two that change `pnpm-lock.yaml`.
 
+An S task writes a short plan straight from the task file. Design inside the task as phase 4 says, and log every question you settle in the plan's decision log, with the option taken and one line of why. Phase 9 copies that log into the PR body.
+
 **Gate 2.** Commit the plan (`<task-id>: plan`), then:
 
-- Manual: show it briefly and ask: approve, or what to change. On approval, set its Status to `approved <YYYY-MM-DD>` and commit.
-- Auto: check it against the spec first. It passes when every acceptance box has a step, every step has a test first and a done-check, every file it touches is in the spec's Files section, its parallel steps follow the rule above, and verification comes last. Fix what fails, set its Status to `approved <YYYY-MM-DD> (auto)`, commit, and go on.
+- Manual: show it briefly, with its decisions for an S task, and ask: approve, or what to change. On approval, set its Status to `approved <YYYY-MM-DD>` and commit.
+- Auto: check it against the spec first, or the task file for an S task. It passes when every acceptance box has a step, every step has a test first and a done-check, every file it touches is in the spec's Files section (for an S task, in the task's "Files expected to change", or the plan says why), its parallel steps follow the rule above, and verification comes last. Fix what fails, set its Status to `approved <YYYY-MM-DD> (auto)`, commit, and go on.
 
 ## 6. Build
 
@@ -111,7 +115,7 @@ You are the orchestrator: you hand out steps, check what comes back, and own eve
 - Ultracode on: run the plan with the Workflow tool, loading the `workflow-authoring` skill first. Parallel steps fan out; each step's agent writes its test first and runs its done-check.
 - Otherwise: one Agent subagent per step (`general-purpose`, `model: "opus"`), parallel steps in the same message, the rest in sequence.
 
-Every subagent brief carries: the worktree path, where it runs every command, the spec and plan paths, its one step and its files, the rules that bind it (the task's Out of scope, no dependency without a `docs/STACK.md` line, the determinism rules in `docs/CONVENTIONS.md`), and the instruction to report a blocker instead of working around it. Answer a subagent's question by recommendation and log it in the decision log, marked "(build)". A blocker stops the build: tell the user.
+Every subagent brief carries: the worktree path, where it runs every command, the plan path and the spec path when there is one, its one step and its files, the rules that bind it (the task's Out of scope, no dependency without a `docs/STACK.md` line, the determinism rules in `docs/CONVENTIONS.md`), and the instruction to report a blocker instead of working around it. Answer a subagent's question by recommendation and log it in the decision log, marked "(build)". A blocker stops the build: tell the user.
 
 After each step returns: read its diff, run its done-check, commit (`<task-id>: <step>`). The build is done when every step is committed and no subagent is still running.
 
@@ -126,7 +130,7 @@ After each step returns: read its diff, run its done-check, commit (`<task-id>: 
 
 Two reviews of `git diff origin/main...HEAD`, one round of fixes, then a simplify pass. The standard for all of it is `.claude/skills/pr-review/references/lenses.md`, the same one the CI review applies to the PR.
 
-1. **Cold review.** Spawn the `branch-reviewer` agent in the background (`subagent_type: "branch-reviewer"`, Opus at xhigh) with the worktree's absolute path, the branch name, the task id and the spec and plan paths, and nothing else: its value is that it comes to the branch cold. The path says where the code is without saying anything about it. It runs the `/pr-review` review and returns a verdict, findings by severity and a cut list.
+1. **Cold review.** Spawn the `branch-reviewer` agent in the background (`subagent_type: "branch-reviewer"`, Opus at xhigh) with the worktree's absolute path, the branch name, the task id, the plan path and the spec path when there is one, and nothing else: its value is that it comes to the branch cold. The path says where the code is without saying anything about it. It runs the `/pr-review` review and returns a verdict, findings by severity and a cut list.
 2. **Security review.** While it runs, run the `security-review` skill from the worktree.
 3. **Fix.** Check each finding from both reviews yourself before acting on it; reviewers are sometimes wrong. Fix confirmed blocking and should-fix findings, and nits when cheap.
 4. **Simplify.** Run the `simplify` skill. Everything is committed by now, so its arguments name the scope: the diff `git diff origin/main...HEAD`, the files it may touch (the branch's changed files), and the cut-list items you confirmed. Its edits are proposals like any subagent's: read the diff it leaves and revert whatever reaches outside the task's scope or its Out of scope.
@@ -148,7 +152,7 @@ The summary, compact:
 The next step, in order:
 
 1. Merge `origin/main` into the branch. Settle a conflict inside the task's files; a conflict anywhere else is a blocker. When anything came in, rerun the verify commands of phase 7 and commit; red is a blocker.
-2. Push the branch and open a ready PR, not a draft: title `<task-id>: <task title>`, body from `.github/pull_request_template.md` filled from the summary. In auto, add one line to the body: the spec and plan were approved by the agent in start-task's auto mode, and no human has read them yet.
+2. Push the branch and open a ready PR, not a draft: title `<task-id>: <task title>`, body from `.github/pull_request_template.md` filled from the summary. For an S task, copy the plan's decision log into the body under a "Decisions" heading. In auto, add one line to the body: the plan, and the spec when there is one, were approved by the agent in start-task's auto mode, and no human has read them yet.
 3. Set the task to `review` on the board (`Board: <task-id> review (PR #<n>)`), committed to `main` the way the claim was.
 
 Manual: give the user the summary, then offer the next step; it reaches outside this machine, so ask first. Auto: take the next step without asking, then give the user the summary with the PR link.
