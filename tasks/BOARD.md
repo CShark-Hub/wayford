@@ -89,7 +89,7 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
 | s3-07 | Design direction, tokens and the self-check | M | — | | todo |
-| s1-06 | Route-open share per persona and seed set | S | — | | todo |
+| s1-06 | Route-open share per persona and seed set | S | — | Marcin | doing |
 | s4-06 | axe-core sidecar | M | — | | todo |
 | s1-05 | Filter: vocabulary (K2) | M | — | Grzegorz | done |
 | s2-12 | io runs a run set on the chosen Actor backend | S | s2-06 | | todo |
