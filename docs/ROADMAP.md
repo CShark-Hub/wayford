@@ -165,7 +165,7 @@ flowchart LR
 
   s1_06 --> s4_04
   s1_06 --> s4_05
-  s4_06 -. axe findings .-> s4_04
+  s4_04 -. axe findings .-> s4_06
   s2_12 -. Jev box .-> s4_05
   s3_07 --> s3_11
   s3_07 --> s3_12

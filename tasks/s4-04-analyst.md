@@ -3,7 +3,7 @@
 Stream: s4
 Milestone: week 4
 Size: L
-Depends on: s1-06. Its axe findings box waits for s4-06.
+Depends on: s1-06
 
 ## Context
 
@@ -23,7 +23,7 @@ Read first, in this order:
 
 ## Interface
 
-- In: `backend`, `jev` by default, as `seed:demo` runs; per persona and seed, the latest stored run on that backend that is not a sweep run; the bundled profiles, `routeOpenSeeds` from `s1-06`, the task's ground truth when its file exists, and axe results once `s4-06` is in
+- In: `backend`, `jev` by default, as `seed:demo` runs; per persona and seed, the latest stored run on that backend that is not a sweep run; the bundled profiles, `routeOpenSeeds` from `s1-06`, the task's ground truth when its file exists
 - Out:
   - `Report` in `@wayford/core` with a fixture:
     - the task id, the backend it read, when it was analysed, run count and total cost;
@@ -38,7 +38,6 @@ Read first, in this order:
 
 - **Code decides what is true; the model only words it.**
   - The numbers and the `deterministic` findings are built in code. For each persona and each route the filter closed, there is one finding: where it closed, the rules, the measured value against the threshold. Its evidence is the steps where a run of that persona stood on that page with the element cut or renamed.
-  - `measurement` findings cite axe violations on pages the runs visited.
   - The Analyst writes one recommendation per code-built finding, and up to five `hypothesis` findings read from the runs' narration and actions.
 - **Every finding cites a stored step**, and evidence is checked in code. A finding whose evidence names a run or step that does not exist is dropped and logged (F8 AC2).
 - **Provenance comes from the profiles.** Each basis entry's provenance is copied in code from the named profile's threshold. The model names rule ids only (F8 AC5).
@@ -59,7 +58,6 @@ Read first, in this order:
   - sweep runs, an older run of the same seed and runs on the other backend are left out and counted;
   - a route closed on a page no run reached gives no finding and is listed as such;
   - with no ground-truth file, the report says "no ground truth".
-- [ ] Once `s4-06` is in: a page with an axe violation that a run visited gives a `measurement` finding carrying its `axeRuleId`
 - [ ] With a real key, `analyse -- --task task_past-order` over 10 seeds of Ada, Kai and Vera prints the report; the output and its cost are in the PR
 - [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
 
@@ -68,6 +66,7 @@ Read first, in this order:
 - The report screen (`s3-08`).
 - Findings across tasks, and history of past reports. The latest report per task is enough.
 - Using Jev's confidence. If it ever reaches the report, it is a `hypothesis` (ADR 0001).
+- `measurement` findings from axe. `s4-06` adds them to this report once its results are stored (moved there on 2026-10-05, since s4-06 was not built yet).
 
 ## Notes for the reviewer
 
