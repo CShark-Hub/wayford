@@ -63,7 +63,7 @@ Built as `docs/specs/2026-10-03-s2-10-memory-dice-budget.md` says; its decision 
 - **The seam.** The backend factory gets `{ logger, providerSeed }`, and `ActorBackend.sampling` (required, `Sampling | undefined`) becomes `runStarted.actorSampling`. `calibration-run.ts`'s timing wrapper now forwards it; it would otherwise have dropped `actorSampling` from every calibration run.
 - **A bad run seed** now rejects with `invalid_run_input` before `runStarted` is built, since the provider seed is drawn from it first.
 - **Follow-ups.**
-  - `docs/RULES.md` stage 7 says "`s2-03` builds that stream"; `s2-10` built it. A one-word fix, held for the next PR that touches RULES, since RULES takes two approvals.
+  - `docs/RULES.md` stage 7 said "`s2-03` builds that stream"; `s2-10` built it. Fixed in the week 4 process follow-up to #159.
   - PR #152 (Scout) changes `llmActor`'s factory body to take a `role`. Whichever merges second resolves a small conflict there.
   - The budget counts from `runStarted`, so opening the context, settling and screenshots count against `budgetSeconds` along with model latency. That was chosen so the budget and `durationMs` are one number. On the s2-11 calibration a run took under 10 s of Ada's 120, so this has no effect yet. s2-09's simulated clock replaces it.
   - `llmActor` builds `sampling` from the settings with the adapter's `samplingOf`, before any call. The adapter returns the same value on every `Completion`. A per-run `Llm` that reports its own sampling would leave one source; that is a change to `llm.ts` and the fake.

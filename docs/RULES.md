@@ -149,7 +149,7 @@ This is the one rule that touches the model's context directly instead of the ob
 
 Dice per action, from one stream of the run seed, every roll logged.
 
-- **Firing rule.** A rule that applies to the action draws one number `rolled` in [0, 1) and fires when `rolled < p`. `p` is the probability the rule resolved for this action: the profile knob for B1 and B2, the effective-width model for B4. `p` 0 never fires; `p` 1 always does. Each `rolled` is the next draw of the run seed's behaviour stream (`docs/CONVENTIONS.md`, "Determinism rules"), never the profile seed's (`docs/PLAN.md` A20); `s2-03` builds that stream.
+- **Firing rule.** A rule that applies to the action draws one number `rolled` in [0, 1) and fires when `rolled < p`. `p` is the probability the rule resolved for this action: the profile knob for B1 and B2, the effective-width model for B4. `p` 0 never fires; `p` 1 always does. Each `rolled` is the next draw of the run seed's behaviour stream (`docs/CONVENTIONS.md`, "Determinism rules"), never the profile seed's (`docs/PLAN.md` A20); `s2-10` builds that stream.
 - **What is logged.** Per step: the action the model proposed, the action performed, and every roll as `{ rule, p, rolled, fired }` in the order rolled, fired or not. A rule that does not apply to the action logs nothing. Without a fired roll the two actions are identical. B3 is a budget, not a dice, and never appears in this log.
 - **B2 in the log.** The proposed action is the `giveUp` or the repeat, the performed action is the injected `scroll` down, and the Actor decides again on the next step.
 

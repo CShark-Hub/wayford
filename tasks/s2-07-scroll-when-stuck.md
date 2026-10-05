@@ -39,7 +39,7 @@ When the Actor would give up or repeat itself, a persona with `scrollWhenStuck` 
 - [ ] `pnpm --filter @wayford/agent test` passes
 - [ ] With `scrollWhenStuck` 1, a fake that answers `giveUp` on step 2 gets a scroll performed on step 2, its roll stored as fired, and the run goes on to step 3
 - [ ] With `scrollWhenStuck` 0, the same fake ends `gave_up` on step 2, its roll stored as not fired
-- [ ] A repeated action, as the spec defines it, rolls B2, and a fired roll performs a scroll
+- [ ] A repeated action, as RULES' B2 row defines it (Constraints), rolls B2, and a fired roll performs a scroll
 - [ ] Same seed and answers twice: every B1 and B2 roll is equal (F5 AC1)
 - [ ] Every step of the `RunResult` passes core's roll audit
 - [ ] With `scrollWhenStuck` 1 and a fake that only gives up, the run ends `budget_exceeded` at the step cap

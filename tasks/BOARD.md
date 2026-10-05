@@ -84,7 +84,7 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 
 **Scope, agreed 2026-10-04.** What `docs/DEMO.md` shows, each piece in the simplest form that serves its beat, made to look finished. The requirement set and what was cut are in `docs/PLAN.md`, "Hackathon scope". A task that grows past its beat is cut back, not widened.
 
-**Process from week 4.** One reviewer for every PR, `docs/RULES.md` and the filter contract included. An S task needs no spec (`docs/CONVENTIONS.md`). The `start-task` and `pr-review` skills catch up in #159; until then, skip the spec step by hand for an S task.
+**Process from week 4.** One reviewer for every PR, `docs/RULES.md` and the filter contract included. An S task needs no spec (`docs/CONVENTIONS.md`).
 
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
