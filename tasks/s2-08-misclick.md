@@ -23,7 +23,7 @@ A click on a target smaller than the persona's motor limit misses with a probabi
 
 - In: the clicked element's `targetPx` and `bbox`, the shown elements around it, the persona's motor limit, the behaviour stream
 - Out: the performed action, a click on the neighbour's ref, and the B4 roll with its `p`
-- Files expected to change: `packages/agent/src/**`; `docs/RULES.md` for B4's formula, its source and how it shares target size with P4, which takes the filter contract's two approvals; `packages/core/src/profile.ts` and the persona fixtures only if the motor limit becomes its own knob
+- Files expected to change: `packages/agent/src/**`; `docs/RULES.md` for B4's formula, its source and how it shares target size with P4; `packages/core/src/profile.ts` and the persona fixtures only if the motor limit becomes its own knob
 
 ## Constraints
 

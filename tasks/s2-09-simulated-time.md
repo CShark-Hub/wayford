@@ -23,7 +23,7 @@ Every run keeps a simulated clock in which each action costs the time a person w
 
 - In: per action, the cursor's travel from the previous point, the target's width and the action type; speed knobs added to `Behaviour`
 - Out: a simulated duration per step and per run in the run record, and B3 decided on the simulated clock
-- Files expected to change: `docs/RULES.md` (B3) and `packages/core/src/profile.ts`, `run.ts` and the persona fixtures, which take the contracts' approvals (two for RULES); `packages/agent/src/**`; `packages/io/**` and `packages/web/**` for the clock's label on screen; `docs/PLAN.md` F5 AC5 and A12, which say B3 is the one rule a seed does not reproduce
+- Files expected to change: `docs/RULES.md` (B3) and `packages/core/src/profile.ts`, `run.ts` and the persona fixtures; `packages/agent/src/**`; `packages/io/**` and `packages/web/**` for the clock's label on screen; `docs/PLAN.md` F5 AC5 and A12, which say B3 is the one rule a seed does not reproduce
 
 ## Constraints
 

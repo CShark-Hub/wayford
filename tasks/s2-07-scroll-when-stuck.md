@@ -22,7 +22,7 @@ When the Actor would give up or repeat itself, a persona with `scrollWhenStuck` 
 
 - In: `profile.behaviour.scrollWhenStuck` (`Probability`), the action the Actor proposed, and the step before it
 - Out: the step's performed action and its B2 roll, `{ rule, p, rolled, fired }`, in the run record (`packages/core/src/run.ts`)
-- Files expected to change: `packages/agent/src/**`; `docs/RULES.md` only to pin what a repeat is (see Constraints), which takes the filter contract's two approvals
+- Files expected to change: `packages/agent/src/**`; `docs/RULES.md` only to pin what a repeat is (see Constraints)
 
 ## Constraints
 

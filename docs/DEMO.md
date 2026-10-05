@@ -1,6 +1,8 @@
 # DEMO — the 90-second script
 
-Status: draft, 2026-10-01. The team agrees on it or changes it by PR before week 3 ends (`tasks/BOARD.md`), and week 3 and 4 build the screens its beats need. It replaces the first sketch in `KONCEPCJA.md`, "Demo, 90 sekund".
+Status: draft, 2026-10-01; Jev added 2026-10-04. The team agrees on it or changes it by PR by Friday 2026-10-09 (`demo-1` in `tasks/BOARD.md`), and week 4 builds the screens its beats need. It replaces the first sketch in `KONCEPCJA.md`, "Demo, 90 sekund".
+
+Backends: the live race (beat 4) runs on the LLM, for its narration. `seed:demo` and both sweeps, which beats 5 and 6 read, run on Jev, a decision model that returns a probability per option (`docs/adr/0001-jev-actor-backend.md`).
 
 The screens are English (`AGENTS.md`). The lines below are written in English; deliver them in the jury's language.
 
@@ -36,7 +38,7 @@ About 200 spoken words in 90 seconds. Lines in brackets are filled from the seed
 - **Screen:** the preview, Kai, `/settings/data`. axe's result for this page comes from the sidecar (F10); no screen is planned for it, so it goes on a card beside the preview.
 - **Do:** nothing fades. Point at the entries the attention cap left out, and at "Fulfilment ledger" reading `[unfamiliar term]`.
 - **Say:** "This is Kai. Sees everything. This page passes WCAG — axe finds nothing. But Kai takes in only a handful of things at a time and doesn't know the shop's jargon. That's not readability. That's fit."
-- **Needs:** `s1-04`, `s1-03` (A1), `s1-05` (K2), the page picker from `s3-05`, the axe sidecar (F10). Without the sidecar, say "passes WCAG AA by our own measurement" (`s1-04` checks it). Without `s1-05`, the ledger reads plainly and the jargon half of the line goes.
+- **Needs:** `s1-04`, `s1-03` (A1), `s1-05` (K2), the page picker from `s3-05`, the axe sidecar and its card (`s4-06`). Without the sidecar, say "passes WCAG AA by our own measurement" (`s1-04` checks it). Without `s1-05`, the ledger reads plainly and the jargon half of the line goes.
 
 ### 4. The race — 0:36 to 1:02
 
@@ -53,17 +55,18 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 
 ### 5. Ten seeds, two numbers — 1:02 to 1:16
 
-- **Screen:** the report for the hard goal, from `seed:demo`. Per persona: route open, got through, median time.
-- **Do:** click Kai's row, then one failed run. The step replay shows the screenshot beside the text Kai's model read.
+- **Screen:** the report for the hard goal, from `seed:demo` on Jev. Per persona: route open, got through, median time.
+- **Do:** click Kai's row, then one failed run. The step replay shows the screenshot beside the text Kai's model read, and Jev's options with their probabilities (`s3-10`).
 - **Say:** "Ten seeds each, two numbers. How often the filter left a way through — that's deterministic. How often the persona made it — that's the agent. Every number opens its evidence, and every perception decision replays from its seed."
-- **Needs:** the week 4 Analyst and report screen with F8 AC6, `routes` from `s1-03`, and the replay from `s3-04`. In the week 3 rehearsal, the dashboard (`s3-04`) stands in.
+- **If the beat has time,** on the replay's Jev panel: "These ran on Jev, a decision model: [N] runs in [M] minutes for [X] USD. Here is how likely it found each option."
+- **Needs:** the Analyst and report screen with F8 AC6 (`s4-04`, `s3-08`, `s1-06`), `seed:demo` (`s4-07`), the replay from `s3-04` and its Jev panel (`s3-10`). In the week 3 rehearsal, the dashboard (`s3-04`) stands in.
 
 ### 6. The boundary — 1:16 to 1:26
 
 - **Screen:** the sweep. Contrast on Vera: the success rate, the route-open curve and the boundary marker. Then switch the axis to `maxElements` on Kai.
 - **Say:** "And the boundary. This route needs contrast of at least [X] to one. For Kai, it needs room for [N] things at once. A number for a feature, not an anecdote."
 - If a curve has no boundary in its range, say "no boundary up to [the range's end]".
-- **Needs:** the week 4 sweep on both axes (F9).
+- **Needs:** the sweep on both axes and its screen (`s4-05`, `s3-09`), run by `seed:demo` on Jev.
 
 ### 7. Claim less — 1:26 to 1:30
 
@@ -77,16 +80,17 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 - "Predicts", "behaves like a real user", or any claim about people.
 - "Kai is confused." The narration is the agent's, after the fact: quote it, don't diagnose it.
 - A number the screen does not show.
+- Jev's speed or cost as its maker states them. Quote the numbers `seed:demo` printed.
 - "Only the filter differs." The dice, the memory and the budget differ too.
 - "The run replays." The perception decisions and the dice replay from the seed; the model's answers do not.
 
 ## Before the demo
 
-- The day before: `pnpm seed:demo` on the demo seed set. The report and the sweep read stored data only; the race is the one live call.
+- The day before: Scout on both tasks, `pnpm --filter @wayford/agent scout`, so the report opens with its line; then `pnpm seed:demo` on the demo seed set. The report and the sweep read stored data only; the race is the one live call.
 - Rehearse the race on candidate seeds, and pick the live one for pace: a seed where the race ends inside its 26 seconds. If asked, say so. The report shows every seed.
 - Record the backup video of the full 90 seconds (`docs/ROADMAP.md`, week 4).
 - One browser window, tabs open on the preview (Ada, `/deliveries`), the arena (preset filled), the report and the sweep. Zoom checked on the projector.
-- `pnpm dev` running, the key's balance checked, the Actor backend on the LLM.
+- `pnpm dev` running, the key's balance checked, the arena on the LLM: `LLM_ACTOR_BACKEND` unset or `llm`.
 - If the target app is down, the preview shows the stored page and its banner (F2 AC5). Carry on.
 - If anything else breaks, switch to the backup video at the current beat.
 
@@ -96,7 +100,8 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 - **"Isn't this axe with extra steps?"** Beat 3: a page with no axe finding, and a persona who does not get through. axe reports elements; Wayford reports a goal, per persona.
 - **"LLMs are random. How is this reproducible?"** Perception and the dice are seeded, so every perception decision replays. The agent varies, which is why there are ten seeds and a rate.
 - **"Why not prompt 'you have poor eyesight'?"** That is impersonation. The prompt's instructions are identical for every persona, and a test fails if they are not (F5 AC6). Only the observation, the history the persona keeps and the dice differ.
-- **"What does it cost?"** From the calibration run (`s2-11`): [cost per run], so [N] runs for [X] USD.
+- **"What does it cost?"** From `seed:demo` (`s4-07`): [N] runs for [X] USD in [M] minutes on Jev; the calibration run (`s2-11`) has the LLM's figures beside it.
+- **"Why a second model?"** Speed and run-level variance. Jev reads exactly the filtered page the LLM reads, the action is drawn from its probabilities with the run seed, so a stored run replays down to the action. Its confidence is the model's, never the persona's.
 - **"Does it work on real sites?"** The credibility run (week 4), with the collector's known gaps (#124 to #127).
 
 ## The week 3 rehearsal

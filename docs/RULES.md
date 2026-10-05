@@ -1,6 +1,6 @@
 # Wayford — RULES: what the filter does and where each rule comes from
 
-Status: **frozen for week 2.** The objections the week 2 filter tasks depend on (issues #22, #23 and #49) were decided in `m0-08`, and the decisions are written where they apply. From here on a change to this file is a PR with two approvals, like any change to the filter contract. Every rule here is a claim the team must be able to defend in Q&A. If a rule has no source, it says `folk` and the report says `folk`. If a rule cannot be made deterministic, it does not belong in the filter; it belongs in the "what next" slide.
+Status: **frozen for week 2.** The objections the week 2 filter tasks depend on (issues #22, #23 and #49) were decided in `m0-08`, and the decisions are written where they apply. From here on a change to this file is a PR with a reviewer's approval; it took two until week 4 (`docs/CONVENTIONS.md`). Every rule here is a claim the team must be able to defend in Q&A. If a rule has no source, it says `folk` and the report says `folk`. If a rule cannot be made deterministic, it does not belong in the filter; it belongs in the "what next" slide.
 
 This document is the domain model behind `Profile`, `Observation` and `Finding`. The `provenance` field in a profile refers to a source id from the registry at the bottom.
 

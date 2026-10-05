@@ -29,7 +29,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A19 | Project name is **Wayford**. Workspace scope `@wayford/*`. Rationale in `AGENTS.md`, section "On the name". | Tomasz, 2026-09-17 |
 | A20 | The run seed drives every perception decision and every dice roll. The profile seed only draws the avatar. A run set uses the same seed list for every persona and runs each persona once per seed, so personas are compared on the same dice. The Actor's LLM calls send one provider seed per run, derived from the run seed; a provider may ignore it, so the run records it and nothing relies on it. A sweep runs one run set per swept value and reuses the seed set on purpose (F9 AC3), so every value is compared on the same dice (and is sent the same provider seeds). | m0-08, issues #20 and #22 |
 | A21 | Streams are areas of the code, not people. No task is assigned to a person: whoever has time takes the next unowned task whose dependencies are merged. `tasks/BOARD.md` and the dependency map in `docs/ROADMAP.md` show what can start after what. | Tomasz, 2026-09-25, 2026-10-01 |
-| A22 | The Actor has two backends behind one seam: an LLM, the default, and Jev, a decision model that returns a probability per option instead of text. A run set uses one backend. Decision, limits and gate: `docs/adr/0001-jev-actor-backend.md`. | Tomasz, 2026-09-26 |
+| A22 | The Actor has two backends behind one seam: an LLM, the default, and Jev, a decision model that returns a probability per option instead of text. A run set uses one backend. Decision, limits and gate: `docs/adr/0001-jev-actor-backend.md`. Jev passed its gate (PR #158), so `seed:demo` and the sweeps run on Jev; the live race stays on the LLM, for its narration. | Tomasz, 2026-09-26, 2026-10-04 |
 
 ## Goal
 
@@ -55,6 +55,27 @@ Stated explicitly in the pitch and the README:
 - We do not replace user research.
 - No pass/fail regression, no CI, no accounts, no export, no mobile, no API testing, no MCP.
 
+## Hackathon scope
+
+Agreed 2026-10-04, for week 4. What we ship is what `docs/DEMO.md` shows: every beat works on the target app, looks finished, and every number on screen opens its evidence. Each requirement below is built in the simplest form that serves its beat; a task that grows past its beat is cut back, not widened.
+
+- **Built:** F2 to F7 and F12.
+- **F8 Report:** the numbers and the `deterministic` findings in code, the Analyst writing recommendations and `hypothesis` findings. The route-open number exists for the hard goal only, the one goal with a route table; elsewhere it reads "—".
+- **F9 Sweep:** one engine for both axes, on Jev, with one screen.
+- **F10 axe:** each target-app page scanned once, shown beside the preview, cited by the report.
+- **F11 Demo data:** on Jev, with a `--fake` mode that needs no key.
+- **Look:** one design direction (`docs/DESIGN.md`, from `s3-07`) over the five demo screens: preview, arena, run detail, report, sweep. Wayford's own screens pass its own measurement.
+- **Jev:** run detail shows each step's options, probabilities and draw.
+
+Cut for the hackathon, so nobody builds them:
+
+- F1 AC1, the profile builder. The personas are the five fixtures; the preview's sliders change thresholds.
+- Jev in the arena: no backend toggle, no Jev tiles.
+- The collector gaps (#124 to #127, #146, #149) and #64 beyond the sweep fields, unless a demo beat hits one.
+- A route table for the easy goal, and tasks that need typing.
+
+Optional, once every must task is taken: the illustration view (`s3-06`), the public-site run (`s4-08`), and B2, B4 and the simulated clock (`s2-07` to `s2-09`).
+
 ## Functional requirements
 
 Every acceptance criterion (AC) is checkable by a command, a test or a click. If an AC cannot be checked, rewrite it.
@@ -63,7 +84,7 @@ Every acceptance criterion (AC) is checkable by a command, a test or a click. If
 
 Compose a profile from blocks: perception, behaviour, knowledge.
 
-- AC1 Three profiles can be built from blocks and saved.
+- AC1 Three profiles can be built from blocks and saved. Cut for the hackathon ("Hackathon scope").
 - AC2 Saved profile validates against the `Profile` schema and round-trips through YAML unchanged.
 - AC3 Every threshold carries `provenance` (`wcag22`, `fitts`, `pisarek`, `personalayer`, `folk`, `llm`).
 - AC4 Every profile has a `seed`. It draws the avatar; runs take their own seed (A20).
@@ -134,7 +155,7 @@ Analyst output per task.
 - AC3 Every finding has a recommendation.
 - AC4 Analyst input covers all runs across all personas for the task.
 - AC5 Every finding carries its basis: the rules behind it and each rule's threshold provenance. A deterministic finding names at least one. A finding whose basis includes `folk` or `llm` keeps its type but is marked soft, with its source shown, and is never presented as hard. Each basis entry's provenance is copied in code from the named profiles' thresholds, never taken from the Analyst's output.
-- AC6 Per persona, beside the success rate over the seed set, the share of seeds whose filtered observations left a route to the goal open, as `routes` (`s1-03`) computes it. The first number depends on the agent, the second is the filter's alone ("Goal" above).
+- AC6 Per persona, beside the success rate over the seed set, the share of seeds whose filtered observations left a route to the goal open, as `routes` (`s1-03`) computes it. The first number depends on the agent, the second is the filter's alone ("Goal" above). Only a goal with a route table has the second number; for any other it reads "—".
 
 ### F9 Boundary sweep
 
@@ -148,7 +169,7 @@ One axis, one path.
 
 ### F10 axe-core sidecar
 
-- AC1 axe violations stored per visited page.
+- AC1 axe violations stored per target-app page, scanned once per page and app parameters: the pages are the same for every persona (simplified 2026-10-04).
 - AC2 Report can cite an axe violation as a `measurement` finding.
 
 ### F11 Demo data
@@ -189,8 +210,9 @@ POST /runs             { taskId, profileIds, seeds } -> runIds
    Actor step: page -> DOM metrics -> filter(profile, seed) -> Observation
                -> Actor backend (LLM or Jev) -> Action -> behaviour dice -> Playwright -> evidence + RunEvent
 GET  /runs/:id/events  SSE stream of RunEvent
-POST /analyses         Analyst over a run set -> Finding[]
-POST /sweeps           axis, range, step -> loop of runs -> boundary
+POST /reports/:taskId  Analyst over the latest run per persona and seed on one backend -> Report
+GET  /sweeps/:id       a stored sweep; a sweep is started by the sweep CLI or seed:demo:
+                       axis, range, step -> one run set per value -> boundary
 ```
 
 ### Filter internals (stream 1, zero LLM)
@@ -261,7 +283,7 @@ API key, not a subscription. Subscription tools are for building the project, no
 | Risk | Mitigation |
 |---|---|
 | 64 human hours is small. Integration eats time. | Contracts frozen in week 1, fixtures everywhere, each task ends in a merged PR. |
-| Asynchronous team, nobody in one room. | Filter-contract changes go through PR with two approvals within 48 h, other changes with one. Weekly 30 minute sync. |
+| Asynchronous team, nobody in one room. | Every change goes through a PR with one approval; until week 4 the filter contract took two. Weekly 30 minute sync. |
 | Agent hangs during demo. | Backup video is mandatory, produced in week 4. |
 | Filter decisions flicker between re-renders. | Stable element key, decision cached per run, tested. |
 | Scope creep into behaviour and knowledge dimensions. | A12 fixes the scope. Extra dimensions go to the "what next" slide. |

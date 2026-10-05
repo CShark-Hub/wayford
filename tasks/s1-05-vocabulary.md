@@ -78,5 +78,5 @@ Built as `docs/specs/2026-10-05-s1-05-vocabulary.md` says. Its decision log has 
 
 ## Notes for the reviewer
 
-- Two reviewers: the task changes `observation.ts` and `docs/RULES.md`.
+- One reviewer: from week 4 every PR takes one, `observation.ts` and `docs/RULES.md` included (`docs/CONVENTIONS.md`).
 - Check the list is short and defensible: every term on it is one a team member would call shop jargon, not a word picked to make Kai fail.

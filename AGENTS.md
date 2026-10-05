@@ -7,21 +7,21 @@ The product description lives in `KONCEPCJA.md`. **This file holds what that one
 
 ## Current state
 
-Week 1 done, week 2 planned. Four people, one month, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
+Weeks 1 to 3 done, week 4 running from 2026-10-05; merge cutoff for the demo Friday 2026-10-16. Four people, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
 
-What exists: the seven contracts in `packages/core` with fixtures, the demo target app in `packages/target-app`, and an io and web skeleton with an SSE echo of the fixture run. `packages/filter` and `packages/agent` are still placeholders.
+What exists: the seven contracts in `packages/core`; the perception filter with knowledge, vocabulary and attention stages (`packages/filter`); the Actor loop on an LLM or Jev, Scout and the calibration run (`packages/agent`); the runs API and database (`packages/io`); the personas, preview, arena, runs and run detail screens (`packages/web`); the target app with three routes to its hard goal (`packages/target-app`).
 
 Planning docs:
 
 - `docs/PLAN.md` — goal, requirements F1–F12 with acceptance criteria, UI, architecture, stack, locked decisions, assumptions.
 - `docs/KICKOFF.md` — week 1 assignment, how to run a task, rules for parallel agents.
-- `docs/RULES.md` — the filter pipeline, every rule with its source id, the five persona bundles. Frozen for week 2: a change takes a PR with two approvals.
+- `docs/RULES.md` — the filter pipeline, every rule with its source id, the five persona bundles. A change takes a PR with one approval, like everything else from week 4.
 - `docs/STACK.md` — exact library picks and package import rules. `docs/CONVENTIONS.md` — layout, determinism rules, Definition of Done.
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
 - `docs/adr/` — decisions taken after the plan, one file each: context, rejected options, consequences. Read the matching one before changing what it covers.
 - `tasks/` — agent-sized task files, `BOARD.md` for ownership and status, `TEMPLATE.md` for new tasks.
 
-Next move: the week 2 table in `tasks/BOARD.md`: the perception filter (`s1-01`, `s1-02`), the LLM adapter, its Jev half and evidence capture (`s2-01`, `s2-05`, `s2-02`), the personas and preview screens (`s3-01`, `s3-02`), the Extractor and the database (`s4-01`, `s4-02`). The week 1 review is filed as issues #13 to #51; the critical ones (#13 to #16) change the contracts and are fixed before week 2 starts. The seven contracts (`Profile`, `Task`, `RunResult`, `Finding` at rest; `Observation`, `Action`, `RunEvent` in motion) count as frozen once those are merged.
+Next move: the week 4 table in `tasks/BOARD.md`: the Analyst and report, the sweep, K2, axe, Jev in io and run detail, the design pass, `seed:demo`. Scope was agreed on 2026-10-04 (`docs/PLAN.md`, "Hackathon scope"): what `docs/DEMO.md` shows, in the simplest form that serves its beat.
 
 If you are an agent picking up a task: read `AGENTS.md`, then `docs/PLAN.md`, then the task file. Do only what the task file says.
 

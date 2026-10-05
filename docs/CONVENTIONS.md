@@ -53,7 +53,8 @@ One error class per package boundary, `WayfordError` in `core` (`packages/core/s
 - Branch per task, `feature/<task-id>-<slug>`: `feature/s2-01-llm-adapter`. Week 1 branches predate the prefix.
 - Commit messages: imperative, one line under 72 characters, body if the why is not obvious.
 - One PR per task. Title starts with the task id. Body links the task file.
-- Reviewer: someone who did not work on the task. Two reviewers for the filter contract (`packages/core/src/observation.ts`, `measurement.ts`, and `docs/RULES.md`); one for everything else, the rest of `packages/core` included (decided in `m0-08` to keep a hackathon's review load small).
+- Reviewer: one, someone who did not work on the task, for every PR. Until week 4 the filter contract (`packages/core/src/observation.ts`, `measurement.ts`, and `docs/RULES.md`) took two; from week 4 it takes one like everything else (decided 2026-10-04, to keep the last weeks' review load small).
+- Spec: an M or L task writes a spec in `docs/specs/` before it is planned. An S task needs none: its task file is the spec, and its decisions go in the PR body (decided 2026-10-04).
 - Squash merge. Most PRs up to #69 went in as merge commits instead. `main` is always green.
 - CI (`.github/workflows/ci.yml`) runs `pnpm lint`, `pnpm typecheck` and `pnpm test` on every PR and every push to `main`.
 

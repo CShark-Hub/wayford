@@ -3,7 +3,7 @@
 Stream: s3
 Milestone: week 4 (planned for week 3 in PR #137; moved on 2026-10-01 when that plan was folded into the persona-fit plan: week 3 is full, and this view is part of how the hero screen looks)
 Size: M
-Depends on: s3-05, s2-02. Built after week 4's design direction, so it lands in the new look.
+Depends on: s3-05, s2-02. Built after s3-07, the design direction, so it lands in the new look. Optional: taken only once the must tasks are taken.
 
 ## Context
 
