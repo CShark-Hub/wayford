@@ -24,6 +24,7 @@ import { Action, ActorResponse, checkActionRef } from "./action.js";
 import { WayfordError } from "./error.js";
 import { FullObservation, renderObservationForModel, toActorObservation } from "./observation.js";
 import {
+  ContrastRatio,
   HttpUrl,
   Probability,
   ProfileId,
@@ -31,6 +32,7 @@ import {
   RunId,
   Seed,
   StepIndex,
+  SweepId,
   TaskId,
 } from "./primitives.js";
 
@@ -63,6 +65,26 @@ export const ModelIds = z
   })
   .strict();
 export type ModelIds = z.infer<typeof ModelIds>;
+
+/**
+ * Which sweep a run belongs to, and the value it ran at (issue #64). Absent on
+ * a run outside a sweep. A sweep moves one of two capability axes (`docs/PLAN.md`
+ * F9, A8), and each takes the range of the profile field it sets
+ * (`docs/PLAN.md` F9 AC4): `contrast` sets `perception.contrast.threshold`, a
+ * `ContrastRatio`; `maxElements` sets `behaviour.maxElements`, a positive
+ * integer. The value is a record of the swept profile, not a second input to it.
+ */
+export const RunSweep = z.discriminatedUnion("axis", [
+  z.object({ sweepId: SweepId, axis: z.literal("contrast"), value: ContrastRatio }).strict(),
+  z
+    .object({
+      sweepId: SweepId,
+      axis: z.literal("maxElements"),
+      value: z.number().int().positive(),
+    })
+    .strict(),
+]);
+export type RunSweep = z.infer<typeof RunSweep>;
 
 /**
  * Token counts and dollars, for a run or for one step. Whole tokens; USD is a
@@ -504,6 +526,8 @@ export const RunResult = z
      *  (`docs/PLAN.md` A20), from `runStarted`. Absent on a Jev run, which
      *  sends neither. */
     actorSampling: Sampling.optional(),
+    /** The sweep this run belongs to, from `runStarted`. Absent outside a sweep. */
+    sweep: RunSweep.optional(),
   })
   .strict()
   .superRefine((run, ctx) => {
@@ -576,7 +600,8 @@ const eventBase = {
 
 export const RunEvent = z.discriminatedUnion("type", [
   /** The run opens. Carries everything the result is keyed by, and the inputs
-   *  fixed before the first step (`seed`, `startUrl`, `actorSampling`). */
+   *  fixed before the first step (`seed`, `startUrl`, `actorSampling`,
+   *  `sweep`). */
   z
     .object({
       ...eventBase,
@@ -587,6 +612,7 @@ export const RunEvent = z.discriminatedUnion("type", [
       startUrl: HttpUrl,
       modelIds: ModelIds,
       actorSampling: Sampling.optional(),
+      sweep: RunSweep.optional(),
     })
     .strict(),
   /** The filter has produced a step's observation. Full evidence; the
@@ -926,6 +952,7 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
   if (terminal.videoPath !== undefined) result.videoPath = terminal.videoPath;
   if (terminal.tracePath !== undefined) result.tracePath = terminal.tracePath;
   if (start.actorSampling !== undefined) result.actorSampling = start.actorSampling;
+  if (start.sweep !== undefined) result.sweep = start.sweep;
 
   // Parse before returning: the fold above builds the shape, this proves it.
   return RunResult.parse(result);

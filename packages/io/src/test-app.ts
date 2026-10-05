@@ -226,6 +226,7 @@ export function fakeRun(script: (options: RunOptions) => FakeScript = () => ({})
       seed,
       startUrl: startUrlFor(task, params),
       modelIds: { actor: "fake" },
+      ...(options.sweep === undefined ? {} : { sweep: options.sweep }),
     });
     let cost = NO_COST;
     if (plan.step === true) {

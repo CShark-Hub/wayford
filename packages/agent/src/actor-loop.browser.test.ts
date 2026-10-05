@@ -23,6 +23,7 @@ import {
   type Profile,
   type RunEvent,
   RunResult,
+  type RunSweep,
   rng,
   runResultFromEvents,
   type Task,
@@ -116,6 +117,7 @@ async function walk(scripted: {
   seed?: number;
   maxSteps?: number;
   now?: () => number;
+  sweep?: RunSweep;
 }): Promise<Walked> {
   const fake = fakeLlm({ actor: [...scripted.answers] });
   const events: RunEvent[] = [];
@@ -134,6 +136,7 @@ async function walk(scripted: {
     },
     maxSteps: scripted.maxSteps ?? 3,
     ...(scripted.now === undefined ? {} : { now: scripted.now }),
+    ...(scripted.sweep === undefined ? {} : { sweep: scripted.sweep }),
   });
   // Whatever a test proves, every run returns the fold of the events it streamed.
   expect(result).toStrictEqual(runResultFromEvents(events));
@@ -810,6 +813,25 @@ test("a start that answers 404 ends runFailed with no step, and result.json is s
   expect(stored).toStrictEqual(result);
 });
 
+test("a sweep run carries its sweep on runStarted and into the record; any other run has none (issue #64)", async () => {
+  const sweep: RunSweep = { sweepId: "swp_ada-attention", axis: "maxElements", value: 12 };
+  const ada = profileFixture("prof_ada");
+  const swept = { ...ada, behaviour: { ...ada.behaviour, maxElements: 12 } };
+
+  const { result, events } = await walk({
+    profile: swept,
+    task: taskOf("task_next-parcel"),
+    answers: [GIVE_UP],
+    sweep,
+  });
+
+  expect(events[0]).toMatchObject({ type: "runStarted", sweep });
+  expect(result.sweep).toStrictEqual(sweep);
+  const plain = await walk({ profile: ada, task: taskOf("task_next-parcel"), answers: [GIVE_UP] });
+  expect(plain.events[0]).not.toHaveProperty("sweep");
+  expect(plain.result).not.toHaveProperty("sweep");
+});
+
 test("a pattern that can never match ends the run before a context is opened", async () => {
   // Relative: a run's contexts have no base URL to resolve it against.
   const task: Task = {
@@ -835,6 +857,34 @@ test.each([
   ["an empty runsDir", { runsDir: "" }],
   // Checked before the provider seed is drawn from it.
   ["a seed of -1", { seed: -1 }],
+  // Vera's contrast threshold is 3.0, so the id is the only fault.
+  [
+    "a sweep whose id is not a sweep's",
+    {
+      profile: profileFixture("prof_vera"),
+      sweep: { sweepId: "run_one", axis: "contrast", value: 3 },
+    },
+  ],
+  // The record must name the value the profile applies: Vera's contrast is 3.0, her cap 20.
+  [
+    "a contrast sweep at a value the profile does not set",
+    {
+      profile: profileFixture("prof_vera"),
+      sweep: { sweepId: "swp_one", axis: "contrast", value: 4.5 },
+    },
+  ],
+  [
+    "a maxElements sweep at a value the profile does not set",
+    {
+      profile: profileFixture("prof_vera"),
+      sweep: { sweepId: "swp_one", axis: "maxElements", value: 12 },
+    },
+  ],
+  // Ada sets no contrast threshold at all.
+  [
+    "a contrast sweep on a profile with no contrast threshold",
+    { sweep: { sweepId: "swp_one", axis: "contrast", value: 3 } },
+  ],
 ] as const)("%s rejects with invalid_run_input before any event", async (_name, override) => {
   const onEvent = vi.fn();
 

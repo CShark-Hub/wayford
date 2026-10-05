@@ -12,7 +12,7 @@ Read first, in this order:
 - `AGENTS.md` sections "Separated LLM roles", "Every verdict clickable through to evidence", "Provenance on every threshold", "Scout is mandatory"
 - `docs/PLAN.md` F8, all six criteria, and A9
 - `packages/core/src/finding.ts` and `fixtures/findings.json` — the `Finding` contract
-- `packages/core/src/run.ts` — `RunResult`, steps, the evidence observation with each element's decisions
+- `packages/core/src/run.ts` — `RunResult`, steps, the evidence observation with each element's decisions, and the optional `sweep` that marks a sweep run
 - `packages/core/src/ground-truth.ts` and `runs/ground-truth/<task id>.json` — Scout's output
 - `packages/agent/src/llm.ts` and `llm-settings.ts` — `complete` and the `analyst` role
 - `packages/io/src/db/` — the table pattern: the whole document as JSON, real columns only for what a query filters on

@@ -142,6 +142,32 @@ describe("RunResult and RunEvent schemas", () => {
     expect(RunResult.safeParse({ ...runResultFixture, actorSampling: tooBig }).success).toBe(false);
   });
 
+  test("a sweep's value is in the range of the profile field its axis sets", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    const accepts = (sweep: object) => RunEvent.safeParse({ ...started, sweep }).success;
+    const sweepId = "swp_one";
+    // contrast sets perception.contrast.threshold, a ContrastRatio in [1, 21].
+    for (const value of [1, 4.5, 21])
+      expect(accepts({ sweepId, axis: "contrast", value })).toBe(true);
+    for (const value of [0.5, 21.5])
+      expect(accepts({ sweepId, axis: "contrast", value })).toBe(false);
+    // maxElements sets behaviour.maxElements, a positive integer.
+    for (const value of [1, 16])
+      expect(accepts({ sweepId, axis: "maxElements", value })).toBe(true);
+    for (const value of [0, -2, 4.5]) {
+      expect(accepts({ sweepId, axis: "maxElements", value })).toBe(false);
+    }
+    expect(accepts({ sweepId, axis: "fontSize", value: 12 })).toBe(false);
+    expect(accepts({ sweepId: "run_one", axis: "contrast", value: 3 })).toBe(false);
+    expect(accepts({ axis: "contrast", value: 3 })).toBe(false);
+    expect(accepts({ sweepId, axis: "contrast" })).toBe(false);
+    expect(accepts({ sweepId, axis: "contrast", value: 3, softness: 0.1 })).toBe(false);
+    const extra = { sweepId, axis: "maxElements", value: 8, from: 4 };
+    expect(RunResult.safeParse({ ...runResultFixture, sweep: extra }).success).toBe(false);
+  });
+
   test("modelIds names the Actor's model and no role that runs outside the run", () => {
     const started = runEventFixtures[0];
     if (started?.type !== "runStarted")
@@ -541,6 +567,16 @@ describe("runResultFromEvents", () => {
     const { actorSampling: _sampling, ...jevStart } = started;
     const jevRun = runResultFromEvents([jevStart, ...runEventFixtures.slice(1)]);
     expect(jevRun).not.toHaveProperty("actorSampling");
+  });
+
+  test("carries sweep from runStarted, and leaves it out when runStarted has none", () => {
+    const started = runEventFixtures[0];
+    if (started?.type !== "runStarted")
+      throw new Error("the fixture stream must open with runStarted");
+    expect(runResultFromEvents(runEventFixtures)).not.toHaveProperty("sweep");
+    const sweep = { sweepId: "swp_kai-attention", axis: "maxElements", value: 12 } as const;
+    const swept = runResultFromEvents([{ ...started, sweep }, ...runEventFixtures.slice(1)]);
+    expect(swept.sweep).toEqual(sweep);
   });
 
   test("a stream must open with runStarted", () => {

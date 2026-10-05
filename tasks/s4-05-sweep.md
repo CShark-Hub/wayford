@@ -13,7 +13,7 @@ Read first, in this order:
 - `docs/PLAN.md` F9, all five criteria, and A20 (one seed set reused for every value)
 - `docs/RULES.md` "Monotone per perception rule" and the calibration row "Sweep on contrast"
 - `packages/io/src/runner.ts` — `start(task, profiles, seeds)` takes `Profile` objects, so a swept profile is one in memory
-- `packages/core/src/run.ts` — `runStarted` and `RunResult`; issue #64 for the sweep fields
+- `packages/core/src/run.ts` — `RunSweep`, the optional `sweep` on `runStarted` and `RunResult` (landed for issue #64)
 
 ## Goal
 
@@ -24,11 +24,11 @@ One command runs a task for one persona across a range of one capability, the sa
 - In: task, persona, axis (`contrast` or `maxElements`), from, to, step, seeds (at most 10), backend
 - Out:
   - `Sweep` in `@wayford/core` with a fixture: id, inputs, per value the run ids, successes, route-open seeds, and the boundary or `null`;
-  - an optional `sweep: { sweepId, axis, value }` on `runStarted` and `RunResult`, carried by `runResultFromEvents`;
-  - a `sweeps` table and a `sweep_id` column on `runs`;
+  - already landed, part of #64: an optional `sweep: { sweepId, axis, value }` on `runStarted` and `RunResult`, carried by `runResultFromEvents`; `runActor`'s `sweep` option, refused unless its value is the one the profile sets; io's `fakeRun` carries it too; a `sweep_id` column on `runs`, filled by `saveRun`. Left here: passing `sweep` through the runner, whose `start` takes none yet, in the same PR as the `GET /runs` exclusion, so no sweep run is ever counted as the persona's own;
+  - a `sweeps` table;
   - `GET /sweeps` and `GET /sweeps/:id`. A sweep is started in process by the CLI and by `seed:demo`; there is no `POST /sweeps`, since no screen starts one;
   - `pnpm --filter @wayford/io sweep -- --task … --persona … --axis … --from … --to … --step … --seeds 1-10 [--backend jev]` printing the table and the boundary.
-- Files expected to change: new `packages/core/src/sweep.ts`, its test and fixture, `packages/core/src/run.ts` and its test, `packages/core/src/index.ts`, `packages/io/src/sweep*.ts`, `routes/sweeps.ts`, `routes/runs.ts`, `db/`, a new migration
+- Files expected to change: new `packages/core/src/sweep.ts`, its test and fixture, `packages/core/src/index.ts`, `packages/io/src/runner.ts`, `packages/io/src/sweep*.ts`, `routes/sweeps.ts`, `routes/runs.ts`, `db/`, a new migration
 
 ## Constraints
 
@@ -42,7 +42,7 @@ One command runs a task for one persona across a range of one capability, the sa
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes; the fixture parses, and a run carrying `sweep` folds into a `RunResult` that keeps it
+- [ ] `pnpm --filter @wayford/core test` passes; the `Sweep` fixture parses
 - [ ] `pnpm --filter @wayford/io test` passes with a fake backend:
   - every value runs the same seeds;
   - the boundary is the first value below 50%, and `null` when there is none;

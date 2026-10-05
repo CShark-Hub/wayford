@@ -33,6 +33,7 @@ export async function saveRun(db: Db, run: RunResult, startedAt: string): Promis
     durationMs: document.durationMs,
     costUsd: document.cost.usd,
     startedAt: start.startedAt,
+    sweepId: document.sweep?.sweepId ?? null,
     document,
   });
 }

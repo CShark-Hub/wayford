@@ -52,5 +52,8 @@ export const runs = sqliteTable("runs", {
   durationMs: integer("duration_ms").notNull(),
   costUsd: real("cost_usd").notNull(),
   startedAt: text("started_at").notNull(),
+  /** The run's `sweep.sweepId`, null outside a sweep (issue #64), so sweep
+   *  runs can be kept apart from a persona's own. */
+  sweepId: text("sweep_id"),
   document: text("document", { mode: "json" }).$type<RunResult>().notNull(),
 });

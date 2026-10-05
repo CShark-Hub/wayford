@@ -56,8 +56,22 @@ test("the columns are lifted out of the document, the start time beside it at mi
     durationMs: 15500,
     costUsd: 0.0201,
     startedAt: "2026-09-22T10:00:00.000Z",
+    // The fixture run is no sweep run.
+    sweepId: null,
   });
   expect(document).toStrictEqual(fixture);
+});
+
+test("a sweep run stores its sweep id in sweep_id and loads back with its sweep (issue #64)", async () => {
+  const swept: RunResult = {
+    ...fixture,
+    id: "run_vera-contrast-3",
+    sweep: { sweepId: "swp_vera-contrast", axis: "contrast", value: 3 },
+  };
+  await saveRun(db, swept, startedAt);
+  const [row] = db.select({ sweepId: runs.sweepId }).from(runs).where(eq(runs.id, swept.id)).all();
+  expect(row).toStrictEqual({ sweepId: "swp_vera-contrast" });
+  expect(await loadRun(db, swept.id)).toStrictEqual(swept);
 });
 
 test("an unknown id loads as undefined", async () => {

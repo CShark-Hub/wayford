@@ -36,6 +36,7 @@ import {
   RunEvent,
   type RunId,
   type RunResult,
+  type RunSweep,
   rng,
   runResultFromEvents,
   Seed,
@@ -101,6 +102,12 @@ export interface RunActorOptions {
   logger: Logger;
   /** Minted with `newId("run")` when absent. s4-03 passes the one it already returned. */
   runId?: RunId;
+  /**
+   * The sweep this run belongs to and the value it runs at (issue #64), kept on `runStarted` and
+   * the record. Absent outside a sweep. A record only: the caller sets the swept value in
+   * `profile`, and the run refuses a `value` that differs from the field its axis names.
+   */
+  sweep?: RunSweep;
   /** Called with each event as it is emitted. */
   onEvent?: (event: RunEvent) => void;
   /** `DEFAULT_MAX_STEPS` when absent. */
@@ -142,8 +149,9 @@ export interface RunActorOptions {
  *   separators, so a run's folder can move as a whole.
  * - There is no module state: concurrent runs on one `Browser` share nothing but the browser.
  * - It rejects before any event only where no run can start: with `invalid_run_input` for a
- *   `maxSteps` that is not a positive integer, a seed that is not a `Seed`, an empty `runsDir`, or
- *   a `runStarted` that fails its schema (a bad run id, task id, profile id or start URL); with
+ *   `maxSteps` that is not a positive integer, a seed that is not a `Seed`, an empty `runsDir`, a
+ *   `sweep` whose value is not the one the profile sets on its axis, or a `runStarted` that fails
+ *   its schema (a bad run id, task id, profile id, start URL or sweep); with
  *   `startUrlFor`'s `invalid_target_app_params`; and with whatever the backend factory throws.
  *   Once `runStarted` is out, every failure is the run's own `runFailed`, and `runActor` rejects
  *   only when folding the events or writing `result.json` fails, or when the listener throws on
@@ -162,6 +170,16 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   }
   if (runsDir.length === 0) {
     throw invalidInput("runsDir is empty, so the run has nowhere to keep its files");
+  }
+  // `sweep.value` is the record's only trace of the swept threshold, so it must be the one applied.
+  if (options.sweep !== undefined) {
+    const { axis, value } = options.sweep;
+    const applied = sweptField(profile, axis);
+    if (applied !== value) {
+      throw invalidInput(
+        `the sweep records ${axis} ${value}, but the profile sets ${applied ?? "none"}`,
+      );
+    }
   }
   const startUrl = startUrlFor(task, params);
   const runId = options.runId ?? newId("run");
@@ -184,6 +202,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
     startUrl,
     modelIds: { actor: backend.modelId },
     ...(backend.sampling === undefined ? {} : { actorSampling: backend.sampling }),
+    ...(options.sweep === undefined ? {} : { sweep: options.sweep }),
   });
   if (!started.success) {
     const message = `Invalid run input:\n${z.prettifyError(started.error)}`;
@@ -554,6 +573,16 @@ function messageText(thrown: unknown): string {
 // ---------------------------------------------------------------------------
 // Small parts
 // ---------------------------------------------------------------------------
+
+/** The profile field a sweep axis sets (`tasks/s4-05-sweep.md`, "Axes"), absent when unset. */
+function sweptField(profile: Profile, axis: RunSweep["axis"]): number | undefined {
+  switch (axis) {
+    case "contrast":
+      return profile.perception.contrast?.threshold;
+    case "maxElements":
+      return profile.behaviour.maxElements;
+  }
+}
 
 function invalidInput(why: string): WayfordError {
   return new WayfordError("invalid_run_input", `Invalid run input: ${why}`);
