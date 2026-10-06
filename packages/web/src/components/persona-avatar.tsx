@@ -32,10 +32,13 @@ export function PersonaAvatar({
       )}
       style={slotStyle(slotOf(profile.id))}
     >
+      {/* In Night the tile is the fixed light `avatar-tile`, where the light Night ink would fade:
+          the pattern, tuft and caps take `avatar-line` (`docs/DESIGN.md`, "Icons, wordmark,
+          avatars"). Set on the avatar, since the tile's inline slot style outranks any class. */}
       <Avatar
         profile={profile}
         {...(state === undefined ? {} : { state })}
-        className="block size-full"
+        className="block size-full dark:[--p-ink:var(--avatar-line)]"
       />
     </div>
   );

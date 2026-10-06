@@ -38,24 +38,39 @@ async function openCast(colorScheme: "light" | "dark"): Promise<Page> {
 }
 
 /**
- * The theme on `<html>`, and two grounds as the browser paints them: the page's, and the first
- * avatar tile's, Ada's. The tile is the one place a `dark:` utility paints, so it shows the Night
- * variant matches `data-theme`, not only that the tokens switch.
+ * The theme on `<html>`, and what the browser paints: the page's ground, the first avatar tile's,
+ * Ada's, and her tuft. The tile and the tuft are where `dark:` utilities paint, so they show the
+ * Night variant matches `data-theme`, not only that the tokens switch.
  */
 function shownOf(page: Page) {
-  return page.evaluate(() => ({
-    theme: document.documentElement.getAttribute("data-theme"),
-    ground: getComputedStyle(document.body).backgroundColor,
-    tile: getComputedStyle(
-      document.querySelector('article svg[role="img"]')?.parentElement ?? document.body,
-    ).backgroundColor,
-  }));
+  return page.evaluate(() => {
+    const avatar = document.querySelector('article svg[role="img"]');
+    const tuft = avatar?.querySelector('[data-part="tuft"] path');
+    return {
+      theme: document.documentElement.getAttribute("data-theme"),
+      ground: getComputedStyle(document.body).backgroundColor,
+      tile: getComputedStyle(avatar?.parentElement ?? document.body).backgroundColor,
+      tuft: tuft ? getComputedStyle(tuft).stroke : "none",
+    };
+  });
 }
 
-// The tokens from `index.css`, as the browser reports them: `paper` in each theme, Ada's tile in
-// Daylight (`persona-graphite-soft`) and every tile in Night (`avatar-tile`).
-const DAYLIGHT = { theme: "light", ground: "rgb(245, 243, 239)", tile: "rgb(225, 229, 234)" };
-const NIGHT = { theme: "dark", ground: "rgb(20, 18, 16)", tile: "rgb(235, 232, 227)" };
+// The tokens from `index.css`, as the browser reports them: `paper` in each theme; Ada's tile,
+// `persona-graphite-soft` in Daylight and `avatar-tile` in Night; and her tuft, drawn in
+// `--p-ink`, which is `persona-graphite-ink` in Daylight and `avatar-line` in Night, so it stays
+// dark on the light tile (`docs/DESIGN.md`, "Icons, wordmark, avatars").
+const DAYLIGHT = {
+  theme: "light",
+  ground: "rgb(245, 243, 239)",
+  tile: "rgb(225, 229, 234)",
+  tuft: "rgb(79, 83, 88)",
+};
+const NIGHT = {
+  theme: "dark",
+  ground: "rgb(20, 18, 16)",
+  tile: "rgb(235, 232, 227)",
+  tuft: "rgb(26, 21, 16)",
+};
 
 test("with the system in dark mode and nothing stored, the app opens in Night", async () => {
   const page = await openCast("dark");

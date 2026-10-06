@@ -47,14 +47,16 @@ test("the tile carries the slot-tint and Night-tile classes, and the caller's si
 });
 
 test("the tile holds the persona's avatar, filling it, and passes the state through", () => {
+  // The avatar's own class: it fills the tile, and in Night takes the line for its ink.
+  const avatarClass = "block size-full dark:[--p-ink:var(--avatar-line)]";
   const milo = profileFixture("prof_milo");
   const plain = renderToStaticMarkup(<PersonaAvatar profile={milo} className="size-40" />);
   expect(tileOf(plain).inner).toBe(
-    renderToStaticMarkup(<Avatar profile={milo} className="block size-full" />),
+    renderToStaticMarkup(<Avatar profile={milo} className={avatarClass} />),
   );
   const stuck = renderToStaticMarkup(<PersonaAvatar profile={milo} state="stuck" />);
   expect(tileOf(stuck).inner).toBe(
-    renderToStaticMarkup(<Avatar profile={milo} state="stuck" className="block size-full" />),
+    renderToStaticMarkup(<Avatar profile={milo} state="stuck" className={avatarClass} />),
   );
 });
 
