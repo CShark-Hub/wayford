@@ -5,7 +5,7 @@
  *
  * It, the `analyse` CLI and the sweep CLI, `sweep-cli.ts`, are the only io modules that load
  * agent's runtime and Playwright, through `actor-backends.ts`, `analyst-routes.ts`,
- * `chromium.ts` and `live-measure.ts`
+ * `axe-scan.ts`, `chromium.ts` and `live-measure.ts`
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
  */
 import { join } from "node:path";
@@ -17,6 +17,7 @@ import pino from "pino";
 import { actorBackends } from "./actor-backends.js";
 import { routeFacts } from "./analyst-routes.js";
 import { createApp } from "./app.js";
+import { axeScanner } from "./axe-scan.js";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
 import { migrateDatabase, openDatabase } from "./db/database.js";
@@ -48,7 +49,7 @@ const llm = createLlm(settings, { logger });
 migrateDatabase(config.DATABASE_URL);
 const db = openDatabase(config.DATABASE_URL);
 
-// One Chromium for every run and every measurement, launched by the first one.
+// One Chromium for every run, every measurement and every axe-core scan, launched by the first one.
 const browser = sharedBrowser();
 
 const app = createApp({
@@ -58,6 +59,8 @@ const app = createApp({
   run: sharedChromium(browser),
   // The preview's live page (s3-05), at the app's defaults like the arena's runs.
   measure: liveMeasure({ browser, origin: TARGET_APP_ORIGIN }),
+  // The preview's axe-core card and the report's axe findings (s4-06), scanned on desktop.
+  scanAxe: axeScanner({ browser, origin: TARGET_APP_ORIGIN }),
   // One `Llm` per run, so each run's log lines carry its run id.
   ...actorBackends(settings),
   // The arena runs on the app's defaults (s3-03, Out of scope).

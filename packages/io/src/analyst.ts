@@ -3,8 +3,10 @@
  * around its answer (`docs/specs/2026-10-05-s4-04-analyst.md`, "io: the call and the assembly").
  *
  * Code decides what is true; the model only words it. Before the call, code has chosen the runs,
- * counted the numbers and written the `deterministic` findings with their evidence and basis.
- * The model gets all of it in one `analyst` call (F8 AC4) and writes into fields (A9): one
+ * counted the numbers and written the `deterministic` findings with their evidence and basis, and
+ * a `measurement` finding for each axe-core violation on a target-app page the runs stood on
+ * (`analyst-axe.ts`, F10 AC2): a scan that fails costs only its page's measurements, never the
+ * report. The model gets all of it in one `analyst` call (F8 AC4) and writes into fields (A9): one
  * recommendation per finding and at most five hypotheses. After the call, code checks every
  * hypothesis before it is stored:
  * - every evidence ref must name a run the report read and a step that run has, or the whole
@@ -12,8 +14,8 @@
  * - its personas are the profiles of the runs it cites, never the model's word;
  * - its basis keeps the rule ids the model named, with each provenance copied from the cited
  *   personas' profiles (F8 AC5), and drops a rule that is unknown or that none of them sources.
- * Each drop is logged. A blank recommendation gets one written in code from the closing rule, so
- * a deterministic finding is never lost to the model.
+ * Each drop is logged. A blank recommendation gets one written in code, the draft's fallback, so a
+ * finding code wrote is never lost to the model.
  *
  * The route facts are injected (`RouteFacts`): `@wayford/filter/routes` loads Playwright and Vite,
  * which io's barrel must not load, so this module imports its types alone. `@wayford/agent` is
@@ -46,12 +48,8 @@ import {
 import { profileFixtures, taskFixtures } from "@wayford/core/fixtures";
 import type { Logger } from "pino";
 import { z } from "zod";
-import {
-  closureFindings,
-  type Draft,
-  fallbackRecommendation,
-  provenanceOf,
-} from "./analyst-closures.js";
+import { axeDrafts } from "./analyst-axe.js";
+import { closureFindings, type Draft, provenanceOf } from "./analyst-closures.js";
 import { analystCase } from "./analyst-digest.js";
 import {
   byPersona,
@@ -61,6 +59,7 @@ import {
   selectRuns,
 } from "./analyst-runs.js";
 import { otherBackends } from "./analyst-text.js";
+import type { AxeLookup } from "./axe.js";
 import type { Db } from "./db/database.js";
 import { saveReport } from "./db/reports.js";
 import { listRuns } from "./db/runs.js";
@@ -84,13 +83,18 @@ export interface AnalystDeps {
   groundTruthDir: string;
   /** Jev's pinned model, which marks a stored run as Jev's (`backendOf`). */
   jevModel: string;
+  /**
+   * The axe-core scan of a target-app page at the app's parameters, stored or scanned on a miss:
+   * the app's one lookup, which `GET /axe` reads too, so the two share a scan.
+   */
+  axe: AxeLookup;
   logger: Logger;
 }
 
 export type Analysis = { ok: true; report: Report } | { ok: false; error: string };
 
 /** What `analyseTask` reads, already loaded, beside what it calls. */
-interface AnalysisInput extends Pick<AnalystDeps, "llm" | "routes" | "logger"> {
+interface AnalysisInput extends Pick<AnalystDeps, "llm" | "routes" | "axe" | "logger"> {
   task: Task;
   backend: ReportBackend;
   /** The runs the report reads, as `selectRuns` chose them: at least one, `analyseAndStore` checks. */
@@ -163,11 +167,12 @@ export async function analyseAndStore(
 
 /**
  * The analysis alone, over runs already chosen: the numbers and findings in code, one `analyst`
- * call, and the report assembled and parsed. Findings are ordered deterministic first, by persona,
- * then hypotheses in the model's order.
+ * call, and the report assembled and parsed. Findings are ordered as PLAN separates them:
+ * measurements first, then deterministic findings by persona, then hypotheses in the model's
+ * order.
  */
 async function analyseTask(input: AnalysisInput): Promise<Report> {
-  const { task, backend, chosen, leftOut, groundTruth, llm, routes, logger } = input;
+  const { task, backend, chosen, leftOut, groundTruth, llm, routes, axe, logger } = input;
   const scout = scoutLineOf(groundTruth);
 
   // Each persona's runs by seed, the order the report lists them in. A run of an unbundled profile
@@ -178,7 +183,7 @@ async function analyseTask(input: AnalysisInput): Promise<Report> {
   // Per persona, its route facts; a goal with no route table has none, so no route-open number
   // and no closing to find.
   const facts = new Map<ProfileId, RouteFactsOf>();
-  const listed: { draft: Draft; profile: Profile }[] = [];
+  const closures: Omit<Draft, "key">[] = [];
   const unevidencedClosures: UnevidencedClosure[] = [];
   for (const { profile, runs } of groups) {
     const seeds = runs.map((run) => run.seed);
@@ -194,13 +199,16 @@ async function analyseTask(input: AnalysisInput): Promise<Report> {
       scout,
     });
     unevidencedClosures.push(...unevidenced);
-    // Keyed across every persona, in order: the ids the answer names them by.
-    for (const draft of drafts) {
-      listed.push({ draft: { ...draft, key: `d${listed.length + 1}` }, profile });
-    }
+    closures.push(...drafts);
   }
   const personas = personaResults(groups, facts);
-  const drafts = listed.map(({ draft }) => draft);
+  const measurements = await axeDrafts({ taskId: task.id, runs: ordered, axe, logger });
+  // Measurements first, then every persona's closures in order, keyed across both: the ids the
+  // answer names them by, one recommendation each.
+  const drafts: Draft[] = [...measurements, ...closures].map((draft, index) => ({
+    ...draft,
+    key: `d${index + 1}`,
+  }));
 
   const completion = await llm.complete({
     role: "analyst",
@@ -215,14 +223,15 @@ async function analyseTask(input: AnalysisInput): Promise<Report> {
   });
   const answer = completion.value;
 
-  const deterministic = listed.map(({ draft, profile }): Finding => {
+  const recommended = drafts.map((draft): Finding => {
     const written = answer.recommendations[draft.key]?.trim() ?? "";
     if (written !== "") return { ...draft.finding, recommendation: written };
+    const { title, personaIds } = draft.finding;
     logger.warn(
-      { finding: draft.key, profileId: profile.id, routeId: draft.closing.routeId },
-      "the Analyst left a recommendation blank; code wrote one from the closing rule",
+      { finding: draft.key, title, personaIds },
+      "the Analyst left a recommendation blank; code wrote its fallback",
     );
-    return { ...draft.finding, recommendation: fallbackRecommendation(draft.closing) };
+    return { ...draft.finding, recommendation: draft.fallback };
   });
   const hypotheses = checkedHypotheses(answer.hypotheses, ordered, task.id, logger);
 
@@ -235,7 +244,7 @@ async function analyseTask(input: AnalysisInput): Promise<Report> {
     cost: { runs: sumOf(ordered.map((run) => run.cost)), analyst: completion.cost },
     scout,
     personas,
-    findings: [...deterministic, ...hypotheses],
+    findings: [...recommended, ...hypotheses],
     leftOut,
     unevidencedClosures,
   });

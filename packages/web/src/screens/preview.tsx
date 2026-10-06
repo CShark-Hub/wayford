@@ -10,6 +10,9 @@
  * has once more. With io or the target app down, the screen draws the stored measurement under a
  * banner that says so (F2 AC5).
  *
+ * Above the drawn page, a card shows axe-core's scan of the page from io (s4-06), the same for
+ * every persona and device.
+ *
  * Function first: week 4's design pass decides the look (`docs/PLAN.md` "UI"). Until then the one
  * accent is the persona colour, set once as `--persona` on the screen's root.
  */
@@ -20,6 +23,7 @@ import { perceive } from "@wayford/filter/perceive";
 import { cn } from "cn";
 import { useEffect, useRef } from "react";
 import { Button } from "#components/ui/button";
+import { axeQuery } from "../api/axe.js";
 import { measurementQuery } from "../api/measure.js";
 import { Avatar } from "../avatar/avatar.js";
 import { personaColour } from "../avatar/parts.js";
@@ -445,6 +449,55 @@ function StoredBanner({ failure, retry }: { failure: string; retry: () => void }
   );
 }
 
+/** `n` and `noun`, plural unless `n` is 1: `1 violation`, `0 violations`. */
+function counted(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * axe-core's scan of the page, as io stores it (s4-06). The scan is by page, not by run, so the
+ * card reads the page alone, never the persona or the device. While io scans, a plain line says
+ * so, not a status: the stage's one status line is its measurement's. A failed scan says axe did
+ * not run and why, never a count, since no scan is not "no violations".
+ */
+function AxeCard({ page }: { page: PreviewPage }) {
+  const scan = useQuery(axeQuery(page));
+  return (
+    <section
+      aria-label="axe-core"
+      className="flex flex-col gap-2 rounded-lg border bg-card p-4 text-sm text-card-foreground"
+    >
+      {scan.data !== undefined ? (
+        <>
+          <p className="font-medium">
+            {`axe-core, WCAG 2.2 A and AA: ${counted(scan.data.violations.length, "violation")}`}
+          </p>
+          {scan.data.violations.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {scan.data.violations.map((violation) => (
+                <li key={violation.ruleId}>
+                  <span className="font-mono">{violation.ruleId}</span>
+                  {`, ${counted(violation.nodes, "element")}`}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Scanned once per page on desktop, at the target app's default parameters.
+          </p>
+        </>
+      ) : scan.isError ? (
+        <>
+          <p className="font-medium">{`axe did not run on ${page}`}</p>
+          <p className="text-muted-foreground">{scan.error.message}</p>
+        </>
+      ) : (
+        <p className="text-muted-foreground">{`axe-core is scanning ${page}…`}</p>
+      )}
+    </section>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The screen
 // ---------------------------------------------------------------------------
@@ -506,6 +559,7 @@ export function PreviewScreen() {
             <PagePicker search={search} current={state.page} />
             <ViewControl evidence={state.evidence} onChange={showEvidence} />
           </div>
+          <AxeCard page={state.page} />
           <h2 id={PAGE_TITLE_ID} className="font-medium">
             {stage?.observation.title ?? state.page}
           </h2>

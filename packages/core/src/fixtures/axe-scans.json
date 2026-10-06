@@ -1,0 +1,22 @@
+[
+  {
+    "url": "/deliveries?contrast=2&fontPx=16&targetPx=36",
+    "scannedAt": "2026-10-06T09:15:55.654Z",
+    "axeVersion": "4.13.0",
+    "violations": [
+      {
+        "ruleId": "color-contrast",
+        "impact": "serious",
+        "tags": ["wcag2aa", "wcag143"],
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 1
+      }
+    ]
+  },
+  {
+    "url": "/settings/data?contrast=2&fontPx=16&targetPx=36",
+    "scannedAt": "2026-10-06T09:15:55.622Z",
+    "axeVersion": "4.13.0",
+    "violations": []
+  }
+]

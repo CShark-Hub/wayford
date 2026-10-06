@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import {
   type Action,
   type FullObservation,
+  newId,
   type PersonaResult,
   type Profile,
   RunResult,
@@ -21,6 +22,7 @@ import {
 import { perceive } from "@wayford/filter/perceive";
 import { describe, expect, test } from "vitest";
 import { ANALYST_PROMPT_FILE } from "./analyst.js";
+import type { Draft } from "./analyst-closures.js";
 import { analystCase } from "./analyst-digest.js";
 import { archiveLink, deliveries, FAKE_JEV_MODEL, firstSeed, storedRun } from "./test-app.js";
 
@@ -157,6 +159,54 @@ describe("analystCase: the sections", () => {
     expect(text).toContain("run run_ada-1: Ada (prof_ada), seed 1");
     expect(text).toContain("run run_kai-2: Kai (prof_kai), seed 2");
     expect(text).toContain("run run_vera-3: Vera (prof_vera), seed 3");
+  });
+});
+
+describe("analystCase: the findings", () => {
+  const run = runOf(vera, 1, "run_vera-1", [{ observation: observationFixture }]);
+  const evidence = [{ runId: "run_vera-1", stepIndex: 0 }];
+  const measurement: Draft = {
+    key: "d1",
+    finding: {
+      id: newId("finding"),
+      taskId: TASK.id,
+      type: "measurement",
+      title:
+        "axe-core: Elements must meet minimum color contrast ratio thresholds (color-contrast)",
+      detail: "axe-core 4.13.0 reports color-contrast on /deliveries.",
+      evidence,
+      basis: [],
+      personaIds: [],
+      axeRuleId: "color-contrast",
+    },
+    fallback: "Fix what axe-core's color-contrast rule reports on /deliveries.",
+  };
+  const closure: Draft = {
+    key: "d2",
+    finding: {
+      id: newId("finding"),
+      taskId: TASK.id,
+      type: "deterministic",
+      title: 'The link "Order archive" on /deliveries is cut by P1 for Vera in 1 of 1 seed',
+      detail: "Route A closes at this step.",
+      evidence,
+      basis: [{ rule: "P1", provenance: "wcag22" }],
+      personaIds: ["prof_vera"],
+    },
+    fallback: "Raise its contrast to at least 3:1 against its background.",
+  };
+
+  test("a draft with no persona is an axe-core measurement on the page, and no rule reads none", () => {
+    const lines = caseOf([run], { drafts: [measurement, closure] }).split("\n");
+    const first = lines.indexOf("## Findings computed from the page") + 1;
+    expect(lines.slice(first, first + 6)).toEqual([
+      `d1, axe-core measurement on the page: ${measurement.finding.title}`,
+      "  rules: none",
+      `  detail: ${measurement.finding.detail}`,
+      `d2, Vera: ${closure.finding.title}`,
+      "  rules: P1",
+      `  detail: ${closure.finding.detail}`,
+    ]);
   });
 });
 

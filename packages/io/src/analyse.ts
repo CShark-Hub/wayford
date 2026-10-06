@@ -10,8 +10,11 @@
  * The report goes to stdout as text (`reportText`), its costs in its header, and log lines go to
  * stderr, so the output can be pasted. For the hard goal, the target app is built, served and
  * walked once for the route facts, which takes tens of seconds and launches Chromium; it is served
- * on a free port, so a running `pnpm dev` can stay. Scout's ground truth is read from the
- * repository's `runs/ground-truth/`, where `pnpm --filter @wayford/agent scout` writes it.
+ * on a free port, so a running `pnpm dev` can stay. For the axe-core measurements, the target app
+ * is built and served too, to scan the pages the runs stood on, but only on a miss of the stored
+ * scans (`servedAxeScanner`); a scan that fails is logged and costs only its page's measurements.
+ * Scout's ground truth is read from the repository's `runs/ground-truth/`, where
+ * `pnpm --filter @wayford/agent scout` writes it.
  *
  * Exit 0 when the report is printed. 1 for a usage error, a task that is neither stored nor
  * bundled, no run of it on the backend, or any failure, the model call included.
@@ -26,6 +29,8 @@ import pino from "pino";
 import { analyseAndStore } from "./analyst.js";
 import { routeFacts } from "./analyst-routes.js";
 import { reportText } from "./analyst-text.js";
+import { axeLookup } from "./axe.js";
+import { servedAxeScanner } from "./axe-scan.js";
 import { loadConfigFromEnvFile } from "./config.js";
 import { migrateDatabase, openDatabase } from "./db/database.js";
 
@@ -82,6 +87,9 @@ async function main({ taskId, backend }: Arguments): Promise<number> {
   // Idempotent, so the command works on a fresh clone and on an up-to-date database alike.
   migrateDatabase(config.DATABASE_URL);
   const db = openDatabase(config.DATABASE_URL);
+  // Serves the target app and launches Chromium on its first scan only: none when every page the
+  // runs stood on is already stored.
+  const axeScan = servedAxeScanner();
   try {
     const analysis = await analyseAndStore(
       {
@@ -93,6 +101,7 @@ async function main({ taskId, backend }: Arguments): Promise<number> {
         }),
         groundTruthDir: join(RUNS_DIR, "ground-truth"),
         jevModel: settings.jevModel,
+        axe: axeLookup({ db, scan: axeScan.scan }),
         logger,
       },
       taskId,
@@ -106,6 +115,12 @@ async function main({ taskId, backend }: Arguments): Promise<number> {
     return 0;
   } finally {
     db.$client.close();
+    // Logged, so a scanner that fails to close never replaces the CLI's exit code or its error.
+    await axeScan
+      .close()
+      .catch((error: unknown) =>
+        logger.warn({ err: error }, "the axe-core scanner's browser or served app did not close"),
+      );
   }
 }
 

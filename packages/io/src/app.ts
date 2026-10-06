@@ -2,6 +2,8 @@ import type { Llm } from "@wayford/agent";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { RouteFacts } from "./analyst-runs.js";
+import { type AxeScanFn, axeLookup } from "./axe.js";
+import { axeRoute } from "./routes/axe.js";
 import { healthRoute } from "./routes/health.js";
 import { type MeasureFn, measureRoute } from "./routes/measure.js";
 import { profilesRoute } from "./routes/profiles.js";
@@ -13,12 +15,18 @@ import { createRunner, type RunnerOptions } from "./runner.js";
 
 /**
  * What the app runs on: the runner's options, the one `Llm` the Extractor and the Analyst are
- * called on, how a target-app page is measured for the preview, what the Analyst reads besides the
- * stored runs, and the pause between two replayed events of the fixture run (300 ms when absent).
+ * called on, how a target-app page is measured for the preview and scanned with axe-core, what the
+ * Analyst reads besides the stored runs, and the pause between two replayed events of the fixture
+ * run (300 ms when absent).
  */
 export type AppOptions = RunnerOptions & {
   llm: Llm;
   measure: MeasureFn;
+  /**
+   * Scans one target-app page with axe-core, on a miss of the stored scans. Handed in, like
+   * `measure`, since the scanner loads Playwright: `server.ts` wires it.
+   */
+  scanAxe: AxeScanFn;
   /**
    * The route table's facts per persona, for a report's route-open numbers and closures. Computed
    * outside the app (`analyst-routes.ts`, from `server.ts`), since the walk behind them loads
@@ -37,9 +45,10 @@ const JSON_BODY = /^application\/json\s*(;|$)/i;
 
 /**
  * io's HTTP surface. Each resource lives in its own file under `routes/`; this builds the app's
- * one `Runner`, so its five slots hold for every request, and mounts the routes. Tests drive the
- * whole API through `app.request` without opening a port, on a fake `Llm` and a fake run.
- * `server.ts` is the process that listens.
+ * one `Runner`, so its five slots hold for every request, and its one axe-core lookup, which `/axe`
+ * and `/reports` share, so requests for one page share one scan, and mounts the routes. Tests
+ * drive the whole API through `app.request` without opening a port, on a fake `Llm` and a fake
+ * run. `server.ts` is the process that listens.
  *
  * A `POST` whose body is not `application/json` is a 415. A page under test can send `text/plain`
  * to `localhost` without a CORS preflight, and Hono's JSON validator reads such a body as `{}`, so
@@ -50,6 +59,7 @@ const JSON_BODY = /^application\/json\s*(;|$)/i;
  */
 export function createApp(options: AppOptions) {
   const runner = createRunner(options);
+  const axe = axeLookup({ db: options.db, scan: options.scanAxe });
   return new Hono()
     .use(async (c, next) => {
       if (c.req.method === "POST" && !JSON_BODY.test(c.req.header("content-type") ?? "")) {
@@ -57,10 +67,11 @@ export function createApp(options: AppOptions) {
       }
       await next();
     })
+    .route("/axe", axeRoute({ axe }))
     .route("/health", healthRoute())
     .route("/measure", measureRoute(options))
     .route("/profiles", profilesRoute())
-    .route("/reports", reportsRoute(options))
+    .route("/reports", reportsRoute({ ...options, axe }))
     .route("/runs", runsRoute({ ...options, runner }))
     .route("/sweeps", sweepsRoute(options))
     .route("/tasks", tasksRoute(options))

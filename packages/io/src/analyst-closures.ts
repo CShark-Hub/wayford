@@ -37,13 +37,16 @@ import {
 } from "@wayford/core";
 import type { RouteClosed } from "@wayford/filter/routes";
 
-/** A deterministic finding before the Analyst writes its recommendation. */
+/**
+ * A finding code wrote, before the Analyst writes its recommendation: a `deterministic` one from
+ * here, or an axe-core `measurement` (`analyst-axe.ts`).
+ */
 export interface Draft {
   /** The id the Analyst's answer names it by (`d1`, `d2`, …), set when the drafts are listed. */
   key: string;
   finding: Omit<Finding, "recommendation">;
-  /** The group's first closing, which a fallback recommendation reads. */
-  closing: RouteClosed;
+  /** The recommendation code writes when the Analyst leaves this one blank. */
+  fallback: string;
 }
 
 /** The detail's last sentence when Scout did not reach the goal: a finding is read against it. */
@@ -107,7 +110,8 @@ interface Group {
  * `runs` are the persona's chosen runs, `closings` its `routeClosings` over the same seeds, and
  * `seeds` how many seeds it has. Closings group by route and closing step (page, role and name),
  * by route id and then in the order they first close; each group is one finding about the persona,
- * its rules the union over the group's seeds in pipeline order, as `routeCell` merges them.
+ * its rules the union over the group's seeds in pipeline order, as `routeCell` merges them. Its
+ * fallback is `fallbackRecommendation` of the group's first closing.
  *
  * A step of `runs` is evidence of a group when it stood on the group's page (its `urlBefore`'s
  * path), its observation holds an element with the group's role and name, every such element is
@@ -167,7 +171,7 @@ export function closureFindings(input: {
         basis,
         personaIds: [profile.id],
       },
-      closing: first,
+      fallback: fallbackRecommendation(first),
     });
   }
   return { drafts, unevidenced };

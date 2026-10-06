@@ -13,8 +13,16 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { type DeviceKind, METRIC_NAMES, type PageMeasurement, type Profile } from "@wayford/core";
 import {
+  type AxeScan,
+  type DeviceKind,
+  METRIC_NAMES,
+  type PageMeasurement,
+  type Profile,
+} from "@wayford/core";
+import {
+  axeScanFixture,
+  axeScanFixtures,
   measurementFixture,
   profileFixture,
   profileFixtures,
@@ -23,6 +31,7 @@ import {
 import { perceive } from "@wayford/filter/perceive";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
+import { axeQuery } from "../api/axe.js";
 import { measurementQuery } from "../api/measure.js";
 import {
   attributesOf,
@@ -30,6 +39,7 @@ import {
   type Drawn,
   drawnBoxes,
   elementOf,
+  lineOf,
   shownElements,
   textOf,
   withoutNested,
@@ -78,13 +88,28 @@ const FIXTURE_EVERYWHERE: LiveAnswer[] = (["desktop", "mobile"] as const).flatMa
 );
 
 /**
+ * io's axe-core scan of `page`: the stored one where there is one (`/deliveries` with its
+ * `color-contrast`, `/settings/data` with none), else one that found nothing, at the same query.
+ */
+function axeScanOf(page: string): AxeScan {
+  if (axeScanFixtures.some((scan) => scan.url.startsWith(`${page}?`))) return axeScanFixture(page);
+  const { url, ...deliveries } = axeScanFixture("/deliveries");
+  return { ...deliveries, url: `${page}${url.slice(url.indexOf("?"))}`, violations: [] };
+}
+
+/**
  * A query client that holds io's `answers`, so a render fetches nothing. By default the stored
  * fixture everywhere: the screen then draws `measurementFixture`, whatever the persona and page.
+ * It holds io's axe-core scan of every preview page too, whatever the answers, so the card is
+ * settled and adds no status line.
  */
 function liveClient(answers: LiveAnswer[] = FIXTURE_EVERYWHERE): QueryClient {
   const client = new QueryClient();
   for (const [device, page, measurement] of answers) {
     client.setQueryData(measurementQuery(device, page).queryKey, measurement);
+  }
+  for (const page of PREVIEW_PAGES) {
+    client.setQueryData(axeQuery(page).queryKey, axeScanOf(page));
   }
   return client;
 }
@@ -630,4 +655,108 @@ test("a persona link keeps the page the URL holds", async () => {
   expect(personaLink(html, "prof_kai").attributes.href).toBe(
     "/preview?persona=prof_kai&seed=7&page=%2Faccount",
   );
+});
+
+// ---------------------------------------------------------------------------
+// The axe-core card (s4-06)
+// ---------------------------------------------------------------------------
+
+/** The axe-core card's inner markup. */
+function axeCardOf(html: string): string {
+  return elementOf(html, "section", 'aria-label="axe-core"');
+}
+
+/** The card's rule list, each item as it reads: `color-contrast, 1 element`. */
+function axeRulesOf(card: string): string[] {
+  return [...card.matchAll(/<li(?:\s[^>]*)?>(.*?)<\/li>/gs)].map((m) => textOf(m[1] ?? ""));
+}
+
+const SCANNED_ONCE = "Scanned once per page on desktop, at the target app's default parameters.";
+
+/**
+ * A client that holds io's answers as `liveClient` does, except that its axe-core scan of `page`
+ * failed with `reason`, as it does while the target app is down. The query neither retries nor
+ * retries on mount (`src/api/axe.ts`), so a static render keeps the failure.
+ */
+async function axeFailedClient(page: string, reason: string): Promise<QueryClient> {
+  const client = liveClient();
+  client.removeQueries({ queryKey: axeQuery(page).queryKey, exact: true });
+  await client.prefetchQuery({
+    ...axeQuery(page),
+    queryFn: () => Promise.reject(new Error(reason)),
+  });
+  return client;
+}
+
+test("on /deliveries the card counts axe-core's one violation and names its rule", async () => {
+  const html = await render(VERA);
+  const card = axeCardOf(html);
+  expect(lineOf(card)).toMatch(/^axe-core, WCAG 2\.2 A and AA: 1 violation /);
+  expect(axeRulesOf(card)).toEqual(["color-contrast, 1 element"]);
+  expect(lineOf(card)).toContain(SCANNED_ONCE);
+  // In the stage, after the page picker and above the page's title and drawing.
+  const at = html.indexOf('aria-label="axe-core"');
+  expect(at).toBeGreaterThan(html.indexOf('aria-label="Page"'));
+  expect(at).toBeLessThan(html.indexOf('id="preview-page-title"'));
+  // The scan is by page: Milo, on a phone, sees the same card.
+  expect(axeCardOf(await render("/preview?persona=prof_milo"))).toBe(card);
+});
+
+test("on /settings/data the card counts no violation and lists no rule", async () => {
+  const card = axeCardOf(await render("/preview?persona=prof_kai&page=/settings/data"));
+  expect(lineOf(card)).toMatch(/^axe-core, WCAG 2\.2 A and AA: 0 violations /);
+  expect(card).not.toContain("<ul");
+  expect(lineOf(card)).toContain(SCANNED_ONCE);
+});
+
+test("the card lists every rule axe-core found, each with its own element count", async () => {
+  // Two rules, the first on two elements: a card that showed only the first rule, or one count
+  // for all of them, would read otherwise.
+  const client = liveClient();
+  client.setQueryData(axeQuery("/deliveries").queryKey, {
+    ...axeScanFixture("/deliveries"),
+    violations: [
+      {
+        ruleId: "color-contrast",
+        impact: "serious",
+        tags: ["wcag2aa", "wcag143"],
+        help: "Elements must meet minimum color contrast ratio thresholds",
+        nodes: 2,
+      },
+      {
+        ruleId: "target-size",
+        impact: "serious",
+        tags: ["wcag22aa", "wcag258"],
+        help: "All touch targets must be 24px large, or leave sufficient space",
+        nodes: 1,
+      },
+    ],
+  });
+  const card = axeCardOf(await render(VERA, client));
+  expect(lineOf(card)).toMatch(/^axe-core, WCAG 2\.2 A and AA: 2 violations /);
+  expect(axeRulesOf(card)).toEqual(["color-contrast, 2 elements", "target-size, 1 element"]);
+});
+
+test("a failed scan says axe did not run, with io's reason, and never a count", async () => {
+  const reason = "target_app_unavailable: the target app did not load";
+  const html = await render(VERA, await axeFailedClient("/deliveries", reason));
+  const card = axeCardOf(html);
+  expect(lineOf(card)).toBe(`axe did not run on /deliveries ${reason}`);
+  // The page itself is still drawn from its measurement, with no banner.
+  expect(drawnBoxes(html)).toEqual(shownElements(realPerceive(measurementFixture, vera, 1)));
+  expect(statusOf(html)).toBeUndefined();
+});
+
+test("while the page is scanned the card says so, and the stage's status line stays the measurement's", async () => {
+  // A fresh client: both the measurement and the scan are pending, as on the first visit.
+  const fresh = await render("/preview?persona=prof_vera&page=/account", new QueryClient());
+  expect(lineOf(axeCardOf(fresh))).toBe("axe-core is scanning /account…");
+  expect(statusOf(fresh)).toBe("Measuring /account on the target app, on desktop…");
+  // The page measured and the scan still pending: the card adds no status line of its own.
+  const measured = liveClient();
+  measured.removeQueries({ queryKey: axeQuery("/account").queryKey, exact: true });
+  const html = await render("/preview?persona=prof_vera&page=/account", measured);
+  expect(lineOf(axeCardOf(html))).toBe("axe-core is scanning /account…");
+  expect(statusOf(html)).toBeUndefined();
+  expect(axeCardOf(html)).not.toContain("role=");
 });

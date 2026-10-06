@@ -1,5 +1,6 @@
 // One export line per module, alphabetical. Add a line, never rewrite the file.
 export * from "./action.js";
+export * from "./axe.js";
 export * from "./error.js";
 export * from "./finding.js";
 export * from "./ground-truth.js";

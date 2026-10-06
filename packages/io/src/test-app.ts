@@ -4,9 +4,10 @@
  * in a temporary folder, and `runnerDefaults` and `analystDefaults`, what it runs on; `postJson`
  * and `getJson`, one request each; `fakeRun`, a `RunFn` scripted per run, so no io test needs a
  * browser or a model, and `gate`, which holds one open; `readSse` and `readEvents`, which read a
- * server-sent event stream message by message; and for the Analyst's tests, `storedRun` and Vera's
- * `/deliveries` as the filter gives it. io's test files share it, as agent's callers share
- * `fake-llm.ts`.
+ * server-sent event stream message by message; `noAxeViolations`, the default axe-core scan, which
+ * finds nothing; `quiet` and `capture`, a logger that writes nothing and one that keeps every
+ * warning; and for the Analyst's tests, `storedRun`, `fakeAxe` and Vera's `/deliveries` as the
+ * filter gives it. io's test files share it, as agent's callers share `fake-llm.ts`.
  */
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,6 +23,7 @@ import {
 import { fakeLlm } from "@wayford/agent/fake";
 import {
   type Action,
+  type AxeScan,
   type Cost,
   type FinishedOutcome,
   type FullObservation,
@@ -47,6 +49,7 @@ import {
 import { perceive } from "@wayford/filter/perceive";
 import pino from "pino";
 import { type AppOptions, createApp } from "./app.js";
+import type { AxeLookup, AxeScanFn } from "./axe.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
 import type { MeasureFn } from "./routes/measure.js";
 import type { RunFn, RunnerOptions } from "./runner.js";
@@ -118,8 +121,51 @@ export const noMeasure: MeasureFn = () => {
   throw new Error("this io test measures no page");
 };
 
+/**
+ * An `AxeScanFn` that finds no violation on any page, scanned at a fixed time by a fake axe-core:
+ * a test that needs violations, or a failed scan, says so, as `routes/axe.test.ts` does.
+ */
+export const noAxeViolations: AxeScanFn = async (url) => ({
+  url,
+  scannedAt: "2026-10-06T09:00:00.000Z",
+  axeVersion: "fake",
+  violations: [],
+});
+
+/** An `AxeLookup` that keeps every URL it was asked, in order. */
+export type FakeAxe = AxeLookup & { readonly asked: string[] };
+
+/**
+ * An `AxeLookup` for the Analyst's tests, with no store and no scanner: a URL in `failures`
+ * rejects with its error, one of `scans` answers with that scan, and any other URL finds no
+ * violation, as `noAxeViolations` scans it.
+ */
+export function fakeAxe(
+  scans: readonly AxeScan[] = [],
+  failures: Readonly<Record<string, Error>> = {},
+): FakeAxe {
+  const asked: string[] = [];
+  const lookup: AxeLookup = async (url) => {
+    asked.push(url);
+    const failure = failures[url];
+    if (failure !== undefined) throw failure;
+    return scans.find((scan) => scan.url === url) ?? noAxeViolations(url);
+  };
+  return Object.assign(lookup, { asked });
+}
+
 /** A logger that writes nothing. */
 export const quiet = pino({ level: "silent" });
+
+/** A logger that keeps every warning, parsed, in order. */
+export function capture() {
+  const lines: Record<string, unknown>[] = [];
+  const logger = pino(
+    { level: "warn" },
+    { write: (line: string) => void lines.push(JSON.parse(line)) },
+  );
+  return { lines, logger };
+}
 
 /**
  * The runner's options on `store`, with nothing real behind them: `fakeRun()`, `fakeBackends` with
@@ -164,8 +210,8 @@ export type TestApp = TempStore & { app: ReturnType<typeof createApp> };
 
 /**
  * The whole app on a `tempStore()`, on `runnerDefaults`, the fake `Llm` with no answers,
- * `noMeasure` and `analystDefaults`. `options` replaces any of them. The fixture replay keeps the
- * route's own pace unless `replaySpacingMs` is given.
+ * `noMeasure`, `noAxeViolations` and `analystDefaults`. `options` replaces any of them. The fixture
+ * replay keeps the route's own pace unless `replaySpacingMs` is given.
  */
 export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
   const store = await tempStore();
@@ -173,6 +219,7 @@ export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
     ...runnerDefaults(store),
     llm: fakeLlm({}),
     measure: noMeasure,
+    scanAxe: noAxeViolations,
     ...analystDefaults(store),
     ...options,
   });

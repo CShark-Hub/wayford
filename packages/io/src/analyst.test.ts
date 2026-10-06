@@ -16,14 +16,16 @@ import {
   WayfordError,
 } from "@wayford/core";
 import {
+  axeScanFixture,
   groundTruthFixture,
   observationFixture,
   profileFixture,
   taskFixture,
 } from "@wayford/core/fixtures";
 import type { RouteClosed } from "@wayford/filter/routes";
-import pino from "pino";
+import { TARGET_APP_DEFAULT_QUERY } from "@wayford/filter/serve-target-app";
 import { describe, expect, onTestFinished, test } from "vitest";
+import { z } from "zod";
 import {
   ANALYST_PROMPT_FILE,
   type AnalystDeps,
@@ -32,19 +34,25 @@ import {
 } from "./analyst.js";
 import { fallbackRecommendation } from "./analyst-closures.js";
 import type { RouteFacts } from "./analyst-runs.js";
+import { axeUrl } from "./axe.js";
 import { loadReport } from "./db/reports.js";
 import { saveRun } from "./db/runs.js";
 import { saveTask } from "./db/tasks.js";
 import {
   analystDefaults,
   archiveLink,
+  capture,
   deliveries,
   FAKE_JEV_MODEL,
+  fakeAxe,
   firstSeed,
+  getJson,
+  postJson,
   quiet,
   storedRun,
   type TempStore,
   tempStore,
+  testApp,
 } from "./test-app.js";
 
 const ada = profileFixture("prof_ada");
@@ -63,22 +71,12 @@ async function store(): Promise<TempStore> {
   return s;
 }
 
-/** A logger that keeps every warning, parsed, in order. */
-function capture() {
-  const lines: Record<string, unknown>[] = [];
-  const logger = pino(
-    { level: "warn" },
-    { write: (line: string) => void lines.push(JSON.parse(line)) },
-  );
-  return { lines, logger };
-}
-
 /**
  * The Analyst's dependencies on `s`: `analystDefaults` (no route table, no ground truth, Jev as
- * `FAKE_JEV_MODEL`), `llm` and `quiet`.
+ * `FAKE_JEV_MODEL`), `llm`, an axe-core lookup that finds no violation, and `quiet`.
  */
 function depsOf(s: TempStore, llm: FakeLlm, over: Partial<AnalystDeps> = {}): AnalystDeps {
-  return { db: s.db, llm, ...analystDefaults(s), logger: quiet, ...over };
+  return { db: s.db, llm, ...analystDefaults(s), axe: fakeAxe(), logger: quiet, ...over };
 }
 
 /** A stored fake run: two steps on `/deliveries` unless `steps` says otherwise. */
@@ -385,7 +383,158 @@ describe("analyseAndStore: deterministic findings", () => {
     const report = await analysed(depsOf(s, fake, { routes: veraClosed, logger }));
 
     expect(report.findings[0]?.recommendation).toBe(fallbackRecommendation(closingAt(cutSeed)));
-    expect(lines).toMatchObject([{ finding: "d1", profileId: "prof_vera" }]);
+    expect(lines).toMatchObject([
+      { finding: "d1", title: report.findings[0]?.title, personaIds: ["prof_vera"] },
+    ]);
+  });
+});
+
+/** `/deliveries` at the app's defaults, where every stored run of these tests stands. */
+const DELIVERIES = axeUrl("/deliveries", TARGET_APP_DEFAULT_QUERY);
+
+/** The real scan of `/deliveries` at the defaults: one `color-contrast` violation. */
+const deliveriesScan = axeScanFixture("/deliveries");
+
+const CONTRAST_TITLE =
+  "axe-core: Elements must meet minimum color contrast ratio thresholds (color-contrast) on /deliveries";
+
+/** The answer schema's draft keys: one recommendation asked per draft. */
+function draftKeys(fake: FakeLlm): string[] {
+  const recommendations = fake.calls[0]?.schema.shape.recommendations;
+  if (!(recommendations instanceof z.ZodObject)) {
+    throw new Error("the answer schema has no recommendations object");
+  }
+  return Object.keys(recommendations.shape);
+}
+
+describe("analyseAndStore: axe-core measurements", () => {
+  test("a violation where the runs stood is a measurement, listed first and keyed with the rest", async () => {
+    const s = await store();
+    await storeVeraCut(s);
+    const { lines, logger } = capture();
+    const fake = fakeLlm({
+      analyst: [
+        {
+          recommendations: {
+            d1: "Darken the Order archive link on /deliveries.",
+            d2: "Raise the link's contrast to 3:1.",
+          },
+          hypotheses: [hypothesis([{ runId: "run_vera-cut", stepIndex: 0 }])],
+        },
+      ],
+    });
+
+    const report = await analysed(
+      depsOf(s, fake, { routes: veraClosed, axe: fakeAxe([deliveriesScan]), logger }),
+    );
+
+    expect(draftKeys(fake)).toEqual(["d1", "d2"]);
+    expect(report.findings.map((f) => f.type)).toEqual([
+      "measurement",
+      "deterministic",
+      "hypothesis",
+    ]);
+    const [measurement, deterministic] = report.findings;
+    expect(measurement).toMatchObject({
+      type: "measurement",
+      axeRuleId: "color-contrast",
+      title: CONTRAST_TITLE,
+      evidence: [{ runId: "run_vera-cut", stepIndex: 0 }],
+      basis: [],
+      personaIds: [],
+      recommendation: "Darken the Order archive link on /deliveries.",
+    });
+    expect(deterministic).toMatchObject({
+      personaIds: ["prof_vera"],
+      recommendation: "Raise the link's contrast to 3:1.",
+    });
+    const message = fake.calls[0]?.messages[1]?.content ?? "";
+    expect(message).toContain(`d1, axe-core measurement on the page: ${CONTRAST_TITLE}`);
+    expect(message).toContain(`d2, Vera: ${deterministic?.title}`);
+    expect(await loadReport(s.db, TASK)).toEqual(report);
+    expect(lines).toEqual([]);
+  });
+
+  test("its evidence is the first step of each chosen run on the page, never a left-out run", async () => {
+    const s = await store();
+    await storeRunSet(s);
+    const axe = fakeAxe([deliveriesScan]);
+    const fake = fakeLlm({ analyst: [{ recommendations: { d1: "Darken it." }, hypotheses: [] }] });
+
+    const report = await analysed(depsOf(s, fake, { axe }));
+
+    // Asked once for the page, though both chosen runs stood on it at both their steps.
+    expect(axe.asked).toEqual([DELIVERIES]);
+    expect(report.findings).toHaveLength(1);
+    expect(report.findings[0]?.evidence).toEqual([
+      { runId: "run_ada-1", stepIndex: 0 },
+      { runId: "run_vera-1", stepIndex: 0 },
+    ]);
+    expect(report.findings[0]?.detail).toContain("2 of the report's runs stood on the page.");
+  });
+
+  test("a blank recommendation gets the axe fallback, logged", async () => {
+    const s = await store();
+    await storeVeraCut(s);
+    const { lines, logger } = capture();
+    const fake = fakeLlm({ analyst: [{ recommendations: { d1: " " }, hypotheses: [] }] });
+
+    const report = await analysed(depsOf(s, fake, { axe: fakeAxe([deliveriesScan]), logger }));
+
+    expect(report.findings[0]?.recommendation).toBe(
+      "Fix what axe-core's color-contrast rule reports on /deliveries: Elements must meet minimum color contrast ratio thresholds.",
+    );
+    expect(lines).toMatchObject([{ finding: "d1", title: CONTRAST_TITLE, personaIds: [] }]);
+  });
+
+  test("with no axe violation the page is asked and the findings are as before", async () => {
+    const s = await store();
+    await storeVeraCut(s);
+    const axe = fakeAxe();
+    const fake = fakeLlm({ analyst: [{ recommendations: { d1: "Darken it." }, hypotheses: [] }] });
+
+    const report = await analysed(depsOf(s, fake, { routes: veraClosed, axe }));
+
+    expect(axe.asked).toEqual([DELIVERIES]);
+    expect(draftKeys(fake)).toEqual(["d1"]);
+    expect(report.findings).toMatchObject([
+      { type: "deterministic", personaIds: ["prof_vera"], recommendation: "Darken it." },
+    ]);
+  });
+
+  test("a failed scan costs only its axe findings: the report is built, and the failure logged", async () => {
+    const s = await store();
+    await storeVeraCut(s);
+    const { lines, logger } = capture();
+    const axe = fakeAxe([], {
+      [DELIVERIES]: new WayfordError("target_app_unavailable", "the target app is down"),
+    });
+
+    const report = await analysed(depsOf(s, fakeLlm({ analyst: [NOTHING] }), { axe, logger }));
+
+    expect(report.findings).toEqual([]);
+    expect(await loadReport(s.db, TASK)).toEqual(report);
+    expect(lines).toMatchObject([{ url: DELIVERIES, code: "target_app_unavailable" }]);
+  });
+
+  test("through the app, a report reads the scan the app's one lookup stores, and GET /axe reuses it", async () => {
+    const scanAxe = fakeAxe([deliveriesScan]);
+    const t = await testApp({
+      llm: fakeLlm({ analyst: [{ recommendations: { d1: "Darken it." }, hypotheses: [] }] }),
+      scanAxe,
+    });
+    onTestFinished(() => t.close());
+    await saveAll(t, [run(vera, 1, "run_vera-1")]);
+
+    const posted = await postJson(t.app, `/reports/${TASK}`, { backend: "llm" });
+
+    expect(posted.status).toBe(201);
+    expect(posted.body.findings).toMatchObject([
+      { type: "measurement", axeRuleId: "color-contrast", recommendation: "Darken it." },
+    ]);
+    const got = await getJson(t.app, "/axe?page=/deliveries");
+    expect(got).toEqual({ status: 200, body: deliveriesScan });
+    expect(scanAxe.asked).toHaveLength(1);
   });
 });
 

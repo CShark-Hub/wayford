@@ -4,11 +4,21 @@
  * preview perceives the page a run starts on (`docs/PLAN.md` F2). `routes/measure.ts` keeps what
  * this returns.
  *
+ * Its page loading is exported for the axe-core scanner (`axe-scan.ts`, s4-06), which opens a
+ * page the same way: `withOwnContext`, the page loaded and its fonts awaited in a context of its
+ * own on the shared browser, under a deadline. The caller names its work, so a failed scan's
+ * messages say "scanning", never "measuring".
+ *
  * It stays out of io's barrel, as `chromium.ts` does: it loads agent's runtime and Playwright.
- * Outside its tests, `server.ts` is its only importer.
+ * Outside its tests, `server.ts` and `axe-scan.ts` are its only importers.
  */
-import { deviceContextOptions, startUrlFor, TARGET_APP_DEFAULTS } from "@wayford/agent";
-import { type PageMeasurement, WayfordError } from "@wayford/core";
+import {
+  type DeviceContextOptions,
+  deviceContextOptions,
+  startUrlFor,
+  TARGET_APP_DEFAULTS,
+} from "@wayford/agent";
+import { type DeviceKind, WayfordError } from "@wayford/core";
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
 import type { SharedBrowser } from "./chromium.js";
@@ -29,6 +39,12 @@ const FONTS_TIMEOUT_MS = 3000;
  */
 const MEASURE_TIMEOUT_MS = 15_000;
 
+/** What a caller does with the page, as its error messages name it. */
+export type PageWork = "measuring" | "scanning";
+
+/** Each work as "was not …" says it. */
+const DONE: Readonly<Record<PageWork, string>> = { measuring: "measured", scanning: "scanned" };
+
 /**
  * Measures with a context of its own on the shared browser, closed when the measurement ends or
  * runs out of time. Every failure it knows is a `WayfordError`, which the route answers with a 502:
@@ -45,69 +61,116 @@ export function liveMeasure({
   origin: string;
 }): MeasureFn {
   return async (device, path) => {
-    const options = deviceContextOptions(device);
-    const context = await browser()
-      .then((chromium) => chromium.newContext(options))
-      .catch((error: unknown) => {
-        throw failed(error, path);
-      });
-    let timer: NodeJS.Timeout | undefined;
-    const expired = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        const message = `${path} on ${device} was not measured within ${MEASURE_TIMEOUT_MS} ms`;
-        reject(new WayfordError("page_not_settled", message));
-      }, MEASURE_TIMEOUT_MS);
-    });
+    let url: string;
     try {
-      // The page opens inside the race, so the deadline has a handler from its start: one that
-      // expired with nothing listening would end io as an unhandled rejection.
-      const measured = context
-        .newPage()
-        .then((page) => measure(page, options.isMobile, origin, path));
-      return await Promise.race([measured, expired]);
+      url = startUrlFor({ startUrl: `${origin}${path}` }, TARGET_APP_DEFAULTS);
     } catch (error) {
-      throw failed(error, path);
-    } finally {
-      clearTimeout(timer);
-      // Closing it ends whatever the measurement still waits on, once the race has dropped it.
-      await context.close().catch(() => undefined);
+      // Never for a path the route accepts; if it ever did, `failed` words it for a 502.
+      throw failed(error, "measuring", path);
     }
+    // The page loaded at the app's defaults, its fonts awaited, then collected.
+    return withOwnContext(
+      { browser, device, url, path, work: "measuring", timeoutMs: MEASURE_TIMEOUT_MS },
+      (page, options) => collect(page, { isMobile: options.isMobile }),
+    );
   };
+}
+
+/**
+ * `use` on a new page at `url`, loaded and its fonts awaited (`openTargetAppPage`), in a context
+ * of its own on the shared browser, emulating `device`. The context is closed when `use` ends or
+ * the load and `use` run out of `timeoutMs` on Node's clock, whichever comes first. Every failure
+ * is a `WayfordError`: the load's and `use`'s own as they are, `page_not_settled` at the deadline,
+ * and `browser_failed` for anything Chromium itself throws, each worded with `work`.
+ */
+export async function withOwnContext<T>(
+  {
+    browser,
+    device,
+    url,
+    path,
+    work,
+    timeoutMs,
+  }: {
+    browser: SharedBrowser;
+    device: DeviceKind;
+    /** The target-app page to open, with the app's parameters: the URL `goto` receives. */
+    url: string;
+    /** What the messages name: the page's path, or a scan's URL. */
+    path: string;
+    work: PageWork;
+    timeoutMs: number;
+  },
+  use: (page: Page, options: DeviceContextOptions) => Promise<T>,
+): Promise<T> {
+  const options = deviceContextOptions(device);
+  const context = await browser()
+    .then((chromium) => chromium.newContext(options))
+    .catch((error: unknown) => {
+      throw failed(error, work, path);
+    });
+  let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const message = `${path} on ${device} was not ${DONE[work]} within ${timeoutMs} ms`;
+      reject(new WayfordError("page_not_settled", message));
+    }, timeoutMs);
+  });
+  try {
+    // The page opens inside the race, so the deadline has a handler from its start: one that
+    // expired with nothing listening would end io as an unhandled rejection.
+    const used = context.newPage().then(async (page) => {
+      await openTargetAppPage(page, url, path, work);
+      return use(page, options);
+    });
+    return await Promise.race([used, expired]);
+  } catch (error) {
+    throw failed(error, work, path);
+  } finally {
+    clearTimeout(timer);
+    // Closing it ends whatever the work still waits on, once the race has dropped it.
+    await context.close().catch(() => undefined);
+  }
 }
 
 /**
  * `error` as the route can answer it: a `WayfordError` as it is, and anything else, Playwright's
  * own failures such as a browser that crashed or closed, as `browser_failed`.
  */
-function failed(error: unknown, path: string): WayfordError {
+function failed(error: unknown, work: PageWork, path: string): WayfordError {
   if (error instanceof WayfordError) return error;
-  const reason = error instanceof Error ? error.message.split("\n", 1)[0] : String(error);
-  return new WayfordError("browser_failed", `Chromium failed while measuring ${path}: ${reason}`, {
-    cause: error,
-  });
+  return new WayfordError(
+    "browser_failed",
+    `Chromium failed while ${work} ${path}: ${firstLine(error)}`,
+    { cause: error },
+  );
+}
+
+/** The first line of `error`'s message, or `error` as a string when it is no `Error`. */
+export function firstLine(error: unknown): string {
+  // `split` gives one string at least, so `?? ""` never applies.
+  return error instanceof Error ? (error.message.split("\n", 1)[0] ?? "") : String(error);
 }
 
 /**
- * The page loaded at the app's defaults, its fonts awaited, then collected. The target app runs
- * no animation, so for a fresh load this is what agent's `settle` waits for; `settle` is not on
- * agent's public surface (`docs/specs/2026-10-03-s3-05-live-preview.md`, decision log).
+ * `page` at `url`, a target-app page with the app's parameters, loaded and its fonts awaited:
+ * `target_app_unavailable` when the page does not load, `page_not_settled` when its fonts take too
+ * long, `font_failed` when a font face did not load. `path` is what the messages name. The target
+ * app runs no animation, so for a fresh load this is what agent's `settle` waits for; `settle` is
+ * not on agent's public surface (`docs/specs/2026-10-03-s3-05-live-preview.md`, decision log).
  */
-async function measure(
+async function openTargetAppPage(
   page: Page,
-  isMobile: boolean,
-  origin: string,
+  url: string,
   path: string,
-): Promise<PageMeasurement> {
-  const url = startUrlFor({ startUrl: `${origin}${path}` }, TARGET_APP_DEFAULTS);
+  work: PageWork,
+): Promise<void> {
   const response = await page.goto(url, { timeout: GOTO_TIMEOUT_MS }).catch((error: unknown) => {
     // Playwright's first line names the URL already, as "page.goto: net::… at <url>".
-    const reason = error instanceof Error ? error.message.split("\n", 1)[0] : String(error);
     throw new WayfordError(
       "target_app_unavailable",
-      `the target app did not load ${path}: ${reason}`,
-      {
-        cause: error,
-      },
+      `the target app did not load ${path}: ${firstLine(error)}`,
+      { cause: error },
     );
   });
   if (response === null || !response.ok()) {
@@ -125,10 +188,9 @@ async function measure(
     const families = failed.map((family) => JSON.stringify(family)).join(", ");
     throw new WayfordError(
       "font_failed",
-      `the page at ${page.url()} could not load ${families}; its text would be measured in a fallback font`,
+      `the page at ${page.url()} could not load ${families}; its text would be ${DONE[work]} in a fallback font`,
     );
   }
-  return collect(page, { isMobile });
 }
 
 /**

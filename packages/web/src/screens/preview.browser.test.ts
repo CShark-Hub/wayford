@@ -1,16 +1,18 @@
 /**
  * Slider moves make no request (`tasks/s3-05-live-preview.md`, box 2): the web app on its own Vite
- * dev server, in Chromium, with io's `/api/measure` answered by `page.route`. An in-page spy wraps
- * `fetch`, and a listener records every request the page makes. After the live page is drawn,
- * keyboard moves on three sliders write the URL and redraw the page, and neither the spy nor the
- * listener sees anything. Then the page control opens `/account`, which does fetch: the spy is
- * seen to catch the screen's fetches, so its silence before means something.
+ * dev server, in Chromium, with io's `/api/measure` and `/api/axe` answered by `page.route`. An
+ * in-page spy wraps `fetch`, and a listener records every request the page makes. After the live
+ * page and its axe-core card are drawn, keyboard moves on three sliders write the URL and redraw
+ * the page, and neither the spy nor the listener sees anything: a slider move asks io for neither
+ * the measurement nor the scan (s4-06). Then the page control opens `/account`, which fetches both:
+ * the spy is seen to catch the screen's fetches, so its silence before means something.
  *
  * The static tests in `preview.test.tsx` cannot show this: a static render runs no effect, so
  * nothing there would fetch either way.
  */
 import { fileURLToPath } from "node:url";
-import { measurementFixture } from "@wayford/core/fixtures";
+import type { AxeScan } from "@wayford/core";
+import { axeScanFixture, axeScanFixtures, measurementFixture } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { createServer, type ViteDevServer } from "vite";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
@@ -50,8 +52,19 @@ afterAll(async () => {
 });
 
 /**
+ * io's axe-core scan of `page`: the stored one where there is one, else one that found nothing,
+ * at the same query.
+ */
+function axeScanOf(page: string): AxeScan {
+  if (axeScanFixtures.some((scan) => scan.url.startsWith(`${page}?`))) return axeScanFixture(page);
+  const { url, ...deliveries } = axeScanFixture("/deliveries");
+  return { ...deliveries, url: `${page}${url.slice(url.indexOf("?"))}`, violations: [] };
+}
+
+/**
  * A page whose `fetch` is spied on from its first script, and whose `/api` calls are answered
- * here: `/api/measure` with the stored measurement, anything else with a 404.
+ * here: `/api/measure` with the stored measurement, `/api/axe` with the page's scan, anything else
+ * with a 404.
  */
 async function spiedPage(): Promise<Page> {
   const page = await browser.newPage();
@@ -70,16 +83,36 @@ async function spiedPage(): Promise<Page> {
   // app's own modules under `src/api/` too.
   await page.route(
     (url) => url.pathname.startsWith("/api/"),
-    (route) =>
-      new URL(route.request().url()).pathname === "/api/measure"
-        ? route.fulfill({ json: measurementFixture })
-        : route.fulfill({ status: 404, json: { error: "not in this test" } }),
+    (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/api/measure") return route.fulfill({ json: measurementFixture });
+      if (url.pathname === "/api/axe") {
+        return route.fulfill({ json: axeScanOf(url.searchParams.get("page") ?? "") });
+      }
+      return route.fulfill({ status: 404, json: { error: "not in this test" } });
+    },
   );
   return page;
 }
 
-function fetchesOf(page: Page): Promise<string[]> {
-  return page.evaluate(() => [...(window as unknown as Spied).__fetches]);
+/**
+ * The screen's fetches of `pages`, sorted: each page's measurement on desktop and its axe-core
+ * scan. Both queries start in one render. The scan goes first today, since the card's effect runs
+ * before the screen's, but that order says where the card sits in the tree, not what the screen
+ * asks, so fetches are compared sorted.
+ */
+function fetchesFor(...pages: string[]): string[] {
+  return pages
+    .flatMap((path) => {
+      const page = encodeURIComponent(path);
+      return [`/api/measure?device=desktop&page=${page}`, `/api/axe?page=${page}`];
+    })
+    .sort();
+}
+
+/** Every `fetch` the spy on `page` has seen, sorted, as `fetchesFor` sorts. */
+async function fetchesOf(page: Page): Promise<string[]> {
+  return (await page.evaluate(() => [...(window as unknown as Spied).__fetches])).sort();
 }
 
 /** Press `key` `times` times on the range input `#id`. */
@@ -96,11 +129,14 @@ test("slider moves redraw the page and make no request; a page link does", async
   });
 
   await page.goto(`${origin}/preview?persona=prof_vera`);
-  // The live page is drawn, with no banner.
+  // The live page is drawn, with no banner, and the card shows its scan.
   await page.locator("[data-state]").first().waitFor();
   await page.getByText("Live: http://localhost:5174/deliveries on desktop").waitFor();
+  const card = page.getByRole("region", { name: "axe-core" });
+  await card.getByText("axe-core, WCAG 2.2 A and AA: 1 violation", { exact: true }).waitFor();
+  expect(await card.getByRole("listitem").allTextContents()).toEqual(["color-contrast, 1 element"]);
   await page.waitForLoadState("networkidle");
-  expect(await fetchesOf(page)).toEqual(["/api/measure?device=desktop&page=%2Fdeliveries"]);
+  expect(await fetchesOf(page)).toEqual(fetchesFor("/deliveries"));
   const caption = page.locator("figcaption");
   expect(await caption.textContent()).toBe("The page as perceive returns it for Vera, seed 1.");
 
@@ -119,20 +155,22 @@ test("slider moves redraw the page and make no request; a page link does", async
   expect(query.has("contrast")).toBe(true);
   expect(query.has("contrastSoftness")).toBe(true);
 
-  expect(await fetchesOf(page)).toHaveLength(1);
+  // Neither the measurement nor the scan was asked for again.
+  expect(await fetchesOf(page)).toEqual(fetchesFor("/deliveries"));
   expect(requests).toEqual([]);
 
-  // A page link asks io for the new page, through the same spy.
+  // A page link asks io for the new page's measurement and scan, through the same spy.
   await page
     .getByRole("navigation", { name: "Page" })
     .getByRole("link", { name: "/account" })
     .click();
-  await expect
-    .poll(() => fetchesOf(page))
-    .toEqual([
-      "/api/measure?device=desktop&page=%2Fdeliveries",
-      "/api/measure?device=desktop&page=%2Faccount",
-    ]);
-  expect(requests).toContain(`${origin}/api/measure?device=desktop&page=%2Faccount`);
+  await expect.poll(() => fetchesOf(page)).toEqual(fetchesFor("/deliveries", "/account"));
+  expect(requests).toEqual(
+    expect.arrayContaining([
+      `${origin}/api/measure?device=desktop&page=%2Faccount`,
+      `${origin}/api/axe?page=%2Faccount`,
+    ]),
+  );
+  await card.getByText("axe-core, WCAG 2.2 A and AA: 0 violations", { exact: true }).waitFor();
   await page.close();
 });

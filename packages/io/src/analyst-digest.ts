@@ -74,15 +74,23 @@ function personaLine(result: PersonaResult): string {
   return `${personaName(result.profileId)}: ${plural(runs, "run")}, ${successes} got through, ${plural(errors, "error")}, ${open}, median time to success ${median}`;
 }
 
-/** Each draft by the key the answer names it by, its persona, title, rules and detail. */
+/**
+ * Each draft by the key the answer names it by, its persona, title, rules and detail. A
+ * measurement draft is axe-core's, which concerns the page and names no persona: its line says so
+ * in place of a persona. No rule reads `none`.
+ */
 function findingLines(drafts: readonly Draft[]) {
   if (drafts.length === 0) return ["none"];
   return drafts.flatMap(({ key, finding }) => {
-    const persona = finding.personaIds.map(labelOf).join(", ");
+    const about =
+      finding.type === "measurement"
+        ? "axe-core measurement on the page"
+        : finding.personaIds.map(labelOf).join(", ");
+    const rules = finding.basis.map((entry) => entry.rule).join(", ");
     // The title and detail are code's, but quote an element's name from the page.
     return [
-      `${key}, ${persona}: ${oneLine(finding.title)}`,
-      `  rules: ${finding.basis.map((entry) => entry.rule).join(", ")}`,
+      `${key}, ${about}: ${oneLine(finding.title)}`,
+      `  rules: ${rules === "" ? "none" : rules}`,
       `  detail: ${oneLine(finding.detail)}`,
     ];
   });

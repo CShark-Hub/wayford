@@ -4,7 +4,7 @@ You receive, in one message:
 - the goal, as the person would say it;
 - the baseline: the result of Scout, a run with full access to the page, which says whether the feature works at all;
 - the numbers per persona: its runs, how many got through, how many ended on an error of the tool, in how many seeds the page left at least one route to the goal open, and the median time to success;
-- the findings computed from the page, each with an id such as d1, the persona it concerns, its title, its rules and its detail;
+- the findings computed from the page, each with an id such as d1, the persona it concerns, its title, its rules and its detail; an axe-core measurement among them concerns the page, not one persona, and rests on no rule of the listed findings;
 - every run: a header with its run id, persona, seed, outcome, number of steps and seconds, then one line per step with its step index, the page path and the action performed, with the element's real name. When the agent read that name differently, the line gives the real name first, then what the agent read. When the action performed differs from the one planned, the line says which rule changed it. A step with no action says why. The agent's narration follows on the same line when there is one.
 
 Write:

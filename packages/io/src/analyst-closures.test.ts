@@ -266,7 +266,11 @@ describe("closureFindings: the finding", () => {
       title: 'The link "Order archive" on /deliveries is cut by P1 for Vera in 2 of 3 seeds',
     });
     expect(draft?.finding.id).toMatch(/^fnd_/);
-    expect(draft?.closing).toEqual(closings[0]);
+  });
+
+  test("its fallback is the recommendation code writes from the group's first closing", () => {
+    const [draft] = findings({ runs, closings }).drafts;
+    expect(draft?.fallback).toBe("Raise its contrast to at least 3:1 against its background.");
   });
 
   test("basis P1 copies Vera's contrast provenance, wcag22", () => {
