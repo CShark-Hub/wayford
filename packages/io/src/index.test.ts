@@ -7,6 +7,7 @@ afterEach(() => {
   vi.doUnmock("dotenv");
   vi.doUnmock("dotenv/config");
   vi.doUnmock("@hono/node-server");
+  vi.doUnmock("playwright");
   vi.resetModules();
 });
 
@@ -29,6 +30,21 @@ test("importing @wayford/io reads no .env file and starts no server", async () =
   expect(sideEffectImport).not.toHaveBeenCalled();
   expect(serve).not.toHaveBeenCalled();
   expect(process.env).toEqual(before);
+  expect(typeof io.createApp).toBe("function");
+}, 20_000);
+
+// The barrel decision of s4-03 (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log): the
+// walk behind a report's route facts (`analyst-routes.ts`), the runs' Chromium and agent's runtime
+// stay out, so a consumer of `@wayford/io` never loads a browser library.
+test("importing @wayford/io loads no playwright", async () => {
+  const loaded = vi.fn();
+  vi.resetModules();
+  vi.doMock("playwright", () => {
+    loaded();
+    return {};
+  });
+  const io = await import("./index.js");
+  expect(loaded).not.toHaveBeenCalled();
   expect(typeof io.createApp).toBe("function");
 }, 20_000);
 

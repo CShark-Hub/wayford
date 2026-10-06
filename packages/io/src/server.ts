@@ -3,16 +3,18 @@
  * backends, listen. Everything worth testing lives in `app.ts`, so this file does nothing on import
  * that a test would want. `pnpm dev` runs it under `tsx watch`.
  *
- * It is the only io module that loads agent's runtime and Playwright, through `actor-backends.ts`,
- * `chromium.ts` and `live-measure.ts` (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log,
- * "The barrel").
+ * Beside the `analyse` CLI, it is the only io module that loads agent's runtime and Playwright,
+ * through `actor-backends.ts`, `analyst-routes.ts`, `chromium.ts` and `live-measure.ts`
+ * (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
  */
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createLlm, parseLlmSettings, TARGET_APP_DEFAULTS } from "@wayford/agent";
-import { targetAppJargon } from "@wayford/core/fixtures";
+import { profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import pino from "pino";
 import { actorBackends } from "./actor-backends.js";
+import { routeFacts } from "./analyst-routes.js";
 import { createApp } from "./app.js";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
@@ -61,6 +63,16 @@ const app = createApp({
   params: TARGET_APP_DEFAULTS,
   // The target app's jargon list, so a run perceives what the preview shows (K2, s1-05).
   jargon: targetAppJargon,
+  // A report's route facts: the target app walked on the first report of the hard goal, on every
+  // persona's device, and read with the jargon the runs were perceived with.
+  routes: routeFacts({
+    devices: profileFixtures.map((profile) => profile.device),
+    jargon: targetAppJargon,
+  }),
+  // Where `pnpm --filter @wayford/agent scout` writes each task's ground truth.
+  groundTruthDir: join(RUNS_DIR, "ground-truth"),
+  // Jev's pinned model, which marks a stored run as a Jev run.
+  jevModel: settings.jevModel,
   logger,
 });
 

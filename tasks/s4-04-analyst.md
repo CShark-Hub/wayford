@@ -50,16 +50,58 @@ Read first, in this order:
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/core test` passes; the `Report` fixture parses and holds one finding of each type
-- [ ] `pnpm --filter @wayford/io test` passes with a fake Analyst and stored fake runs of Ada, Kai and Vera on the hard goal:
+- [x] `pnpm --filter @wayford/core test` passes; the `Report` fixture parses and holds one finding of each type
+  - Evidence: 16 files, 387 tests passed. `report.test.ts`, "the hard-goal fixture holds one finding of each type, and a soft one".
+- [x] `pnpm --filter @wayford/io test` passes with a fake Analyst and stored fake runs of Ada, Kai and Vera on the hard goal:
   - the per-persona numbers equal what the stored runs and `routeOpenSeeds` give;
   - Vera gets a `deterministic` finding on "Order archive" with basis P1 and provenance `wcag22`, and evidence on her steps at `/deliveries`;
   - a hypothesis citing a step that does not exist is dropped;
   - sweep runs, an older run of the same seed and runs on the other backend are left out and counted;
   - a route closed on a page no run reached gives no finding and is listed as such;
   - with no ground-truth file, the report says "no ground truth".
-- [ ] With a real key, `analyse -- --task task_past-order` over 10 seeds of Ada, Kai and Vera prints the report; the output and its cost are in the PR
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+  - Evidence: 24 files, 232 tests passed, 3 skipped (the existing `shutdown.browser.test.ts` signal tests). The box's six cases:
+    - `analyst.browser.test.ts`, on one real desktop walk of the target app, with Ada, Kai and Vera on seeds 1 to 4. Each stored run's observations are `perceive` over the walked measurements. It holds:
+      - "the numbers are the stored runs' and routeOpenSeeds'";
+      - "Vera's closure of route A is a P1 finding with wcag22 and her /deliveries steps";
+      - "Vera's routes B and C close where no run of hers stood: listed, no finding";
+      - "the sweep run, the older run and the run on the LLM are left out and counted".
+    - `analyst.test.ts`:
+      - "a hypothesis citing a missing step, an unknown run or a left-out run is dropped and logged";
+      - "with no ground-truth file the report says noGroundTruth".
+    - `analyst-text.test.ts`, which prints it: "no file: no ground truth".
+- [x] With a real key, `analyse -- --task task_past-order` over 10 seeds of Ada, Kai and Vera prints the report; the output and its cost are in the PR
+  - Evidence: 30 runs on Jev through `POST /runs` (Ada, Kai and Vera, seeds 1 to 10), then `pnpm --filter @wayford/io analyse -- --task task_past-order`, exit 0 in 119 s.
+  - Cost: 0.016821 USD for the runs and 0.006647 USD for the Analyst (`openai/gpt-6-luna`, effort `max`).
+  - Numbers:
+    - Ada: route open 10/10, got through 10/10.
+    - Kai: route open 10/10, got through 0/10.
+    - Vera: route open 4/10, got through 4/10.
+  - Findings: three deterministic (Kai's A1 on "Order archive", soft; Vera's P1 on it, `wcag22`; Vera's P4 on "More options", soft) and one hypothesis.
+  - Scout ground truth, run first: 0.002169 USD for both goals.
+  - The easy goal was also run: 6 runs, no deterministic finding, "—" for route open.
+  - The full output is in the PR.
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+  - Evidence, after merging main (s3-07): lint clean (299 files); typecheck clean; 112 files passed and 1 skipped, 1702 tests passed and 3 skipped.
+
+## Outcome
+
+Shipped as the spec says (`docs/specs/2026-10-05-s4-04-analyst.md`). Where it differs from this file:
+
+- **The axe box moved to `s4-06`** at gate 1 (2026-10-05). This file no longer holds it; s4-06's task file does, waiting for s4-04.
+- **Files outside the expected list:**
+  - `packages/filter/src/route-table.ts` and `routes.ts` gain `routeClosings` and `hasRouteTable`: where each route closed and on what, by the same closing rule as `routeOpenSeeds`.
+  - io's `analyst-routes.ts` holds the walk, out of the barrel, so io's barrel loads no Playwright.
+  - io's `analyse.ts` is the CLI.
+  - io's `app.ts`, `server.ts` and `test-app.ts` do the wiring.
+- **The `Report` holds more than the Interface lists:**
+  - per persona, one row per seed (run id, outcome, open routes) and an `errors` count;
+  - the closures with no evidence, by name;
+  - the Analyst's model id;
+  - the cost split into runs and Analyst.
+- **"Cut or renamed" reads as cut.** A route closes only at a cut step, so a renamed element still shown never closes one.
+- **Evidence is every step that shows the cut.** The printed report groups each run's steps into ranges.
+- **Provenance for a rule with no threshold in the profile:** A1, A3, K1, K2, K4 and V2 give `folk`, and only where the profile sets that rule's input.
+- **Scout's ground truth for the real-key run** was written by `pnpm --filter @wayford/agent scout` into the worktree's `runs/ground-truth/`, which is not committed.
 
 ## Out of scope
 

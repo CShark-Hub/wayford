@@ -1,10 +1,12 @@
 /**
  * Test support for io's own tests, never exported from the barrel
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, "test-app.ts"): `testApp`, the whole app on a store
- * in a temporary folder, and `runnerDefaults`, what it runs on; `postJson` and `getJson`, one
- * request each; `fakeRun`, a `RunFn` scripted per run, so no io test needs a browser or a model,
- * and `gate`, which holds one open; and `readSse` and `readEvents`, which read a server-sent event
- * stream message by message. io's test files share it, as agent's callers share `fake-llm.ts`.
+ * in a temporary folder, and `runnerDefaults` and `analystDefaults`, what it runs on; `postJson`
+ * and `getJson`, one request each; `fakeRun`, a `RunFn` scripted per run, so no io test needs a
+ * browser or a model, and `gate`, which holds one open; `readSse` and `readEvents`, which read a
+ * server-sent event stream message by message; and for the Analyst's tests, `storedRun` and Vera's
+ * `/deliveries` as the filter gives it. io's test files share it, as agent's callers share
+ * `fake-llm.ts`.
  */
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,13 +24,27 @@ import {
   type Action,
   type Cost,
   type FinishedOutcome,
+  type FullObservation,
   newId,
+  type ObservedElement,
+  type Profile,
   RunEvent,
+  type RunId,
   type RunResult,
+  type RunSweep,
   runResultFromEvents,
+  type Seed,
+  type Task,
   WayfordError,
 } from "@wayford/core";
-import { observationFixture, targetAppJargon } from "@wayford/core/fixtures";
+import {
+  measurementFixture,
+  observationFixture,
+  profileFixture,
+  targetAppJargon,
+  taskFixture,
+} from "@wayford/core/fixtures";
+import { perceive } from "@wayford/filter/perceive";
 import pino from "pino";
 import { type AppOptions, createApp } from "./app.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
@@ -82,10 +98,16 @@ function fakeBackend(modelId: string): ActorBackendFactory {
   });
 }
 
+/** The Actor model `fakeBackends.llm` names, and a stored run's by default. */
+export const FAKE_LLM_MODEL = "fake-llm";
+
+/** The Actor model `fakeBackends.jev` names, and Jev's model in `analystDefaults`. */
+export const FAKE_JEV_MODEL = "fake-jev";
+
 /** One fake factory per backend name, so a test can tell which one a run was handed. */
 export const fakeBackends: Readonly<Record<ActorBackendName, ActorBackendFactory>> = {
-  llm: fakeBackend("fake-llm"),
-  jev: fakeBackend("fake-jev"),
+  llm: fakeBackend(FAKE_LLM_MODEL),
+  jev: fakeBackend(FAKE_JEV_MODEL),
 };
 
 /**
@@ -116,6 +138,21 @@ export function runnerDefaults(store: TempStore): RunnerOptions {
   };
 }
 
+/**
+ * The Analyst's options on `store`, with nothing behind them: no route table for any task,
+ * `<dir>/ground-truth` as the ground-truth folder (absent, so no ground truth) and
+ * `FAKE_JEV_MODEL` as Jev's model, the one `fakeBackends.jev` names.
+ */
+export function analystDefaults(
+  store: TempStore,
+): Pick<AppOptions, "routes" | "groundTruthDir" | "jevModel"> {
+  return {
+    routes: async () => undefined,
+    groundTruthDir: join(store.dir, "ground-truth"),
+    jevModel: FAKE_JEV_MODEL,
+  };
+}
+
 /** What `testApp` puts in place of its defaults, by key: any option but the store's. */
 export type TestAppOptions = Partial<Omit<AppOptions, "db" | "runsDir">>;
 
@@ -126,9 +163,9 @@ export type TestAppOptions = Partial<Omit<AppOptions, "db" | "runsDir">>;
 export type TestApp = TempStore & { app: ReturnType<typeof createApp> };
 
 /**
- * The whole app on a `tempStore()`, on `runnerDefaults`, the fake `Llm` with no answers and
- * `noMeasure`. `options` replaces any of them. The fixture replay keeps the route's own pace unless
- * `replaySpacingMs` is given.
+ * The whole app on a `tempStore()`, on `runnerDefaults`, the fake `Llm` with no answers,
+ * `noMeasure` and `analystDefaults`. `options` replaces any of them. The fixture replay keeps the
+ * route's own pace unless `replaySpacingMs` is given.
  */
 export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
   const store = await tempStore();
@@ -136,6 +173,7 @@ export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
     ...runnerDefaults(store),
     llm: fakeLlm({}),
     measure: noMeasure,
+    ...analystDefaults(store),
     ...options,
   });
   return { ...store, app };
@@ -362,4 +400,110 @@ export async function readSse(response: Response, limit = Number.POSITIVE_INFINI
 export async function readEvents(response: Response) {
   const messages = await readSse(response);
   return { messages, events: messages.map(({ data }) => RunEvent.parse(JSON.parse(data))) };
+}
+
+/** What `storedRun` builds a run from. Only the persona, the seed and the steps are required. */
+interface StoredRunOptions {
+  profile: Profile;
+  seed: Seed;
+  /** `task_past-order`, the hard goal, when absent. */
+  task?: Task;
+  /** One step each, in order. Each observation is stored with its own index set. */
+  steps: { observation: FullObservation; narration?: string }[];
+  /** `gave_up` when absent. */
+  outcome?: FinishedOutcome;
+  /** The Actor's model id, `modelIds.actor`: `FAKE_LLM_MODEL` when absent. */
+  modelId?: string;
+  sweep?: RunSweep;
+  /** A new run id when absent. */
+  runId?: RunId;
+  /** One second per step when absent, as the events are stamped. */
+  durationMs?: number;
+}
+
+/** When every `storedRun` starts: its events are stamped one second per step from here. */
+const STORED_RUN_START = Date.parse("2026-10-05T12:00:00.000Z");
+
+/**
+ * A stored fake run, for the Analyst's tests: the events a run of `options` would emit, folded
+ * with `runResultFromEvents`, so the run is exactly what the store would hold. No browser and no
+ * model: each step is the observation given, a `scroll` down that lands on the next step's page
+ * (or stays), its narration when given, and nothing billed. A test passes observations from
+ * `perceive`, so the evidence checks read the decisions a real run of that persona and seed got.
+ * The run starts on the target app's defaults and ends `runFinished` with `outcome`.
+ */
+export function storedRun(options: StoredRunOptions): RunResult {
+  const { profile, seed, steps } = options;
+  const task = options.task ?? taskFixture("task_past-order");
+  const runId = options.runId ?? newId("run");
+  const at = (second: number) => new Date(STORED_RUN_START + second * 1000).toISOString();
+  const events: RunEvent[] = [
+    {
+      type: "runStarted",
+      runId,
+      stepIndex: 0,
+      timestamp: at(0),
+      taskId: task.id,
+      profileId: profile.id,
+      seed,
+      startUrl: startUrlFor(task, TARGET_APP_DEFAULTS),
+      modelIds: { actor: options.modelId ?? FAKE_LLM_MODEL },
+      ...(options.sweep === undefined ? {} : { sweep: options.sweep }),
+    },
+  ];
+  steps.forEach(({ observation, narration }, stepIndex) => {
+    const timestamp = at(stepIndex);
+    const base = { runId, stepIndex, timestamp };
+    events.push({ ...base, type: "stepObserved", observation: { ...observation, stepIndex } });
+    // Before the action is planned, as the Actor loop emits it.
+    if (narration !== undefined) events.push({ ...base, type: "narration", text: narration });
+    events.push({
+      ...base,
+      type: "actionPlanned",
+      proposedAction: SCROLL_DOWN,
+      performedAction: SCROLL_DOWN,
+      dice: [],
+      cost: NO_COST,
+    });
+    const urlAfter = steps[stepIndex + 1]?.observation.url ?? observation.url;
+    events.push({ ...base, type: "actionPerformed", urlAfter });
+  });
+  events.push({
+    type: "runFinished",
+    runId,
+    stepIndex: steps.length,
+    timestamp: at(steps.length),
+    outcome: options.outcome ?? "gave_up",
+    durationMs: options.durationMs ?? steps.length * 1000,
+    cost: NO_COST,
+  });
+  return runResultFromEvents(events);
+}
+
+const vera = profileFixture("prof_vera");
+
+/**
+ * The target app's `/deliveries` as the filter gives it to Vera at `seed`, with the app's jargon:
+ * the observation a run of hers on that seed got there, for the Analyst's tests to store.
+ */
+export function deliveries(seed: Seed): FullObservation {
+  return perceive(measurementFixture, vera, seed, { jargon: targetAppJargon });
+}
+
+/** The page's "Order archive" link, the last step of route A. Throws when the page has none. */
+export function archiveLink(observation: FullObservation): ObservedElement {
+  const link = observation.elements.find((e) => e.role === "link" && e.name === "Order archive");
+  if (link === undefined) throw new Error("the page holds no Order archive link");
+  return link;
+}
+
+/**
+ * The first of run seeds 1 to 30 for which `holds` is true, such as a seed where P1 cuts the
+ * archive link: read off the filter, never guessed. Throws when none is.
+ */
+export function firstSeed(holds: (seed: Seed) => boolean): Seed {
+  for (let seed = 1; seed <= 30; seed += 1) {
+    if (holds(seed)) return seed;
+  }
+  throw new Error("seeds 1 to 30 hold no seed the test needs");
 }

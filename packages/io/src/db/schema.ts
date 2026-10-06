@@ -3,11 +3,11 @@
  * file, and `db:migrate` applies it.
  *
  * Every table follows one pattern: the whole record as a JSON document, and
- * real columns only for what a query filters or sorts on. `runs.ts` and
- * `tasks.ts` parse each document with its core schema on the way in and out
- * (`parseRow` in `database.ts`). `profiles` has no read or write functions yet,
- * so nothing checks its rows. Findings, sweeps and axe results get tables with
- * their features.
+ * real columns only for what a query filters or sorts on. `runs.ts`, `tasks.ts`
+ * and `reports.ts` parse each document with its core schema on the way in and
+ * out (`parseRow` in `database.ts`). `profiles` has no read or write functions
+ * yet, so nothing checks its rows. Findings are stored inside their report;
+ * sweeps and axe results get tables with their features.
  *
  * Written to stay Postgres-compatible (`docs/STACK.md`): `text`, `integer` and
  * `real` only, nothing SQLite-only. A switch rewrites this file with `pg-core`
@@ -18,7 +18,7 @@
  * - `runs.started_at` becomes `timestamptz`. As `text` it sorts correctly too,
  *   because `saveRun` stores it at a fixed width.
  */
-import { type Profile, RUN_OUTCOMES, type RunResult, type Task } from "@wayford/core";
+import { type Profile, type Report, RUN_OUTCOMES, type RunResult, type Task } from "@wayford/core";
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
@@ -56,4 +56,14 @@ export const runs = sqliteTable("runs", {
    *  runs can be kept apart from a persona's own. */
   sweepId: text("sweep_id"),
   document: text("document", { mode: "json" }).$type<RunResult>().notNull(),
+});
+
+/**
+ * A stored report is its whole `Report`, the latest one per task: a new report on a task replaces
+ * the one before, since report history is out of scope (`tasks/s4-04-analyst.md`). Nothing filters
+ * or sorts reports, so only `task_id` is lifted out.
+ */
+export const reports = sqliteTable("reports", {
+  taskId: text("task_id").primaryKey(),
+  document: text("document", { mode: "json" }).$type<Report>().notNull(),
 });

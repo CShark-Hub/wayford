@@ -10,5 +10,6 @@ export * from "./observation.js";
 export * from "./primitives.js";
 export * from "./profile.js";
 export * from "./random.js";
+export * from "./report.js";
 export * from "./run.js";
 export * from "./task.js";

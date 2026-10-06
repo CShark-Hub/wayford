@@ -6,7 +6,8 @@
  * Pure: the page measurements come in, taken by `route-walk.ts` where a person reaches each step,
  * and `perceive` decides, with the options it is given: the target app's jargon list, so K2 is in
  * the table. `scripts/routes.ts` prints the tables, and `routes.browser.test.ts` holds them against
- * RULES. `routeOpenSeeds` reads the same closing rule over a run set's seeds, for `./routes`.
+ * RULES. `routeOpenSeeds` and `routeClosings` read the same closing rule over a run set's seeds,
+ * for `./routes`: which routes stayed open, and where each other one closed and on what.
  *
  * A step's outcome is what the filter did to the step's element: shown, renamed (K1, K2, K4),
  * masked (the rules that degraded it) or cut (the rules that made it invisible: V2, P1, P3, P4, A1). When
@@ -70,11 +71,12 @@ type Outcome = "shown" | "renamed" | "masked" | "cut";
 interface StepResult {
   outcome: Outcome;
   /**
-   * The rules behind the outcome, in pipeline order: K1, K2 and K4 when renamed, those whose
-   * decision is `degraded` when masked, those whose decision is `invisible` when cut. None when
-   * shown.
+   * The decisions behind the outcome, as `perceive` made them, in pipeline order: K1, K2 and K4
+   * when renamed, those whose own state is `degraded` when masked, those whose own state is
+   * `invisible` when cut. None when shown. Their rules are the outcome's, and a closing says what
+   * cut it from them.
    */
-  rules: RuleId[];
+  decisions: ElementDecision[];
   /**
    * The A1 rank, `r of n`: the element's place among the elements stages 1 to 3 left shown, in
    * salience order. `-` when the profile sets no cap, so A1 does not apply, or when stages 1 to 3
@@ -130,7 +132,7 @@ function stepResult(
   options: PerceiveOptions,
 ): StepResult {
   const observation = perceive(step.measurement, profile, runSeed, options);
-  let best: { element: ObservedElement; outcome: Outcome; rules: RuleId[] } | undefined;
+  let best: ({ element: ObservedElement } & Pick<StepResult, "outcome" | "decisions">) | undefined;
   // In the order the persona reads, and a later element replaces the best only when it does
   // strictly better.
   for (const element of observation.elements) {
@@ -145,16 +147,15 @@ function stepResult(
   }
   return {
     outcome: best.outcome,
-    rules: best.rules,
+    decisions: best.decisions,
     rank: a1Rank(observation.elements, best.element, profile),
   };
 }
 
 /** `shown`, or the outcome with its rules: `renamed (K1, K2, K4)`, `cut (P3, P4)`. */
-function describeOutcome(result: Pick<StepResult, "outcome" | "rules">): string {
-  return result.rules.length === 0
-    ? result.outcome
-    : `${result.outcome} (${result.rules.join(", ")})`;
+function describeOutcome(result: Pick<StepResult, "outcome" | "decisions">): string {
+  const rules = result.decisions.map((d) => d.rule);
+  return rules.length === 0 ? result.outcome : `${result.outcome} (${rules.join(", ")})`;
 }
 
 /** Each step of the route in one seed, in route order. */
@@ -169,8 +170,8 @@ function routeInSeed(
 
 /**
  * Where a route closes in one seed: the index of its first cut step, or -1 when no step is cut and
- * the route is open. The one place that decides it: the table's cells and `routeOpenSeeds` both
- * read it.
+ * the route is open. The one place that decides it: the table's cells, `routeOpenSeeds` and
+ * `routeClosings` all read it.
  */
 function closingStep(steps: readonly StepResult[]): number {
   return steps.findIndex((result) => result.outcome === "cut");
@@ -191,7 +192,8 @@ export function routeSummary(
   const closings = rows.flatMap((row) => {
     const index = closingStep(row);
     const closing = row[index];
-    return closing === undefined ? [] : [{ place: stepPlace(route, index), rules: closing.rules }];
+    if (closing === undefined) return [];
+    return [{ place: stepPlace(route, index), rules: closing.decisions.map((d) => d.rule) }];
   });
   return {
     id: route.id,
@@ -236,8 +238,61 @@ export function routeOpenSeeds(
   }));
 }
 
+/**
+ * Where one route closed in one seed: its first cut step, and what cut it. The step is named as the
+ * walk names it, so on a phone a cut menu toggle is a step on `/` (`route-walk.ts`).
+ */
+export interface RouteClosed {
+  seed: Seed;
+  routeId: string;
+  /** The path of the page the closing step is taken on. */
+  page: string;
+  role: AriaRole;
+  /** Accessible name, as the measurement holds it, not as a rename showed it. */
+  name: string;
+  /**
+   * The cut element's decisions whose own state is `invisible`, in pipeline order: the decisions
+   * behind the rules of the step's `cut (...)` in the table. A rename or a degrade on the same
+   * element did not cut it, so it is left out.
+   */
+  decisions: ElementDecision[];
+}
+
+/**
+ * Per seed, in the order of `seeds`, and then in walk order, every route of `walked` the filter
+ * closed for `profile`, at its first cut step. It reads the rule `routeOpenSeeds` reads, so a route
+ * is here for a seed exactly when it is missing from that seed's `open`. `walked` and `options` as
+ * for `routeOpenSeeds`: the walk on the persona's device, and the jargon the runs were given.
+ */
+export function routeClosings(
+  walked: readonly WalkedRoute[],
+  profile: PerceiveProfile,
+  seeds: readonly Seed[],
+  options: PerceiveOptions = {},
+): RouteClosed[] {
+  return seeds.flatMap((seed) =>
+    walked.flatMap((route) => {
+      const results = routeInSeed(route, profile, seed, options);
+      const index = closingStep(results);
+      const step = route.steps[index];
+      const closing = results[index];
+      if (step === undefined || closing === undefined) return [];
+      const { page, role, name } = step;
+      return [{ seed, routeId: route.id, page, role, name, decisions: closing.decisions }];
+    }),
+  );
+}
+
 /** The one task with a route table: the hard goal, the order archive the three routes lead to. */
 const HARD_GOAL_TASK_ID = "task_past-order";
+
+/**
+ * True when the task has a route table, which is the hard goal alone. A caller that walks only to
+ * read the table checks it first, so a report on any other goal never starts a browser.
+ */
+export function hasRouteTable(taskId: TaskId): boolean {
+  return taskId === HARD_GOAL_TASK_ID;
+}
 
 /**
  * The walked routes to a task's goal on one device: the walk on `device` for the hard goal, and
@@ -249,30 +304,32 @@ export function routesFor(
   taskId: TaskId,
   device: DeviceKind,
 ): readonly WalkedRoute[] | undefined {
-  if (taskId !== HARD_GOAL_TASK_ID) return undefined;
+  if (!hasRouteTable(taskId)) return undefined;
   const routes = walks.get(device);
   if (routes === undefined) throw new Error(`the routes were not walked on ${device}`);
   return routes;
 }
 
 /**
- * One element's outcome and the rules behind it. A rename wins over a mask, as it does in the
+ * One element's outcome and the decisions behind it. A rename wins over a mask, as it does in the
  * Actor's text (`toActorObservation`).
  */
-function judge(element: ObservedElement): Pick<StepResult, "outcome" | "rules"> {
+function judge(element: ObservedElement): Pick<StepResult, "outcome" | "decisions"> {
   const { decisions, state } = element;
-  if (state === "invisible") return { outcome: "cut", rules: rulesFor(decisions, state) };
+  if (state === "invisible") return { outcome: "cut", decisions: decisionsFor(decisions, state) };
   if (element.renamedName !== undefined) {
-    const knowledge = decisions.filter((d) => d.stage === "knowledge").map((d) => d.rule);
-    return { outcome: "renamed", rules: knowledge };
+    return { outcome: "renamed", decisions: decisions.filter((d) => d.stage === "knowledge") };
   }
-  if (state === "degraded") return { outcome: "masked", rules: rulesFor(decisions, state) };
-  return { outcome: "shown", rules: [] };
+  if (state === "degraded") return { outcome: "masked", decisions: decisionsFor(decisions, state) };
+  return { outcome: "shown", decisions: [] };
 }
 
-/** The rules whose own decision gives `state`. `perceive` lists decisions in pipeline order. */
-function rulesFor(decisions: readonly ElementDecision[], state: PerceptionState): RuleId[] {
-  return decisions.filter((d) => decisionState(d) === state).map((d) => d.rule);
+/** The decisions that give `state` on their own. `perceive` lists decisions in pipeline order. */
+function decisionsFor(
+  decisions: readonly ElementDecision[],
+  state: PerceptionState,
+): ElementDecision[] {
+  return decisions.filter((d) => decisionState(d) === state);
 }
 
 /** The element's A1 rank: see `StepResult.rank`. With a cap, the evidence is in salience order. */

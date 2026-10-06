@@ -19,6 +19,7 @@ import { JargonList } from "../jargon.js";
 import { MeasuredElement, PageMeasurement } from "../measurement.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
+import { Report } from "../report.js";
 import { DecisionRecord, RunEvent, RunResult } from "../run.js";
 import { Task } from "../task.js";
 
@@ -220,3 +221,26 @@ export const decisionRecordFixture: DecisionRecord = readJson(
   "decision-record.json",
   DecisionRecord,
 );
+
+/**
+ * The Analyst's report (`s4-04`) on each goal of the target app, hard first, hand-written for the
+ * report screen to build on before any is stored. Both read Ada, Kai and Vera on Jev.
+ *
+ * - `task_past-order`, seeds 1 to 3, follows the RULES route table. Ada keeps every route. Kai's
+ *   attention cap closes route A at "Order archive" in every seed, a soft finding since the cap is
+ *   folk. Vera's P1 closes it in seeds 2 and 3; in seed 1 the roll leaves the link in her band, so
+ *   it reaches the model degraded. Her P4 closes routes B and C at their entrances, on pages no run
+ *   of hers opened, so those are listed, not findings. One finding of each type; Scout reached
+ *   the goal in 2 steps.
+ * - `task_next-parcel`, seeds 1 and 2, has no route table, so every route-open count is `null`,
+ *   and no ground truth. One hypothesis, and one run that fell over (`error`).
+ *
+ * Evidence names the fixture's own run ids, which no run fixture stores.
+ */
+export const reportFixtures: Report[] = readJson("reports.json", Report.array());
+
+export function reportFixture(taskId: string): Report {
+  const found = reportFixtures.find((r) => r.taskId === taskId);
+  if (!found) throw new Error(`No report fixture ${taskId}`);
+  return found;
+}

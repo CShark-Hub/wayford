@@ -1,19 +1,28 @@
 /**
  * The phone boxes of `tasks/s1-03-knowledge-attention.md` and its route table
  * (`docs/specs/2026-10-03-s1-03-knowledge-attention.md`, "Acceptance mapping"), and the
- * `routeOpenSeeds` box of `tasks/s1-06-route-open-share.md`. The target app is served once, by one
- * walk of its routes on every persona's device, and every test reads the measurements that walk
- * took. The copy of target-app's routes the walk needs is checked against its source here.
+ * `routeOpenSeeds` box of `tasks/s1-06-route-open-share.md`, and the `routeClosings` and
+ * `hasRouteTable` checks of `s4-04` (`docs/specs/2026-10-05-s4-04-analyst.md`). The target app is
+ * served once, by one walk of its routes on every persona's device, and every test reads the
+ * measurements that walk took. The copy of target-app's routes the walk needs is checked against
+ * its source here.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { DeviceKind, PageMeasurement, Profile } from "@wayford/core";
-import { profileFixture, profileFixtures, taskFixture } from "@wayford/core/fixtures";
+import { type DeviceKind, decisionState, type PageMeasurement, type Profile } from "@wayford/core";
+import { profileFixture, profileFixtures, taskFixture, taskFixtures } from "@wayford/core/fixtures";
 import { beforeAll, expect, test } from "vitest";
 import { detectPattern, isHamburger, isKebab } from "./knowledge.js";
 import { perceive } from "./perceive.js";
-import { routeSummary } from "./route-table.js";
-import { routeOpenSeeds, routesFor, type WalkedRoute, walkRoutes } from "./routes.js";
+import { ROUTE_SEEDS, routeSummary } from "./route-table.js";
+import {
+  hasRouteTable,
+  routeClosings,
+  routeOpenSeeds,
+  routesFor,
+  type WalkedRoute,
+  walkRoutes,
+} from "./routes.js";
 import { TARGET_APP_ROUTES } from "./serve-target-app.js";
 import { actorText, observed, seeds, WITH_JARGON, withKnowledge } from "./test-support.js";
 
@@ -230,5 +239,95 @@ test("routesFor gives the hard goal its walk on the device, and any other task u
   // The hard goal on a device the caller did not walk is the caller's bug.
   expect(() => routesFor(new Map(), hard.id, "desktop")).toThrow(
     "the routes were not walked on desktop",
+  );
+});
+
+test("hasRouteTable holds for the hard goal and for no other task", () => {
+  // Over every task fixture, so a new task with no table fails here instead of walking.
+  expect(
+    taskFixtures.filter((task) => hasRouteTable(task.id)).map((task) => task.id),
+  ).toStrictEqual(["task_past-order"]);
+  expect(hasRouteTable(taskFixture("task_past-order").id)).toBe(true);
+  expect(hasRouteTable(taskFixture("task_next-parcel").id)).toBe(false);
+});
+
+/** `routeClosings` over seeds 1 to 100, on the persona's own device. */
+const closingsInHundred = (profile: Profile) =>
+  routeClosings(routesOn(profile.device), profile, ROUTE_SEEDS, WITH_JARGON);
+
+test.each(profileFixtures)(
+  "routeClosings on seeds 1 to 100: $label has a route closed in a seed exactly when it is not open there",
+  (profile) => {
+    const routes = routesOn(profile.device);
+    const closings = closingsInHundred(profile);
+    // Per seed, in seed order, every walked route `routeOpenSeeds` leaves out, in walk order.
+    const notOpen = routeOpenSeeds(routes, profile, ROUTE_SEEDS, WITH_JARGON).flatMap(
+      ({ seed, open }) =>
+        routes.filter((route) => !open.includes(route.id)).map((route) => [seed, route.id]),
+    );
+    expect(closings.map(({ seed, routeId }) => [seed, routeId])).toStrictEqual(notOpen);
+    // What cut the step: one decision at least, each of them invisible on its own.
+    for (const closing of closings) {
+      expect(closing.decisions.length).toBeGreaterThan(0);
+      expect(closing.decisions.filter((d) => decisionState(d) !== "invisible")).toStrictEqual([]);
+    }
+  },
+);
+
+test("routeClosings on seeds 1 to 100: Vera's A closes at the hard link on P1, her B and C at the entrance on P4", () => {
+  const closings = closingsInHundred(profileFixture("prof_vera"));
+  const of = (routeId: string) => closings.filter((closing) => closing.routeId === routeId);
+  // A is per seed in RULES: closed in some seeds, degraded and open in the rest.
+  expect(of("A").length).toBeGreaterThan(0);
+  expect(of("A").length).toBeLessThan(ROUTE_SEEDS.length);
+  for (const closing of of("A")) {
+    expect(closing).toMatchObject({
+      page: "/deliveries",
+      role: "link",
+      name: "Order archive",
+      decisions: [
+        {
+          stage: "perception",
+          rule: "P1",
+          metric: "contrast",
+          value: 2.005,
+          threshold: 3,
+          state: "invisible",
+        },
+      ],
+    });
+  }
+  // B and C are closed at the entrance (P4) in RULES: her 32 px target cut, in every seed.
+  const p4 = { stage: "perception", rule: "P4", metric: "targetPx", threshold: 32 };
+  expect(of("B")).toHaveLength(ROUTE_SEEDS.length);
+  for (const closing of of("B")) {
+    expect(closing).toMatchObject({
+      page: "/account",
+      role: "button",
+      name: "More options",
+      decisions: [p4],
+    });
+  }
+  expect(of("C")).toHaveLength(ROUTE_SEEDS.length);
+  for (const closing of of("C")) {
+    expect(closing).toMatchObject({
+      page: "/settings",
+      role: "link",
+      name: "Your data",
+      decisions: [p4],
+    });
+  }
+});
+
+test("routeClosings on seeds 1 to 100: Kai's A closes at the hard link on A1 in every seed, and B and C never close", () => {
+  expect(closingsInHundred(profileFixture("prof_kai"))).toStrictEqual(
+    ROUTE_SEEDS.map((seed) => ({
+      seed,
+      routeId: "A",
+      page: "/deliveries",
+      role: "link",
+      name: "Order archive",
+      decisions: [{ stage: "attention", rule: "A1" }],
+    })),
   );
 });

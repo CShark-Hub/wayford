@@ -1,0 +1,280 @@
+[
+  {
+    "taskId": "task_past-order",
+    "backend": "jev",
+    "analysedAt": "2026-10-05T14:20:31.000Z",
+    "analystModelId": "openai/gpt-6-luna",
+    "runCount": 9,
+    "cost": {
+      "runs": { "tokensIn": 32760, "tokensOut": 0, "usd": 0.001376 },
+      "analyst": { "tokensIn": 6240, "tokensOut": 5810, "usd": 0.003529 }
+    },
+    "scout": {
+      "status": "reached",
+      "steps": 2,
+      "modelId": "openai/gpt-6-luna",
+      "recordedAt": "2026-10-03T12:00:00.000Z"
+    },
+    "personas": [
+      {
+        "profileId": "prof_ada",
+        "runs": 3,
+        "errors": 0,
+        "successes": 3,
+        "routeOpenSeeds": 3,
+        "medianSuccessMs": 10400,
+        "seeds": [
+          {
+            "seed": 1,
+            "runId": "run_ada-past-order-1",
+            "outcome": "success",
+            "openRoutes": ["A", "B", "C"]
+          },
+          {
+            "seed": 2,
+            "runId": "run_ada-past-order-2",
+            "outcome": "success",
+            "openRoutes": ["A", "B", "C"]
+          },
+          {
+            "seed": 3,
+            "runId": "run_ada-past-order-3",
+            "outcome": "success",
+            "openRoutes": ["A", "B", "C"]
+          }
+        ]
+      },
+      {
+        "profileId": "prof_kai",
+        "runs": 3,
+        "errors": 0,
+        "successes": 1,
+        "routeOpenSeeds": 3,
+        "medianSuccessMs": 31600,
+        "seeds": [
+          {
+            "seed": 1,
+            "runId": "run_kai-past-order-1",
+            "outcome": "gave_up",
+            "openRoutes": ["B", "C"]
+          },
+          {
+            "seed": 2,
+            "runId": "run_kai-past-order-2",
+            "outcome": "success",
+            "openRoutes": ["B", "C"]
+          },
+          {
+            "seed": 3,
+            "runId": "run_kai-past-order-3",
+            "outcome": "budget_exceeded",
+            "openRoutes": ["B", "C"]
+          }
+        ]
+      },
+      {
+        "profileId": "prof_vera",
+        "runs": 3,
+        "errors": 0,
+        "successes": 0,
+        "routeOpenSeeds": 1,
+        "medianSuccessMs": null,
+        "seeds": [
+          {
+            "seed": 1,
+            "runId": "run_vera-past-order-1",
+            "outcome": "gave_up",
+            "openRoutes": ["A"]
+          },
+          {
+            "seed": 2,
+            "runId": "run_vera-past-order-2",
+            "outcome": "gave_up",
+            "openRoutes": []
+          },
+          {
+            "seed": 3,
+            "runId": "run_vera-past-order-3",
+            "outcome": "budget_exceeded",
+            "openRoutes": []
+          }
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "id": "fnd_kai-order-archive-a1",
+        "taskId": "task_past-order",
+        "type": "deterministic",
+        "title": "The link \"Order archive\" on /deliveries is cut by A1 for Kai in 3 of 3 seeds",
+        "detail": "Route A closes at this step. A1: Kai's attention cap of 11 elements cuts the link, so it does not reach the model.",
+        "evidence": [
+          { "runId": "run_kai-past-order-1", "stepIndex": 1 },
+          { "runId": "run_kai-past-order-3", "stepIndex": 1 }
+        ],
+        "basis": [{ "rule": "A1", "provenance": "folk" }],
+        "recommendation": "Move the archive link up beside the list on /deliveries and give it the size and contrast of the page's other links, so it is not the least prominent element there.",
+        "personaIds": ["prof_kai"]
+      },
+      {
+        "id": "fnd_vera-order-archive-p1",
+        "taskId": "task_past-order",
+        "type": "deterministic",
+        "title": "The link \"Order archive\" on /deliveries is cut by P1 for Vera in 2 of 3 seeds",
+        "detail": "Route A closes at this step. P1: contrast 2.005:1, below Vera's threshold of 3:1. Vera's cut has a band from 1.5:1 to 3:1, inside which the seed's roll decides between degraded and cut. In those 2 seeds the link does not reach the model.",
+        "evidence": [
+          { "runId": "run_vera-past-order-2", "stepIndex": 1 },
+          { "runId": "run_vera-past-order-3", "stepIndex": 1 }
+        ],
+        "basis": [{ "rule": "P1", "provenance": "wcag22" }],
+        "recommendation": "Raise the link's text to at least 4.5:1 against its background, which clears 3:1 with room to spare and meets WCAG 2.2 for text of its size.",
+        "personaIds": ["prof_vera"]
+      },
+      {
+        "id": "fnd_order-archive-contrast-ratio",
+        "taskId": "task_past-order",
+        "type": "measurement",
+        "title": "The link \"Order archive\" on /deliveries measures 2.005:1, below the WCAG 2.2 minimum for text",
+        "detail": "The link's 16 px text measures 2.005:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at that size, and axe reports it as color-contrast.",
+        "evidence": [{ "runId": "run_ada-past-order-1", "stepIndex": 1 }],
+        "basis": [],
+        "recommendation": "Raise the link's text to at least 4.5:1 against its background.",
+        "personaIds": [],
+        "axeRuleId": "color-contrast"
+      },
+      {
+        "id": "fnd_vera-passes-over-masked-archive-link",
+        "taskId": "task_past-order",
+        "type": "hypothesis",
+        "title": "Where the archive link reached the model degraded, its masked name may not read as the way to past orders",
+        "detail": "Seed 1 is the one seed where P1 left route A open for Vera: the link reached the model degraded, under a masked name. The run stood on /deliveries at steps 1 and 4, scrolled, went home and came back, and gave up at step 4 without acting on the link. These are Jev runs with no narration, so this reads the actions of one run alone; it is not a measurement.",
+        "evidence": [
+          { "runId": "run_vera-past-order-1", "stepIndex": 1 },
+          { "runId": "run_vera-past-order-1", "stepIndex": 4 }
+        ],
+        "basis": [{ "rule": "P1", "provenance": "wcag22" }],
+        "recommendation": "Raise the archive link's contrast so its name is read whole, and add a line above the list on /deliveries saying that past orders are in the archive.",
+        "personaIds": ["prof_vera"]
+      }
+    ],
+    "leftOut": { "olderRuns": 2, "otherBackend": 3, "sweepRuns": 0 },
+    "unevidencedClosures": [
+      {
+        "profileId": "prof_vera",
+        "routeId": "B",
+        "page": "/account",
+        "role": "button",
+        "name": "More options",
+        "rules": ["P4"],
+        "seeds": 3
+      },
+      {
+        "profileId": "prof_vera",
+        "routeId": "C",
+        "page": "/settings",
+        "role": "link",
+        "name": "Your data",
+        "rules": ["P4"],
+        "seeds": 3
+      }
+    ]
+  },
+  {
+    "taskId": "task_next-parcel",
+    "backend": "jev",
+    "analysedAt": "2026-10-05T14:22:10.000Z",
+    "analystModelId": "openai/gpt-6-luna",
+    "runCount": 6,
+    "cost": {
+      "runs": { "tokensIn": 8420, "tokensOut": 0, "usd": 0.000354 },
+      "analyst": { "tokensIn": 3180, "tokensOut": 2460, "usd": 0.001548 }
+    },
+    "scout": { "status": "noGroundTruth" },
+    "personas": [
+      {
+        "profileId": "prof_ada",
+        "runs": 2,
+        "errors": 0,
+        "successes": 2,
+        "routeOpenSeeds": null,
+        "medianSuccessMs": 9000,
+        "seeds": [
+          {
+            "seed": 1,
+            "runId": "run_ada-next-parcel-1",
+            "outcome": "success",
+            "openRoutes": null
+          },
+          {
+            "seed": 2,
+            "runId": "run_ada-next-parcel-2",
+            "outcome": "success",
+            "openRoutes": null
+          }
+        ]
+      },
+      {
+        "profileId": "prof_kai",
+        "runs": 2,
+        "errors": 0,
+        "successes": 1,
+        "routeOpenSeeds": null,
+        "medianSuccessMs": 27300,
+        "seeds": [
+          {
+            "seed": 1,
+            "runId": "run_kai-next-parcel-1",
+            "outcome": "success",
+            "openRoutes": null
+          },
+          {
+            "seed": 2,
+            "runId": "run_kai-next-parcel-2",
+            "outcome": "gave_up",
+            "openRoutes": null
+          }
+        ]
+      },
+      {
+        "profileId": "prof_vera",
+        "runs": 2,
+        "errors": 1,
+        "successes": 1,
+        "routeOpenSeeds": null,
+        "medianSuccessMs": 15800,
+        "seeds": [
+          {
+            "seed": 1,
+            "runId": "run_vera-next-parcel-1",
+            "outcome": "success",
+            "openRoutes": null
+          },
+          {
+            "seed": 2,
+            "runId": "run_vera-next-parcel-2",
+            "outcome": "error",
+            "openRoutes": null
+          }
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "id": "fnd_kai-passes-over-address-on-account",
+        "taskId": "task_next-parcel",
+        "type": "hypothesis",
+        "title": "On /account the way to the delivery address may not stand out, so it is reached from /deliveries or not at all",
+        "detail": "Both of Kai's runs opened /account at step 1 and acted on something other than \"Delivery address\" there. In seed 1 the run went on to /deliveries and reached the address through its \"Delivery address\" link at step 2; in seed 2 it scrolled /account, went back and gave up. These are Jev runs with no narration, so this reads the actions of two runs alone; it is not a measurement, and this goal has no route table to check it against.",
+        "evidence": [
+          { "runId": "run_kai-next-parcel-1", "stepIndex": 1 },
+          { "runId": "run_kai-next-parcel-2", "stepIndex": 1 }
+        ],
+        "basis": [],
+        "recommendation": "Give the delivery address on /account the prominence of the page's main links, for example a plain link near the top of the page, as /deliveries has.",
+        "personaIds": ["prof_kai"]
+      }
+    ],
+    "leftOut": { "olderRuns": 0, "otherBackend": 0, "sweepRuns": 0 },
+    "unevidencedClosures": []
+  }
+]
