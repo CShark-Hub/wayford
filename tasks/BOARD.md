@@ -107,7 +107,7 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 | s3-11 | Lens: the preview redesigned | M | s3-13 | Tomasz | done |
 | s3-12 | Race and run detail redesigned | M | s3-13, s3-03 | Dawid | review |
 | s3-08 | Report screen | M | s4-04, s3-13 | Grzegorz | doing |
-| s3-09 | Boundary screen | M | s4-05, s3-13 | Marcin | doing |
+| s3-09 | Boundary screen | M | s4-05, s3-13 | Marcin | review |
 | s4-07 | `seed:demo`: the demo's data in one command | M | s4-04, s4-05, s2-12 | Marcin | review |
 | demo-1 | Agree the 90-second script, `docs/DEMO.md`, and rehearse beats 1 to 4 | — | by Friday 2026-10-09 | team | todo |
 | demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task | team | todo |
