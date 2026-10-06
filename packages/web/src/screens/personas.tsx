@@ -25,7 +25,7 @@ const READING: Record<MetricName, (threshold: number) => string> = {
 // The outline takes the text's colour: the theme's border colour, 1.3:1 on the card, is too faint
 // for a dashed outline to read as one.
 const BADGE =
-  "rounded-md border border-muted-foreground px-1.5 font-mono text-xs text-muted-foreground";
+  "rounded-md border border-muted-foreground px-1.5 font-mono text-sm text-muted-foreground";
 
 /**
  * A threshold's source, as its id in `docs/RULES.md`. `folk` and `llm` cite nothing, and core asks
@@ -45,8 +45,10 @@ function ThresholdRow({ metric, threshold }: { metric: MetricName; threshold: Th
   const softness = threshold.softness ?? 0;
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span className="font-medium">{READING[metric](threshold.threshold)}</span>
-      {softness > 0 ? <span className="text-muted-foreground">{`soft ${softness}`}</span> : null}
+      <span className="font-mono">{READING[metric](threshold.threshold)}</span>
+      {softness > 0 ? (
+        <span className="font-mono text-muted-foreground">{`soft ${softness}`}</span>
+      ) : null}
       <ProvenanceBadge provenance={threshold.provenance} />
     </li>
   );
@@ -68,14 +70,14 @@ export function PersonaCard({ profile }: { profile: Profile }) {
   return (
     <article
       aria-labelledby={headingId}
-      className="flex h-full flex-col gap-5 rounded-xl border border-t-4 bg-card p-6 text-card-foreground"
+      className="flex h-full flex-col gap-5 rounded-2xl border border-t-4 bg-card p-6 text-card-foreground"
       // The persona's colour is the card's one accent, the thing that later crosses into the
       // report. Everything else on the card keeps to the theme.
       style={{ borderTopColor: personaColour(profile) }}
     >
       <Avatar profile={profile} className="mx-auto size-40" />
       <div className="flex flex-col gap-2">
-        <h2 id={headingId} className="text-3xl font-bold tracking-tight">
+        <h2 id={headingId} className="text-3xl font-extrabold tracking-tight">
           {profile.label}
         </h2>
         <p className="text-sm text-muted-foreground">{profile.description}</p>
@@ -88,7 +90,7 @@ export function PersonaCard({ profile }: { profile: Profile }) {
         {/* The number the avatar's hourglass is drawn from. */}
         <div>
           <dt className="text-muted-foreground">Budget</dt>
-          <dd className="font-medium">{`${profile.behaviour.budgetSeconds} s`}</dd>
+          <dd className="font-mono font-medium">{`${profile.behaviour.budgetSeconds} s`}</dd>
         </div>
       </dl>
       <div className="flex flex-col gap-2">
@@ -111,14 +113,14 @@ export function PersonaCard({ profile }: { profile: Profile }) {
 export function PersonasScreen() {
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold">Personas</h1>
-        <p className="text-sm text-muted-foreground">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">Personas</h1>
+        <p className="text-base text-muted-foreground">
           Each persona is a set of limits on what the model sees and does, never a character it is
           told to play.
         </p>
       </header>
-      <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+      <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-5">
         {bundledProfiles.map((profile) => (
           <li key={profile.id}>
             <PersonaCard profile={profile} />

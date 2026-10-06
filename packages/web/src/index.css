@@ -30,6 +30,9 @@
   --font-mono:
     "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
+  /* 14 px, the projector floor: text-xs then draws what text-sm does, so old classes stay legal. */
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.25rem;
 }
 
 @theme inline {
@@ -111,37 +114,41 @@
 .dark {
   /* Native scrollbars and form controls follow the theme too. */
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* A ford at night: cool near-black chrome, one hue at 250, no brand colour. The contrast of
+     each pair is in docs/DESIGN.md, "Colour". */
+  --background: oklch(0.16 0.012 250);
+  --foreground: oklch(0.97 0.005 250);
+  --card: oklch(0.205 0.014 250);
+  --card-foreground: oklch(0.97 0.005 250);
+  --popover: oklch(0.205 0.014 250);
+  --popover-foreground: oklch(0.97 0.005 250);
+  --primary: oklch(0.93 0.008 250);
+  --primary-foreground: oklch(0.205 0.014 250);
+  --secondary: oklch(0.27 0.016 250);
+  --secondary-foreground: oklch(0.97 0.005 250);
+  --muted: oklch(0.27 0.016 250);
+  --muted-foreground: oklch(0.72 0.012 250);
+  --accent: oklch(0.27 0.016 250);
+  --accent-foreground: oklch(0.97 0.005 250);
+  /* The one hue that is not a persona's, for errors only. */
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(0.97 0.005 250 / 10%);
+  --input: oklch(0.97 0.005 250 / 15%);
+  --ring: oklch(0.6 0.02 250);
+  /* shadcn's chart slots, unused: chart marks follow docs/DESIGN.md, "Charts". */
+  --chart-1: oklch(0.87 0.008 250);
+  --chart-2: oklch(0.72 0.012 250);
+  --chart-3: oklch(0.556 0.014 250);
+  --chart-4: oklch(0.439 0.014 250);
+  --chart-5: oklch(0.32 0.014 250);
+  --sidebar: oklch(0.205 0.014 250);
+  --sidebar-foreground: oklch(0.97 0.005 250);
+  --sidebar-primary: oklch(0.93 0.008 250);
+  --sidebar-primary-foreground: oklch(0.205 0.014 250);
+  --sidebar-accent: oklch(0.27 0.016 250);
+  --sidebar-accent-foreground: oklch(0.97 0.005 250);
+  --sidebar-border: oklch(0.97 0.005 250 / 10%);
+  --sidebar-ring: oklch(0.6 0.02 250);
 }
 
 @layer base {
@@ -151,12 +158,20 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Keyboard focus on every element: a solid outline in the full-strength ring colour, 4.2:1 on
-     the dark background. The half-strength ring above reaches 1.9:1, under WCAG 2.2's 3:1 for
+  /* Keyboard focus on every element: a solid outline in the full-strength ring colour, 4.9:1 on
+     the dark background. The half-strength ring above reaches 2.1:1, under WCAG 2.2's 3:1 for
      non-text contrast, and an outline, unlike a box-shadow ring, survives forced-colours mode. A
      shadcn component that sets `outline-none` keeps its own ring: utilities outrank this layer. */
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+  /* Colour and opacity fade in 150 ms; under reduced motion there are no transitions. A
+     `transition-*` utility reads this variable unless a `duration-*` class sets its own, which
+     docs/DESIGN.md rules out. Base outranks the theme layer that sets it. */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --default-transition-duration: 0s;
+    }
   }
 }

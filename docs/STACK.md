@@ -111,6 +111,8 @@ target-app  imports nothing
 
 A package that may not be imported is banned with every subpath: in `agent`, `@wayford/io` and `@wayford/io/src/app.js` both fail lint, and in `web` every `@wayford/filter` import fails except `@wayford/filter/perceive` itself.
 
+Web's `scripts/` may also import `@wayford/filter`'s main entry, for the self-check's `collect`: it is Node only and never bundled, while `src/` keeps the `./perceive`-only rule.
+
 A relative import stays inside its package. In every package, lint fails on a relative path where a `..` segment is followed by `core`, `filter`, `agent`, `io`, `web`, `target-app` or `packages`, such as `../../io/src/config.js` or `../../../packages/io/src/config.js`. That holds where the other package may be imported by name too: `agent` imports `@wayford/core`, never `../../core/src/run.js`. A relative path into `node_modules` fails as well. The check reads the path, not where the file sits, so a package may not name one of its own directories after any of them.
 
 `pnpm typecheck` catches two more mistakes, both with TS2307: a workspace package missing from the importing package's `package.json`, since pnpm links declared dependencies only, and a subpath the package does not export, such as `@wayford/core/src/run.js` from `io`, since TypeScript resolves a workspace package through its `exports` only.

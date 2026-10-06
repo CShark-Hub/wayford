@@ -245,6 +245,55 @@
       }
     },
     {
+      "includes": ["packages/web/scripts/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@wayford/agent": "web imports core only, talks to io over HTTP (docs/STACK.md)",
+                  "@wayford/io": "web imports core only, talks to io over HTTP (docs/STACK.md)",
+                  "@wayford/target-app": "web imports core only (docs/STACK.md)"
+                },
+                "patterns": [
+                  {
+                    "group": ["@wayford/filter/**", "!@wayford/filter/perceive"],
+                    "message": "web's scripts/ import filter's main entry and ./perceive only (docs/STACK.md)"
+                  },
+                  {
+                    "group": ["@wayford/agent/**", "@wayford/io/**"],
+                    "message": "web imports core only, talks to io over HTTP (docs/STACK.md)"
+                  },
+                  {
+                    "group": ["@wayford/target-app/**"],
+                    "message": "web imports core only (docs/STACK.md)"
+                  },
+                  {
+                    "group": [
+                      "**/../core/**",
+                      "**/../filter/**",
+                      "**/../agent/**",
+                      "**/../io/**",
+                      "**/../web/**",
+                      "**/../target-app/**",
+                      "**/../packages/**"
+                    ],
+                    "message": "a relative path must not name core, filter, agent, io, web, target-app or packages right after a .. segment: it leaves the package, or reaches a directory name reserved for packages (docs/STACK.md)"
+                  },
+                  {
+                    "group": ["**/node_modules/**"],
+                    "message": "a relative path must not reach into node_modules; import the package by name (docs/STACK.md)"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["packages/target-app/**"],
       "linter": {
         "rules": {
