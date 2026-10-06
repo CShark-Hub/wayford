@@ -6,5 +6,6 @@ export * from "./jev-actor.js";
 export * from "./llm.js";
 export * from "./llm-actor.js";
 export * from "./llm-settings.js";
+export * from "./models.js";
 export * from "./run-context.js";
 export * from "./start-url.js";

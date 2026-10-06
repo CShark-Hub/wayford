@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./cli": "./src/cli.ts",
     "./fake": "./src/fake-llm.ts",
     "./scout": "./src/scout.ts"
   },

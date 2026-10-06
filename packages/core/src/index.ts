@@ -12,4 +12,5 @@ export * from "./profile.js";
 export * from "./random.js";
 export * from "./report.js";
 export * from "./run.js";
+export * from "./sweep.js";
 export * from "./task.js";

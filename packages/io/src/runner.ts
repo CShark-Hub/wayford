@@ -29,6 +29,7 @@ import {
   RunEvent,
   type RunId,
   type RunResult,
+  type RunSweep,
   runResultFromEvents,
   type Seed,
   type Task,
@@ -90,6 +91,11 @@ export interface LiveRun {
 export interface RunSetOptions {
   /** The Actor backend of every run of the set: the runner's default when absent. */
   backend?: ActorBackendName;
+  /**
+   * The sweep the set belongs to, which every run keeps on `runStarted` and its record. The
+   * caller has already set the swept value on the profiles (s4-05).
+   */
+  sweep?: RunSweep;
 }
 
 export interface Runner {
@@ -129,7 +135,13 @@ export function createRunner(options: RunnerOptions): Runner {
    */
   async function job(
     runId: RunId,
-    inputs: { task: Task; profile: Profile; seed: Seed; backend: ActorBackendFactory },
+    inputs: {
+      task: Task;
+      profile: Profile;
+      seed: Seed;
+      backend: ActorBackendFactory;
+      sweep?: RunSweep;
+    },
     slot: Promise<void>,
     live: LiveWriter,
   ): Promise<void> {
@@ -159,9 +171,11 @@ export function createRunner(options: RunnerOptions): Runner {
   }
 
   return {
-    start(task, profiles, seeds, { backend: name = defaultBackend } = {}) {
+    start(task, profiles, seeds, { backend: name = defaultBackend, sweep } = {}) {
       // Picked once for the whole set, so its runs never mix backends.
       const backend = backends[name];
+      // The key is left out of a set that is no sweep's, not set to undefined.
+      const inSweep = sweep === undefined ? {} : { sweep };
       const started: StartedRun[] = [];
       // Seed-major: a set cut short still has whole seeds, comparable across personas (A20).
       for (const seed of seeds) {
@@ -171,7 +185,7 @@ export function createRunner(options: RunnerOptions): Runner {
           // Stored as a `LiveRun`, so a reader gets no way to publish.
           lives.set(id, live);
           // The slot is asked for now, in call order, so the queue is FIFO across `start` calls.
-          void job(id, { task, profile, seed, backend }, slots.take(), live);
+          void job(id, { task, profile, seed, backend, ...inSweep }, slots.take(), live);
           started.push({ id, profileId: profile.id, seed });
         }
       }

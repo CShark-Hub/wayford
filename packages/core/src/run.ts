@@ -86,6 +86,9 @@ export const RunSweep = z.discriminatedUnion("axis", [
 ]);
 export type RunSweep = z.infer<typeof RunSweep>;
 
+/** The most seeds one run set takes: `POST /runs` and a sweep. */
+export const MAX_RUN_SET_SEEDS = 10;
+
 /**
  * Token counts and dollars, for a run or for one step. Whole tokens; USD is a
  * real number. A run's total can exceed the sum of its steps: a step's cost

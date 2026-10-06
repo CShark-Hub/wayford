@@ -6,7 +6,8 @@
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, "chromium.ts" and decision log, "The browser").
  *
  * It stays out of io's barrel (spec, decision log, "The barrel"): it loads agent's runtime and
- * Playwright. Outside its tests, `server.ts` is its only importer.
+ * Playwright. Outside its tests, `server.ts` and the sweep CLI, `sweep-cli.ts`, are its only
+ * importers.
  */
 import { runActor } from "@wayford/agent";
 import { WayfordError } from "@wayford/core";

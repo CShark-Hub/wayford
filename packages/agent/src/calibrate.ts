@@ -36,24 +36,23 @@ import { calibrationSet, renderTable } from "./calibration.js";
 import {
   type CalibrationReport,
   calibrate,
-  checkEstimate,
   SEED_DEMO_RUNS,
-  usd,
   writeReport,
 } from "./calibration-run.js";
 import {
   BACKEND_USAGE,
   launchChromium,
   loadRootEnv,
-  parseSeed,
   printFailure,
   RUNS_DIR,
   readBackend,
+  readMaxUsd,
+  readSeeds,
   scriptArgs,
   serveOnFixturePort,
 } from "./cli.js";
 import { type ActorBackendName, parseLlmSettings } from "./llm-settings.js";
-import { loadModelPrices, priceOf } from "./models.js";
+import { checkEstimate, loadModelPrices, priceOf, usd } from "./models.js";
 
 const REPORTS_DIR = join(RUNS_DIR, "calibration");
 
@@ -70,21 +69,6 @@ interface Arguments {
   maxUsd: number;
   /** Absent: `LLM_ACTOR_BACKEND`'s, read once `.env` is loaded. */
   backend: ActorBackendName | undefined;
-}
-
-/** `a-b` as every seed from a to b, or `n` as that one seed; or why it cannot be read. */
-function readSeeds(text: string): Seed[] | string {
-  const bad = `--seeds is a range a-b or a single seed n, integers from 0 to 4294967295, got ${text}`;
-  const range = /^(\d+)(?:-(\d+))?$/.exec(text);
-  if (range === null) return bad;
-  // The match holds digits only, so `parseSeed` refuses a part only when it is out of range.
-  const first = parseSeed(range[1] ?? "");
-  const last = range[2] === undefined ? first : parseSeed(range[2]);
-  if (first === undefined || last === undefined) return bad;
-  if (first > last) return `--seeds ${text} runs backwards: the range's first seed is its lowest`;
-  // Checked before the list is built, so a range of billions is refused, not allocated.
-  if (last - first + 1 > MAX_SEEDS) return `--seeds names more than ${MAX_SEEDS} seeds: ${text}`;
-  return Array.from({ length: last - first + 1 }, (_, i) => first + i);
 }
 
 /**
@@ -111,18 +95,13 @@ function readArguments(argv: readonly string[]): Arguments | string {
 
   let seeds = DEFAULT_SEEDS;
   if (values.seeds !== undefined) {
-    const read = readSeeds(values.seeds);
+    const read = readSeeds(values.seeds, MAX_SEEDS);
     if (typeof read === "string") return read;
     seeds = read;
   }
 
-  let maxUsd = DEFAULT_MAX_USD;
-  if (values["max-usd"] !== undefined) {
-    const text = values["max-usd"];
-    // Plain decimals only, for the same reason as the seeds.
-    maxUsd = /^(\d+(\.\d*)?|\.\d+)$/.test(text) ? Number(text) : Number.NaN;
-    if (!(maxUsd > 0)) return `--max-usd is a positive number of USD, got ${text}`;
-  }
+  const maxUsd = readMaxUsd(values["max-usd"], DEFAULT_MAX_USD);
+  if (typeof maxUsd === "string") return maxUsd;
 
   const flag = readBackend(values.backend);
   if ("error" in flag) return flag.error;
@@ -169,7 +148,13 @@ async function main(args: Arguments): Promise<number> {
 
   // `calibrate()` makes this check too; made here as well, an over-budget set serves no app and
   // launches no browser.
-  checkEstimate(price, rows.length * args.seeds.length, DEFAULT_MAX_STEPS, args.maxUsd);
+  checkEstimate(
+    price,
+    rows.length * args.seeds.length,
+    DEFAULT_MAX_STEPS,
+    args.maxUsd,
+    "calibration_over_budget",
+  );
 
   // Log lines to stderr, without pid or hostname, so stdout is the table alone and can be pasted.
   const logger = pino({ base: null }, pino.destination(2));

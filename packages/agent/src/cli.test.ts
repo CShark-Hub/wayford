@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { ENV_FILE, parseSeed, RUNS_DIR, readBackend, scriptArgs } from "./cli.js";
+import { ENV_FILE, parseSeed, RUNS_DIR, readBackend, readMaxUsd, scriptArgs } from "./cli.js";
 
 describe("parseSeed", () => {
   test.each([
@@ -48,6 +48,26 @@ describe("readBackend", () => {
   // Only the exact names: a backend that is not one of ours is never guessed at.
   test.each(["", "JEV", "claude-code"])("%j is refused with the names it could be", (text) => {
     expect(readBackend(text)).toStrictEqual({ error: `--backend is llm or jev, got ${text}` });
+  });
+});
+
+describe("readMaxUsd", () => {
+  test("an absent flag is the fallback", () => {
+    expect(readMaxUsd(undefined, 2)).toBe(2);
+  });
+
+  test.each([
+    ["0.5", 0.5],
+    ["3", 3],
+    [".25", 0.25],
+    ["1.", 1],
+  ])("%s is %d USD", (text, maxUsd) => {
+    expect(readMaxUsd(text, 2)).toBe(maxUsd);
+  });
+
+  // `Number` would read the first three; the last two are not positive.
+  test.each(["1e3", "0x10", " 1", "0", "-1"])("%j is refused", (text) => {
+    expect(readMaxUsd(text, 2)).toBe(`--max-usd is a positive number of USD, got ${text}`);
   });
 });
 

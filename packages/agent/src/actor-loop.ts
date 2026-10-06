@@ -41,6 +41,7 @@ import {
   runResultFromEvents,
   Seed,
   SuccessCondition,
+  sweptValueOf,
   type Task,
   toActorObservation,
   WayfordError,
@@ -174,7 +175,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   // `sweep.value` is the record's only trace of the swept threshold, so it must be the one applied.
   if (options.sweep !== undefined) {
     const { axis, value } = options.sweep;
-    const applied = sweptField(profile, axis);
+    const applied = sweptValueOf(profile, axis);
     if (applied !== value) {
       throw invalidInput(
         `the sweep records ${axis} ${value}, but the profile sets ${applied ?? "none"}`,
@@ -573,16 +574,6 @@ function messageText(thrown: unknown): string {
 // ---------------------------------------------------------------------------
 // Small parts
 // ---------------------------------------------------------------------------
-
-/** The profile field a sweep axis sets (`tasks/s4-05-sweep.md`, "Axes"), absent when unset. */
-function sweptField(profile: Profile, axis: RunSweep["axis"]): number | undefined {
-  switch (axis) {
-    case "contrast":
-      return profile.perception.contrast?.threshold;
-    case "maxElements":
-      return profile.behaviour.maxElements;
-  }
-}
 
 function invalidInput(why: string): WayfordError {
   return new WayfordError("invalid_run_input", `Invalid run input: ${why}`);

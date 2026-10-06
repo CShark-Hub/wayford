@@ -23,6 +23,7 @@ import {
   profileFixtures,
   runEventFixtures,
   runResultFixture,
+  sweepFixtures,
   taskFixtures,
 } from "./index.js";
 
@@ -145,6 +146,7 @@ describe("references between the fixtures", () => {
   test.each([
     { name: "run-result.json", run: runResultFixture },
     { name: "run-events.json", run: started },
+    ...sweepFixtures.map((sweep) => ({ name: `sweeps.json ${sweep.id}`, run: sweep })),
   ])("$name names a task and a profile that exist", ({ run }) => {
     expect(unknownIds(run)).toEqual([]);
   });

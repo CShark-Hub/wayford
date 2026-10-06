@@ -11,7 +11,7 @@
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Profile, type RunId, type RunOutcome, type Seed, WayfordError } from "@wayford/core";
+import type { Profile, RunId, RunOutcome, Seed } from "@wayford/core";
 import { targetAppJargon } from "@wayford/core/fixtures";
 import type { Logger } from "pino";
 import type { Browser } from "playwright";
@@ -23,7 +23,6 @@ import {
   costOfRun,
   type End,
   endOfRun,
-  estimateUsd,
   goNoGo,
   type ReportHeader,
   type RowSummary,
@@ -31,7 +30,7 @@ import {
   summarise,
 } from "./calibration.js";
 import type { ActorBackendName, RoleSettings } from "./llm-settings.js";
-import type { ModelPrice } from "./models.js";
+import { checkEstimate, type ModelPrice } from "./models.js";
 import { TARGET_APP_DEFAULTS } from "./start-url.js";
 
 /** At most this many runs at a time when the caller sets none (`docs/PLAN.md` F6 AC1). */
@@ -122,27 +121,6 @@ export interface CalibrationReport {
 }
 
 /**
- * The set's estimated cost, or `calibration_over_budget` when it exceeds `maxUsd`. `calibrate()`
- * checks it first, and the CLI checks it again before it serves the app or launches a browser.
- */
-export function checkEstimate(
-  price: ModelPrice,
-  runs: number,
-  maxSteps: number,
-  maxUsd: number,
-): number {
-  const estimate = estimateUsd(price, runs, maxSteps);
-  if (estimate > maxUsd) {
-    const steps = `${maxSteps} step${maxSteps === 1 ? "" : "s"}`;
-    throw new WayfordError(
-      "calibration_over_budget",
-      `the estimate for ${runs} runs of at most ${steps} is ${usd(estimate)}, over the limit of ${usd(maxUsd)}`,
-    );
-  }
-  return estimate;
-}
-
-/**
  * Runs the set and returns its report. The estimate is checked first: over `maxUsd`, it throws a
  * `WayfordError` with code `calibration_over_budget` before the backend factory is called or any
  * run starts. Then every row × seed runs through `runActor`, seed by seed, at most `concurrency`
@@ -160,6 +138,7 @@ export async function calibrate(options: CalibrateOptions): Promise<CalibrationR
     rows.length * seeds.length,
     DEFAULT_MAX_STEPS,
     maxUsd,
+    "calibration_over_budget",
   );
   const startedAt = new Date(Date.now()).toISOString();
 
@@ -371,9 +350,4 @@ async function runOne(
 function rebase(startUrl: string, origin: string): string {
   const url = new URL(startUrl);
   return new URL(`${url.pathname}${url.search}${url.hash}`, origin).href;
-}
-
-/** An amount as the CLI and the errors print it, like `0.2250 USD`. */
-export function usd(amount: number): string {
-  return `${amount.toFixed(4)} USD`;
 }

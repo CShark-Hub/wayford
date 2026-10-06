@@ -1,9 +1,9 @@
 /**
  * The calibration set and the arithmetic of its table (`tasks/s2-11-calibration-run.md`,
  * `docs/specs/2026-10-02-s2-11-calibration-run.md`): which rows run, which route a success took,
- * how the other runs ended, the medians, the week 3 go/no-go, the cost estimate and the table as
- * text. Pure: no browser, no network and no clock. `calibration-run.ts` runs the set and hands its
- * runs here.
+ * how the other runs ended, the medians, the week 3 go/no-go and the table as text. Pure: no
+ * browser, no network and no clock. `calibration-run.ts` runs the set and hands its runs here; the
+ * cost estimate is `estimateUsd` in `models.ts`.
  *
  * Nothing here judges a run anew. Success is the task's own condition, already in `outcome`, and
  * the route is a lookup of the page the run was on just before it.
@@ -12,7 +12,6 @@ import { Profile, type RunId, type RunResult, type Seed, type Task } from "@wayf
 import { profileFixture, taskFixture } from "@wayford/core/fixtures";
 import { TARGET_APP_ROUTES, type TargetAppRoute } from "@wayford/filter/serve-target-app";
 import type { ActorBackendName, RoleSettings } from "./llm-settings.js";
-import { costOf, type ModelPrice } from "./models.js";
 
 /** The easy goal: the delivery address, two clicks from home. */
 const EASY_TASK_ID = "task_next-parcel";
@@ -213,21 +212,6 @@ export function summarise(
 export function goNoGo(rows: readonly RowSummary[], notRun: number): "go" | "no-go" | "incomplete" {
   if (notRun > 0) return "incomplete";
   return rows.some((row) => row.verdict === "fail") ? "no-go" : "go";
-}
-
-// Per Actor call. The real calibration run of 2026-10-02 (Luna at effort high) measured about
-// 1,000 tokens in and 100 out per step; these keep a margin of about 2x to 5x over it.
-const ESTIMATE_TOKENS_IN_PER_STEP = 2000;
-const ESTIMATE_TOKENS_OUT_PER_STEP = 500;
-
-/**
- * What the set would cost if every run took every step at that per-step figure. An
- * estimate, not a bound: retries, repairs, long reasoning and a regional host can exceed it. On a
- * free model it is 0.
- */
-export function estimateUsd(price: ModelPrice, runs: number, maxSteps: number): number {
-  const perStep = costOf(price, ESTIMATE_TOKENS_IN_PER_STEP, ESTIMATE_TOKENS_OUT_PER_STEP).usd;
-  return runs * maxSteps * perStep;
 }
 
 /** What the table was run on, printed above it. */

@@ -7,6 +7,7 @@ import { type MeasureFn, measureRoute } from "./routes/measure.js";
 import { profilesRoute } from "./routes/profiles.js";
 import { reportsRoute } from "./routes/reports.js";
 import { runsRoute } from "./routes/runs.js";
+import { sweepsRoute } from "./routes/sweeps.js";
 import { tasksRoute } from "./routes/tasks.js";
 import { createRunner, type RunnerOptions } from "./runner.js";
 
@@ -61,6 +62,7 @@ export function createApp(options: AppOptions) {
     .route("/profiles", profilesRoute())
     .route("/reports", reportsRoute(options))
     .route("/runs", runsRoute({ ...options, runner }))
+    .route("/sweeps", sweepsRoute(options))
     .route("/tasks", tasksRoute(options))
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);

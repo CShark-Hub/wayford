@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { type Cost, WayfordError } from "@wayford/core";
 import { parse } from "yaml";
 import { z } from "zod";
+import type { ActorBackendName, LlmSettings } from "./llm-settings.js";
 
 export const ModelPrice = z
   .object({
@@ -51,4 +52,52 @@ export function priceOf(prices: Record<string, ModelPrice>, model: string): Mode
 /** What `tokensIn` and `tokensOut` cost at `price`, whose rates are per million. */
 export function costOf(price: ModelPrice, tokensIn: number, tokensOut: number): Cost {
   return { tokensIn, tokensOut, usd: (tokensIn * price.input + tokensOut * price.output) / 1e6 };
+}
+
+// Per Actor call. The real calibration run of 2026-10-02 (Luna at effort high) measured about
+// 1,000 tokens in and 100 out per step; these keep a margin of about 2x to 5x over it.
+const ESTIMATE_TOKENS_IN_PER_STEP = 2000;
+const ESTIMATE_TOKENS_OUT_PER_STEP = 500;
+
+/**
+ * What a set of runs would cost if every run took every step at that per-step figure. An
+ * estimate, not a bound: retries, repairs, long reasoning and a regional host can exceed it. On a
+ * free model it is 0. `calibrate` and the sweep CLI check it before they start.
+ */
+export function estimateUsd(price: ModelPrice, runs: number, maxSteps: number): number {
+  const perStep = costOf(price, ESTIMATE_TOKENS_IN_PER_STEP, ESTIMATE_TOKENS_OUT_PER_STEP).usd;
+  return runs * maxSteps * perStep;
+}
+
+/**
+ * The set's estimated cost, or a `WayfordError` with `code` when it exceeds `maxUsd`:
+ * `calibration_over_budget` from `calibrate`, `sweep_over_budget` from the sweep. Each checks it
+ * before anything is served or launched.
+ */
+export function checkEstimate(
+  price: ModelPrice,
+  runs: number,
+  maxSteps: number,
+  maxUsd: number,
+  code: string,
+): number {
+  const estimate = estimateUsd(price, runs, maxSteps);
+  if (estimate > maxUsd) {
+    const steps = `${maxSteps} step${maxSteps === 1 ? "" : "s"}`;
+    throw new WayfordError(
+      code,
+      `the estimate for ${runs} runs of at most ${steps} is ${usd(estimate)}, over the limit of ${usd(maxUsd)}`,
+    );
+  }
+  return estimate;
+}
+
+/** The model the Actor runs on `backend`: Jev's on Jev, the Actor role's on the LLM. */
+export function actorModelOf(settings: LlmSettings, backend: ActorBackendName): string {
+  return backend === "jev" ? settings.jevModel : settings.roles.actor.model;
+}
+
+/** An amount as the CLI and the errors print it, like `0.2250 USD`. */
+export function usd(amount: number): string {
+  return `${amount.toFixed(4)} USD`;
 }

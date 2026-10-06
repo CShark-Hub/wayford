@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "dev": "tsx watch src/server.ts",
+    "sweep": "tsx src/sweep-cli.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },

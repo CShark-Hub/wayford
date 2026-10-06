@@ -129,6 +129,27 @@ test("start mints a run per seed × persona, seed-major, and returns before any 
   }
 });
 
+test("a set started with a sweep hands it to every run and each stored run carries it; a set without one hands none", async () => {
+  const run = fakeRun();
+  const runner = runnerOn(run);
+  // Vera's own contrast threshold, so the stamp names the value her profile applies.
+  const sweep = { sweepId: "swp_vera-contrast", axis: "contrast", value: 3 } as const;
+  const swept = runner.start(task, [vera], [1, 2], { sweep });
+  const plain = runner.start(task, [vera], [3]);
+
+  for (const { id } of [...swept, ...plain]) await drain(runner.live(id));
+  const callOf = (id: string) => run.calls.find(({ runId }) => runId === id);
+  for (const { id } of swept) {
+    expect(callOf(id)?.sweep).toStrictEqual(sweep);
+    expect((await loadRun(store.db, id))?.sweep).toStrictEqual(sweep);
+  }
+  for (const { id } of plain) {
+    // The key is left out, not set to undefined.
+    expect(callOf(id)).not.toHaveProperty("sweep");
+    expect(await loadRun(store.db, id)).not.toHaveProperty("sweep");
+  }
+});
+
 test("five runs at once; the rest start in queue order across two start calls, as slots free", async () => {
   expect(MAX_CONCURRENT_RUNS).toBe(5);
   const { hold, open } = gates();

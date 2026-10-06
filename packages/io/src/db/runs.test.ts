@@ -110,6 +110,37 @@ describe("listRuns", () => {
   });
 });
 
+test("sweep runs are left out of listRuns unless it is given their sweep id (issue #64)", async () => {
+  const swept: RunResult = {
+    ...fixture,
+    id: "run_vera-contrast-3",
+    sweep: { sweepId: "swp_vera-contrast", axis: "contrast", value: 3 },
+  };
+  await saveRun(db, fixture, startedAt);
+  await saveRun(db, swept, startedAt);
+  expect(ids(await listRuns(db))).toStrictEqual([fixture.id]);
+  expect(ids(await listRuns(db, { profileId: fixture.profileId }))).toStrictEqual([fixture.id]);
+  expect(await listRuns(db, { sweepId: "swp_vera-contrast" })).toStrictEqual([swept]);
+  expect(await listRuns(db, { sweepId: "swp_vera-contrast", outcome: "success" })).toStrictEqual(
+    [],
+  );
+  expect(await listRuns(db, { sweepId: "swp_other" })).toStrictEqual([]);
+});
+
+test("a reader that counts sweep runs itself asks for them with sweeps: include", async () => {
+  // The Analyst leaves sweep runs out of its report and says how many (s4-04), so it reads them.
+  const swept: RunResult = {
+    ...fixture,
+    id: "run_vera-contrast-3",
+    sweep: { sweepId: "swp_vera-contrast", axis: "contrast", value: 3 },
+  };
+  await saveRun(db, fixture, startedAt);
+  await saveRun(db, swept, startedAt);
+  expect(ids(await listRuns(db, { taskId: fixture.taskId, sweeps: "include" }))).toStrictEqual(
+    ids([swept, fixture].sort((a, b) => b.id.localeCompare(a.id))),
+  );
+});
+
 test("start times order by time, whatever width they were given at", async () => {
   // As text, "…10:00:00Z" sorts after "…10:00:00.500Z", half a second later.
   await saveRun(db, fixture, "2026-09-22T10:00:00Z");

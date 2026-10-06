@@ -6,8 +6,9 @@
  * backend a command runs on is built by `backend-factory.ts`, which io shares (issue #161).
  *
  * Importing it loads no `.env`, serves nothing and launches nothing, so a test can import it; a
- * command calls what it needs. It is not in the barrel: it serves the commands, not the
- * package's users.
+ * command calls what it needs. It is not in the barrel, since it loads Playwright and
+ * serve-target-app: it serves the commands, not the package's users. io's sweep CLI imports it
+ * through `@wayford/agent/cli`.
  */
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -69,6 +70,39 @@ export async function launchChromium(): Promise<Browser> {
 export function parseSeed(text: string): Seed | undefined {
   const parsed = Seed.safeParse(/^\d+$/.test(text) ? Number(text) : Number.NaN);
   return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * `--seeds`: `a-b` as every seed from a to b, or `n` as that one seed; or why it cannot be read.
+ * More than `maxSeeds` seeds is refused as a typo.
+ */
+export function readSeeds(text: string, maxSeeds: number): Seed[] | string {
+  const bad = `--seeds is a range a-b or a single seed n, integers from 0 to 4294967295, got ${text}`;
+  const range = /^(\d+)(?:-(\d+))?$/.exec(text);
+  if (range === null) return bad;
+  // The match holds digits only, so `parseSeed` refuses a part only when it is out of range.
+  const first = parseSeed(range[1] ?? "");
+  const last = range[2] === undefined ? first : parseSeed(range[2]);
+  if (first === undefined || last === undefined) return bad;
+  if (first > last) return `--seeds ${text} runs backwards: the range's first seed is its lowest`;
+  // Checked before the list is built, so a range of billions is refused, not allocated.
+  if (last - first + 1 > maxSeeds) return `--seeds names more than ${maxSeeds} seeds: ${text}`;
+  return Array.from({ length: last - first + 1 }, (_, i) => first + i);
+}
+
+/** Plain decimals only: `Number` would also read "1e3", " 7" or "0x10". NaN when not one. */
+export function readDecimal(text: string): number {
+  return /^(\d+(\.\d*)?|\.\d+)$/.test(text) ? Number(text) : Number.NaN;
+}
+
+/**
+ * `--max-usd`: the limit it names, `fallback` when the flag is absent, or why it cannot be read.
+ * Plain decimals only, for the same reason as the seeds: `Number` would also read "1e3" or "0x10".
+ */
+export function readMaxUsd(text: string | undefined, fallback: number): number | string {
+  if (text === undefined) return fallback;
+  const maxUsd = readDecimal(text);
+  return maxUsd > 0 ? maxUsd : `--max-usd is a positive number of USD, got ${text}`;
 }
 
 /**

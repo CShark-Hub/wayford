@@ -462,6 +462,34 @@ describe("GET /runs", () => {
       expect(typeof body.error).toBe("string");
     }
   });
+
+  test("sweep runs are absent from GET /runs and present under ?sweepId=", async () => {
+    const { app, db } = await appOn();
+    const swept: RunResult = {
+      ...runResultFixture,
+      id: "run_vera-contrast-3",
+      sweep: { sweepId: "swp_vera-contrast", axis: "contrast", value: 3 },
+    };
+    await saveRun(db, runResultFixture, fixtureStartedAt);
+    await saveRun(db, swept, fixtureStartedAt);
+
+    expect(await getJson(app, "/runs")).toStrictEqual({ status: 200, body: [runResultFixture] });
+    expect(await getJson(app, "/runs?profileId=prof_vera")).toStrictEqual({
+      status: 200,
+      body: [runResultFixture],
+    });
+    expect(await getJson(app, "/runs?sweepId=swp_vera-contrast")).toStrictEqual({
+      status: 200,
+      body: [swept],
+    });
+    expect(await getJson(app, "/runs?sweepId=swp_other")).toStrictEqual({ status: 200, body: [] });
+
+    for (const query of ["sweepId=vera-contrast", "sweepId=run_vera-hard-1"]) {
+      const { status, body } = await getJson(app, `/runs?${query}`);
+      expect(status, query).toBe(400);
+      expect(typeof body.error).toBe("string");
+    }
+  });
 });
 
 describe("GET /runs/:id", () => {

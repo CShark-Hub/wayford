@@ -10,7 +10,8 @@
  *   task and profile id; 415 from `createApp` for a body that is not `application/json`. On a 400,
  *   404 or 415 no run starts.
  * - `GET /`: every stored run matching the query's `taskId`, `profileId` and `outcome`, newest
- *   first, as `RunResult[]`. Any other key is a 400, so a misspelt filter never lists every run.
+ *   first, as `RunResult[]`. A sweep's runs are listed only under `?sweepId=`, never with the
+ *   persona's own. Any other key is a 400, so a misspelt filter never lists every run.
  * - `GET /:id`: the stored `RunResult`, or 404. A run in flight is a 404 until it is stored.
  * - `GET /:id/events`: the run's `RunEvent`s as server-sent events (below), or 404 for a run this
  *   process has not started.
@@ -37,7 +38,15 @@ import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { zValidator } from "@hono/zod-validator";
 import type { ActorBackendName } from "@wayford/agent";
-import { ProfileId, type RunEvent, RunOutcome, Seed, TaskId } from "@wayford/core";
+import {
+  MAX_RUN_SET_SEEDS,
+  ProfileId,
+  type RunEvent,
+  RunOutcome,
+  Seed,
+  SweepId,
+  TaskId,
+} from "@wayford/core";
 import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { type Context, Hono } from "hono";
 import { type SSEMessage, type SSEStreamingApi, streamSSE } from "hono/streaming";
@@ -47,12 +56,6 @@ import { listRuns, loadRun } from "../db/runs.js";
 import { loadTask } from "../db/tasks.js";
 import { attachment, runFilePath } from "../run-files.js";
 import type { LiveRun, Runner } from "../runner.js";
-
-/**
- * The most seeds one request carries: the seed set the project quotes ("10 seeds → 3/10 success",
- * `AGENTS.md`), so a typo of a thousand seeds bills nothing.
- */
-const MAX_SEEDS = 10;
 
 const unique = (items: readonly unknown[]) => new Set(items).size === items.length;
 
@@ -79,7 +82,9 @@ const RunsRequest = z
     seeds: z
       .array(Seed)
       .min(1)
-      .max(MAX_SEEDS)
+      // The seed set the project quotes ("10 seeds → 3/10 success", `AGENTS.md`), so a typo of a
+      // thousand seeds bills nothing.
+      .max(MAX_RUN_SET_SEEDS)
       .refine(unique, "each seed at most once: a run set runs a persona once per seed"),
     backend: ActorBackend.exactOptional(),
   })
@@ -91,6 +96,7 @@ const RunsQuery = z
     taskId: TaskId.exactOptional(),
     profileId: ProfileId.exactOptional(),
     outcome: RunOutcome.exactOptional(),
+    sweepId: SweepId.exactOptional(),
   })
   .strict();
 

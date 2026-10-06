@@ -21,6 +21,7 @@ import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
 import { Report } from "../report.js";
 import { DecisionRecord, RunEvent, RunResult } from "../run.js";
+import { Sweep } from "../sweep.js";
 import { Task } from "../task.js";
 
 /** Directory holding the persona YAML files. */
@@ -221,6 +222,21 @@ export const decisionRecordFixture: DecisionRecord = readJson(
   "decision-record.json",
   DecisionRecord,
 );
+
+/**
+ * Two complete sweeps of the hard goal (`s4-05`), seeds 1 to 10, on Jev. The numbers are
+ * illustrative, not a recorded run.
+ *
+ * Vera on `contrast`, 1.5 to 4.5 by 0.5: the boundary is 3.0, where 2 of 10 get through. Her
+ * route-open seeds shrink as the threshold rises and are nested, as the contrast rules are monotone
+ * per seed, and successes never outnumber them (`docs/RULES.md`, the calibration row "Sweep on
+ * contrast"). One run at 4.0 errored.
+ *
+ * Kai on `maxElements`, given as 4 to 16 by 2, so it runs 16 down to 4: the boundary is 10.
+ * Salience reads no seed, so a cap leaves a route open on every seed or on none. Below 10 none is
+ * open. His own cap, 11, lies between 10 and 12. One run at 8 errored.
+ */
+export const sweepFixtures: Sweep[] = readJson("sweeps.json", Sweep.array());
 
 /**
  * The Analyst's report (`s4-04`) on each goal of the target app, hard first, hand-written for the

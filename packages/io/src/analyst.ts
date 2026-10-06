@@ -143,7 +143,8 @@ export async function analyseAndStore(
     (await loadTask(deps.db, taskId)) ?? taskFixtures.find((fixture) => fixture.id === taskId);
   if (task === undefined) return { ok: false, error: `no task ${taskId}` };
   const { chosen, leftOut } = selectRuns(
-    await listRuns(deps.db, { taskId: task.id }),
+    // Sweep runs included: `chooseRuns` leaves them out and counts them for the report.
+    await listRuns(deps.db, { taskId: task.id, sweeps: "include" }),
     backend,
     deps.jevModel,
   );

@@ -1,0 +1,286 @@
+[
+  {
+    "id": "swp_vera-contrast",
+    "taskId": "task_past-order",
+    "profileId": "prof_vera",
+    "backend": "jev",
+    "seeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "startedAt": "2026-10-05T09:00:00.000Z",
+    "status": "complete",
+    "axis": "contrast",
+    "from": 1.5,
+    "to": 4.5,
+    "step": 0.5,
+    "values": [
+      {
+        "value": 1.5,
+        "runIds": [
+          "run_swp-vera-15-s1",
+          "run_swp-vera-15-s2",
+          "run_swp-vera-15-s3",
+          "run_swp-vera-15-s4",
+          "run_swp-vera-15-s5",
+          "run_swp-vera-15-s6",
+          "run_swp-vera-15-s7",
+          "run_swp-vera-15-s8",
+          "run_swp-vera-15-s9",
+          "run_swp-vera-15-s10"
+        ],
+        "successes": 9,
+        "errors": 0,
+        "routeOpenSeeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      },
+      {
+        "value": 2,
+        "runIds": [
+          "run_swp-vera-20-s1",
+          "run_swp-vera-20-s2",
+          "run_swp-vera-20-s3",
+          "run_swp-vera-20-s4",
+          "run_swp-vera-20-s5",
+          "run_swp-vera-20-s6",
+          "run_swp-vera-20-s7",
+          "run_swp-vera-20-s8",
+          "run_swp-vera-20-s9",
+          "run_swp-vera-20-s10"
+        ],
+        "successes": 8,
+        "errors": 0,
+        "routeOpenSeeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      },
+      {
+        "value": 2.5,
+        "runIds": [
+          "run_swp-vera-25-s1",
+          "run_swp-vera-25-s2",
+          "run_swp-vera-25-s3",
+          "run_swp-vera-25-s4",
+          "run_swp-vera-25-s5",
+          "run_swp-vera-25-s6",
+          "run_swp-vera-25-s7",
+          "run_swp-vera-25-s8",
+          "run_swp-vera-25-s9",
+          "run_swp-vera-25-s10"
+        ],
+        "successes": 5,
+        "errors": 0,
+        "routeOpenSeeds": [1, 2, 4, 5, 7, 9]
+      },
+      {
+        "value": 3,
+        "runIds": [
+          "run_swp-vera-30-s1",
+          "run_swp-vera-30-s2",
+          "run_swp-vera-30-s3",
+          "run_swp-vera-30-s4",
+          "run_swp-vera-30-s5",
+          "run_swp-vera-30-s6",
+          "run_swp-vera-30-s7",
+          "run_swp-vera-30-s8",
+          "run_swp-vera-30-s9",
+          "run_swp-vera-30-s10"
+        ],
+        "successes": 2,
+        "errors": 0,
+        "routeOpenSeeds": [2, 5, 9]
+      },
+      {
+        "value": 3.5,
+        "runIds": [
+          "run_swp-vera-35-s1",
+          "run_swp-vera-35-s2",
+          "run_swp-vera-35-s3",
+          "run_swp-vera-35-s4",
+          "run_swp-vera-35-s5",
+          "run_swp-vera-35-s6",
+          "run_swp-vera-35-s7",
+          "run_swp-vera-35-s8",
+          "run_swp-vera-35-s9",
+          "run_swp-vera-35-s10"
+        ],
+        "successes": 1,
+        "errors": 0,
+        "routeOpenSeeds": [5]
+      },
+      {
+        "value": 4,
+        "runIds": [
+          "run_swp-vera-40-s1",
+          "run_swp-vera-40-s2",
+          "run_swp-vera-40-s3",
+          "run_swp-vera-40-s4",
+          "run_swp-vera-40-s5",
+          "run_swp-vera-40-s6",
+          "run_swp-vera-40-s7",
+          "run_swp-vera-40-s8",
+          "run_swp-vera-40-s9",
+          "run_swp-vera-40-s10"
+        ],
+        "successes": 0,
+        "errors": 1,
+        "routeOpenSeeds": []
+      },
+      {
+        "value": 4.5,
+        "runIds": [
+          "run_swp-vera-45-s1",
+          "run_swp-vera-45-s2",
+          "run_swp-vera-45-s3",
+          "run_swp-vera-45-s4",
+          "run_swp-vera-45-s5",
+          "run_swp-vera-45-s6",
+          "run_swp-vera-45-s7",
+          "run_swp-vera-45-s8",
+          "run_swp-vera-45-s9",
+          "run_swp-vera-45-s10"
+        ],
+        "successes": 0,
+        "errors": 0,
+        "routeOpenSeeds": []
+      }
+    ],
+    "boundary": 3
+  },
+  {
+    "id": "swp_kai-max-elements",
+    "taskId": "task_past-order",
+    "profileId": "prof_kai",
+    "backend": "jev",
+    "seeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "startedAt": "2026-10-05T09:30:00.000Z",
+    "status": "complete",
+    "axis": "maxElements",
+    "from": 4,
+    "to": 16,
+    "step": 2,
+    "values": [
+      {
+        "value": 16,
+        "runIds": [
+          "run_swp-kai-16-s1",
+          "run_swp-kai-16-s2",
+          "run_swp-kai-16-s3",
+          "run_swp-kai-16-s4",
+          "run_swp-kai-16-s5",
+          "run_swp-kai-16-s6",
+          "run_swp-kai-16-s7",
+          "run_swp-kai-16-s8",
+          "run_swp-kai-16-s9",
+          "run_swp-kai-16-s10"
+        ],
+        "successes": 8,
+        "errors": 0,
+        "routeOpenSeeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      },
+      {
+        "value": 14,
+        "runIds": [
+          "run_swp-kai-14-s1",
+          "run_swp-kai-14-s2",
+          "run_swp-kai-14-s3",
+          "run_swp-kai-14-s4",
+          "run_swp-kai-14-s5",
+          "run_swp-kai-14-s6",
+          "run_swp-kai-14-s7",
+          "run_swp-kai-14-s8",
+          "run_swp-kai-14-s9",
+          "run_swp-kai-14-s10"
+        ],
+        "successes": 7,
+        "errors": 0,
+        "routeOpenSeeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      },
+      {
+        "value": 12,
+        "runIds": [
+          "run_swp-kai-12-s1",
+          "run_swp-kai-12-s2",
+          "run_swp-kai-12-s3",
+          "run_swp-kai-12-s4",
+          "run_swp-kai-12-s5",
+          "run_swp-kai-12-s6",
+          "run_swp-kai-12-s7",
+          "run_swp-kai-12-s8",
+          "run_swp-kai-12-s9",
+          "run_swp-kai-12-s10"
+        ],
+        "successes": 6,
+        "errors": 0,
+        "routeOpenSeeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      },
+      {
+        "value": 10,
+        "runIds": [
+          "run_swp-kai-10-s1",
+          "run_swp-kai-10-s2",
+          "run_swp-kai-10-s3",
+          "run_swp-kai-10-s4",
+          "run_swp-kai-10-s5",
+          "run_swp-kai-10-s6",
+          "run_swp-kai-10-s7",
+          "run_swp-kai-10-s8",
+          "run_swp-kai-10-s9",
+          "run_swp-kai-10-s10"
+        ],
+        "successes": 4,
+        "errors": 0,
+        "routeOpenSeeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      },
+      {
+        "value": 8,
+        "runIds": [
+          "run_swp-kai-8-s1",
+          "run_swp-kai-8-s2",
+          "run_swp-kai-8-s3",
+          "run_swp-kai-8-s4",
+          "run_swp-kai-8-s5",
+          "run_swp-kai-8-s6",
+          "run_swp-kai-8-s7",
+          "run_swp-kai-8-s8",
+          "run_swp-kai-8-s9",
+          "run_swp-kai-8-s10"
+        ],
+        "successes": 0,
+        "errors": 1,
+        "routeOpenSeeds": []
+      },
+      {
+        "value": 6,
+        "runIds": [
+          "run_swp-kai-6-s1",
+          "run_swp-kai-6-s2",
+          "run_swp-kai-6-s3",
+          "run_swp-kai-6-s4",
+          "run_swp-kai-6-s5",
+          "run_swp-kai-6-s6",
+          "run_swp-kai-6-s7",
+          "run_swp-kai-6-s8",
+          "run_swp-kai-6-s9",
+          "run_swp-kai-6-s10"
+        ],
+        "successes": 0,
+        "errors": 0,
+        "routeOpenSeeds": []
+      },
+      {
+        "value": 4,
+        "runIds": [
+          "run_swp-kai-4-s1",
+          "run_swp-kai-4-s2",
+          "run_swp-kai-4-s3",
+          "run_swp-kai-4-s4",
+          "run_swp-kai-4-s5",
+          "run_swp-kai-4-s6",
+          "run_swp-kai-4-s7",
+          "run_swp-kai-4-s8",
+          "run_swp-kai-4-s9",
+          "run_swp-kai-4-s10"
+        ],
+        "successes": 0,
+        "errors": 0,
+        "routeOpenSeeds": []
+      }
+    ],
+    "boundary": 10
+  }
+]

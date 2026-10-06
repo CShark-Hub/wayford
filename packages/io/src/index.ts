@@ -5,4 +5,5 @@ export * from "./db/database.js";
 export * from "./db/reports.js";
 export * from "./db/runs.js";
 export * from "./db/schema.js";
+export * from "./db/sweeps.js";
 export * from "./db/tasks.js";

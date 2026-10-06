@@ -1,8 +1,8 @@
 /**
  * The calibration table's pure half (`docs/specs/2026-10-02-s2-11-calibration-run.md`): the set,
- * the route lookup, the ends, the medians, the go/no-go, the estimate and the table. Every run is
- * hand-built from core's run fixture and parsed with core's `RunResult`, so each one is a shape
- * the loop can store. No browser, no model.
+ * the route lookup, the ends, the medians, the go/no-go, the estimate (`models.ts`) and the
+ * table. Every run is hand-built from core's run fixture and parsed with core's `RunResult`, so
+ * each one is a shape the loop can store. No browser, no model.
  */
 import {
   type CompleteRunStep,
@@ -17,14 +17,13 @@ import {
   type CalibrationRun,
   calibrationSet,
   endOf,
-  estimateUsd,
   goNoGo,
   type RowSummary,
   renderTable,
   routeOf,
   summarise,
 } from "./calibration.js";
-import { loadModelPrices, priceOf } from "./models.js";
+import { estimateUsd, loadModelPrices, priceOf } from "./models.js";
 
 const ORIGIN = "http://localhost:5174";
 const MAX_STEPS = 20;
