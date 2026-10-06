@@ -104,7 +104,7 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 | s4-04 | Analyst and the report API | L | s1-06 | Dawid | done |
 | s4-05 | Sweep: the boundary value on one capability axis | L | s1-06 (s2-12 for the Jev box) | Grzegorz | done |
 | s3-13 | Redesign foundation: tokens, themes, top bar, renamed routes | M | — (rebases on s4-06) | Tomasz | done |
-| s3-11 | Lens: the preview redesigned | M | s3-13 | Tomasz | doing |
+| s3-11 | Lens: the preview redesigned | M | s3-13 | Tomasz | review |
 | s3-12 | Race and run detail redesigned | M | s3-13, s3-03 | Dawid | doing |
 | s3-08 | Report screen | M | s4-04, s3-13 | Grzegorz | doing |
 | s3-09 | Boundary screen | M | s4-05, s3-13 | Marcin | doing |
