@@ -86,13 +86,22 @@ The small components that several screen tasks need at once exist and are tested
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/web test` passes, the avatar's determinism test included
-- [ ] `pnpm --filter @wayford/web check:self` passes on `/cast` in Daylight and Night, and its output names the 16 px and 32 px floors
-- [ ] `rg -n "#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(" packages/web/src -g '!index.css' -g '!*.test.*'` prints nothing
-- [ ] `rg -n "personaColour|paletteOf" packages/web/src` prints nothing
-- [ ] With the OS in dark mode, the app opens in Night. Flipping the toggle to Daylight survives a reload.
-- [ ] The PR shows Cast, Lens, Race and Runs at 1280 × 720 in Daylight and Night, before and after
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+- [x] `pnpm --filter @wayford/web test` passes, the avatar's determinism test included. The two determinism tests in `src/avatar/avatar.test.tsx` are unchanged. A one-off check rendered every fixture in every state, plus a tablet Ada, on `main` and on the branch; with `fill` and `stroke` values masked, 42 of 42 are byte for byte equal
+- [x] `pnpm --filter @wayford/web check:self` passes on `/cast` in Daylight and Night, and its output names the 16 px and 32 px floors: `floors: text 4.5:1 and 16 px, targets 32 px`, then `1 screen checked in Daylight and Night: 0 shortfalls`, exit 0. `scripts/self-check.browser.test.ts` runs the same in `pnpm test`
+- [x] `rg -n "#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(" packages/web/src -g '!index.css' -g '!*.test.*'` prints nothing (exit 1)
+- [x] `rg -n "personaColour|paletteOf" packages/web/src` prints nothing (exit 1)
+- [x] With the OS in dark mode, the app opens in Night. Flipping the toggle to Daylight survives a reload. Automated in `scripts/theme.browser.test.ts`, three tests. Done by hand in the browser pane with the system set to dark and nothing stored: `data-theme="dark"` on a `#141210` ground; a click on "Switch to Daylight", then a reload, gave `data-theme="light"` on `#f5f3ef` with `wayford-theme=light` stored
+- [x] The PR shows Cast, Lens, Race and Runs at 1280 × 720 in Daylight and Night, before and after. Before is `main`, which has Night only
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+
+## Outcome
+
+Built as `docs/specs/2026-10-06-s3-13-redesign-foundation.md` says. Where it differs from this file:
+
+- **Tokens alone.** the seven shadcn colour names the older screens still use (`background`, `foreground`, `card`, `card-foreground`, `muted`, `muted-foreground`, `destructive`) stay as aliases onto Wayford's tokens, and `text-xs` and `text-sm` draw 16 px. That is how every existing screen took the new look without its layout changing. Each screen's own task moves it to the Wayford names.
+- **Recharts bars.** They take the `var(--persona-<slot>)` string, not a computed value. Recharts writes it into the SVG `fill` attribute, which resolves `var()`. Measured on Runs in both themes, and it follows a theme flip with no re-render.
+- **Avatars on tiles.** Every `<Avatar>` caller now draws `PersonaAvatar`, the avatar on its squircle tile. Runs' persona dot is now `PersonaChip`. These are the persona lines in those files.
+- **Narrow windows.** The top bar's story nav scrolls sideways on a narrow window, as the old header's did.
 
 ## Out of scope
 

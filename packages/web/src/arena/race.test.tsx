@@ -280,10 +280,11 @@ test("a stream lost mid-run: its tile says what was last seen, its avatar has no
   const html = render(snapshot);
   const tile = tileOf(html, kai);
   expect(lineOf(tile)).toContain("Stream lost: last seen moving");
-  // No live state: the avatar is plain, with no badge and no `data-state`, and dimmed.
+  // No live state: the avatar is plain, with no badge and no `data-state`, and dimmed on its tile.
   const avatar = attributesOf(tile.match(/<svg[^>]*>/)?.[0] ?? "");
   expect(avatar).not.toHaveProperty("data-state");
-  expect(avatar.class).toContain("opacity-50");
+  const avatarTile = attributesOf(tile.match(/<div[^>]*>(?=<svg)/)?.[0] ?? "");
+  expect(avatarTile.class).toContain("opacity-50");
   expect(tile).not.toContain('data-part="state"');
   // The others carry on to their ends, ranked; the lost run comes after them, with no place.
   expect(avatarStateOf(html, ada)).toBe("done");

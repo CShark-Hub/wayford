@@ -5,9 +5,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { createAppRouter } from "../router.js";
 
-/** `/arena` through the app's own router. A static render runs no effect: no fetch, no stream. */
+/** `/race` through the app's own router. A static render runs no effect: no fetch, no stream. */
 async function renderArena(): Promise<string> {
-  const router = createAppRouter({ history: createMemoryHistory({ initialEntries: ["/arena"] }) });
+  const router = createAppRouter({ history: createMemoryHistory({ initialEntries: ["/race"] }) });
   await router.load();
   return renderToStaticMarkup(
     <QueryClientProvider client={new QueryClient()}>
@@ -21,10 +21,10 @@ function buttonTag(html: string, text: string): string | undefined {
   return [...html.matchAll(/(<button[^>]*>)(.*?)<\/button>/gs)].find((m) => m[2] === text)?.[1];
 }
 
-test("/arena opens on the start panel, linked from the main navigation", async () => {
+test("/race opens on the start panel, linked from the story nav", async () => {
   const html = await renderArena();
-  expect(html).toMatch(/<h1[^>]*>Arena<\/h1>/);
-  expect(html).toMatch(/<a [^>]*href="\/arena"[^>]*aria-current="page"[^>]*>Arena<\/a>/);
+  expect(html).toMatch(/<h1[^>]*>Race<\/h1>/);
+  expect(html).toMatch(/<a [^>]*href="\/race"[^>]*aria-current="page"[^>]*>.*?Race<\/a>/);
   expect(html).toMatch(/<h2[^>]*>Start a race<\/h2>/);
   // No race yet, so nothing to leave.
   expect(buttonTag(html, "New race")).toBeUndefined();

@@ -1,10 +1,9 @@
 import { RunEvent, runResultFromEvents } from "@wayford/core";
-import { profileFixture, profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
+import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import type { StreamStatus } from "../api/run-events.js";
 import { type StartedRun, screenshotUrl } from "../api/runs.js";
-import { personaColour } from "../avatar/parts.js";
 import { attributesOf, detailsOf, lineOf, styleOf } from "../preview/rendered-markup.js";
 import { STUCK_STEPS } from "./avatar-state.js";
 import {
@@ -67,6 +66,11 @@ function finishLines(html: string): string[] {
 /** The attributes of the `<svg>` in Vera's tile: her avatar. */
 function avatarOf(html: string): Record<string, string> {
   return attributesOf(tileOf(html, vera).match(/<svg[^>]*>/)?.[0] ?? "");
+}
+
+/** The attributes of the `<div>` around Vera's avatar: its squircle tile. */
+function avatarTileOf(html: string): Record<string, string> {
+  return attributesOf(tileOf(html, vera).match(/<div[^>]*>(?=<svg)/)?.[0] ?? "");
 }
 
 /** What Vera's tile says, on one line. */
@@ -232,7 +236,7 @@ describe("the state in words, with what grounds it", () => {
       expect(tileText(html), `after event ${index}`).toContain(`Stream lost: last seen ${seen}`);
       // No live state: no `data-state`, no badge, no state in the avatar's title.
       expect(avatarOf(html)).not.toHaveProperty("data-state");
-      expect(avatarOf(html).class).toContain("opacity-50");
+      expect(avatarTileOf(html).class).toContain("opacity-50");
       expect(tileOf(html, vera)).not.toContain('data-part="state"');
       expect(tileText(html)).not.toContain("Run state");
       expect(finishLines(html)).toStrictEqual(["– Vera Stream lost"]);
@@ -240,7 +244,7 @@ describe("the state in words, with what grounds it", () => {
     // The same events on an open stream: live, and nothing lost.
     const open = render(upTo(8), "open");
     expect(avatarStateOf(open, vera)).toBe("moving");
-    expect(avatarOf(open).class).not.toContain("opacity-50");
+    expect(avatarTileOf(open).class).not.toContain("opacity-50");
     expect(tileText(open)).not.toContain("Stream lost");
     expect(finishLines(open)).toStrictEqual([]);
   });
@@ -263,9 +267,7 @@ describe("the tile", () => {
     const attributes = attributesOf(start);
     expect(attributes["aria-labelledby"]).toBe("race-run_vera-hard-1");
     expect(html).toMatch(/<h3 [^>]*id="race-run_vera-hard-1"[^>]*>Vera<\/h3>/);
-    expect(styleOf(attributes)["border-top-color"]).toBe(
-      personaColour(profileFixture("prof_vera")),
-    );
+    expect(styleOf(attributes)["border-top-color"]).toBe("var(--persona-cobalt)");
     expect(tileOf(html, vera)).toContain("<svg");
   });
 

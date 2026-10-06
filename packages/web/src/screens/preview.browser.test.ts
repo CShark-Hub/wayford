@@ -128,7 +128,7 @@ test("slider moves redraw the page and make no request; a page link does", async
     requests.push(request.url());
   });
 
-  await page.goto(`${origin}/preview?persona=prof_vera`);
+  await page.goto(`${origin}/lens?persona=prof_vera`);
   // The live page is drawn, with no banner, and the card shows its scan.
   await page.locator("[data-state]").first().waitFor();
   await page.getByText("Live: http://localhost:5174/deliveries on desktop").waitFor();

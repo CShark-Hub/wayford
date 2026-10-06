@@ -45,7 +45,7 @@ export function ArenaScreen() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 p-6">
-      <h1 className="text-xl font-semibold">Arena</h1>
+      <h1 className="text-xl font-semibold">Race</h1>
       {race === undefined ? (
         <StartPanel
           state={panel}
@@ -68,6 +68,6 @@ export function ArenaScreen() {
 
 export const arenaRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/arena",
+  path: "/race",
   component: ArenaScreen,
 });

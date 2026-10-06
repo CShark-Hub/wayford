@@ -13,10 +13,11 @@ import { createLink, createRoute, Link } from "@tanstack/react-router";
 import type { RunResult, RunStep } from "@wayford/core";
 import type { ComponentPropsWithRef, ReactNode } from "react";
 import { runQuery, tasksQuery, traceUrl, videoUrl } from "../api/runs.js";
+import { profileColour } from "../avatar/slots.js";
 import { Detail, Details } from "../runs/details.js";
 import { describeAction, RunDetailSearch } from "../runs/replay.js";
 import { costLine, StepReplay } from "../runs/step-replay.js";
-import { formatSeconds, personaColourOf, personaLabel } from "../runs/task-results.js";
+import { formatSeconds, personaLabel } from "../runs/task-results.js";
 import { rootRoute } from "../shell.js";
 
 /** The id of the step list's heading. */
@@ -211,8 +212,8 @@ function RunDetail({
   return (
     <div
       className="mx-auto flex max-w-[1400px] flex-col gap-6 p-6"
-      // A persona that is not bundled has no colour: its accent stays in the theme's grey.
-      style={{ "--persona": personaColourOf(run.profileId) }}
+      // A persona that is not bundled has no slot of its own: its accent is the fallback's grey.
+      style={{ "--persona": profileColour(run.profileId) }}
     >
       <header className="flex flex-col gap-3 border-l-4 border-(--persona) ps-4">
         <h1 className="font-mono text-xl font-semibold">

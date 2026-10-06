@@ -8,9 +8,9 @@
  * shell's tokens, and the persona colour as the one accent.
  */
 import type { Profile, ProfileId, SuccessCondition } from "@wayford/core";
+import { PersonaAvatar } from "#components/persona-avatar";
 import { Button } from "#components/ui/button";
-import { Avatar } from "../avatar/avatar.js";
-import { personaColour } from "../avatar/parts.js";
+import { profileColour } from "../avatar/slots.js";
 import {
   GOAL_PRESETS,
   type GoalCheck,
@@ -207,12 +207,12 @@ function PersonaPicker({
                 checked={isChosen}
                 disabled={full && !isChosen}
                 onChange={() => onAction({ type: "personaToggled", profileId: profile.id })}
-                style={{ accentColor: personaColour(profile) }}
+                style={{ accentColor: profileColour(profile.id) }}
               />
               <label htmlFor={id} className="flex items-center gap-2 font-medium">
                 {/* The name is the box's name; the avatar's own title would only lengthen it. */}
                 <span aria-hidden="true">
-                  <Avatar profile={profile} className="size-10" />
+                  <PersonaAvatar profile={profile} className="size-10" />
                 </span>
                 <span>{profile.label}</span>
               </label>

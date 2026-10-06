@@ -7,12 +7,12 @@ import { runDetailRoute } from "./screens/run-detail.js";
 import { runsRoute } from "./screens/runs.js";
 import { rootRoute } from "./shell.js";
 
-/** `/` has no screen of its own: the app opens on the input side, the personas. */
+/** `/` has no screen of its own: the app opens where the story starts, the Cast. */
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   beforeLoad: () => {
-    throw redirect({ to: "/personas" });
+    throw redirect({ to: "/cast" });
   },
 });
 

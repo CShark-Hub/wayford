@@ -10,10 +10,10 @@
  * avatar is plain and dimmed, and its tile says what was last seen.
  */
 import type { Profile, Seed } from "@wayford/core";
+import { PersonaAvatar } from "#components/persona-avatar";
 import { Button } from "#components/ui/button";
 import { type StartedRun, screenshotUrl } from "../api/runs.js";
-import { Avatar } from "../avatar/avatar.js";
-import { personaColour } from "../avatar/parts.js";
+import { profileColour } from "../avatar/slots.js";
 import { STATE_WORDS } from "../avatar/state.js";
 import { formatSeconds } from "../runs/task-results.js";
 import { STUCK_STEPS } from "./avatar-state.js";
@@ -86,13 +86,13 @@ function RunTile({
       aria-labelledby={headingId}
       className="flex h-full flex-col gap-4 rounded-xl border border-t-4 bg-card p-4 text-card-foreground"
       // The persona's colour is the tile's one accent, as on its card.
-      style={profile ? { borderTopColor: personaColour(profile) } : undefined}
+      style={profile ? { borderTopColor: profileColour(profile.id) } : undefined}
     >
       <div className="flex items-center gap-3">
         {profile === undefined ? null : lost ? (
-          <Avatar profile={profile} className="size-20 shrink-0 opacity-50" />
+          <PersonaAvatar profile={profile} className="size-20 shrink-0 opacity-50" />
         ) : (
-          <Avatar profile={profile} state={view.state} className="size-20 shrink-0" />
+          <PersonaAvatar profile={profile} state={view.state} className="size-20 shrink-0" />
         )}
         <div className="flex min-w-0 flex-col gap-1">
           <h3 id={headingId} className="text-lg font-semibold">

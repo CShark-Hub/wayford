@@ -112,6 +112,40 @@ test("the title names the drawn parts", () => {
   );
 });
 
+/** Every avatar the tests know: each fixture and tablet Ada, without a state and in every state. */
+function everyAvatar(): { name: string; svg: string }[] {
+  return [...profileFixtures, tabletAda()].flatMap((profile) => {
+    const name = profile.device === "tablet" ? "tablet Ada" : profile.label;
+    return [
+      { name, svg: render(profile) },
+      ...AVATAR_STATES.map((state) => ({
+        name: `${name}, ${state}`,
+        svg: renderAt(profile, state),
+      })),
+    ];
+  });
+}
+
+/** The only colours an avatar may name: its slot's and the avatar tokens, the eyes' white, none. */
+const AVATAR_COLOURS = [
+  "var(--p)",
+  "var(--p-ink)",
+  "var(--avatar-line)",
+  "var(--avatar-head)",
+  "white",
+  "none",
+];
+
+test("the markup holds no colour literal, only the avatar's CSS variables, white and none", () => {
+  for (const { name, svg } of everyAvatar()) {
+    expect(svg, name).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(/);
+    const colours = [...svg.matchAll(/\s(?:fill|stroke)="([^"]*)"/g)].map((m) => m[1]);
+    // The background disc, the body and the head carry both, so an empty list is a broken match.
+    expect(colours.length, name).toBeGreaterThan(0);
+    for (const colour of colours) expect(AVATAR_COLOURS, name).toContain(colour);
+  }
+});
+
 test("no id, gradient or clipPath in the markup", () => {
   // An id, and the url(#…) that points at it, must be unique on the page, so markup holding one
   // would depend on where it renders. Gradients and clip paths are reached only through ids.

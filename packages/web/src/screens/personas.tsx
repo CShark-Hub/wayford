@@ -7,8 +7,8 @@ import {
   type ProvenanceId,
 } from "@wayford/core";
 import { cn } from "cn";
-import { Avatar } from "../avatar/avatar.js";
-import { personaColour } from "../avatar/parts.js";
+import { PersonaAvatar } from "#components/persona-avatar";
+import { profileColour } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { rootRoute } from "../shell.js";
 
@@ -73,9 +73,9 @@ export function PersonaCard({ profile }: { profile: Profile }) {
       className="flex h-full flex-col gap-5 rounded-2xl border border-t-4 bg-card p-6 text-card-foreground"
       // The persona's colour is the card's one accent, the thing that later crosses into the
       // report. Everything else on the card keeps to the theme.
-      style={{ borderTopColor: personaColour(profile) }}
+      style={{ borderTopColor: profileColour(profile.id) }}
     >
-      <Avatar profile={profile} className="mx-auto size-40" />
+      <PersonaAvatar profile={profile} className="mx-auto size-40" />
       <div className="flex flex-col gap-2">
         <h2 id={headingId} className="text-3xl font-extrabold tracking-tight">
           {profile.label}
@@ -114,7 +114,7 @@ export function PersonasScreen() {
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Personas</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Cast</h1>
         <p className="text-base text-muted-foreground">
           Each persona is a set of limits on what the model sees and does, never a character it is
           told to play.
@@ -133,6 +133,6 @@ export function PersonasScreen() {
 
 export const personasRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/personas",
+  path: "/cast",
   component: PersonasScreen,
 });

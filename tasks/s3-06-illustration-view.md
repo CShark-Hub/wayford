@@ -40,7 +40,7 @@ The preview gets a third view, Illustration: the target app's `/deliveries` as a
 ## Acceptance
 
 - [ ] `pnpm --filter @wayford/io test` includes `/illustration` against the running target app: a PNG for `blurredVision` whose bytes differ from the one for `none`, and a second request for the same pair served from the cache
-- [ ] A web test renders `/preview` for Vera in the illustration view and shows the picture for `desktop` and `blurredVision`, the words "illustration, not decision", and no drawn element
+- [ ] A web test renders `/lens` for Vera in the illustration view and shows the picture for `desktop` and `blurredVision`, the words "illustration, not decision", and no drawn element
 - [ ] A web test with a fetch spy shows that moving a slider in the illustration view requests no picture
 - [ ] With io stopped, the illustration view shows the stored picture and the banner
 - [ ] A link with `evidence=true` still opens the evidence view

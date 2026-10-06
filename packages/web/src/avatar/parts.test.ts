@@ -1,7 +1,7 @@
 import type { Profile } from "@wayford/core";
 import { profileFixture, profileFixtures } from "@wayford/core/fixtures";
 import { expect, test } from "vitest";
-import { type AvatarParts, avatarParts, personaColour } from "./parts.js";
+import { type AvatarParts, avatarParts } from "./parts.js";
 
 /** The glasses on Vera with only her contrast threshold moved: her softness and provenance stay. */
 function strokeWidthAt(threshold: number): number {
@@ -22,8 +22,8 @@ function sandOf(id: string): number {
 }
 
 /** The parts drawn from the seed, which no dimension may move. */
-function seedParts({ hue, tuft, brows, pattern }: AvatarParts) {
-  return { hue, tuft, brows, pattern };
+function seedParts({ tuft, brows, pattern }: AvatarParts) {
+  return { tuft, brows, pattern };
 }
 
 test("a contrast threshold of 7 gives thicker glasses than one of 3", () => {
@@ -76,38 +76,22 @@ test("the hourglass is full from 300 s on", () => {
   }
 });
 
-test("each fixture's seed parts are pinned, so a persona keeps its colour and face", () => {
+test("each fixture's seed parts are pinned, so a persona keeps its face", () => {
   // The draw order and the variant lists are part of the record, like the `rng` algorithm: a
   // change to either changes an existing persona's looks, and shows here.
   const parts = Object.fromEntries(
     profileFixtures.map((p) => [p.label, seedParts(avatarParts(p))]),
   );
   expect(parts).toStrictEqual({
-    Ada: { hue: 330, tuft: "curl", brows: "none", pattern: "stripes" },
-    Kai: { hue: 240, tuft: "sprout", brows: "arch", pattern: "dots" },
-    Milo: { hue: 120, tuft: "curl", brows: "bar", pattern: "dots" },
-    Vera: { hue: 180, tuft: "sprout", brows: "none", pattern: "stripes" },
-    Zoya: { hue: 300, tuft: "curl", brows: "none", pattern: "stripes" },
+    Ada: { tuft: "curl", brows: "none", pattern: "stripes" },
+    Kai: { tuft: "sprout", brows: "arch", pattern: "dots" },
+    Milo: { tuft: "curl", brows: "bar", pattern: "dots" },
+    Vera: { tuft: "sprout", brows: "none", pattern: "stripes" },
+    Zoya: { tuft: "curl", brows: "none", pattern: "stripes" },
   });
 });
 
-test("the five fixtures get five different hues", () => {
-  // Ada's and Vera's first draws are 0.584 and 0.567. Only the step between bins keeps them apart.
-  const hues = profileFixtures.map((p) => avatarParts(p).hue);
-  expect(hues).toHaveLength(5);
-  expect(new Set(hues).size).toBe(hues.length);
-});
-
-test("the persona colour is the avatar's hue: Vera's is oklch(0.75 0.12 180)", () => {
-  expect(personaColour(profileFixture("prof_vera"))).toBe("oklch(0.75 0.12 180)");
-  for (const profile of profileFixtures) {
-    expect(personaColour(profile), profile.label).toBe(
-      `oklch(0.75 0.12 ${avatarParts(profile).hue})`,
-    );
-  }
-});
-
-test("moving a threshold, the device or the budget leaves the hue, tuft, brows and pattern alone", () => {
+test("moving a threshold, the device or the budget leaves the tuft, brows and pattern alone", () => {
   // The preview and the sweep move these dimensions, and a persona must stay recognisable.
   for (const profile of profileFixtures) {
     const moved: Profile = {

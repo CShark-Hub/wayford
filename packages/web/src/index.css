@@ -1,177 +1,300 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Self-hosted from Fontsource, so the demo needs no font CDN (docs/STACK.md, "Fonts"). They
+   register the "… Variable" families the font stacks below lead with. */
+@import "@fontsource-variable/bricolage-grotesque/opsz.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
-@custom-variant dark (&:is(.dark *));
+/* Night is an attribute, never a media query, so nothing has two ways to turn it on. The boot
+   script in index.html sets it before first paint (docs/DESIGN.md, "In code"). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* The two families docs/STACK.md names, served from public/fonts/ under the SIL OFL, so the app
-   needs no CDN and draws the same glyphs on every machine. Inter is target-app's own file. */
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/fonts/inter/inter-latin-wght-normal.woff2") format("woff2");
+/* ---------------------------------------------------------------------------------------------
+   Tokens, copied from docs/design/tokens.css, plus docs/DESIGN.md's motion and mono-figure rules:
+   change a value there first, then here. Every value Wayford defines is written in this block and
+   nowhere else. Tailwind defaults still on the older screens (`rounded-xl`, `shadow-sm`,
+   `text-3xl`, …) move to these tokens in each screen's task.
+   --------------------------------------------------------------------------------------------- */
+
+:root,
+[data-theme="light"] {
+  --paper: #f5f3ef;
+  --paper-sunken: #ebe8e3;
+  --surface: #fdfcfa;
+  --ink: #1a1510;
+  --ink-2: #4c4741;
+  --ink-3: #655f59;
+  --line: #d7d4ce;
+  --line-strong: #847f7a;
+  --signal: #ea5202;
+  --signal-ink: #b53700;
+  --on-signal: #1a1510;
+  --signal-soft: #ffe1cc;
+  --focus-ring: var(--signal-ink);
+  --fault: #b32130;
+  --fault-soft: #ffdfdd;
+  --avatar-line: #1a1510;
+  --avatar-tile: #ebe8e3;
+  --avatar-head: #fdfcfa;
+  --persona-graphite: #6d7279;
+  --persona-graphite-ink: #4f5358;
+  --persona-graphite-soft: #e1e5ea;
+  --persona-cobalt: #3a6cce;
+  --persona-cobalt-ink: #264e9c;
+  --persona-cobalt-soft: #d6e5ff;
+  --persona-raspberry: #b83b76;
+  --persona-raspberry-ink: #8b2556;
+  --persona-raspberry-soft: #fcdae6;
+  --persona-jade: #008760;
+  --persona-jade-ink: #006444;
+  --persona-jade-soft: #cdeede;
+  --persona-violet: #8059bb;
+  --persona-violet-ink: #5e3e8d;
+  --persona-violet-soft: #e8dffc;
+  --shadow-raised: 0 1px 0 #1a151012, 0 10px 24px -14px #1a15102e;
+  --shadow-pop: 0 2px 4px #1a151014, 0 18px 40px -16px #1a151047;
 }
 
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 100 800;
-  font-display: swap;
-  src: url("/fonts/jetbrains-mono/jetbrains-mono-wght.woff2") format("woff2");
-}
-
-/* Each family first, then the stack Tailwind uses by default. */
-@theme {
-  --font-sans:
-    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol", "Noto Color Emoji";
-  --font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  /* 14 px, the projector floor: text-xs then draws what text-sm does, so old classes stay legal. */
-  --text-xs: 0.875rem;
-  --text-xs--line-height: 1.25rem;
-}
-
-@theme inline {
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+[data-theme="dark"] {
+  --paper: #141210;
+  --paper-sunken: #0e0c09;
+  --surface: #1e1b18;
+  --ink: #f5f3f0;
+  --ink-2: #cac7c2;
+  --ink-3: #a7a49e;
+  --line: #35322e;
+  --line-strong: #78746e;
+  --signal: #ff7527;
+  --signal-ink: #ff9555;
+  --on-signal: #141210;
+  --signal-soft: #462312;
+  --focus-ring: var(--signal-ink);
+  --fault: #f47a79;
+  --fault-soft: #472020;
+  --avatar-line: #1a1510;
+  --avatar-tile: #ebe8e3;
+  --avatar-head: #fdfcfa;
+  --persona-graphite: #a4a8ae;
+  --persona-graphite-ink: #c1c4c9;
+  --persona-graphite-soft: #2b2e33;
+  --persona-cobalt: #78a6fd;
+  --persona-cobalt-ink: #a2c5ff;
+  --persona-cobalt-soft: #202e46;
+  --persona-raspberry: #ed7eac;
+  --persona-raspberry-ink: #f9a8c7;
+  --persona-raspberry-soft: #41232f;
+  --persona-jade: #63bc98;
+  --persona-jade-ink: #98d3b9;
+  --persona-jade-soft: #123528;
+  --persona-violet: #b494ec;
+  --persona-violet-ink: #cdb7f6;
+  --persona-violet-soft: #312842;
+  --shadow-raised: 0 1px 0 #00000059, 0 12px 28px -14px #000000a6;
+  --shadow-pop: 0 2px 4px #00000066, 0 20px 44px -16px #000000bf;
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --header-h: 56px;
+  --rail-w: 300px;
+  --content-max: 1360px;
+  --control-h: 40px;
+  --target-min: 32px;
+  --stroke-hair: 1px;
+  --stroke-rule: 2px;
+  --stroke-post: 3px;
+  --z-sticky: 10;
+  --z-overlay: 20;
+  --z-toast: 30;
+  /* Any profile that is not one of the five fixtures takes the neutral fallback slot: aliases of
+     three tokens above, not new values (docs/DESIGN.md, "Persona slots"). */
+  --persona-fallback: var(--ink-3);
+  --persona-fallback-ink: var(--ink-2);
+  --persona-fallback-soft: var(--paper-sunken);
 }
 
-.dark {
-  /* Native scrollbars and form controls follow the theme too. */
-  color-scheme: dark;
-  /* A ford at night: cool near-black chrome, one hue at 250, no brand colour. The contrast of
-     each pair is in docs/DESIGN.md, "Colour". */
-  --background: oklch(0.16 0.012 250);
-  --foreground: oklch(0.97 0.005 250);
-  --card: oklch(0.205 0.014 250);
-  --card-foreground: oklch(0.97 0.005 250);
-  --popover: oklch(0.205 0.014 250);
-  --popover-foreground: oklch(0.97 0.005 250);
-  --primary: oklch(0.93 0.008 250);
-  --primary-foreground: oklch(0.205 0.014 250);
-  --secondary: oklch(0.27 0.016 250);
-  --secondary-foreground: oklch(0.97 0.005 250);
-  --muted: oklch(0.27 0.016 250);
-  --muted-foreground: oklch(0.72 0.012 250);
-  --accent: oklch(0.27 0.016 250);
-  --accent-foreground: oklch(0.97 0.005 250);
-  /* The one hue that is not a persona's, for errors only. */
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.97 0.005 250 / 10%);
-  --input: oklch(0.97 0.005 250 / 15%);
-  --ring: oklch(0.6 0.02 250);
-  /* shadcn's chart slots, unused: chart marks follow docs/DESIGN.md, "Charts". */
-  --chart-1: oklch(0.87 0.008 250);
-  --chart-2: oklch(0.72 0.012 250);
-  --chart-3: oklch(0.556 0.014 250);
-  --chart-4: oklch(0.439 0.014 250);
-  --chart-5: oklch(0.32 0.014 250);
-  --sidebar: oklch(0.205 0.014 250);
-  --sidebar-foreground: oklch(0.97 0.005 250);
-  --sidebar-primary: oklch(0.93 0.008 250);
-  --sidebar-primary-foreground: oklch(0.205 0.014 250);
-  --sidebar-accent: oklch(0.27 0.016 250);
-  --sidebar-accent-foreground: oklch(0.97 0.005 250);
-  --sidebar-border: oklch(0.97 0.005 250 / 10%);
-  --sidebar-ring: oklch(0.6 0.02 250);
+/* The tokens Tailwind turns into utilities: `font-display`, `rounded-md`, `text-sm`, … */
+@theme {
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", system-ui, sans-serif;
+  --font-sans: "Geist Variable", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Mono figures are tabular with a slashed zero (docs/DESIGN.md, "Type"). */
+  --font-mono--font-feature-settings: "tnum", "zero";
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 20px;
+  /* Colour and opacity on interactive elements move in 160 ms, ease-out (docs/DESIGN.md,
+     "Motion"). A `transition-*` utility reads these unless a `duration-*` class sets its own. */
+  --default-transition-duration: 160ms;
+  --default-transition-timing-function: ease-out;
+  /* The one motion besides colour: the skeleton's shimmer. It animates `translate`, the property
+     Tailwind's `-translate-x-full` sets, so the band starts off the left edge and leaves off the
+     right; animating `transform` would add to it and stop the band halfway. */
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  @keyframes shimmer {
+    to {
+      translate: 100%;
+    }
+  }
+}
+
+/* The type scale: one class per style, as tokens.css names them. */
+@utility display-xl {
+  font-family: var(--font-display);
+  font-size: 72px;
+  line-height: 68px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+@utility display-l {
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 48px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+@utility display-m {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+@utility title {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility lead {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 400;
+}
+@utility body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+@utility label {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 500;
+}
+@utility readout {
+  font-family: var(--font-mono);
+  font-size: 44px;
+  line-height: 48px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-feature-settings: var(--font-mono--font-feature-settings);
+}
+@utility mono {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  font-feature-settings: var(--font-mono--font-feature-settings);
+}
+@utility mono-label {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  font-feature-settings: var(--font-mono--font-feature-settings);
+}
+
+/* Not from tokens.css, and transitional: the older screens' `text-xs` and `text-sm` draw 16 px,
+   the floor, so their classes stay legal (docs/DESIGN.md, "Type": there is no caption size).
+   Retired with the shadcn aliases below, in the last screen task. */
+@theme {
+  --text-xs: 1rem;
+  --text-xs--line-height: 1.5rem;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.5rem;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   End of tokens. Everything below refers to them and writes no value of its own.
+   --------------------------------------------------------------------------------------------- */
+
+@theme inline {
+  /* Wayford's own names: `bg-paper`, `text-ink-2`, `border-line-strong`, … A persona's colour has
+     no utility of its own: it comes through its slot, `slotStyle` and `bg-(--p)` (`avatar/slots.ts`),
+     so `slotOf` stays the one place that decides it. */
+  --color-paper: var(--paper);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-on-signal: var(--on-signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-focus-ring: var(--focus-ring);
+  --color-fault: var(--fault);
+  --color-fault-soft: var(--fault-soft);
+  --color-avatar-tile: var(--avatar-tile);
+
+  /* shadcn's names still on the older screens, mapped onto Wayford's tokens, so every existing
+     screen wears the new system through its tokens alone. Each screen's own task moves it to the
+     names above; the last one deletes this list. */
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-muted: var(--paper-sunken);
+  --color-muted-foreground: var(--ink-2);
+  --color-destructive: var(--fault);
 }
 
 @layer base {
+  /* Native scrollbars and form controls follow the theme too. */
+  :root {
+    color-scheme: light;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+  }
   * {
-    @apply border-border outline-ring/50;
+    @apply border-line;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-paper font-sans text-ink antialiased;
   }
-  /* Keyboard focus on every element: a solid outline in the full-strength ring colour, 4.9:1 on
-     the dark background. The half-strength ring above reaches 2.1:1, under WCAG 2.2's 3:1 for
-     non-text contrast, and an outline, unlike a box-shadow ring, survives forced-colours mode. A
-     shadcn component that sets `outline-none` keeps its own ring: utilities outrank this layer. */
+  /* Keyboard focus on every element: a paper gap, then a solid ring in signal ink, which holds 3:1
+     on every ground in both themes. An outline, unlike a box-shadow ring, survives forced-colours
+     mode. */
   :focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
+    outline: var(--stroke-rule) solid var(--focus-ring);
+    outline-offset: var(--stroke-rule);
   }
-  /* Colour and opacity fade in 150 ms; under reduced motion there are no transitions. A
-     `transition-*` utility reads this variable unless a `duration-*` class sets its own, which
-     docs/DESIGN.md rules out. Base outranks the theme layer that sets it. */
+  /* Under reduced motion every duration is 0: no transition, no shimmer. A `transition-*`
+     utility reads the default duration unless a `duration-*` class sets its own, which
+     docs/DESIGN.md rules out. Base outranks the theme layer that sets both. */
   @media (prefers-reduced-motion: reduce) {
     :root {
       --default-transition-duration: 0s;
+      --animate-shimmer: none;
     }
   }
 }

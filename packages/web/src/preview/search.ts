@@ -1,5 +1,5 @@
 /**
- * The preview's URL contract: what each search param of `/preview` means, and how a URL becomes
+ * The preview's URL contract: what each search param of `/lens` means, and how a URL becomes
  * the profile `perceive` gets. The URL holds the whole preview state, so a preview is a link.
  *
  * - `persona`: a bundled profile id. Absent or unknown, Vera.

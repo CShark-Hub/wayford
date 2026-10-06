@@ -22,11 +22,11 @@ import { METRIC_NAMES, type MetricName, type PageMeasurement } from "@wayford/co
 import { perceive } from "@wayford/filter/perceive";
 import { cn } from "cn";
 import { useEffect, useRef } from "react";
+import { PersonaAvatar } from "#components/persona-avatar";
 import { Button } from "#components/ui/button";
 import { axeQuery } from "../api/axe.js";
 import { measurementQuery } from "../api/measure.js";
-import { Avatar } from "../avatar/avatar.js";
-import { personaColour } from "../avatar/parts.js";
+import { profileColour } from "../avatar/slots.js";
 import { bundledJargon, bundledMeasurement, bundledProfiles } from "../bundled-fixtures.js";
 import { PerceivedPage } from "../preview/perceived-page.js";
 import {
@@ -224,7 +224,7 @@ function PersonaSwitcher({ state }: { state: PreviewState }) {
           return (
             <li key={profile.id} className="min-w-0">
               <Link
-                to="/preview"
+                to="/lens"
                 search={personaSearch(state, profile.id)}
                 resetScroll={false}
                 aria-current={isCurrent ? "page" : undefined}
@@ -235,7 +235,7 @@ function PersonaSwitcher({ state }: { state: PreviewState }) {
                 )}
               >
                 <span aria-hidden="true">
-                  <Avatar profile={profile} className="size-6" />
+                  <PersonaAvatar profile={profile} className="size-6" />
                 </span>
                 <span className="max-w-full truncate">{profile.label}</span>
               </Link>
@@ -411,7 +411,7 @@ function PagePicker({ search, current }: { search: PreviewSearch; current: Previ
           return (
             <li key={page}>
               <Link
-                to="/preview"
+                to="/lens"
                 search={pageSearch(search, page)}
                 activeOptions={{ explicitUndefined: true }}
                 resetScroll={false}
@@ -543,10 +543,10 @@ export function PreviewScreen() {
   return (
     <div
       className="mx-auto flex max-w-[1400px] flex-col gap-6 px-6 py-6"
-      style={{ "--persona": personaColour(state.persona) }}
+      style={{ "--persona": profileColour(state.persona.id) }}
     >
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold">Preview</h1>
+        <h1 className="text-xl font-semibold">Lens</h1>
         <p className="text-sm text-muted-foreground">
           A target-app page as perceive returns it. Every slider move runs the same filter the Actor
           uses, here in the browser.
@@ -595,7 +595,7 @@ export function PreviewScreen() {
 
 export const previewRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/preview",
+  path: "/lens",
   // A zod schema is a Standard Schema, which TanStack validates with directly. Every key is
   // optional, so a link may leave out any of them.
   validateSearch: PreviewSearch,

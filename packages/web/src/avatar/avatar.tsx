@@ -6,11 +6,29 @@
  * The markup depends on the profile alone, byte for byte (`docs/PLAN.md` F1 AC4): every number is
  * a literal or rounded to 2 decimals, and there is no trigonometry. There is no element id either,
  * and so no gradient or clip path: an id must be unique on the page, so markup holding one would
- * depend on where it renders.
+ * depend on where it renders. No colour is written here either but the eyes' white: the rest are
+ * the CSS variables in `COLOURS`, so the persona's slot and the theme colour the avatar without
+ * changing its markup.
  */
 import type { Profile } from "@wayford/core";
-import { type AvatarParts, avatarParts, type Palette, paletteOf, round2 } from "./parts.js";
+import { type AvatarParts, avatarParts, round2 } from "./parts.js";
 import { type AvatarState, STATE_WORDS } from "./state.js";
+
+/** An avatar's colours, each a CSS variable. */
+type Palette = { persona: string; ink: string; accent: string; head: string };
+
+/**
+ * Every avatar's colours. `--p` and `--p-ink` are the persona slot's fill and ink, which whatever
+ * holds the avatar sets (`PersonaAvatar`, `slots.ts`). The line and the head are one tone for every
+ * persona and both themes, so the avatar reads like a sticker in Night, and the head follows no
+ * persona, so no slot can land it on a skin tone.
+ */
+const COLOURS: Palette = {
+  persona: "var(--p)",
+  ink: "var(--avatar-line)",
+  accent: "var(--p-ink)",
+  head: "var(--avatar-head)",
+};
 
 type Held = NonNullable<AvatarParts["held"]>;
 
@@ -50,19 +68,18 @@ export function Avatar({
   state?: AvatarState;
 }) {
   const parts = avatarParts(profile);
-  const palette = paletteOf(parts.hue);
   return (
     <svg viewBox="0 0 160 160" role="img" className={className} data-state={state}>
       <title>{titleText(profile, parts, state)}</title>
-      <Background palette={palette} />
-      <Body pattern={parts.pattern} palette={palette} />
-      <Head palette={palette} />
-      <Tuft tuft={parts.tuft} palette={palette} />
-      <Face brows={parts.brows} palette={palette} />
-      {parts.glasses ? <Glasses strokeWidth={parts.glasses.strokeWidth} palette={palette} /> : null}
-      {parts.held ? <HeldDevice held={parts.held} palette={palette} /> : null}
-      <Hourglass patience={parts.patience} palette={palette} />
-      {state && state !== "idle" ? <StateBadge state={state} palette={palette} /> : null}
+      <Background palette={COLOURS} />
+      <Body pattern={parts.pattern} palette={COLOURS} />
+      <Head palette={COLOURS} />
+      <Tuft tuft={parts.tuft} palette={COLOURS} />
+      <Face brows={parts.brows} palette={COLOURS} />
+      {parts.glasses ? <Glasses strokeWidth={parts.glasses.strokeWidth} palette={COLOURS} /> : null}
+      {parts.held ? <HeldDevice held={parts.held} palette={COLOURS} /> : null}
+      <Hourglass patience={parts.patience} palette={COLOURS} />
+      {state && state !== "idle" ? <StateBadge state={state} palette={COLOURS} /> : null}
     </svg>
   );
 }
@@ -280,7 +297,8 @@ const CAP_BOTTOM_Y = NECK_Y + BULB_HEIGHT - 1;
 function Hourglass({ patience, palette }: { patience: number; palette: Palette }) {
   return (
     <g data-part="hourglass">
-      {/* A dim glass on the dark card, so the sand is the bright part and its amount reads. */}
+      {/* A faint glass, so the sand in the persona's colour is what stands out, and its amount
+          reads. */}
       <path d={GLASS} fill={palette.head} fillOpacity={0.3} />
       <path d={topTriangle(Math.sqrt(patience))} fill={palette.persona} />
       {/* The glass's outline goes over the sand, so the sand's edges sit inside it. */}

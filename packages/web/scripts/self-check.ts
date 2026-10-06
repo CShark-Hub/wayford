@@ -1,21 +1,28 @@
 /**
- * The self-check: a screen of the web app measured with the filter's own `collect`, and every
- * element under the WCAG AA floor or the projector's 14 px (`docs/specs/2026-10-05-s3-07-design-direction.md`,
- * section 5). A Node module, never bundled: it is the one place in web that imports the filter's
- * main entry (`docs/STACK.md`, "Package import rules").
+ * The self-check: a screen of the web app measured with the filter's own `collect` in Daylight and
+ * in Night, and every element under Vera's floors (`docs/DESIGN.md`, "Checked by"). A Node module,
+ * never bundled: it is the one place in web that imports the filter's main entry (`docs/STACK.md`,
+ * "Package import rules").
  */
 import { fileURLToPath } from "node:url";
 import { METRIC_NAMES, type MetricName, type PageMeasurement, WayfordError } from "@wayford/core";
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
 import { createServer } from "vite";
+import { THEME_NAMES, type Theme } from "../src/theme.js";
 
-/** WCAG 2.2 AA contrast for text, its 24 px target size, and the projector's smallest text. */
+/**
+ * Wayford passes its own cast: WCAG 2.2 AA contrast for text, and Vera's fixture thresholds of
+ * 16 px text and 32 px targets (`docs/DESIGN.md`, "Principles", 5).
+ */
 export const SELF_CHECK_FLOOR = {
   contrast: 4.5,
-  fontPx: 14,
-  targetPx: 24,
+  fontPx: 16,
+  targetPx: 32,
 } as const satisfies Record<MetricName, number>;
+
+/** Both themes. Every screen is checked in each. */
+export const SELF_CHECK_THEMES: readonly Theme[] = ["light", "dark"];
 
 /** The projector's size: every screen is measured at it. */
 export const SELF_CHECK_VIEWPORT = { width: 1280, height: 720 } as const;
@@ -23,7 +30,7 @@ export const SELF_CHECK_VIEWPORT = { width: 1280, height: 720 } as const;
 /** A screen that must pass, and the io responses it is served, keyed by path under /api. */
 export interface SelfCheckScreen {
   name: string;
-  /** Where the screen is, such as `/personas`. */
+  /** Where the screen is, such as `/cast`. */
   path: string;
   /** Shown once the screen has its data; the check measures after it is visible. */
   ready: string;
@@ -34,9 +41,9 @@ export interface SelfCheckScreen {
 /** The screens that must pass. The shell is measured around each of them. */
 export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
   {
-    name: "personas",
-    path: "/personas",
-    ready: 'role=heading[name="Personas"s]',
+    name: "cast",
+    path: "/cast",
+    ready: 'role=heading[name="Cast"s]',
     // The personas come bundled with the app, so the screen asks io for nothing.
     responses: {},
   },
@@ -81,13 +88,20 @@ export interface ScreenCheck {
  * `responses`, and measure it once it is ready. A request to an `/api` path the screen does not
  * list throws a `WayfordError` with code `self_check_unanswered`, so a screen is never measured
  * empty.
+ *
+ * Given a theme, the page's system preference is set to it before the screen loads, so the boot
+ * script in `index.html` opens the screen in it. A screen that opens in any other theme throws a
+ * `WayfordError` with code `self_check_theme`, so a broken boot script cannot pass as Daylight
+ * twice.
  */
 export async function checkScreen(
   page: Page,
   origin: string,
   screen: SelfCheckScreen,
+  theme?: Theme,
 ): Promise<ScreenCheck> {
   await page.setViewportSize(SELF_CHECK_VIEWPORT);
+  if (theme !== undefined) await page.emulateMedia({ colorScheme: theme });
   let unlisted: WayfordError | undefined;
   let reject: (error: WayfordError) => void = () => {};
   const firstUnlisted = new Promise<never>((_, onUnlisted) => {
@@ -109,10 +123,19 @@ export async function checkScreen(
   });
   await page.goto(`${origin}${screen.path}`);
   await Promise.race([page.locator(screen.ready).waitFor(), firstUnlisted]);
-  // So Inter is measured, not the fallback the page drew while it loaded.
+  // So Geist is measured, not the fallback the page drew while it loaded.
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
+  if (theme !== undefined) {
+    const shown = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+    if (shown !== theme) {
+      throw new WayfordError(
+        "self_check_theme",
+        `the ${screen.name} screen opened with data-theme ${JSON.stringify(shown)}, not in ${THEME_NAMES[theme]}`,
+      );
+    }
+  }
   const measurement = await collect(page);
   // A request made after the screen was ready may have changed what was measured.
   if (unlisted !== undefined) throw unlisted;

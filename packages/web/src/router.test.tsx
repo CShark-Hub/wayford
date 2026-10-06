@@ -27,15 +27,15 @@ function h2Texts(html: string): string[] {
   return [...html.matchAll(/<h2(?:\s[^>]*)?>(.*?)<\/h2>/gs)].map((heading) => heading[1] ?? "");
 }
 
-test("/personas shows the five cards in order", async () => {
-  const html = await render("/personas");
+test("/cast shows the five cards in order", async () => {
+  const html = await render("/cast");
   expect(h2Texts(html)).toEqual(profileFixtures.map((p) => p.label));
   expect(html.split("<article").length - 1).toBe(profileFixtures.length);
 });
 
 // The arena lists the personas too, in its start panel, and its copy says what a control cannot do
 // yet without the word the check bans.
-test.each(["/personas", "/arena"])("%s says none of the banned words", async (path) => {
+test.each(["/cast", "/race"])("%s says none of the banned words", async (path) => {
   const html = await render(path);
   // What a person or a screen reader gets: the text between tags, which holds each avatar's
   // `<title>`, and the attributes read out. Class names are code, not copy: Tailwind's `disabled:`
@@ -47,7 +47,7 @@ test.each(["/personas", "/arena"])("%s says none of the banned words", async (pa
   // Neither half may pass by collecting nothing: the cards' names are text, and the nav's label is
   // an attribute.
   expect(texts.join(" ")).toContain("Vera");
-  expect(attributes).toContain("Main");
+  expect(attributes).toContain("Story");
   const collected = [...texts, ...attributes].join(" ").toLowerCase();
   for (const word of ["impaired", "disabled", "able-bodied"]) {
     expect(collected, word).not.toContain(word);

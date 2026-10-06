@@ -250,7 +250,7 @@ function viewOf(html: string): Record<string, string | undefined> {
 // Tests
 // ---------------------------------------------------------------------------
 
-const VERA = "/preview?persona=prof_vera&seed=1";
+const VERA = "/lens?persona=prof_vera&seed=1";
 
 /** Every slider in panel order: each threshold above its softness, then the seed. */
 const SLIDER_IDS = [
@@ -304,17 +304,17 @@ test("the drawn elements are exactly the shown elements of perceive for the URL'
   };
   const cases: { url: string; profile: Profile; seed: number }[] = [
     ...profileFixtures.map((profile) => ({
-      url: `/preview?persona=${profile.id}&seed=1`,
+      url: `/lens?persona=${profile.id}&seed=1`,
       profile,
       seed: 1,
     })),
     {
-      url: "/preview?persona=prof_vera&seed=7&contrast=4.5&contrastSoftness=0.6&fontPx=18&fontPxSoftness=0.25&targetPx=40&targetPxSoftness=0.5",
+      url: "/lens?persona=prof_vera&seed=7&contrast=4.5&contrastSoftness=0.6&fontPx=18&fontPxSoftness=0.25&targetPx=40&targetPxSoftness=0.5",
       profile: moved,
       seed: 7,
     },
     {
-      url: "/preview?persona=prof_kai&seed=1&contrast=4.5&contrastSoftness=0.5",
+      url: "/lens?persona=prof_kai&seed=1&contrast=4.5&contrastSoftness=0.5",
       profile: {
         ...kai,
         perception: {
@@ -347,7 +347,7 @@ test("the drawn elements are exactly the shown elements of perceive for the URL'
 
 test("with no seed in the URL, the seed slider reads 1 and every perceive call gets 1", async () => {
   // The seed is defaulted when the URL resolves, not written into it, so this URL renders as it is.
-  const router = await routerAt("/preview?persona=prof_vera");
+  const router = await routerAt("/lens?persona=prof_vera");
   perceiveSpy.mockClear();
   const html = renderRouter(router);
   expect(searchAt(router)).toStrictEqual({ persona: "prof_vera" });
@@ -361,8 +361,8 @@ test("with no seed in the URL, the seed slider reads 1 and every perceive call g
 test("switching to Zoya with the persona control keeps seed 7", async () => {
   // From Vera's own values, and from Vera with sliders moved, whose values the switch drops.
   for (const start of [
-    "/preview?persona=prof_vera&seed=7",
-    "/preview?persona=prof_vera&seed=7&contrast=2&fontPxSoftness=0.5",
+    "/lens?persona=prof_vera&seed=7",
+    "/lens?persona=prof_vera&seed=7&contrast=2&fontPxSoftness=0.5",
   ]) {
     const router = await routerAt(start);
     const href = personaLink(renderRouter(router), "prof_zoya").attributes.href;
@@ -385,7 +385,7 @@ test("switching to Zoya with the persona control keeps seed 7", async () => {
 
 test("a URL that sets every control restores every control", async () => {
   const html = await render(
-    "/preview?persona=prof_zoya&seed=7&contrast=2.5&contrastSoftness=0.2&fontPx=20&targetPx=40&targetPxSoftness=0.1&evidence=true",
+    "/lens?persona=prof_zoya&seed=7&contrast=2.5&contrastSoftness=0.2&fontPx=20&targetPx=40&targetPxSoftness=0.1&evidence=true",
   );
   // Each slider's value and readout. The font softness is not in the URL, so it is Zoya's own:
   // she sets none, which reads 0.
@@ -421,7 +421,7 @@ test("a URL that sets every control restores every control", async () => {
 });
 
 test("Ada's thresholds read off, her softness sliders are disabled, and every element is drawn", async () => {
-  const html = await render("/preview?persona=prof_ada&seed=1");
+  const html = await render("/lens?persona=prof_ada&seed=1");
   for (const metric of METRIC_NAMES) {
     const threshold = sliderOf(html, `preview-${metric}`);
     expect(threshold.output, metric).toBe("off");
@@ -451,7 +451,7 @@ test("a softness slider is disabled exactly while its threshold is off", async (
 });
 
 test("every slider has a label pointing at its input and an aria-valuetext", async () => {
-  for (const url of [VERA, "/preview?persona=prof_ada&seed=1"]) {
+  for (const url of [VERA, "/lens?persona=prof_ada&seed=1"]) {
     const sliders = slidersOf(await render(url));
     expect(
       sliders.map((slider) => slider.input.id),
@@ -500,28 +500,26 @@ test("with every threshold at its maximum nothing is drawn", async () => {
   expect(drawnBoxes(html)).toEqual([]);
 });
 
-test("the shell's nav has a Preview link to /preview, between Personas and Arena", async () => {
-  const onPreview = linksOf(elementOf(await render(VERA), "nav", 'aria-label="Main"'));
-  expect(onPreview.map((link) => [link.name, link.attributes.href])).toEqual([
-    ["Personas", "/personas"],
-    ["Preview", "/preview"],
-    ["Arena", "/arena"],
-    ["Runs", "/runs"],
-    ["Events", "/events"],
+test("the top bar's story nav has a Lens link to /lens, between Cast and Race", async () => {
+  const onLens = linksOf(elementOf(await render(VERA), "nav", 'aria-label="Story"'));
+  expect(onLens.map((link) => [link.name, link.attributes.href])).toEqual([
+    ["Cast", "/cast"],
+    ["Lens", "/lens"],
+    ["Race", "/race"],
   ]);
-  expect(onPreview[1]?.attributes["aria-current"]).toBe("page");
-  const onPersonas = linksOf(elementOf(await render("/personas"), "nav", 'aria-label="Main"'));
-  const preview = onPersonas.find((link) => link.name === "Preview");
-  expect(preview?.attributes.href).toBe("/preview");
-  expect(preview?.attributes["aria-current"]).toBeUndefined();
+  expect(onLens[1]?.attributes["aria-current"]).toBe("page");
+  const onCast = linksOf(elementOf(await render("/cast"), "nav", 'aria-label="Story"'));
+  const lens = onCast.find((link) => link.name === "Lens");
+  expect(lens?.attributes.href).toBe("/lens");
+  expect(lens?.attributes["aria-current"]).toBeUndefined();
 });
 
 test("the persona control links every persona on the seed and view the URL holds", async () => {
-  const html = await render("/preview?persona=prof_vera&seed=7&contrast=2&evidence=true");
+  const html = await render("/lens?persona=prof_vera&seed=7&contrast=2&evidence=true");
   expect(personaLinks(html).map((link) => [link.name, link.attributes.href])).toEqual(
     profileFixtures.map((profile) => [
       profile.label,
-      `/preview?persona=${profile.id}&seed=7&evidence=true`,
+      `/lens?persona=${profile.id}&seed=7&evidence=true`,
     ]),
   );
 });
@@ -581,7 +579,7 @@ test("the screen draws io's live measurement of the page, for the persona's devi
 test("Milo, on a phone, gets the phone's measurement, drawn no wider than the phone", async () => {
   const phone = liveOf("/deliveries", true);
   const html = await render(
-    "/preview?persona=prof_milo",
+    "/lens?persona=prof_milo",
     liveClient([
       ["desktop", "/deliveries", liveOf("/deliveries")],
       ["mobile", "/deliveries", phone],
@@ -597,7 +595,7 @@ test("Milo, on a phone, gets the phone's measurement, drawn no wider than the ph
 test("the page in the URL is the page measured and drawn", async () => {
   const data = liveOf("/settings/data");
   const html = await render(
-    "/preview?persona=prof_kai&page=/settings/data",
+    "/lens?persona=prof_kai&page=/settings/data",
     liveClient([["desktop", "/settings/data", data]]),
   );
   expect(titleOf(html)).toBe("/settings/data live");
@@ -606,7 +604,7 @@ test("the page in the URL is the page measured and drawn", async () => {
 
 test("while the page is measured, nothing is drawn and a status line says so", async () => {
   // A fresh client: the query is pending, as on the first visit.
-  const html = await render("/preview?persona=prof_vera&page=/account", new QueryClient());
+  const html = await render("/lens?persona=prof_vera&page=/account", new QueryClient());
   expect(drawnBoxes(html)).toEqual([]);
   expect(perceiveSpy).not.toHaveBeenCalled();
   expect(titleOf(html)).toBe("/account");
@@ -627,7 +625,7 @@ test("with the live page unavailable, the stored page is drawn under a banner th
 
 test("on another page, the fallback is still the stored /deliveries, and the banner names it", async () => {
   const html = await render(
-    "/preview?persona=prof_kai&page=/settings/data",
+    "/lens?persona=prof_kai&page=/settings/data",
     await failedClient("desktop", "/settings/data"),
   );
   expect(drawnBoxes(html)).toEqual(shownElements(realPerceive(measurementFixture, kai, 1)));
@@ -637,23 +635,23 @@ test("on another page, the fallback is still the stored /deliveries, and the ban
 });
 
 test("the page control links each page with persona, seed, sliders and view kept", async () => {
-  const html = await render("/preview?persona=prof_zoya&seed=7&contrast=2.5&evidence=true");
+  const html = await render("/lens?persona=prof_zoya&seed=7&contrast=2.5&evidence=true");
   const kept = "persona=prof_zoya&seed=7&contrast=2.5&evidence=true";
   expect(pageLinks(html)).toEqual([
-    { name: "/deliveries", href: `/preview?${kept}`, current: "page" },
-    { name: "/account", href: `/preview?${kept}&page=%2Faccount`, current: undefined },
+    { name: "/deliveries", href: `/lens?${kept}`, current: "page" },
+    { name: "/account", href: `/lens?${kept}&page=%2Faccount`, current: undefined },
     {
       name: "/settings/data",
-      href: `/preview?${kept}&page=%2Fsettings%2Fdata`,
+      href: `/lens?${kept}&page=%2Fsettings%2Fdata`,
       current: undefined,
     },
   ]);
 });
 
 test("a persona link keeps the page the URL holds", async () => {
-  const html = await render("/preview?persona=prof_vera&seed=7&page=/account");
+  const html = await render("/lens?persona=prof_vera&seed=7&page=/account");
   expect(personaLink(html, "prof_kai").attributes.href).toBe(
-    "/preview?persona=prof_kai&seed=7&page=%2Faccount",
+    "/lens?persona=prof_kai&seed=7&page=%2Faccount",
   );
 });
 
@@ -699,11 +697,11 @@ test("on /deliveries the card counts axe-core's one violation and names its rule
   expect(at).toBeGreaterThan(html.indexOf('aria-label="Page"'));
   expect(at).toBeLessThan(html.indexOf('id="preview-page-title"'));
   // The scan is by page: Milo, on a phone, sees the same card.
-  expect(axeCardOf(await render("/preview?persona=prof_milo"))).toBe(card);
+  expect(axeCardOf(await render("/lens?persona=prof_milo"))).toBe(card);
 });
 
 test("on /settings/data the card counts no violation and lists no rule", async () => {
-  const card = axeCardOf(await render("/preview?persona=prof_kai&page=/settings/data"));
+  const card = axeCardOf(await render("/lens?persona=prof_kai&page=/settings/data"));
   expect(lineOf(card)).toMatch(/^axe-core, WCAG 2\.2 A and AA: 0 violations /);
   expect(card).not.toContain("<ul");
   expect(lineOf(card)).toContain(SCANNED_ONCE);
@@ -749,13 +747,13 @@ test("a failed scan says axe did not run, with io's reason, and never a count", 
 
 test("while the page is scanned the card says so, and the stage's status line stays the measurement's", async () => {
   // A fresh client: both the measurement and the scan are pending, as on the first visit.
-  const fresh = await render("/preview?persona=prof_vera&page=/account", new QueryClient());
+  const fresh = await render("/lens?persona=prof_vera&page=/account", new QueryClient());
   expect(lineOf(axeCardOf(fresh))).toBe("axe-core is scanning /account…");
   expect(statusOf(fresh)).toBe("Measuring /account on the target app, on desktop…");
   // The page measured and the scan still pending: the card adds no status line of its own.
   const measured = liveClient();
   measured.removeQueries({ queryKey: axeQuery("/account").queryKey, exact: true });
-  const html = await render("/preview?persona=prof_vera&page=/account", measured);
+  const html = await render("/lens?persona=prof_vera&page=/account", measured);
   expect(lineOf(axeCardOf(html))).toBe("axe-core is scanning /account…");
   expect(statusOf(html)).toBeUndefined();
   expect(axeCardOf(html)).not.toContain("role=");

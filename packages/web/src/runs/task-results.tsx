@@ -18,53 +18,32 @@ import { Link } from "@tanstack/react-router";
 import type { RunResult } from "@wayford/core";
 import type { ReactNode } from "react";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { personaColour } from "../avatar/parts.js";
+import { PersonaChip } from "#components/persona-avatar";
+import { profileColour, slotOf } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { type PersonaStats, type TaskStats, taskStats } from "./stats.js";
 
 /** The bundled personas' ids in fixture order: the order every chart and table follows. */
 const PERSONA_ORDER = bundledProfiles.map((profile) => profile.id);
 
-/** Each bundled persona's label and colour, by id. A persona that is not bundled has neither. */
-const BUNDLED = new Map(
-  bundledProfiles.map((profile) => [
-    profile.id,
-    { label: profile.label, colour: personaColour(profile) },
-  ]),
-);
-
-/** A persona that is not bundled has no colour of its own, so it takes the muted text's. */
-const UNCOLOURED = "var(--muted-foreground)";
-
-/** A persona's colour on the dashboard: the bundled profile's, or the muted text's. */
-export function personaColourOf(profileId: string): string {
-  return BUNDLED.get(profileId)?.colour ?? UNCOLOURED;
-}
+/** Each bundled persona's label, by id. A persona that is not bundled has none. */
+const LABELS = new Map(bundledProfiles.map((profile) => [profile.id, profile.label]));
 
 /** A persona's name on the dashboard: the bundled profile's label, or the id itself. */
 export function personaLabel(profileId: string): string {
-  return BUNDLED.get(profileId)?.label ?? profileId;
+  return LABELS.get(profileId) ?? profileId;
 }
 
 /**
- * A persona as the dashboard names it: a dot in its colour, then its label. A persona that is not
- * bundled has no colour, so its dot is an empty ring and its id is set in monospace.
+ * A persona as the dashboard names it: its chip, a square in its slot's colour, then its label. A
+ * persona that is not bundled takes the fallback slot, and its id is set in monospace.
  */
 export function PersonaName({ profileId }: { profileId: string }) {
-  const bundled = BUNDLED.get(profileId);
+  const bundled = LABELS.has(profileId);
   return (
-    <span className="inline-flex items-center gap-2">
-      <span
-        aria-hidden="true"
-        className={
-          bundled
-            ? "size-2.5 shrink-0 rounded-full"
-            : "size-2.5 shrink-0 rounded-full border border-muted-foreground"
-        }
-        style={bundled ? { backgroundColor: bundled.colour } : undefined}
-      />
+    <PersonaChip slot={slotOf(profileId)}>
       <span className={bundled ? undefined : "font-mono"}>{personaLabel(profileId)}</span>
-    </span>
+    </PersonaChip>
   );
 }
 
@@ -85,8 +64,8 @@ const CHART_WIDTH = 360;
 const CHART_HEIGHT = 180;
 
 /** An axis's ticks and line, in theme tokens. */
-const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 12 };
-const AXIS_LINE = "var(--border)";
+const AXIS_TICK = { fill: "var(--ink-2)", fontSize: 12 };
+const AXIS_LINE = "var(--line)";
 
 /** One bar: the persona's label on the x axis, its value, and its colour. */
 type BarDatum = { label: string; value: number; fill: string };
@@ -94,7 +73,7 @@ type BarDatum = { label: string; value: number; fill: string };
 /** The bar of `persona` at `value`, in its persona colour. */
 function barOf(persona: PersonaStats, value: number): BarDatum {
   const { profileId } = persona;
-  return { label: personaLabel(profileId), value, fill: personaColourOf(profileId) };
+  return { label: personaLabel(profileId), value, fill: profileColour(profileId) };
 }
 
 /**

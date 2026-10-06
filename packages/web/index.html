@@ -1,8 +1,23 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Sets data-theme before first paint, so Night never flashes Daylight first: the stored
+         choice, else the system's. Storage can throw when it is blocked. Kept in step with
+         src/theme.ts, which src/theme.test.ts checks by running this script. -->
+    <script>
+      (() => {
+        let theme;
+        try {
+          theme = localStorage.getItem("wayford-theme");
+        } catch {}
+        if (theme !== "light" && theme !== "dark") {
+          theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
     <title>Wayford</title>
   </head>
   <body>
