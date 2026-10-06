@@ -62,9 +62,9 @@ Agreed 2026-10-04, for week 4. What we ship is what `docs/DEMO.md` shows: every 
 - **Built:** F2 to F7 and F12.
 - **F8 Report:** the numbers and the `deterministic` findings in code, the Analyst writing recommendations and `hypothesis` findings. The route-open number exists for the hard goal only, the one goal with a route table; elsewhere it reads "—".
 - **F9 Sweep:** one engine for both axes, on Jev, with one screen.
-- **F10 axe:** each target-app page scanned once, shown beside the preview, cited by the report.
+- **F10 axe:** each target-app page scanned once, shown in the Lens, cited by the report.
 - **F11 Demo data:** on Jev, with a `--fake` mode that needs no key.
-- **Look:** one design direction (`docs/DESIGN.md`, from `s3-07`) over the five demo screens: preview, arena, run detail, report, sweep. Wayford's own screens pass its own measurement.
+- **Look:** one design system (`docs/DESIGN.md`, approved 2026-10-06 in `docs/adr/0002-daylight-instrument-redesign.md`) over the demo screens: Lens, Race, run detail, Report, Boundary. Wayford's own screens pass its own measurement at Vera's floors: 16 px text, 32 px targets.
 - **Jev:** run detail shows each step's options, probabilities and draw.
 
 Cut for the hackathon, so nobody builds them:
@@ -185,19 +185,28 @@ One axis, one path.
 
 ## UI
 
-Screens:
+Screens, in the order the story tells them (`docs/DESIGN.md`, "Screens"):
 
-1. Personas: card grid with avatars, builder from blocks.
-2. Preview: sliders on the left, page as perceived on the right. Optional second pane with the real page for side-by-side.
-3. Arena (ring): live race, avatars, hero video.
-4. Runs: dashboard and filters.
-5. Run detail: replay with evidence, video and trace download.
-6. Report: per task, findings grouped by type.
-7. Sweep: axis, range, table, chart.
+1. Cast: the personas, a lineup over a capability matrix. The builder from blocks is cut for the hackathon.
+2. Lens: the page as the persona's filter leaves it, the thresholds as gauges, the evidence one switch away.
+3. Race: three to five personas live on one goal.
+4. Report: per task, two numbers per persona and the findings grouped by certainty.
+5. Boundary: the axis, the chart with its boundary, the value table.
 
-Weeks 1 to 3 build screens function first; week 4's design pass decides the look (`docs/ROADMAP.md`, week 4), starting from this brief. Look: two registers on purpose. Input side is playful: large avatar cards, bold names, one colour per persona, race track. Output side is sober: monochrome, dense, evidence first, monospace for seeds and measurements. Dark theme by default. The persona colour is the only thing that crosses both registers.
+Apart from the story: Runs, the archive, and run detail, the replay with evidence and the video and trace downloads.
 
-Avatars: procedural SVG, layered parts, deterministic from the profile seed. Parts follow dimensions: thick glasses for a low contrast threshold, phone in hand for mobile, hourglass for low patience. Six states driven by run events (F6 AC2), each a static variant of the avatar; motion was cut on 2026-10-01 to fit week 3.
+The look is `docs/DESIGN.md`: a daylight measuring instrument with a cast.
+
+- Persona colour means who, and one signal orange marks every measurement line.
+- Line style means certainty.
+- Daylight by default, Night as a second theme.
+
+It replaced the week 4 brief that stood here (two registers, dark by default) on 2026-10-06.
+
+Avatars: procedural SVG, layered parts, deterministic from the profile seed, drawn in the persona's slot colours.
+
+- Parts follow dimensions: thick glasses for a low contrast threshold, phone in hand for mobile, hourglass for low patience.
+- Six states driven by run events (F6 AC2), each a static variant of the avatar. Motion was cut on 2026-10-01 to fit week 3.
 
 ## Architecture
 
@@ -256,7 +265,7 @@ Exact library picks, ports and import rules: `docs/STACK.md`. Code conventions a
 - Playwright with CDP access, axe-core.
 - Hono for HTTP and SSE.
 - Drizzle ORM over SQLite, Postgres-compatible schema.
-- Vite, React, Tailwind, shadcn/ui, Framer Motion, TanStack Query, Recharts.
+- Vite, React, Tailwind, shadcn/ui, TanStack Query. The one chart is plain SVG.
 - zod for schemas and structured LLM output.
 
 ## AI access

@@ -1,0 +1,116 @@
+/* Wayford tokens, Daylight and Night: the source of every value in docs/DESIGN.md.
+   packages/web/src/index.css copies its token block from here. The theme keys on data-theme
+   only: a boot script in index.html sets it before first paint (docs/DESIGN.md, "In code"). */
+:root, [data-theme="light"] {
+  --paper: #f5f3ef;
+  --paper-sunken: #ebe8e3;
+  --surface: #fdfcfa;
+  --ink: #1a1510;
+  --ink-2: #4c4741;
+  --ink-3: #655f59;
+  --line: #d7d4ce;
+  --line-strong: #847f7a;
+  --signal: #ea5202;
+  --signal-ink: #b53700;
+  --on-signal: #1a1510;
+  --signal-soft: #ffe1cc;
+  --focus-ring: var(--signal-ink);
+  --fault: #b32130;
+  --fault-soft: #ffdfdd;
+  --avatar-line: #1a1510;
+  --avatar-tile: #ebe8e3;
+  --avatar-head: #fdfcfa;
+  --persona-graphite: #6d7279;
+  --persona-graphite-ink: #4f5358;
+  --persona-graphite-soft: #e1e5ea;
+  --persona-cobalt: #3a6cce;
+  --persona-cobalt-ink: #264e9c;
+  --persona-cobalt-soft: #d6e5ff;
+  --persona-raspberry: #b83b76;
+  --persona-raspberry-ink: #8b2556;
+  --persona-raspberry-soft: #fcdae6;
+  --persona-jade: #008760;
+  --persona-jade-ink: #006444;
+  --persona-jade-soft: #cdeede;
+  --persona-violet: #8059bb;
+  --persona-violet-ink: #5e3e8d;
+  --persona-violet-soft: #e8dffc;
+  --shadow-raised: 0 1px 0 #1a151012, 0 10px 24px -14px #1a15102e;
+  --shadow-pop: 0 2px 4px #1a151014, 0 18px 40px -16px #1a151047;
+}
+[data-theme="dark"] {
+  --paper: #141210;
+  --paper-sunken: #0e0c09;
+  --surface: #1e1b18;
+  --ink: #f5f3f0;
+  --ink-2: #cac7c2;
+  --ink-3: #a7a49e;
+  --line: #35322e;
+  --line-strong: #78746e;
+  --signal: #ff7527;
+  --signal-ink: #ff9555;
+  --on-signal: #141210;
+  --signal-soft: #462312;
+  --focus-ring: var(--signal-ink);
+  --fault: #f47a79;
+  --fault-soft: #472020;
+  --avatar-line: #1a1510;
+  --avatar-tile: #ebe8e3;
+  --avatar-head: #fdfcfa;
+  --persona-graphite: #a4a8ae;
+  --persona-graphite-ink: #c1c4c9;
+  --persona-graphite-soft: #2b2e33;
+  --persona-cobalt: #78a6fd;
+  --persona-cobalt-ink: #a2c5ff;
+  --persona-cobalt-soft: #202e46;
+  --persona-raspberry: #ed7eac;
+  --persona-raspberry-ink: #f9a8c7;
+  --persona-raspberry-soft: #41232f;
+  --persona-jade: #63bc98;
+  --persona-jade-ink: #98d3b9;
+  --persona-jade-soft: #123528;
+  --persona-violet: #b494ec;
+  --persona-violet-ink: #cdb7f6;
+  --persona-violet-soft: #312842;
+  --shadow-raised: 0 1px 0 #00000059, 0 12px 28px -14px #000000a6;
+  --shadow-pop: 0 2px 4px #00000066, 0 20px 44px -16px #000000bf;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 20px;
+  --header-h: 56px;
+  --rail-w: 300px;
+  --content-max: 1360px;
+  --control-h: 40px;
+  --target-min: 32px;
+  --stroke-hair: 1px;
+  --stroke-rule: 2px;
+  --stroke-post: 3px;
+  --z-sticky: 10;
+  --z-overlay: 20;
+  --z-toast: 30;
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", system-ui, sans-serif;
+  --font-sans: "Geist Variable", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+.display-xl { font-family: var(--font-display); font-size: 72px; line-height: 68px; font-weight: 700; letter-spacing: -0.035em; }
+.display-l { font-family: var(--font-display); font-size: 48px; line-height: 48px; font-weight: 700; letter-spacing: -0.03em; }
+.display-m { font-family: var(--font-display); font-size: 32px; line-height: 36px; font-weight: 700; letter-spacing: -0.02em; }
+.title { font-family: var(--font-sans); font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.lead { font-family: var(--font-sans); font-size: 18px; line-height: 28px; font-weight: 400; }
+.body { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 16px; line-height: 20px; font-weight: 500; }
+.readout { font-family: var(--font-mono); font-size: 44px; line-height: 48px; font-weight: 500; letter-spacing: -0.02em; }
+.mono { font-family: var(--font-mono); font-size: 16px; line-height: 24px; font-weight: 400; }
+.mono-label { font-family: var(--font-mono); font-size: 16px; line-height: 20px; font-weight: 500; letter-spacing: 0.01em; }

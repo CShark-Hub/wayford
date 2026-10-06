@@ -117,21 +117,27 @@ Scope, agreed 2026-10-04 (`docs/PLAN.md`, "Hackathon scope"): what `docs/DEMO.md
 - Sweep, one engine for both axes, and its screen (`s4-05`, `s3-09`), fed by one route-open function (`s1-06`).
 - K2 (`s1-05`) and axe per page (`s4-06`) for beat 3.
 - Jev, which passed its gate: io runs a run set on it (`s2-12`), and run detail shows its decisions (`s3-10`). The sweep and `seed:demo` run on Jev; the live race stays on the LLM, for its narration.
-- Design: a direction and tokens first (`s3-07`), then the preview (`s3-11`), then the arena and run detail (`s3-12`). The report and sweep screens are built in the new look. Personas and runs take the tokens only.
+- Design: `s3-07` set a first direction. The redesign approved on 2026-10-06 replaces it (`docs/adr/0002-daylight-instrument-redesign.md`, `docs/DESIGN.md`), built in this order:
+  - a foundation first (`s3-13`): tokens, themes, the top bar, the renamed routes;
+  - then the Lens (`s3-11`) and the Race with run detail (`s3-12`);
+  - the Report (`s3-08`) and Boundary (`s3-09`) screens built on it;
+  - Cast and Runs last and optional (`s3-14`): the demo shows neither.
 - `seed:demo` (`s4-07`), with a `--fake` mode that fills every screen with no key.
 - The demo: the script agreed by Friday 2026-10-09, two rehearsals and the backup video by Friday 2026-10-16.
 
-Optional, once every must task is taken: `s3-06` (illustration view), `s4-08` (public-site run), and the behaviour rules `s2-07` (B2), `s2-08` (B4) and `s2-09` (a simulated clock), in that order.
+Optional, once every must task is taken: `s3-14` (Cast and Runs redesigned), `s3-06` (illustration view), `s4-08` (public-site run), and the behaviour rules `s2-07` (B2), `s2-08` (B4) and `s2-09` (a simulated clock), in that order.
 
 Exit criteria:
 
 - `POST /reports/:taskId` stores a report over all runs of a task: per persona the route-open seeds beside the successes (F8 AC6), and findings of all three types, each linked to a step. The report screen renders them grouped by type.
-- `sweep` on Vera's contrast and on Kai's `maxElements` prints each boundary value, and the sweep screen shows both curves and the marker.
+- `sweep` on Vera's contrast and on Kai's `maxElements` prints each boundary value, and the Boundary screen shows both curves and the marker.
 - K2: Kai reads "Fulfilment ledger" on `/settings/data` with its jargon masked as `[unfamiliar term]`.
-- The preview shows each target-app page's axe-core result, and the report cites axe violations as measurement findings.
+- The Lens shows each target-app page's axe-core result, and the report cites axe violations as measurement findings.
 - A Jev run's step replay shows the options, their probabilities and the drawn one.
 - `pnpm seed:demo` fills the database with 3 personas, 2 tasks, 10 runs each, a report per task and one sweep per axis, and prints runs, wall time and cost. `--fake` does the same with no key.
-- Every demo screen follows `docs/DESIGN.md`, and `pnpm --filter @wayford/web check:self` passes on each: no text below 4.5:1 and no control below 24 px by the filter's own measurement.
+- Every demo screen follows `docs/DESIGN.md`, and `pnpm --filter @wayford/web check:self` passes on each, in Daylight and Night. By the filter's own measurement there is:
+  - no text below 4.5:1 or 16 px;
+  - no control below 32 px.
 - The demo runs end to end as `docs/DEMO.md` describes, rehearsed at least twice.
 - Backup video of the full 90 second demo exists in the repo or a shared drive.
 
@@ -146,16 +152,18 @@ flowchart LR
 
 
   s3_07["s3-07 Design direction,<br/>tokens, self-check"]
+  s3_13["s3-13 Redesign<br/>foundation"]
   s1_06["s1-06 Route-open share"]
   s4_06["s4-06 axe sidecar"]
   s2_12["s2-12 io on Jev"]
   s3_10["s3-10 Jev decisions<br/>in run detail"]
   s4_04["s4-04 Analyst"]
   s4_05["s4-05 Sweep"]
-  s3_11["s3-11 Design pass:<br/>preview"]
-  s3_12["s3-12 Design pass:<br/>arena, run detail"]
+  s3_11["s3-11 Lens"]
+  s3_12["s3-12 Race,<br/>run detail"]
   s3_08["s3-08 Report screen"]
-  s3_09["s3-09 Sweep screen"]
+  s3_09["s3-09 Boundary screen"]
+  s3_14["s3-14 Cast, Runs"]
   s4_07["s4-07 seed:demo"]
   demo1["demo-1 Script agreed,<br/>beats 1 to 4 rehearsed"]
   demo2["demo-2 Two rehearsals,<br/>backup video"]
@@ -167,12 +175,14 @@ flowchart LR
   s1_06 --> s4_05
   s4_04 -. axe findings .-> s4_06
   s2_12 -. Jev box .-> s4_05
-  s3_07 --> s3_11
-  s3_07 --> s3_12
+  s3_07 --> s3_13
+  s3_13 --> s3_11
+  s3_13 --> s3_12
   s4_04 --> s3_08
-  s3_07 --> s3_08
+  s3_13 --> s3_08
   s4_05 --> s3_09
-  s3_07 --> s3_09
+  s3_13 --> s3_09
+  s3_08 --> s3_14
   s4_04 --> s4_07
   s4_05 --> s4_07
   s2_12 --> s4_07
@@ -185,11 +195,11 @@ flowchart LR
   s4_06 --> demo2
   s3_07 --> s3_06
 
-  class s3_07,s1_06,s4_06,s2_12,s3_10,demo1 ready
-  class s3_06,s4_08 optional
+  class s3_07,s3_13,s1_06,s4_06,s2_12,s3_10,demo1 ready
+  class s3_06,s4_08,s3_14 optional
 ```
 
-Thick border: can start Monday 2026-10-05. Dashed border: optional. `s2-07` to `s2-09` are optional too and wait on nothing open; they are left off the map.
+Thick border: can start Monday 2026-10-05, `s3-13` from Tuesday 2026-10-06. Dashed border: optional. `s2-07` to `s2-09` are optional too and wait on nothing open; they are left off the map.
 
 ## Cut order if time runs out
 
@@ -199,15 +209,16 @@ Cut from the bottom, never from the top.
 2. Actor loop, run evidence, the calibration run, dashboard.
 3. The target app's three routes and Kai (`s1-04`). Without them the demo has no route that only knowledge or attention closes.
 4. Scout (`s2-04`). Without ground truth a report cannot tell a broken feature from one a persona could not find (`AGENTS.md`, "Scout is mandatory").
-5. Boundary sweep on contrast, with route-open share and its screen (`s1-06`, `s4-05`, `s3-09`).
+5. Boundary sweep on contrast, with route-open share and its screen (`s1-06`, `s4-05`, `s3-09`), and the redesign foundation that screen is built on (`s3-13`).
 6. Analyst report and its screen (`s4-04`, `s3-08`).
 7. `seed:demo` (`s4-07`). Without it the report and sweep screens show only what was run by hand.
-8. Design direction and the pass over the demo screens (`s3-07`, `s3-11`, `s3-12`). Without it the demo runs on the week 3 look.
+8. The redesign of the screens that existed in week 3 (`s3-11`, `s3-12`). Without it the Lens, Race and run detail keep their week 3 layouts under the new tokens. The foundation (`s3-13`) is not cut with them: the Report and Boundary screens are built on it.
 9. Jev: io on Jev and its decisions in run detail (`s2-12`, `s3-10`). Without them `seed:demo` and the sweeps run on the LLM, slower and dearer.
 10. axe-core sidecar (`s4-06`). Without it, beat 3 cites the filter's own measurement from `s1-04`.
 11. Sweep on `maxElements`.
-12. Preview illustration view (`s3-06`).
+12. Lens illustration view (`s3-06`).
 13. Real public site run (`s4-08`).
 14. Behaviour beyond B1 (`s2-07`, `s2-08`, `s2-09`).
+15. Cast and Runs redesigned (`s3-14`). Without it both keep their week 3 layouts under the new tokens.
 
 The ring (`s3-03`) and K2 (`s1-05`) are built, so they left this list on 2026-10-05: cutting them saves nothing.

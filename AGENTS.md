@@ -18,6 +18,7 @@ Planning docs:
 - `docs/RULES.md` — the filter pipeline, every rule with its source id, the five persona bundles. A change takes a PR with one approval, like everything else from week 4.
 - `docs/STACK.md` — exact library picks and package import rules. `docs/CONVENTIONS.md` — layout, determinism rules, Definition of Done.
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
+- `docs/DESIGN.md` — the look every screen follows; `docs/design/` draws it, screen by screen.
 - `docs/adr/` — decisions taken after the plan, one file each: context, rejected options, consequences. Read the matching one before changing what it covers.
 - `tasks/` — agent-sized task files, `BOARD.md` for ownership and status, `TEMPLATE.md` for new tasks.
 

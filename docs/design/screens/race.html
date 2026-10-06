@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta name="viewport" content="width=1280">
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components.css">
+<meta charset="utf-8">
+<title>Race · Wayford</title>
+<style>
+  /* RaceScreen: demo beat 4, mid-race. Hard goal, seed 1, Ada (control), Kai, Vera.
+     Ada got through in 2 steps, Kai is on step 5, Vera gave up on /deliveries,
+     where the archive link reached her degraded (reports.json: seed 1, route A open). */
+  html, body { width: 1280px; height: 720px; }
+  body { overflow: hidden; display: grid; grid-template-rows: var(--header-h) auto 1fr; }
+  h1, h2, p { margin: 0; }
+
+  /* Top bar: nav centred on the page, Runs apart on the right */
+  .wf-top { grid-template-columns: 1fr auto 1fr; }
+  .top-right { justify-self: end; display: flex; align-items: center; gap: 10px; }
+  .top-sep { width: 1px; height: 24px; background: var(--line); }
+  .top-theme { width: 40px; padding: 0; }
+  .wf-wordmark { min-height: 36px; }
+
+  /* ---------- Goal strip ---------- */
+  .race-head {
+    display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 32px;
+    padding: 18px 24px 16px;
+  }
+  .race-meta { display: flex; align-items: center; gap: 10px; }
+  .race-meta .wf-label { color: var(--ink-3); }
+  .race-goal {
+    margin: 6px 0 6px; text-indent: -0.4em; font: 700 32px/36px var(--font-display); letter-spacing: -0.02em; color: var(--ink);
+  }
+  .race-goal q { quotes: "\201C" "\201D"; }
+  .race-cond { display: flex; align-items: center; gap: 12px; font: 400 16px/20px var(--font-mono); color: var(--ink-3); }
+  .race-cond b { font-weight: 500; color: var(--ink); }
+  .race-cond i { width: 4px; height: 4px; border-radius: 50%; background: var(--line-strong); }
+  .race-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
+  .race-seed {
+    height: var(--control-h); display: inline-flex; align-items: center; gap: 8px; padding: 0 14px;
+    font: 500 16px/20px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums;
+    border: var(--stroke-hair) solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface);
+  }
+  .race-seed span { color: var(--ink-3); font-weight: 400; }
+
+  /* ---------- Lanes ---------- */
+  .race-lanes { display: grid; align-content: start; gap: 10px; padding: 0 24px 16px; min-height: 0; }
+  .race-lane { padding: 14px 22px; row-gap: 8px; }
+  .race-who { display: flex; align-items: center; gap: 16px; min-width: 0; }
+  .race-id { display: grid; gap: 2px; }
+  .race-name { font: 700 32px/36px var(--font-display); letter-spacing: -0.02em; }
+  .race-dim { font: 400 16px/20px var(--font-mono); color: var(--ink-3); white-space: nowrap; }
+
+  .race-masked { font-family: var(--font-mono); color: var(--ink); }
+  .race-gaveup {
+    position: relative; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px;
+    margin-left: 2px; color: var(--ink-2); background: var(--surface);
+  }
+  .race-gaveup .wf-icon { width: 22px; height: 22px; }
+  .race-ordinal {
+    position: absolute; right: -6px; bottom: calc(100% + 6px);
+    padding: 1px 9px; border-radius: var(--radius-sm);
+    font: 700 18px/24px var(--font-display); letter-spacing: -0.01em;
+    background: var(--p-soft); color: var(--p-ink); box-shadow: inset 0 0 0 var(--stroke-hair) var(--p);
+  }
+
+  .race-shot svg { width: 100%; height: 100%; display: block; }
+  .race-out { display: grid; gap: 2px; justify-items: start; }
+  .race-time {
+    font: 500 32px/36px var(--font-mono); letter-spacing: -0.02em; color: var(--ink);
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  .race-steps { font: 400 16px/20px var(--font-mono); color: var(--ink-3); }
+  .wf-outcome--live .race-live { fill: currentColor; stroke: none; }
+</style>
+</head>
+<body>
+<header class="wf-top">
+  <a class="wf-wordmark" href="#">Wayford</a>
+  <nav class="wf-nav" aria-label="Story">
+    <a href="#"><span class="wf-nav__n">01</span>Cast</a>
+    <a href="#"><span class="wf-nav__n">02</span>Lens</a>
+    <a href="#" aria-current="page"><span class="wf-nav__n">03</span>Race</a>
+    <a href="#"><span class="wf-nav__n">04</span>Report</a>
+    <a href="#"><span class="wf-nav__n">05</span>Boundary</a>
+  </nav>
+  <div class="top-right">
+    <nav class="wf-nav" aria-label="Archive"><a href="#">Runs</a></nav>
+    <span class="top-sep" aria-hidden="true"></span>
+    <span class="wf-source wf-source--live">live</span>
+    <button class="wf-btn wf-btn--ghost top-theme" type="button" aria-label="Theme: Daylight">
+      <svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>
+    </button>
+  </div>
+</header>
+
+<section class="race-head" aria-label="Goal">
+  <div>
+    <div class="race-meta">
+      <span class="wf-label">goal</span>
+      <span class="wf-tag">hard</span>
+      <span class="wf-label">task_past-order</span>
+    </div>
+    <h1 class="race-goal"><q>you want to see what you ordered three months ago</q></h1>
+    <p class="race-cond">
+      <span>success · url matches <b>/deliveries/archive</b></span>
+    </p>
+  </div>
+  <div class="race-actions">
+    <span class="race-seed"><span>seed</span>1</span>
+    <button class="wf-btn" type="button" disabled>New race</button>
+  </div>
+</section>
+
+<section class="race-lanes" aria-label="Lanes">
+  <!-- Ada: through in 2 steps, first to the post -->
+  <article class="wf-lane wf-lane--done race-lane wf-p-graphite" aria-label="Ada, got through in 2 steps">
+    <div class="race-who">
+      <div class="wf-avatar" style="--s:64px"><svg viewBox="0 0 160 160" aria-hidden="true" data-state="done"><g data-part="body"><path d="M10 160 C10 128 34 106 70 106 C106 106 130 128 130 160" stroke-width="4" style="fill:var(--p);stroke:var(--avatar-line)"></path><path d="M34 128 L106 128 M25 142 L115 142 M19 155 L121 155" stroke-width="5" stroke-linecap="round" style="stroke:var(--p-ink)"></path></g><g data-part="head"><circle cx="70" cy="72" r="40" stroke-width="4" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle></g><g data-part="tuft"><path d="M70 33 C70 22 74 14 83 14 C91 14 93 23 87 26 C82 28 79 23 83 20" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--p-ink)"></path></g><g data-part="face"><circle cx="52" cy="74" r="8.5" stroke-width="2.25" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle><circle cx="88" cy="74" r="8.5" stroke-width="2.25" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle><circle cx="52" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="88" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle style="fill:var(--avatar-head)" cx="50.5" cy="73.5" r="1.5"></circle><circle style="fill:var(--avatar-head)" cx="86.5" cy="73.5" r="1.5"></circle><path d="M58 92 Q70 102 82 92" fill="none" stroke-width="4" stroke-linecap="round" style="stroke:var(--avatar-line)"></path></g><g data-part="hourglass"><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill-opacity="0.3" style="fill:var(--avatar-head)"></path><path d="M127.51 19.29 L146.49 19.29 L137 37 Z" style="fill:var(--p)"></path><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill="none" stroke-width="3" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><rect x="119" width="36" height="6" rx="3" y="4" style="fill:var(--p-ink)"></rect><rect x="119" width="36" height="6" rx="3" y="64" style="fill:var(--p-ink)"></rect></g><g data-part="state"><circle cx="22" cy="22" r="15" stroke-width="3" style="fill:var(--p);stroke:var(--avatar-line)"></circle><path d="M15 22.5 L20 27.5 L29 16.5" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path></g></svg></div>
+      <div class="race-id">
+        <h2 class="wf-pname race-name">Ada</h2>
+        <span class="race-dim">control</span>
+      </div>
+    </div>
+    <div class="wf-track race-track" role="img" aria-label="2 steps, both clicks; reached the goal">
+      <span class="wf-pip"></span>
+      <span class="wf-pip"></span>
+      <span class="wf-goalpost wf-goalpost--reached"><span class="race-ordinal">1st</span></span>
+    </div>
+    <div class="wf-shot race-shot" title="/deliveries/archive">
+      <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <rect width="160" height="100" style="fill:var(--surface)"/>
+        <rect width="160" height="12" style="fill:var(--paper)"/>
+        <path d="M0 12.5H160" stroke-width="1" style="stroke:var(--line)"/>
+        <rect x="8" y="4.5" width="22" height="3" rx="1" style="fill:var(--ink-2)"/>
+        <g style="fill:var(--ink-3)"><rect x="90" y="4.5" width="10" height="3" rx="1"/><rect x="104" y="4.5" width="18" height="3" rx="1"/><rect x="126" y="4.5" width="14" height="3" rx="1"/><rect x="144" y="4.5" width="10" height="3" rx="1"/></g>
+        <rect x="22" y="20" width="58" height="6" rx="1" style="fill:var(--ink)"/>
+        <rect x="22" y="30" width="84" height="3" rx="1" style="fill:var(--ink-3)"/>
+        <g style="fill:var(--ink-2)">
+          <rect x="22" y="41" width="18" height="3" rx="1"/><rect x="46" y="41" width="46" height="3" rx="1"/>
+          <rect x="22" y="53" width="18" height="3" rx="1"/><rect x="46" y="53" width="36" height="3" rx="1"/>
+          <rect x="22" y="65" width="18" height="3" rx="1"/><rect x="46" y="65" width="54" height="3" rx="1"/>
+          <rect x="22" y="77" width="18" height="3" rx="1"/><rect x="46" y="77" width="30" height="3" rx="1"/>
+        </g>
+        <g style="fill:var(--ink-3)"><rect x="124" y="41" width="14" height="3" rx="1"/><rect x="124" y="53" width="14" height="3" rx="1"/><rect x="124" y="65" width="14" height="3" rx="1"/><rect x="124" y="77" width="14" height="3" rx="1"/></g>
+        <path d="M22 48.5H138M22 60.5H138M22 72.5H138M22 84.5H138" stroke-width="1" style="stroke:var(--line)"/>
+      </svg>
+    </div>
+    <div class="race-out">
+      <span class="wf-outcome"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/></svg>Got through</span>
+      <span class="race-time">0:11.4</span>
+      <span class="race-steps">2 steps</span>
+    </div>
+    <p class="wf-narration">The link under the delivery preferences says Order archive. Opening it.</p>
+  </article>
+
+  <!-- Kai: still moving, on step 5 -->
+  <article class="wf-lane race-lane wf-p-raspberry" aria-label="Kai, moving, step 5">
+    <div class="race-who">
+      <div class="wf-avatar" style="--s:64px"><svg viewBox="0 0 160 160" aria-hidden="true"><g data-part="body"><path d="M10 160 C10 128 34 106 70 106 C106 106 130 128 130 160" stroke-width="4" style="fill:var(--p);stroke:var(--avatar-line)"></path><g style="fill:var(--p-ink)"><circle cx="42" cy="128" r="4.5"></circle><circle cx="70" cy="126" r="4.5"></circle><circle cx="98" cy="128" r="4.5"></circle><circle cx="28" cy="146" r="4.5"></circle><circle cx="56" cy="144" r="4.5"></circle><circle cx="84" cy="144" r="4.5"></circle><circle cx="112" cy="146" r="4.5"></circle></g></g><g data-part="head"><circle cx="70" cy="72" r="40" stroke-width="4" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle></g><g data-part="tuft"><path d="M70 33 L70 19" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--p-ink)"></path><path d="M70 23 C64 13 54 12 49 16 C53 25 62 27 70 23 Z" style="fill:var(--p-ink)"></path><path d="M70 19 C76 9 87 7 92 11 C88 20 79 23 70 19 Z" style="fill:var(--p-ink)"></path></g><g data-part="face"><circle cx="52" cy="74" r="8.5" stroke-width="2.25" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle><circle cx="88" cy="74" r="8.5" stroke-width="2.25" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle><circle cx="52" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="88" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle style="fill:var(--avatar-head)" cx="50.5" cy="73.5" r="1.5"></circle><circle style="fill:var(--avatar-head)" cx="86.5" cy="73.5" r="1.5"></circle><path d="M45 55 Q52 49 59 55 M81 55 Q88 49 95 55" fill="none" stroke-width="3.5" stroke-linecap="round" style="stroke:var(--avatar-line)"></path><path d="M58 92 Q70 102 82 92" fill="none" stroke-width="4" stroke-linecap="round" style="stroke:var(--avatar-line)"></path></g><g data-part="hourglass"><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill-opacity="0.3" style="fill:var(--avatar-head)"></path><path d="M127.51 19.29 L146.49 19.29 L137 37 Z" style="fill:var(--p)"></path><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill="none" stroke-width="3" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><rect x="119" width="36" height="6" rx="3" y="4" style="fill:var(--p-ink)"></rect><rect x="119" width="36" height="6" rx="3" y="64" style="fill:var(--p-ink)"></rect></g></svg></div>
+      <div class="race-id">
+        <h2 class="wf-pname race-name">Kai</h2>
+        <span class="race-dim">attention 11</span>
+      </div>
+    </div>
+    <div class="wf-track race-track" role="img" aria-label="5 steps: click, scroll, back, wasted, current">
+      <span class="wf-pip"></span>
+      <span class="wf-pip wf-pip--scroll"></span>
+      <span class="wf-pip wf-pip--back"></span>
+      <span class="wf-pip wf-pip--wasted"></span>
+      <span class="wf-pip wf-pip--now"></span>
+      <span class="wf-goalpost"></span>
+    </div>
+    <div class="wf-shot race-shot" title="/account">
+      <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <rect width="160" height="100" style="fill:var(--surface)"/>
+        <rect width="160" height="12" style="fill:var(--paper)"/>
+        <path d="M0 12.5H160" stroke-width="1" style="stroke:var(--line)"/>
+        <rect x="8" y="4.5" width="22" height="3" rx="1" style="fill:var(--ink-2)"/>
+        <g style="fill:var(--ink-3)"><rect x="90" y="4.5" width="10" height="3" rx="1"/><rect x="104" y="4.5" width="18" height="3" rx="1"/><rect x="126" y="4.5" width="14" height="3" rx="1"/><rect x="144" y="4.5" width="10" height="3" rx="1"/></g>
+        <rect x="22" y="20" width="50" height="6" rx="1" style="fill:var(--ink)"/>
+        <rect x="22.5" y="32.5" width="110" height="44" rx="2" stroke-width="1" style="fill:none;stroke:var(--line-strong)"/>
+        <g style="fill:var(--ink-2)"><rect x="30" y="39" width="54" height="3" rx="1"/><rect x="30" y="53" width="40" height="3" rx="1"/><rect x="30" y="67" width="48" height="3" rx="1"/></g>
+        <path d="M23 47.5H132M23 61.5H132" stroke-width="1" style="stroke:var(--line)"/>
+        <g style="fill:var(--ink)"><circle cx="145" cy="36.5" r="1.4"/><circle cx="145" cy="41" r="1.4"/><circle cx="145" cy="45.5" r="1.4"/></g>
+        <circle cx="145" cy="41" r="7" stroke-width="1.75" style="fill:none;stroke:var(--p)"/>
+        <rect x="22" y="86" width="40" height="3" rx="1" style="fill:var(--ink-2)"/>
+      </svg>
+    </div>
+    <div class="race-out">
+      <span class="wf-outcome wf-outcome--live"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle class="race-live" cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="9"/></svg>Moving</span>
+      <span class="race-time">0:24.9</span>
+      <span class="race-steps">step 5</span>
+    </div>
+    <p class="wf-narration">There’s a button with no label next to the list — trying it.</p>
+  </article>
+
+  <!-- Vera: gave up on /deliveries, where the link reached her degraded -->
+  <article class="wf-lane wf-lane--done race-lane wf-p-cobalt" aria-label="Vera, gave up after 4 steps">
+    <div class="race-who">
+      <div class="wf-avatar" style="--s:64px"><svg viewBox="0 0 160 160" aria-hidden="true" data-state="gaveUp"><g data-part="body"><path d="M10 160 C10 128 34 106 70 106 C106 106 130 128 130 160" stroke-width="4" style="fill:var(--p);stroke:var(--avatar-line)"></path><path d="M34 128 L106 128 M25 142 L115 142 M19 155 L121 155" stroke-width="5" stroke-linecap="round" style="stroke:var(--p-ink)"></path></g><g data-part="head"><circle cx="70" cy="72" r="40" stroke-width="4" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle></g><g data-part="tuft"><path d="M70 33 L70 19" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--p-ink)"></path><path d="M70 23 C64 13 54 12 49 16 C53 25 62 27 70 23 Z" style="fill:var(--p-ink)"></path><path d="M70 19 C76 9 87 7 92 11 C88 20 79 23 70 19 Z" style="fill:var(--p-ink)"></path></g><g data-part="face"><circle cx="52" cy="74" r="8.5" stroke-width="2.25" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle><circle cx="88" cy="74" r="8.5" stroke-width="2.25" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle><circle cx="52" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="88" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle style="fill:var(--avatar-head)" cx="50.5" cy="73.5" r="1.5"></circle><circle style="fill:var(--avatar-head)" cx="86.5" cy="73.5" r="1.5"></circle><path d="M58 92 Q70 102 82 92" fill="none" stroke-width="4" stroke-linecap="round" style="stroke:var(--avatar-line)"></path></g><g data-part="glasses" fill="none" stroke-width="2.5" stroke-linecap="round" style="stroke:var(--avatar-line)"><circle cx="52" cy="74" r="14.5"></circle><circle cx="88" cy="74" r="14.5"></circle><path d="M66.4 72 Q70 68.5 73.6 72"></path><path d="M37.5 72 L32 70 M102.5 72 L108 70"></path></g><g data-part="hourglass"><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill-opacity="0.3" style="fill:var(--avatar-head)"></path><path d="M127.51 19.29 L146.49 19.29 L137 37 Z" style="fill:var(--p)"></path><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill="none" stroke-width="3" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><rect x="119" width="36" height="6" rx="3" y="4" style="fill:var(--p-ink)"></rect><rect x="119" width="36" height="6" rx="3" y="64" style="fill:var(--p-ink)"></rect></g><g data-part="state"><circle cx="22" cy="22" r="15" stroke-width="3" style="fill:var(--p);stroke:var(--avatar-line)"></circle><path d="M17 31 L17 13" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><path d="M17 14 L29 18.5 L17 23 Z" style="fill:var(--avatar-line)"></path></g></svg></div>
+      <div class="race-id">
+        <h2 class="wf-pname race-name">Vera</h2>
+        <span class="race-dim">contrast 3.0:1</span>
+      </div>
+    </div>
+    <div class="wf-track race-track" role="img" aria-label="4 steps: click, scroll, wasted, scroll; then gave up">
+      <span class="wf-pip"></span>
+      <span class="wf-pip wf-pip--scroll"></span>
+      <span class="wf-pip wf-pip--wasted"></span>
+      <span class="wf-pip wf-pip--scroll"></span>
+      <span class="race-gaveup"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4"/><path d="M6 4.5h11l-2.6 4 2.6 4H6"/></svg></span>
+      <span class="wf-goalpost"></span>
+    </div>
+    <div class="wf-shot race-shot" title="/deliveries">
+      <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <rect width="160" height="100" style="fill:var(--surface)"/>
+        <rect width="160" height="12" style="fill:var(--paper)"/>
+        <path d="M0 12.5H160" stroke-width="1" style="stroke:var(--line)"/>
+        <rect x="8" y="4.5" width="22" height="3" rx="1" style="fill:var(--ink-2)"/>
+        <g style="fill:var(--ink-3)"><rect x="90" y="4.5" width="10" height="3" rx="1"/><rect x="104" y="4.5" width="18" height="3" rx="1"/><rect x="126" y="4.5" width="14" height="3" rx="1"/><rect x="144" y="4.5" width="10" height="3" rx="1"/></g>
+        <rect x="22" y="18" width="40" height="6" rx="1" style="fill:var(--ink)"/>
+        <rect x="22" y="28" width="76" height="3" rx="1" style="fill:var(--ink-3)"/>
+        <rect x="22" y="37" width="30" height="4" rx="1" style="fill:var(--ink)"/>
+        <rect x="22" y="45" width="88" height="3" rx="1" style="fill:var(--ink-2)"/>
+        <path d="M22 51.5H138" stroke-width="1" style="stroke:var(--line)"/>
+        <rect x="22" y="55" width="34" height="8" rx="1.5" style="fill:var(--ink)"/>
+        <rect x="22" y="68" width="44" height="4" rx="1" style="fill:var(--ink)"/>
+        <rect x="22" y="76" width="4" height="4" rx="0.8" style="fill:var(--ink)"/>
+        <rect x="30" y="76.5" width="54" height="3" rx="1" style="fill:var(--ink-2)"/>
+        <rect x="22.5" y="83.5" width="3.5" height="3.5" rx="0.8" stroke-width="0.8" style="fill:none;stroke:var(--ink-3)"/>
+        <rect x="30" y="84" width="48" height="3" rx="1" style="fill:var(--ink-2)"/>
+        <rect x="22" y="93" width="22" height="3" rx="1" style="fill:var(--line)"/>
+      </svg>
+    </div>
+    <div class="race-out">
+      <span class="wf-outcome wf-outcome--gave-up"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Gave up</span>
+      <span class="race-time">0:19.2</span>
+      <span class="race-steps">4 steps</span>
+    </div>
+    <p class="wf-narration">A link at the bottom reads <span class="race-masked">Or▒▒r ar▒hive</span>. Going back to the account page.</p>
+  </article>
+</section>
+</body>
+</html>

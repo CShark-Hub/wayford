@@ -12,6 +12,7 @@ Read first, in this order:
 - `docs/adr/0001-jev-actor-backend.md` — decisions 3, 4 and 6: the draw, the record, confidence stored but never acted on
 - `packages/core/src/run.ts` after s2-06 — `DecisionRecord`, `drawOption`, and `decisionRecordFixture`
 - `packages/web/src/screens/run-detail.tsx` and `runs/step-replay.tsx`
+- `docs/DESIGN.md`, row JevDraw, if `s3-13` is in
 
 ## Goal
 
@@ -28,6 +29,7 @@ In run detail, a Jev step shows what the model was offered and how likely it fou
 - One bar per offered option, in offer order, labelled with its description, which is the masked name for a degraded element. The drawn option is marked, and so is the rolled value on the cumulative scale.
 - The confidence is labelled as the model's, a hypothesis about how ambiguous the page was, never about the persona (ADR 0001, decision 6).
 - A step with no `decision`, every LLM step, shows nothing new.
+- With `s3-13` in, the panel is `docs/DESIGN.md`'s JevDraw: the options laid end to end on 0–1, the rolled needle in `signal`, and the drawn segment filled. Without it, `s3-12` restyles the panel.
 
 ## Acceptance
 

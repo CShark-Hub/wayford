@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta name="viewport" content="width=1280">
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components.css">
+<meta charset="utf-8">
+<title>Report</title>
+<style>
+html,body{width:1280px;height:720px;overflow:hidden}
+.app{width:1280px;height:720px;display:grid;grid-template-rows:var(--header-h) 1fr;overflow:hidden}
+.wf-wordmark{min-height:36px}
+.top-tools{gap:var(--space-2);flex-wrap:nowrap}
+.theme-btn{padding:0 10px;gap:2px}
+.theme-btn .wf-icon:last-child{width:16px;height:16px;color:var(--ink-3)}
+.runs-link[aria-current="page"]{color:var(--ink);background:var(--surface);box-shadow:inset 0 calc(-1 * var(--stroke-rule)) 0 var(--ink),0 0 0 var(--stroke-hair) var(--line)}
+.av-eye{fill:var(--avatar-head)}
+.num{font-variant-numeric:tabular-nums slashed-zero}
+
+main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
+.rep-head{display:grid;gap:var(--space-2)}
+.rep-sub{display:flex;align-items:center;justify-content:space-between;gap:var(--space-6)}
+.goal{margin:0;font:700 32px/36px var(--font-display);letter-spacing:-0.02em;color:var(--ink)}
+.goal .q{margin-left:-0.4em}
+.meta{margin:0;font:400 16px/20px var(--font-mono);color:var(--ink-2);display:flex;gap:8px;white-space:nowrap}
+.meta i{font-style:normal;color:var(--ink-3)}
+.rep-side{display:flex;gap:var(--space-4);align-items:center;font:400 16px/20px var(--font-sans);color:var(--ink-3);white-space:nowrap;padding-bottom:0}
+
+.cast{margin-top:var(--space-4);table-layout:fixed}
+.cast th{white-space:nowrap;vertical-align:bottom}
+.cast td{padding:var(--space-2) var(--space-3);height:64px}
+.cast .r{text-align:right}
+.cast th:nth-child(5),.cast td:nth-child(5){padding-left:var(--space-6)}
+.cast th .wf-cert{color:var(--ink-3);font-family:var(--font-sans)}
+.who{display:flex;align-items:center;gap:var(--space-3)}
+.who .wf-pname{font-size:24px;line-height:28px}
+.cast .wf-seeds{flex-wrap:nowrap}
+.seeds-th{display:flex;align-items:center;gap:var(--space-4)}
+.lg{display:inline-flex;align-items:center;gap:6px;color:var(--ink-3)}
+.sw{width:16px;height:16px;border-radius:var(--radius-xs);border:var(--stroke-rule) dashed var(--line-strong);flex:none}
+.sw--open{border-style:solid;border-color:var(--ink)}
+.sw--through{border-style:solid;border-color:var(--ink);background:var(--ink-3)}
+.cast .wf-readout__value{line-height:44px}
+.cast .wf-readout__value{justify-self:end}
+.gapcell{display:grid;gap:6px}
+.gapcell .cap{font:400 16px/20px var(--font-mono);color:var(--ink-3);white-space:nowrap}
+.med{font:500 22px/28px var(--font-mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.med small{font-size:16px;color:var(--ink-3)}
+.med--none{color:var(--ink-3)}
+.cast tr.is-hover td{background:var(--paper-sunken);box-shadow:inset 0 1px 0 var(--line-strong),inset 0 -1px 0 var(--line-strong)}
+
+.seedwrap{position:relative;display:inline-flex}
+.wf-seed.is-hover{transform:translateY(-2px);box-shadow:0 0 0 2px var(--paper-sunken),0 0 0 3px var(--ink-3)}
+.seedtip{position:absolute;left:-12px;bottom:calc(100% + 14px);z-index:5;display:grid;gap:2px;justify-items:start;
+  padding:10px 12px 4px;background:var(--surface);border:var(--stroke-hair) solid var(--line-strong);border-radius:var(--radius-sm);
+  box-shadow:var(--shadow-pop);font:400 16px/22px var(--font-mono);color:var(--ink);white-space:nowrap}
+.seedtip::after{content:"";position:absolute;left:22px;top:100%;width:12px;height:12px;margin-top:-6px;background:var(--surface);
+  border-right:var(--stroke-hair) solid var(--line-strong);border-bottom:var(--stroke-hair) solid var(--line-strong);transform:rotate(45deg)}
+.seedtip .t1{display:flex;align-items:center;gap:8px;font-weight:500}
+.seedtip .t2{color:var(--ink-3)}
+.seedtip .t2 b{color:var(--ink);font-weight:500}
+.seedtip a{display:inline-flex;align-items:center;gap:6px;min-height:32px;color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.seedtip .wf-icon{width:18px;height:18px}
+
+.findings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4);margin-top:var(--space-5);align-items:start}
+.fcol{display:grid;gap:var(--space-3);align-content:start}
+.fhead{margin:0;display:flex;align-items:center;gap:var(--space-2);padding-bottom:var(--space-2);border-bottom:var(--stroke-hair) solid var(--line-strong)}
+.fhead .wf-cert{font:600 18px/24px var(--font-sans);color:var(--ink)}
+.fhead .n{font:500 16px/20px var(--font-mono);color:var(--ink-3)}
+.fhead .d{margin-left:auto;font:400 16px/20px var(--font-sans);color:var(--ink-3)}
+.ftags{gap:var(--space-2);flex-wrap:nowrap}
+.ftags .sp{flex:1}
+.evs{display:grid;gap:6px;justify-items:start}
+.leftout{margin-top:var(--space-6);padding-top:var(--space-3);border-top:var(--stroke-hair) solid var(--line);color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="wf-top">
+  <a class="wf-wordmark" href="#">Wayford</a>
+  <nav class="wf-nav" aria-label="Story">
+    <a href="#"><span class="wf-nav__n">01</span>Cast</a>
+    <a href="#"><span class="wf-nav__n">02</span>Lens</a>
+    <a href="#"><span class="wf-nav__n">03</span>Race</a>
+    <a href="#" aria-current="page"><span class="wf-nav__n">04</span>Report</a>
+    <a href="#"><span class="wf-nav__n">05</span>Boundary</a>
+  </nav>
+  <div class="wf-row top-tools">
+    <span class="wf-source wf-source--stored">stored</span>
+    <span class="wf-tag wf-tag--plain">jev</span>
+    <a class="wf-btn wf-btn--ghost runs-link" href="#">Runs</a>
+    <button class="wf-btn wf-btn--ghost theme-btn" type="button" aria-label="Theme: Daylight"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg></button>
+  </div>
+</header>
+<main class="rep">
+  <header class="rep-head">
+    <h1 class="goal"><span class="q">“</span>you want to see what you ordered three months ago”</h1>
+    <div class="rep-sub">
+      <p class="meta"><span>task_past-order</span><i>·</i><span>jev</span><i>·</i><span>30 runs</span><i>·</i><span>scout reached it in 2 steps</span><i>·</i><span>$0.0081</span></p>
+      <div class="rep-side" aria-label="Seed cell legend"><span class="lg"><i class="sw sw--open"></i>route open</span><span class="lg"><i class="sw sw--through"></i>got through</span><span class="lg"><i class="sw"></i>every route closed</span></div>
+    </div>
+  </header>
+
+  <table class="wf-table cast">
+    <colgroup><col style="width:212px"><col style="width:406px"><col style="width:134px"><col style="width:134px"><col style="width:196px"><col></colgroup>
+    <thead><tr>
+      <th scope="col">persona</th>
+      <th scope="col">seeds 1–10</th>
+      <th scope="col" class="r"><span class="wf-cert wf-cert--deterministic">route open</span></th>
+      <th scope="col" class="r"><span class="wf-cert wf-cert--hypothesis">got through</span></th>
+      <th scope="col">gap</th>
+      <th scope="col" class="r">median time</th>
+    </tr></thead>
+    <tbody>
+<tr class="wf-p-graphite">
+  <td><div class="who"><span class="wf-avatar" style="--s:40px"><svg viewBox="0 0 160 160" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><g data-part="body"><path d="M10 160 C10 128 34 106 70 106 C106 106 130 128 130 160" stroke-width="4" style="fill:var(--p);stroke:var(--avatar-line)"></path><path d="M34 128 L106 128 M25 142 L115 142 M19 155 L121 155" stroke-width="5" stroke-linecap="round" style="stroke:var(--p-ink)"></path></g><g data-part="head"><circle cx="70" cy="72" r="40" stroke-width="4" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle></g><g data-part="tuft"><path d="M70 33 C70 22 74 14 83 14 C91 14 93 23 87 26 C82 28 79 23 83 20" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--p-ink)"></path></g><g data-part="face"><circle cx="52" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="88" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="52" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="88" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="50.5" cy="73.5" r="1.5" class="av-eye"></circle><circle cx="86.5" cy="73.5" r="1.5" class="av-eye"></circle><path d="M58 92 Q70 102 82 92" fill="none" stroke-width="4" stroke-linecap="round" style="stroke:var(--avatar-line)"></path></g><g data-part="hourglass"><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill-opacity="0.3" style="fill:var(--avatar-head)"></path><path d="M127.51 19.29 L146.49 19.29 L137 37 Z" style="fill:var(--p)"></path><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill="none" stroke-width="3" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><rect x="119" width="36" height="6" rx="3" y="4" style="fill:var(--p-ink)"></rect><rect x="119" width="36" height="6" rx="3" y="64" style="fill:var(--p-ink)"></rect></g></svg></span><span class="wf-pname">Ada</span><span class="wf-tag wf-tag--plain">control</span></div></td>
+  <td><div class="wf-seeds" role="group" aria-label="Ada, seeds 1 to 10"><button class="wf-seed wf-seed--through" type="button" aria-label="seed 1: got through, routes open: A B C. Opens run_ada-past-order-1"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 2: got through, routes open: A B C. Opens run_ada-past-order-2"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 3: got through, routes open: A B C. Opens run_ada-past-order-3"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 4: got through, routes open: A B C. Opens run_ada-past-order-4"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 5: got through, routes open: A B C. Opens run_ada-past-order-5"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 6: got through, routes open: A B C. Opens run_ada-past-order-6"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 7: got through, routes open: A B C. Opens run_ada-past-order-7"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 8: got through, routes open: A B C. Opens run_ada-past-order-8"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 9: got through, routes open: A B C. Opens run_ada-past-order-9"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 10: got through, routes open: A B C. Opens run_ada-past-order-10"></button></div></td>
+  <td class="r"><div class="wf-readout"><span class="wf-readout__value">10<small>/10</small></span></div></td>
+  <td class="r"><div class="wf-readout wf-readout--hypothesis"><span class="wf-readout__value">10<small>/10</small></span></div></td>
+  <td><div class="gapcell"><div class="wf-gapbar" role="img" aria-label="10 through, 0 lost on an open route, 0 closed"><div class="wf-gapbar__through" style="width:100%"></div><div class="wf-gapbar__gap" style="width:0%"></div></div><span class="cap">0/10 lost</span></div></td>
+  <td class="r"><span class="med">10.4<small> s</small></span></td>
+</tr>
+<tr class="wf-p-raspberry is-hover">
+  <td><div class="who"><span class="wf-avatar" style="--s:40px"><svg viewBox="0 0 160 160" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><g data-part="body"><path d="M10 160 C10 128 34 106 70 106 C106 106 130 128 130 160" stroke-width="4" style="fill:var(--p);stroke:var(--avatar-line)"></path><g style="fill:var(--p-ink)"><circle cx="42" cy="128" r="4.5"></circle><circle cx="70" cy="126" r="4.5"></circle><circle cx="98" cy="128" r="4.5"></circle><circle cx="28" cy="146" r="4.5"></circle><circle cx="56" cy="144" r="4.5"></circle><circle cx="84" cy="144" r="4.5"></circle><circle cx="112" cy="146" r="4.5"></circle></g></g><g data-part="head"><circle cx="70" cy="72" r="40" stroke-width="4" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle></g><g data-part="tuft"><path d="M70 33 L70 19" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--p-ink)"></path><path d="M70 23 C64 13 54 12 49 16 C53 25 62 27 70 23 Z" style="fill:var(--p-ink)"></path><path d="M70 19 C76 9 87 7 92 11 C88 20 79 23 70 19 Z" style="fill:var(--p-ink)"></path></g><g data-part="face"><circle cx="52" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="88" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="52" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="88" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="50.5" cy="73.5" r="1.5" class="av-eye"></circle><circle cx="86.5" cy="73.5" r="1.5" class="av-eye"></circle><path d="M45 55 Q52 49 59 55 M81 55 Q88 49 95 55" fill="none" stroke-width="3.5" stroke-linecap="round" style="stroke:var(--avatar-line)"></path><path d="M58 92 Q70 102 82 92" fill="none" stroke-width="4" stroke-linecap="round" style="stroke:var(--avatar-line)"></path></g><g data-part="hourglass"><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill-opacity="0.3" style="fill:var(--avatar-head)"></path><path d="M127.51 19.29 L146.49 19.29 L137 37 Z" style="fill:var(--p)"></path><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill="none" stroke-width="3" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><rect x="119" width="36" height="6" rx="3" y="4" style="fill:var(--p-ink)"></rect><rect x="119" width="36" height="6" rx="3" y="64" style="fill:var(--p-ink)"></rect></g></svg></span><span class="wf-pname">Kai</span></div></td>
+  <td><div class="wf-seeds" role="group" aria-label="Kai, seeds 1 to 10"><span class="seedwrap"><button class="wf-seed wf-seed--open is-hover" type="button" aria-label="seed 1: gave up, routes open: B C. Opens run_kai-past-order-1" aria-describedby="tip-kai-1"></button><span class="seedtip" id="tip-kai-1" role="tooltip"><span class="t1"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>seed 1 · gave up</span><span class="t2">routes open <b>B</b> <b>C</b> · A cut</span><a href="#">run_kai-past-order-1<svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></span></span><button class="wf-seed wf-seed--through" type="button" aria-label="seed 2: got through, routes open: B C. Opens run_kai-past-order-2"></button><button class="wf-seed wf-seed--open" type="button" aria-label="seed 3: out of time, routes open: B C. Opens run_kai-past-order-3"></button><button class="wf-seed wf-seed--open" type="button" aria-label="seed 4: gave up, routes open: B C. Opens run_kai-past-order-4"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 5: got through, routes open: B C. Opens run_kai-past-order-5"></button><button class="wf-seed wf-seed--open" type="button" aria-label="seed 6: gave up, routes open: B C. Opens run_kai-past-order-6"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 7: got through, routes open: B C. Opens run_kai-past-order-7"></button><button class="wf-seed wf-seed--open" type="button" aria-label="seed 8: out of time, routes open: B C. Opens run_kai-past-order-8"></button><button class="wf-seed wf-seed--through" type="button" aria-label="seed 9: got through, routes open: B C. Opens run_kai-past-order-9"></button><button class="wf-seed wf-seed--open" type="button" aria-label="seed 10: gave up, routes open: B C. Opens run_kai-past-order-10"></button></div></td>
+  <td class="r"><div class="wf-readout"><span class="wf-readout__value">10<small>/10</small></span></div></td>
+  <td class="r"><div class="wf-readout wf-readout--hypothesis"><span class="wf-readout__value">4<small>/10</small></span></div></td>
+  <td><div class="gapcell"><div class="wf-gapbar" role="img" aria-label="4 through, 6 lost on an open route, 0 closed"><div class="wf-gapbar__through" style="width:40%"></div><div class="wf-gapbar__gap" style="width:60%"></div></div><span class="cap">6/10 lost</span></div></td>
+  <td class="r"><span class="med">31.6<small> s</small></span></td>
+</tr>
+<tr class="wf-p-cobalt">
+  <td><div class="who"><span class="wf-avatar" style="--s:40px"><svg viewBox="0 0 160 160" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><g data-part="body"><path d="M10 160 C10 128 34 106 70 106 C106 106 130 128 130 160" stroke-width="4" style="fill:var(--p);stroke:var(--avatar-line)"></path><path d="M34 128 L106 128 M25 142 L115 142 M19 155 L121 155" stroke-width="5" stroke-linecap="round" style="stroke:var(--p-ink)"></path></g><g data-part="head"><circle cx="70" cy="72" r="40" stroke-width="4" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle></g><g data-part="tuft"><path d="M70 33 L70 19" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--p-ink)"></path><path d="M70 23 C64 13 54 12 49 16 C53 25 62 27 70 23 Z" style="fill:var(--p-ink)"></path><path d="M70 19 C76 9 87 7 92 11 C88 20 79 23 70 19 Z" style="fill:var(--p-ink)"></path></g><g data-part="face"><circle cx="52" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="88" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="52" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="88" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="50.5" cy="73.5" r="1.5" class="av-eye"></circle><circle cx="86.5" cy="73.5" r="1.5" class="av-eye"></circle><path d="M58 92 Q70 102 82 92" fill="none" stroke-width="4" stroke-linecap="round" style="stroke:var(--avatar-line)"></path></g><g data-part="glasses" fill="none" stroke-width="2.5" stroke-linecap="round" style="stroke:var(--avatar-line)"><circle cx="52" cy="74" r="14.5"></circle><circle cx="88" cy="74" r="14.5"></circle><path d="M66.4 72 Q70 68.5 73.6 72"></path><path d="M37.5 72 L32 70 M102.5 72 L108 70"></path></g><g data-part="hourglass"><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill-opacity="0.3" style="fill:var(--avatar-head)"></path><path d="M127.51 19.29 L146.49 19.29 L137 37 Z" style="fill:var(--p)"></path><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill="none" stroke-width="3" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><rect x="119" width="36" height="6" rx="3" y="4" style="fill:var(--p-ink)"></rect><rect x="119" width="36" height="6" rx="3" y="64" style="fill:var(--p-ink)"></rect></g></svg></span><span class="wf-pname">Vera</span></div></td>
+  <td><div class="wf-seeds" role="group" aria-label="Vera, seeds 1 to 10"><button class="wf-seed wf-seed--open" type="button" aria-label="seed 1: gave up, routes open: A. Opens run_vera-past-order-1"></button><button class="wf-seed" type="button" aria-label="seed 2: gave up, routes open: none. Opens run_vera-past-order-2"></button><button class="wf-seed" type="button" aria-label="seed 3: out of time, routes open: none. Opens run_vera-past-order-3"></button><button class="wf-seed" type="button" aria-label="seed 4: gave up, routes open: none. Opens run_vera-past-order-4"></button><button class="wf-seed" type="button" aria-label="seed 5: gave up, routes open: none. Opens run_vera-past-order-5"></button><button class="wf-seed wf-seed--open" type="button" aria-label="seed 6: gave up, routes open: A. Opens run_vera-past-order-6"></button><button class="wf-seed" type="button" aria-label="seed 7: out of time, routes open: none. Opens run_vera-past-order-7"></button><button class="wf-seed wf-seed--open" type="button" aria-label="seed 8: gave up, routes open: A. Opens run_vera-past-order-8"></button><button class="wf-seed" type="button" aria-label="seed 9: gave up, routes open: none. Opens run_vera-past-order-9"></button><button class="wf-seed" type="button" aria-label="seed 10: out of time, routes open: none. Opens run_vera-past-order-10"></button></div></td>
+  <td class="r"><div class="wf-readout"><span class="wf-readout__value">3<small>/10</small></span></div></td>
+  <td class="r"><div class="wf-readout wf-readout--hypothesis"><span class="wf-readout__value">0<small>/10</small></span></div></td>
+  <td><div class="gapcell"><div class="wf-gapbar" role="img" aria-label="0 through, 3 lost on an open route, 7 closed"><div class="wf-gapbar__through" style="width:0%"></div><div class="wf-gapbar__gap" style="width:30%"></div></div><span class="cap">3/10 lost</span></div></td>
+  <td class="r"><span class="med med--none" aria-label="no run got through">—</span></td>
+</tr>
+    </tbody>
+  </table>
+
+  <section class="findings" aria-label="Findings">
+<div class="fcol">
+  <h2 class="fhead"><span class="wf-cert">Measured</span><span class="n">1</span><span class="d">the page, by axe</span></h2>
+  <article class="wf-finding">
+  <div class="wf-row ftags"><span class="wf-tag">axe · color-contrast</span></div>
+  <h3 class="wf-finding__title">The link “Order archive” on /deliveries measures 2.005:1, below the WCAG&nbsp;2.2 minimum for text</h3>
+  <div class="evs"><a class="wf-evchip" href="#">run_ada-past-order-1 · step 1</a></div>
+  <p class="wf-finding__detail">The link's 16&nbsp;px text measures 2.005:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at that size, and axe reports it as color-contrast.</p>
+  <p class="wf-finding__change"><b>change →</b><span>Raise the link's text to at least 4.5:1 against its background.</span></p>
+</article>
+</div>
+<div class="fcol">
+  <h2 class="fhead"><span class="wf-cert wf-cert--deterministic">Deterministic</span><span class="n">2</span><span class="d">the filter, in code</span></h2>
+  <article class="wf-finding wf-finding--soft">
+  <div class="wf-row ftags"><span class="wf-pchip wf-p-raspberry">Kai</span><span class="sp"></span><span class="wf-tag wf-tag--rule">A1</span><span class="wf-tag wf-tag--soft">soft · folk</span></div>
+  <h3 class="wf-finding__title">The link “Order archive” on /deliveries is cut by A1 for Kai in 10 of 10 seeds</h3>
+  <div class="evs"><a class="wf-evchip" href="#">run_kai-past-order-1 · step 1</a><a class="wf-evchip" href="#">run_kai-past-order-3 · step 1</a></div>
+  <p class="wf-finding__detail">Route A closes at this step. A1: Kai's attention cap of 11 elements cuts the link, so it does not reach the model.</p>
+  <p class="wf-finding__change"><b>change →</b><span>Move the archive link up beside the list on /deliveries and give it the size and contrast of the page's other links, so it is not the least prominent element there.</span></p>
+</article>
+<article class="wf-finding">
+  <div class="wf-row ftags"><span class="wf-pchip wf-p-cobalt">Vera</span><span class="sp"></span><span class="wf-tag wf-tag--rule">P1</span><span class="wf-tag">wcag22</span></div>
+  <h3 class="wf-finding__title">The link “Order archive” on /deliveries is cut by P1 for Vera in 7 of 10 seeds</h3>
+  <div class="evs"><a class="wf-evchip" href="#">run_vera-past-order-2 · step 1</a><a class="wf-evchip" href="#">run_vera-past-order-3 · step 1</a></div>
+  <p class="wf-finding__detail">Route A closes at this step. P1: contrast 2.005:1, below Vera's threshold of 3:1. Vera's cut has a band from 1.5:1 to 3:1, inside which the seed's roll decides between degraded and cut. In those 7 seeds the link does not reach the model.</p>
+  <p class="wf-finding__change"><b>change →</b><span>Raise the link's text to at least 4.5:1 against its background, which clears 3:1 with room to spare and meets WCAG 2.2 for text of its size.</span></p>
+</article>
+</div>
+<div class="fcol">
+  <h2 class="fhead"><span class="wf-cert wf-cert--hypothesis">Hypothesis</span><span class="n">1</span><span class="d">read from the runs</span></h2>
+  <article class="wf-finding wf-finding--hypothesis">
+  <div class="wf-row ftags"><span class="wf-pchip wf-p-cobalt">Vera</span><span class="sp"></span><span class="wf-tag wf-tag--rule">P1</span><span class="wf-tag">wcag22</span></div>
+  <h3 class="wf-finding__title">Where the archive link reached the model degraded, its masked name may not read as the way to past orders</h3>
+  <div class="evs"><a class="wf-evchip" href="#">run_vera-past-order-1 · step 1</a><a class="wf-evchip" href="#">run_vera-past-order-1 · step 4</a></div>
+  <p class="wf-finding__detail">Seed 1 is one of the 3 seeds where P1 left route A open for Vera: the link reached the model degraded, under a masked name. The run stood on /deliveries at steps 1 and 4, scrolled, went home and came back, and gave up at step 4 without acting on the link. These are Jev runs with no narration, so this reads the actions of one run alone; it is not a measurement.</p>
+  <p class="wf-finding__change"><b>change →</b><span>Raise the archive link's contrast so its name is read whole, and add a line above the list on /deliveries saying that past orders are in the archive.</span></p>
+</article>
+</div>
+  </section>
+
+  <footer class="leftout">
+    <p>Analysed 5 Oct 2026, 14:20 by openai/gpt-6-luna. Left out: 2 older runs, 3 runs on the llm backend.</p>
+    <p>Closed with no evidence step: Vera · route B · /account · button “More options” · P4 · 10 seeds. Vera · route C · /settings · link “Your data” · P4 · 10 seeds.</p>
+  </footer>
+</main>
+</div>
+</body>
+</html>

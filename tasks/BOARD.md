@@ -86,6 +86,13 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 
 **Process from week 4.** One reviewer for every PR, `docs/RULES.md` and the filter contract included. An S task needs no spec (`docs/CONVENTIONS.md`).
 
+**Redesign, approved 2026-10-06** (`docs/adr/0002-daylight-instrument-redesign.md`).
+
+- `docs/DESIGN.md` replaces `s3-07`'s direction, and `docs/design/` draws every screen.
+- The design tasks are re-scoped to it: a new foundation, `s3-13`, comes first.
+- The Lens, Race, Report and Boundary are rebuilt on it.
+- A new `s3-14`, optional, closes with Cast and Runs. The demo shows neither.
+
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
 | s3-07 | Design direction, tokens and the self-check | M | — | Grzegorz | done |
@@ -96,10 +103,11 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 | s3-10 | Jev decisions in run detail | S | s2-06 | | todo |
 | s4-04 | Analyst and the report API | L | s1-06 | Dawid | done |
 | s4-05 | Sweep: the boundary value on one capability axis | L | s1-06 (s2-12 for the Jev box) | Grzegorz | done |
-| s3-11 | Design pass: the preview | M | s3-07 | | todo |
-| s3-12 | Design pass: the arena and run detail | M | s3-07, s3-03 | | todo |
-| s3-08 | Report screen | M | s4-04, s3-07 | | todo |
-| s3-09 | Sweep screen | M | s4-05, s3-07 | | todo |
+| s3-13 | Redesign foundation: tokens, themes, top bar, renamed routes | M | — (rebases on s4-06) | | todo |
+| s3-11 | Lens: the preview redesigned | M | s3-13 | | todo |
+| s3-12 | Race and run detail redesigned | M | s3-13, s3-03 | | todo |
+| s3-08 | Report screen | M | s4-04, s3-13 | | todo |
+| s3-09 | Boundary screen | M | s4-05, s3-13 | | todo |
 | s4-07 | `seed:demo`: the demo's data in one command | M | s4-04, s4-05, s2-12 | | todo |
 | demo-1 | Agree the 90-second script, `docs/DEMO.md`, and rehearse beats 1 to 4 | — | by Friday 2026-10-09 | team | todo |
 | demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task | team | todo |
@@ -108,6 +116,7 @@ Optional, taken only once every task above is taken:
 
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
+| s3-14 | Cast and Runs redesigned, Recharts out | M | s3-13, s3-08 | | todo |
 | s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02, s3-07 | | todo |
 | s4-08 | Credibility run on a public site | S | — | | todo |
 | s2-07 | B2: scroll when stuck | S | s2-10 | | todo |
@@ -117,11 +126,11 @@ Optional, taken only once every task above is taken:
 **What can start after what.** The dependency map in `docs/ROADMAP.md` shows the same as a graph.
 
 1. Monday: `s3-07`, `s1-06`, `s4-06`, `s2-12`, `s3-10`. `s1-05` merged in PR #162.
-2. After `s1-06`: `s4-04` and `s4-05`. After `s3-07`: `s3-11` and `s3-12`.
-3. After `s4-04`: `s3-08`. After `s4-05`: `s3-09`. After `s4-04`, `s4-05` and `s2-12`: `s4-07`.
+2. After `s1-06`: `s4-04` and `s4-05`. Now: `s3-13`. After `s3-13`: `s3-11` and `s3-12`.
+3. After `s4-04` and `s3-13`: `s3-08`. After `s4-05` and `s3-13`: `s3-09`. After `s4-04`, `s4-05` and `s2-12`: `s4-07`. Optional, after `s3-08`: `s3-14`.
 4. After `s4-07`: `demo-2`.
 
-**Critical path:** `s1-06` → `s4-05` → `s3-09` and `s4-07` → `demo-2`. `s1-06` is small and blocks both L tasks: take it first on Monday and review it the same day. `s3-07` sets the look every screen task follows, so it goes second.
+**Critical path:** `s3-13` → `s3-08` and `s3-09` → `demo-2`, with `s4-07` beside them. `s1-06` and `s4-05`, which led it until 2026-10-06, are done. `s3-13` sets the look every screen task builds on: take it first and review it the day it opens.
 
 **Screens before data.** `s3-08` and `s3-09` build on the `Report` and `Sweep` fixtures their engines add. `seed:demo --fake` (`s4-07`) fills every screen with no key, and is the way to check the week's screens together.
 

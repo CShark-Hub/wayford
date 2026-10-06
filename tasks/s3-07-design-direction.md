@@ -1,5 +1,7 @@
 # s3-07 — Design direction, tokens and the self-check
 
+> Superseded on 2026-10-06 by `docs/adr/0002-daylight-instrument-redesign.md`. The direction and tokens below are replaced by `docs/DESIGN.md`; the self-check stays and `s3-13` raises its floors. Kept as the record of what was done.
+
 Stream: s3
 Milestone: week 4
 Size: M

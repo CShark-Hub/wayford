@@ -1,0 +1,334 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap");
+
+/* Wayford — component stylesheet. Every class is prefixed wf-. Values come from tokens.css. */
+
+html { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+*, *::before, *::after { box-sizing: border-box; }
+:focus-visible { outline: var(--stroke-rule) solid var(--focus-ring); outline-offset: 2px; }
+.wf-num, .wf-mono { font-variant-numeric: tabular-nums slashed-zero; }
+.wf-mono { font-family: var(--font-mono); }
+.wf-muted { color: var(--ink-3); }
+.wf-quiet { color: var(--ink-2); }
+.wf-stack { display: grid; gap: var(--space-3); }
+.wf-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.wf-pad { padding: var(--space-5); }
+.wf-label {
+  font-family: var(--font-mono); font-size: 16px; line-height: 20px; font-weight: 500;
+  letter-spacing: 0.01em; color: var(--ink-3); text-transform: none;
+}
+.wf-icon { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Persona slots: a persona never owns a hex, it owns a slot. */
+.wf-p-graphite  { --p: var(--persona-graphite);  --p-ink: var(--persona-graphite-ink);  --p-soft: var(--persona-graphite-soft); }
+.wf-p-cobalt    { --p: var(--persona-cobalt);    --p-ink: var(--persona-cobalt-ink);    --p-soft: var(--persona-cobalt-soft); }
+.wf-p-raspberry { --p: var(--persona-raspberry); --p-ink: var(--persona-raspberry-ink); --p-soft: var(--persona-raspberry-soft); }
+.wf-p-jade      { --p: var(--persona-jade);      --p-ink: var(--persona-jade-ink);      --p-soft: var(--persona-jade-soft); }
+.wf-p-violet    { --p: var(--persona-violet);    --p-ink: var(--persona-violet-ink);    --p-soft: var(--persona-violet-soft); }
+.wf-p-fallback { --p: var(--ink-3); --p-ink: var(--ink-2); --p-soft: var(--paper-sunken); }
+
+/* ---------- Buttons ---------- */
+.wf-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--control-h); padding: 0 var(--space-4);
+  font: 500 16px/20px var(--font-sans); color: var(--ink);
+  background: var(--surface); border: var(--stroke-hair) solid var(--line-strong); border-radius: var(--radius-sm);
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out, transform 80ms ease-out;
+}
+.wf-btn:hover { background: var(--paper-sunken); }
+.wf-btn:active { transform: translateY(1px); }
+.wf-btn--primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.wf-btn--primary:hover { background: var(--ink-2); border-color: var(--ink-2); }
+.wf-btn--ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+.wf-btn--ghost:hover { background: var(--paper-sunken); color: var(--ink); }
+.wf-btn[disabled], .wf-btn[aria-disabled="true"] { cursor: not-allowed; color: var(--ink-3); background: var(--paper-sunken); border-color: var(--line); transform: none; }
+.wf-kbd {
+  font: 500 16px/20px var(--font-mono); padding: 0 6px; border-radius: var(--radius-xs);
+  border: var(--stroke-hair) solid currentColor; opacity: .8;
+}
+.wf-link { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+.wf-link:hover { text-decoration-color: var(--ink); }
+
+/* ---------- Segmented control and tabs ---------- */
+.wf-seg {
+  display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-sm);
+  background: var(--paper-sunken); border: var(--stroke-hair) solid var(--line);
+}
+.wf-seg > button, .wf-seg > a {
+  min-height: 34px; padding: 0 14px; border: 0; border-radius: 4px; background: transparent;
+  font: 500 16px/20px var(--font-sans); color: var(--ink-2); cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+.wf-seg > button:hover, .wf-seg > a:hover { color: var(--ink); }
+.wf-seg > [aria-pressed="true"], .wf-seg > [aria-current="page"], .wf-seg > [aria-selected="true"] {
+  background: var(--surface); color: var(--ink); box-shadow: 0 0 0 var(--stroke-hair) var(--line-strong);
+}
+.wf-seg--mono > button, .wf-seg--mono > a { font-family: var(--font-mono); font-weight: 400; }
+
+/* ---------- Top bar ---------- */
+.wf-top {
+  height: var(--header-h); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-6);
+  padding: 0 var(--space-6); border-bottom: var(--stroke-hair) solid var(--line); background: var(--paper);
+}
+.wf-wordmark { min-height: 36px; display: inline-flex; align-items: center; gap: 10px; font: 700 24px/1 var(--font-display); letter-spacing: -0.03em; color: var(--ink); text-decoration: none; }
+.wf-wordmark::before { content: ""; width: var(--stroke-post); height: 22px; background: var(--signal); border-radius: 1px; box-shadow: 5px 6px 0 -0.5px var(--ink), 10px 12px 0 -1px var(--ink-3); }
+.wf-nav { display: flex; gap: var(--space-1); justify-content: center; }
+.wf-nav a {
+  display: inline-flex; align-items: baseline; gap: 6px; min-height: 36px; align-items: center;
+  padding: 0 12px; border-radius: var(--radius-sm); color: var(--ink-2); text-decoration: none; font: 500 16px/20px var(--font-sans);
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+.wf-nav a .wf-nav__n { font: 500 16px/20px var(--font-mono); color: var(--ink-3); }
+.wf-nav a:hover { color: var(--ink); background: var(--paper-sunken); }
+.wf-nav a[aria-current="page"] { color: var(--ink); background: var(--surface); box-shadow: inset 0 calc(-1 * var(--stroke-rule)) 0 var(--ink), 0 0 0 var(--stroke-hair) var(--line); }
+.wf-nav a[aria-current="page"] .wf-nav__n { color: var(--ink); }
+
+/* ---------- Tags: rules, provenance, certainty ---------- */
+.wf-tag {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 7px; border-radius: var(--radius-xs);
+  font: 500 16px/20px var(--font-mono); color: var(--ink-2); background: var(--surface);
+  border: var(--stroke-hair) solid var(--line-strong); white-space: nowrap;
+}
+.wf-tag--soft { border-style: dotted; border-width: 2px; padding: 1px 6px; color: var(--ink-3); }
+.wf-tag--cut { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
+.wf-tag--rule { color: var(--signal-ink); border-color: currentColor; background: transparent; }
+.wf-tag--plain { border-color: transparent; background: var(--paper-sunken); }
+
+/* Certainty is drawn as line style: solid = measured, solid with end ticks = deterministic, dashed = hypothesis, dotted = soft. */
+.wf-cert { display: inline-flex; align-items: center; gap: var(--space-2); font: 500 16px/20px var(--font-mono); color: var(--ink-2); }
+.wf-cert::before { content: ""; width: 22px; height: 0; border-top: var(--stroke-post) solid var(--ink); }
+.wf-cert--deterministic::before { width: 22px; height: 10px; border: var(--stroke-rule) solid var(--ink); border-top: 0; border-bottom: 0; background: linear-gradient(var(--ink), var(--ink)) center / 100% var(--stroke-post) no-repeat; }
+.wf-cert--hypothesis::before { border-top-style: dashed; border-top-color: var(--ink-2); }
+.wf-cert--soft::before { border-top-style: dotted; border-top-color: var(--ink-3); }
+
+/* ---------- Persona: avatar tile, chip, name ---------- */
+.wf-avatar {
+  --s: 64px; width: var(--s); height: var(--s); flex: none; border-radius: calc(var(--s) * 0.3);
+  background: var(--p-soft); display: grid; place-items: center; overflow: hidden; position: relative;
+}
+[data-theme="dark"] .wf-avatar { background: var(--avatar-tile); }
+.wf-avatar svg { width: 100%; height: 100%; display: block; }
+.wf-avatar[aria-pressed="true"], .wf-avatar[aria-current="true"] { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--p); }
+button.wf-avatar, a.wf-avatar { border: 0; padding: 0; cursor: pointer; transition: transform 160ms ease-out; }
+button.wf-avatar:hover, a.wf-avatar:hover { transform: translateY(-2px); }
+.wf-pchip { display: inline-flex; align-items: center; gap: var(--space-2); font: 500 16px/20px var(--font-sans); color: var(--ink); white-space: nowrap; }
+.wf-pchip::before { content: ""; width: 12px; height: 12px; border-radius: 3px; background: var(--p); flex: none; }
+.wf-pname { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.03em; color: var(--ink); }
+
+/* ---------- Threshold gauge: a ruler, the persona's fill, the signal post ---------- */
+.wf-gauge { --min: 0; --max: 10; --v: 5; --soft: 0; display: grid; gap: var(--space-2); }
+.wf-gauge__head { display: flex; align-items: center; gap: var(--space-2); }
+.wf-gauge__name { font: 500 16px/20px var(--font-sans); color: var(--ink); }
+.wf-gauge__val { margin-left: auto; font: 500 16px/20px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.wf-gauge__track {
+  --pos: calc((var(--v) - var(--min)) / (var(--max) - var(--min)) * 100%);
+  --band: calc(var(--v) * var(--soft) / (var(--max) - var(--min)) * 100%);
+  position: relative; height: 32px; border-radius: var(--radius-xs);
+  background:
+    repeating-linear-gradient(to right, var(--line-strong) 0 1px, transparent 1px calc(100% / var(--ticks, 10))) bottom left / 100% 8px no-repeat,
+    var(--paper-sunken);
+  box-shadow: inset 0 0 0 var(--stroke-hair) var(--line);
+}
+.wf-gauge__fill { position: absolute; left: 0; top: 11px; height: 6px; width: var(--pos); background: var(--p); border-radius: 0 3px 3px 0; }
+.wf-gauge__band {
+  position: absolute; top: 2px; bottom: 2px; left: calc(var(--pos) - var(--band)); width: var(--band);
+  background: repeating-linear-gradient(-45deg, var(--signal) 0 1px, transparent 1px 5px), var(--signal-soft); opacity: .9; border-radius: 2px;
+}
+.wf-gauge__post { position: absolute; top: -4px; bottom: -4px; left: var(--pos); width: var(--stroke-post); margin-left: -1.5px; background: var(--signal); border-radius: 1px; }
+.wf-gauge__post::after {
+  content: ""; position: absolute; top: -2px; left: -5px; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--surface); border: var(--stroke-post) solid var(--signal);
+}
+.wf-gauge__scale { display: flex; justify-content: space-between; font: 400 16px/20px var(--font-mono); color: var(--ink-3); }
+.wf-gauge--off .wf-gauge__fill, .wf-gauge--off .wf-gauge__post, .wf-gauge--off .wf-gauge__band { display: none; }
+.wf-gauge--off .wf-gauge__val { color: var(--ink-3); }
+
+/* ---------- The filter's three decisions on a perceived element ---------- */
+.wf-el { position: relative; }
+.wf-el--degraded {
+  color: var(--ink-3) !important; text-decoration: none !important;
+  background: repeating-linear-gradient(-45deg, var(--line) 0 2px, transparent 2px 7px);
+  outline: var(--stroke-hair) solid var(--line-strong); outline-offset: 1px; border-radius: 2px;
+}
+.wf-el--removed { color: transparent !important; outline: 2px dashed var(--signal); outline-offset: 2px; border-radius: 2px; background: none; }
+.wf-el--removed > :not(.wf-cut) { visibility: hidden; }
+.wf-el--renamed { font-family: var(--font-mono); color: var(--ink-2); text-decoration: underline dotted var(--ink-3) 2px; text-underline-offset: 4px; }
+.wf-el--capped { opacity: 1; outline: 2px dashed var(--line-strong); outline-offset: 2px; color: transparent !important; }
+.wf-el--capped > :not(.wf-cut) { visibility: hidden; }
+.wf-cut {
+  position: absolute; left: -4px; top: -28px; z-index: 1; white-space: nowrap;
+  font: 500 16px/20px var(--font-mono); padding: 1px 6px; border-radius: var(--radius-xs);
+  background: var(--signal); color: var(--on-signal);
+}
+.wf-cut--quiet { background: var(--surface); color: var(--ink-2); box-shadow: inset 0 0 0 var(--stroke-hair) var(--line-strong); }
+
+/* ---------- Outcome ---------- */
+.wf-outcome { display: inline-flex; align-items: center; gap: var(--space-2); font: 500 16px/20px var(--font-sans); color: var(--ink); white-space: nowrap; }
+.wf-outcome--gave-up, .wf-outcome--over-budget { color: var(--ink-2); }
+.wf-outcome--error { color: var(--fault); }
+.wf-outcome--live { color: var(--ink); }
+.wf-outcome--live .wf-icon { color: var(--p, var(--ink)); }
+
+/* ---------- Seed strip: one cell per seed; border = route, fill = got through ---------- */
+.wf-seeds { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.wf-seed {
+  width: 32px; height: 32px; border-radius: var(--radius-xs); border: var(--stroke-rule) dashed var(--line-strong);
+  background: transparent; padding: 0; cursor: pointer; position: relative; transition: transform 120ms ease-out;
+}
+.wf-seed:hover { transform: translateY(-2px); }
+.wf-seed--open { border-style: solid; border-color: var(--ink); }
+.wf-seed--through { background: var(--p); border-color: var(--ink); border-style: solid; }
+.wf-seed--error { border-style: solid; border-color: var(--fault); background: linear-gradient(to top right, transparent calc(50% - 1px), var(--fault) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)); }
+.wf-seed--unknown { border-style: dotted; }
+
+/* ---------- Readout: the two numbers ---------- */
+.wf-readout { display: grid; gap: 2px; }
+.wf-readout__value { font: 500 44px/48px var(--font-mono); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+.wf-readout__value small { font-size: 22px; color: var(--ink-3); letter-spacing: 0; }
+.wf-readout__label { display: flex; align-items: center; gap: var(--space-2); font: 500 16px/20px var(--font-mono); color: var(--ink-3); }
+.wf-readout__value { justify-self: start; }
+.wf-readout--hypothesis .wf-readout__value { border-bottom: var(--stroke-rule) dashed var(--line-strong); padding-bottom: 2px; }
+
+/* Gap bar: got through (persona fill) · route open but not through (hatched: the agent's wayfinding) · closed (sunken) */
+.wf-gapbar { display: flex; height: 12px; border-radius: 2px; overflow: hidden; background: var(--paper-sunken); box-shadow: inset 0 0 0 var(--stroke-hair) var(--line); }
+.wf-gapbar__through { background: var(--p); }
+.wf-gapbar__gap { background: repeating-linear-gradient(-45deg, var(--ink-3) 0 1.5px, transparent 1.5px 5px); box-shadow: inset 0 0 0 var(--stroke-hair) var(--ink-3); }
+
+/* ---------- Panels: plain, or a measuring surface with corner ticks and a dot grid ---------- */
+.wf-panel { background: var(--surface); border: var(--stroke-hair) solid var(--line); border-radius: var(--radius-md); }
+.wf-panel__head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: var(--stroke-hair) solid var(--line); }
+.wf-panel__title { font: 600 22px/28px var(--font-sans); letter-spacing: -0.01em; margin: 0; }
+.wf-measure {
+  position: relative; border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle, var(--line) 1px, transparent 1.2px) 0 0 / 16px 16px,
+    var(--paper-sunken);
+  border: var(--stroke-hair) solid var(--line);
+}
+.wf-measure::before {
+  content: ""; position: absolute; inset: 8px; pointer-events: none;
+  background:
+    linear-gradient(var(--ink-3), var(--ink-3)) top left / 12px 1.5px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) top left / 1.5px 12px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) top right / 12px 1.5px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) top right / 1.5px 12px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) bottom left / 12px 1.5px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) bottom left / 1.5px 12px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) bottom right / 12px 1.5px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) bottom right / 1.5px 12px no-repeat;
+}
+
+/* ---------- Findings and evidence ---------- */
+.wf-finding { background: var(--surface); border: var(--stroke-hair) solid var(--line); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); display: grid; gap: var(--space-3); }
+.wf-finding--hypothesis { border: var(--stroke-rule) dashed var(--line-strong); }
+.wf-finding--soft { border: var(--stroke-rule) dotted var(--line-strong); }
+.wf-finding__title { font: 600 22px/28px var(--font-sans); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.wf-finding__detail { margin: 0; color: var(--ink-2); max-width: 68ch; text-wrap: pretty; }
+.wf-finding__change { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2); align-items: start; margin: 0; padding-top: var(--space-3); border-top: var(--stroke-hair) solid var(--line); }
+.wf-finding__change b { font: 500 16px/24px var(--font-mono); color: var(--ink-3); }
+.wf-evchip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: var(--radius-sm);
+  font: 400 16px/20px var(--font-mono); color: var(--ink); text-decoration: none; background: var(--paper);
+  border: var(--stroke-hair) solid var(--line-strong); transition: background-color 160ms ease-out;
+}
+.wf-evchip:hover { background: var(--paper-sunken); }
+.wf-evchip::after { content: "→"; color: var(--ink-3); font-family: var(--font-sans); }
+
+/* ---------- Race lane ---------- */
+.wf-lane {
+  display: grid; grid-template-columns: 236px 1fr 168px 128px; align-items: center; gap: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-5); background: var(--surface); border: var(--stroke-hair) solid var(--line); border-radius: var(--radius-md);
+}
+.wf-lane--done { box-shadow: var(--shadow-raised); }
+.wf-track { position: relative; height: 40px; display: flex; align-items: center; gap: 10px; padding-right: 28px; }
+.wf-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: var(--stroke-rule) solid var(--line); }
+.wf-pip { position: relative; width: 16px; height: 16px; border-radius: 3px; background: var(--p); flex: none; }
+.wf-pip--scroll { background: var(--surface); box-shadow: inset 0 0 0 var(--stroke-rule) var(--p); }
+.wf-pip--back { background: var(--surface); box-shadow: inset 0 0 0 var(--stroke-rule) var(--ink-3); border-radius: 50%; }
+.wf-pip--wasted { background: repeating-linear-gradient(-45deg, var(--ink-3) 0 1.5px, transparent 1.5px 4px); box-shadow: inset 0 0 0 var(--stroke-hair) var(--ink-3); }
+.wf-pip--now { width: 20px; height: 20px; box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--p); }
+.wf-goalpost { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16px; border-left: var(--stroke-post) solid var(--ink); }
+.wf-goalpost::after { content: ""; position: absolute; left: 0; top: 0; width: 12px; height: 10px; background: var(--ink); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.wf-goalpost--reached::after { background: var(--p); }
+.wf-shot { width: 168px; aspect-ratio: 16 / 10; border-radius: var(--radius-sm); overflow: hidden; background: var(--paper-sunken); border: var(--stroke-hair) solid var(--line); }
+.wf-narration { grid-column: 2 / -1; margin: 0; color: var(--ink-2); font-size: 16px; line-height: 24px; }
+.wf-narration::before { content: "narration · after the fact  "; font: 500 16px/20px var(--font-mono); color: var(--ink-3); white-space: pre; }
+
+/* ---------- Step timeline (run detail) ---------- */
+.wf-steps { display: flex; gap: 4px; align-items: stretch; }
+.wf-step {
+  min-width: 40px; height: 40px; padding: 0 6px; border-radius: var(--radius-sm); border: var(--stroke-hair) solid var(--line-strong);
+  background: var(--surface); font: 500 16px/20px var(--font-mono); color: var(--ink-2); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+}
+.wf-step:hover { background: var(--paper-sunken); color: var(--ink); }
+.wf-step[aria-current="step"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.wf-step--wasted { background: repeating-linear-gradient(-45deg, var(--line) 0 2px, transparent 2px 6px), var(--surface); }
+.wf-step--end { border-color: var(--ink); border-width: var(--stroke-rule); }
+
+/* ---------- Jev draw: cumulative bar, the rolled needle ---------- */
+.wf-draw { display: grid; gap: var(--space-2); }
+.wf-draw__bar { position: relative; display: flex; height: 36px; border-radius: var(--radius-xs); overflow: visible; box-shadow: inset 0 0 0 var(--stroke-hair) var(--line-strong); }
+.wf-draw__seg { height: 100%; border-right: var(--stroke-hair) solid var(--line-strong); background: var(--paper-sunken); }
+.wf-draw__seg:nth-child(even) { background: var(--surface); }
+.wf-draw__seg--drawn { background: var(--p) !important; }
+.wf-draw__needle { position: absolute; top: -8px; bottom: -8px; width: var(--stroke-post); margin-left: -1.5px; background: var(--signal); }
+.wf-draw__needle span { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 2px; white-space: nowrap; font: 500 16px/20px var(--font-mono); padding: 1px 6px; background: var(--signal); color: var(--on-signal); border-radius: var(--radius-xs); }
+
+/* ---------- Source badge: where the numbers on screen come from ---------- */
+.wf-source { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 10px; border-radius: var(--radius-sm); font: 500 16px/20px var(--font-mono); color: var(--ink-2); border: var(--stroke-hair) solid var(--line-strong); }
+.wf-source::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.wf-source--live::before { background: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+.wf-source--stored { border-style: dashed; }
+.wf-source--stored::before { background: transparent; box-shadow: inset 0 0 0 2px var(--ink-2); }
+
+/* ---------- Banners, empty and loading ---------- */
+.wf-banner { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--surface); border: var(--stroke-hair) solid var(--line-strong); }
+.wf-banner p { margin: 0; }
+.wf-banner--stored { background: var(--paper-sunken); border-style: dashed; }
+.wf-banner--fault { background: var(--fault-soft); border-color: var(--fault); }
+.wf-banner--fault > .wf-icon { color: var(--fault); }
+.wf-empty { display: grid; gap: var(--space-3); justify-items: start; padding: var(--space-7) var(--space-6); max-width: 560px; }
+.wf-empty h3 { margin: 0; font: 700 32px/36px var(--font-display); letter-spacing: -0.02em; }
+.wf-empty p { margin: 0; color: var(--ink-2); }
+.wf-skel { background: var(--paper-sunken); border-radius: var(--radius-xs); position: relative; overflow: hidden; }
+.wf-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 70%, transparent), transparent); animation: wf-shimmer 1.4s ease-in-out infinite; }
+@keyframes wf-shimmer { to { transform: translateX(100%); } }
+
+/* ---------- Tables (output register) ---------- */
+.wf-table { width: 100%; border-collapse: collapse; font-size: 16px; line-height: 24px; }
+.wf-table th { text-align: left; font: 500 16px/20px var(--font-sans); color: var(--ink-3); padding: var(--space-2) var(--space-3); border-bottom: var(--stroke-hair) solid var(--line-strong); }
+.wf-table td { padding: var(--space-3); border-bottom: var(--stroke-hair) solid var(--line); vertical-align: middle; }
+.wf-table tr:hover td { background: var(--paper-sunken); }
+.wf-table .wf-num, .wf-table td.wf-mono { font-family: var(--font-mono); }
+
+/* ---------- Chart (SVG) ---------- */
+.wf-chart text { font-family: var(--font-mono); font-size: 16px; fill: var(--ink-3); }
+.wf-chart .grid { stroke: var(--line); stroke-width: 1; }
+.wf-chart .axis { stroke: var(--line-strong); stroke-width: 1; }
+.wf-chart .route { stroke: var(--ink); stroke-width: 2.5; fill: none; }
+.wf-chart .route-pt { fill: var(--ink); }
+.wf-chart .through { stroke: var(--p); stroke-width: 2.5; fill: none; stroke-dasharray: 7 5; }
+.wf-chart .through-pt { fill: var(--surface); stroke: var(--p); stroke-width: 2.5; }
+.wf-chart .gap { fill: url(#wf-hatch); }
+.wf-chart .hatch-line { stroke: var(--ink-3); stroke-width: 1.2; }
+.wf-chart .post { stroke: var(--signal); stroke-width: 3; }
+.wf-chart .flag { fill: var(--signal); }
+.wf-chart .flag-text { fill: var(--on-signal); font-weight: 500; }
+.wf-chart .half { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 4; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation: none !important; }
+}
