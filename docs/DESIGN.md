@@ -247,10 +247,14 @@ The gap bar and the seed strip are HTML, not charts. Recharts stays only for the
 - **Wordmark:** "Wayford" in Bricolage Grotesque 700, led by a short stack of posts: one `signal` post and two ink steps. It is drawn in CSS. There is no logo.
 - **Avatars:** the procedural avatars stay as they are: seeded, with parts that follow dimensions and no face that suggests a mood or diagnosis. They are redrawn with CSS variables:
   - `--p` for the body;
-  - `--p-ink` for pattern and tuft;
+  - `--p-ink` for the pattern, the tuft and the hourglass caps;
   - `avatar-line` for strokes and `avatar-head` for the face.
 
   They sit on a squircle tile: `persona-*-soft` in Daylight, the fixed `avatar-tile` in Night.
+
+  In Night the tile also sets `--p-ink` to `avatar-line`. The Night inks are light: the tuft and caps would fall to about 1.4:1 on the light tile, and the pattern to about 1.4:1 on the body, so all three would fade. In `avatar-line` the tuft and caps hold about 15:1 on the tile, and the pattern about 7:1 on the body. The body keeps its persona fill, so the slot still reads.
+
+  In Daylight the pattern stays tone on tone on the body, about 1.6:1. That is a texture, not a mark: the outline carries the shape, and the tuft and caps hold about 6:1 on the slot's tint.
 
 ## Copy
 

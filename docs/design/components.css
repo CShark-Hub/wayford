@@ -118,7 +118,8 @@ body {
   --s: 64px; width: var(--s); height: var(--s); flex: none; border-radius: calc(var(--s) * 0.3);
   background: var(--p-soft); display: grid; place-items: center; overflow: hidden; position: relative;
 }
-[data-theme="dark"] .wf-avatar { background: var(--avatar-tile); }
+/* Night: the fixed light tile, so the light Night ink would fade on it; pattern, tuft and caps take the line. */
+[data-theme="dark"] .wf-avatar { background: var(--avatar-tile); --p-ink: var(--avatar-line); }
 .wf-avatar svg { width: 100%; height: 100%; display: block; }
 .wf-avatar[aria-pressed="true"], .wf-avatar[aria-current="true"] { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--p); }
 button.wf-avatar, a.wf-avatar { border: 0; padding: 0; cursor: pointer; transition: transform 160ms ease-out; }
