@@ -17,7 +17,7 @@
  * seed of a variant is its `n`. `run_vera-hard-1` keeps the fixture's seed, 424242.
  */
 import { type RunOutcome, RunResult, type RunStep } from "@wayford/core";
-import { runResultFixture } from "@wayford/core/fixtures";
+import { decisionRecordFixture, runResultFixture } from "@wayford/core/fixtures";
 
 /** The hard goal, the fixture run's own. */
 const HARD = "task_past-order";
@@ -66,6 +66,22 @@ function variant([id, profileId, taskId, seed, outcome, durationMs]: Row): RunRe
 
 /** `runResultFixture`, then one variant per row, in the order above. See the file comment. */
 export const fixtureRuns: RunResult[] = [runResultFixture, ...ROWS.map(variant)];
+
+/**
+ * The fixture run as Jev would have run it: step 0, whose proposed click on `e3` is the option
+ * `decisionRecordFixture` draws, carries that record. Jev's model plays the Actor, and the run has
+ * no `actorSampling`, which a Jev run never sends. Outside `fixtureRuns`, so the stats stay as
+ * they are.
+ */
+export const fixtureJevRun: RunResult = RunResult.parse({
+  ...runResultFixture,
+  id: "run_vera-hard-jev",
+  modelIds: { actor: "typesafe/jev-1.13" },
+  actorSampling: undefined,
+  steps: runResultFixture.steps.map((step) =>
+    step.stepIndex === 0 ? { ...step, decision: decisionRecordFixture } : step,
+  ),
+});
 
 /** The fixture run's step with this `stepIndex`. */
 export function fixtureStep(stepIndex: number): RunStep {

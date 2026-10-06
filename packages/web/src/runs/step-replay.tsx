@@ -1,6 +1,7 @@
 /**
  * One stored step, replayed in five sections, in this order: the two screenshots, the Actor's view,
- * the evidence, the action and the narration (`docs/PLAN.md` F7 AC3). Nothing is worked out here
+ * the evidence, the action and the narration (`docs/PLAN.md` F7 AC3). A step Jev chose has a sixth,
+ * its decision, before the action (`decision-panel.tsx`). Nothing is worked out here
  * that the record does not hold: the Actor's view is the stored text, what the Actor read of each
  * element is core's `toActorObservation`, and every decision prints the rule its data names.
  *
@@ -28,6 +29,8 @@ import {
 } from "@wayford/core";
 import type { ReactNode } from "react";
 import { screenshotUrl } from "../api/runs.js";
+import { DecisionPanel } from "./decision-panel.js";
+import { Detail, Details, NOTE, TABLE, TD, TH } from "./details.js";
 import { describeAction, observedFrom } from "./replay.js";
 
 /**
@@ -38,17 +41,13 @@ const HEADING = {
   screenshots: "step-screenshots",
   actorView: "step-actor-view",
   evidence: "step-evidence",
+  decision: "step-decision",
   action: "step-action",
   narration: "step-narration",
 } as const;
 
 const SECTION = "flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground";
 const H3 = "text-sm font-semibold";
-const NOTE = "text-xs text-muted-foreground";
-const TERM = "text-muted-foreground";
-const TABLE = "w-full border-collapse text-left text-xs";
-const TH = "border-b px-2 py-1 font-medium text-muted-foreground";
-const TD = "border-b px-2 py-1 align-top";
 
 /**
  * One decision as a line of the evidence: `P1 contrast 2.1 < 3, rolled 0.42: degraded`,
@@ -106,25 +105,6 @@ function Section({ id, title, children }: { id: string; title: string; children:
       </h3>
       {children}
     </section>
-  );
-}
-
-/** Term and description pairs, one per row, each a `Detail`. */
-export function Details({ children }: { children: ReactNode }) {
-  return (
-    <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
-      {children}
-    </dl>
-  );
-}
-
-/** One term of `Details` and its description. */
-export function Detail({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <>
-      <dt className={TERM}>{term}</dt>
-      <dd className="min-w-0 break-words">{children}</dd>
-    </>
   );
 }
 
@@ -449,7 +429,10 @@ function Narration({ step }: { step: RunStep }) {
 // The step
 // ---------------------------------------------------------------------------
 
-/** One step of `run` in its five sections. `run` supplies the screenshot routes and earlier steps. */
+/**
+ * One step of `run` in its five sections, six on a step Jev chose. `run` supplies the screenshot
+ * routes and earlier steps.
+ */
 export function StepReplay({ run, step }: { run: RunResult; step: RunStep }) {
   return (
     <div className="flex flex-col gap-4">
@@ -458,6 +441,11 @@ export function StepReplay({ run, step }: { run: RunResult; step: RunStep }) {
         <ActorView text={step.actorObservationText} />
         <Evidence observation={step.fullObservation} />
       </div>
+      {"decision" in step && step.decision !== undefined ? (
+        <Section id={HEADING.decision} title="Decision">
+          <DecisionPanel decision={step.decision} />
+        </Section>
+      ) : null}
       <div className="grid gap-4 xl:grid-cols-2">
         <ActionSection step={step} />
         <Narration step={step} />

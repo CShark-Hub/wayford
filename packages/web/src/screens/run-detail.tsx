@@ -13,8 +13,9 @@ import { createLink, createRoute, Link } from "@tanstack/react-router";
 import type { RunResult, RunStep } from "@wayford/core";
 import type { ComponentPropsWithRef, ReactNode } from "react";
 import { runQuery, tasksQuery, traceUrl, videoUrl } from "../api/runs.js";
+import { Detail, Details } from "../runs/details.js";
 import { describeAction, RunDetailSearch } from "../runs/replay.js";
-import { costLine, Detail, Details, StepReplay } from "../runs/step-replay.js";
+import { costLine, StepReplay } from "../runs/step-replay.js";
 import { formatSeconds, personaColourOf, personaLabel } from "../runs/task-results.js";
 import { rootRoute } from "../shell.js";
 
@@ -52,6 +53,19 @@ function StepAnchor({
 }
 
 const StepLink = createLink(StepAnchor);
+
+/**
+ * The Actor backend a run ran on, as its record shows it: `jev` when a step carries the decision
+ * Jev drew, `llm` otherwise. Web does not know which model id is Jev's, so it cannot match
+ * `modelIds.actor` first, as io's `backendOf` does. So any Jev run that stopped before its first
+ * planned action reads `llm`, where io's gap is only such a run on an earlier Jev version. Its
+ * model id, printed beside it, still names Jev.
+ */
+function backendOf(run: RunResult): "jev" | "llm" {
+  return run.steps.some((step) => "decision" in step && step.decision !== undefined)
+    ? "jev"
+    : "llm";
+}
 
 /** The screen before a run is shown: its id as the heading, and what stands in for the run. */
 function Placeholder({ runId, children }: { runId: string; children: ReactNode }) {
@@ -222,6 +236,9 @@ function RunDetail({
                 {goal} <span className="font-mono text-muted-foreground">{run.taskId}</span>
               </>
             )}
+          </Detail>
+          <Detail term="Actor backend">
+            <span className="font-mono">{backendOf(run)}</span>
           </Detail>
           <Detail term="Actor model">
             <span className="font-mono">{run.modelIds.actor}</span>

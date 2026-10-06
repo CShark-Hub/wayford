@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 import { runQuery, tasksQuery, traceUrl, videoUrl } from "../api/runs.js";
 import { detailsOf, lineOf, sectionOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
-import { fixtureRuns } from "../runs/fixture-runs.js";
+import { fixtureJevRun, fixtureRuns } from "../runs/fixture-runs.js";
 
 const RUN_ID = runResultFixture.id;
 
@@ -86,14 +86,23 @@ describe("the header", () => {
     expect(h1Of(await render(`/runs/${RUN_ID}`))).toBe("Vera | 424242 | run_vera-hard-1");
   });
 
-  test("then the outcome, duration, cost, task goal, Actor model and start URL", async () => {
+  test("then the outcome, duration, cost, task goal, Actor backend and model, and start URL", async () => {
     expect(detailsOf(headerOf(await render(`/runs/${RUN_ID}`)))).toEqual({
       Outcome: "gave_up",
       Duration: "15.5 s",
       Cost: "$0.0201, 8020 tokens in, 1180 out",
       Task: "you want to see what you ordered three months ago task_past-order",
+      "Actor backend": "llm",
       "Actor model": "gpt-4o-mini",
       "Start URL": "http://localhost:5174/?contrast=2&fontPx=16&targetPx=36",
+    });
+  });
+
+  test("names Jev as the backend of a run whose steps carry a decision", async () => {
+    const html = await render(`/runs/${fixtureJevRun.id}`, fixtureJevRun, { id: fixtureJevRun.id });
+    expect(detailsOf(headerOf(html))).toMatchObject({
+      "Actor backend": "jev",
+      "Actor model": "typesafe/jev-1.13",
     });
   });
 

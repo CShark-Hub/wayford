@@ -4,12 +4,12 @@ import {
   type IncompleteRunStep,
   RunResult,
 } from "@wayford/core";
-import { runResultFixture } from "@wayford/core/fixtures";
+import { decisionRecordFixture, runResultFixture } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { screenshotUrl } from "../api/runs.js";
 import { decode, detailsOf, lineOf, rowsOf, sectionOf } from "../preview/rendered-markup.js";
-import { fixtureStep } from "./fixture-runs.js";
+import { fixtureJevRun, fixtureStep } from "./fixture-runs.js";
 import { decisionLine, StepReplay, usd } from "./step-replay.js";
 
 /** The five sections, in the order the replay draws them. */
@@ -64,12 +64,34 @@ function figuresOf(html: string): Figure[] {
   });
 }
 
-test("every step draws the five sections in order, each labelled by its own <h3>", () => {
+test("every LLM step draws the five sections in order, each labelled by its own <h3>, and no Decision", () => {
   for (const { stepIndex } of runResultFixture.steps) {
     const html = replay(stepIndex);
     expect(h3Texts(html), `step ${stepIndex}`).toEqual(SECTIONS);
     for (const heading of SECTIONS) expect(() => sectionOf(html, heading)).not.toThrow();
   }
+});
+
+describe("a step Jev chose", () => {
+  const html = replay(0, fixtureJevRun);
+
+  test("draws a Decision section between the evidence and the action", () => {
+    expect(h3Texts(html)).toEqual([
+      "Screenshots",
+      "Actor's view",
+      "Evidence",
+      "Decision",
+      "Action",
+      "Narration",
+    ]);
+  });
+
+  test("its Decision section is the panel: the options, the drawn one, the model's confidence", () => {
+    const decision = sectionOf(html, "Decision");
+    expect(rowsOf(decision)).toHaveLength(1 + decisionRecordFixture.options.length);
+    expect(lineOf(decision)).toContain("drawn: the roll lands here");
+    expect(detailsOf(decision).Confidence).toContain("the model's");
+  });
 });
 
 describe("narration is interpretation, so it sits under Narration and nowhere else", () => {
