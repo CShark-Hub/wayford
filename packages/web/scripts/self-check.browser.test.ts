@@ -11,6 +11,7 @@ import {
   SELF_CHECK_SCREENS,
   SELF_CHECK_THEMES,
   type SelfCheckScreen,
+  shortfalls,
   startWebApp,
 } from "./self-check.js";
 
@@ -178,6 +179,34 @@ describe("checkScreen on a page built to fail", () => {
     expect(check.shortfalls).toEqual([
       { ...FAKE, role: "paragraph", name: "Over a picture", metric: "unmeasured" },
     ]);
+  });
+
+  test("a shortfall inside an exclude region is skipped, one outside it is not", async () => {
+    // Both paragraphs are 3:1. The one in `#stage` is measured, as `shortfalls` without the
+    // excluded regions shows, and only the exclusion keeps it out of the check.
+    const page = await fakePage(`
+      <h1 style="font-size: 32px">Self-check</h1>
+      <div id="stage"><p style="color: #949494">Inside the stage</p></div>
+      <p style="color: #949494">Outside the stage</p>`);
+    const check = await checkScreen(page, FAKE_ORIGIN, { ...FAKE_SCREEN, exclude: "#stage" });
+    const faint = { ...FAKE, role: "paragraph", metric: "contrast", floor: 4.5 };
+    const outside = { ...faint, name: "Outside the stage", value: expect.closeTo(3.03, 2) };
+    expect(check.shortfalls).toEqual([outside]);
+    expect(shortfalls(FAKE_SCREEN.name, check.measurement)).toEqual([
+      { ...faint, name: "Inside the stage", value: expect.closeTo(3.03, 2) },
+      outside,
+    ]);
+  });
+
+  test("an exclude that matches nothing fails, naming the selector", async () => {
+    // A typo in the selector would check the screen whole, and hide that the entry is broken.
+    const page = await fakePage(`<h1 style="font-size: 32px">Self-check</h1>`);
+    await expect(
+      checkScreen(page, FAKE_ORIGIN, { ...FAKE_SCREEN, exclude: "#stage" }),
+    ).rejects.toMatchObject({
+      code: "self_check_exclude",
+      message: expect.stringContaining("#stage"),
+    });
   });
 });
 

@@ -1,8 +1,8 @@
 /**
- * The preview screen through the app's own router, against "Screen" and "Acceptance mapping" in
- * `docs/specs/2026-10-01-s3-01-preview.md`. Each test loads a URL into a memory history and
- * renders the page with `renderToStaticMarkup`, as `router.test.tsx` does: what a copied link
- * opens with, read off the markup, with no DOM library.
+ * The Lens through the app's own router, against "Screen" and "Acceptance mapping" in
+ * `docs/specs/2026-10-01-s3-01-preview.md` and `docs/specs/2026-10-06-s3-11-lens-redesign.md`.
+ * Each test loads a URL into a memory history and renders the page with `renderToStaticMarkup`, as
+ * `router.test.tsx` does: what a copied link opens with, read off the markup, with no DOM library.
  *
  * `perceive` is the filter's own, wrapped in a spy, so every call the screen makes is recorded and
  * the drawing is still real. Expected observations come from the unwrapped `perceive`, so they add
@@ -16,7 +16,10 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import {
   type AxeScan,
   type DeviceKind,
+  type FullObservation,
   METRIC_NAMES,
+  type MetricName,
+  type ObservedElement,
   type PageMeasurement,
   type Profile,
 } from "@wayford/core";
@@ -24,6 +27,7 @@ import {
   axeScanFixture,
   axeScanFixtures,
   measurementFixture,
+  observationFixture,
   profileFixture,
   profileFixtures,
   targetAppJargon,
@@ -37,15 +41,18 @@ import {
   attributesOf,
   captionOf,
   type Drawn,
+  detailsOf,
   drawnBoxes,
   elementOf,
   lineOf,
   shownElements,
+  styleOf,
   textOf,
   withoutNested,
 } from "../preview/rendered-markup.js";
 import { PREVIEW_PAGES } from "../preview/search.js";
 import { createAppRouter } from "../router.js";
+import { lensCounts, rulesFired } from "./lens.js";
 
 vi.mock("@wayford/filter/perceive", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@wayford/filter/perceive")>();
@@ -82,7 +89,7 @@ type AppRouter = Awaited<ReturnType<typeof routerAt>>;
 /** io's answer for one device and page. */
 type LiveAnswer = [device: DeviceKind, page: string, measurement: PageMeasurement];
 
-/** The stored fixture as io's answer for every preview page on both devices. */
+/** The stored fixture as io's answer for every Lens page on both devices. */
 const FIXTURE_EVERYWHERE: LiveAnswer[] = (["desktop", "mobile"] as const).flatMap((device) =>
   PREVIEW_PAGES.map((page): LiveAnswer => [device, page, measurementFixture]),
 );
@@ -100,7 +107,7 @@ function axeScanOf(page: string): AxeScan {
 /**
  * A query client that holds io's `answers`, so a render fetches nothing. By default the stored
  * fixture everywhere: the screen then draws `measurementFixture`, whatever the persona and page.
- * It holds io's axe-core scan of every preview page too, whatever the answers, so the card is
+ * It holds io's axe-core scan of every Lens page too, whatever the answers, so the card is
  * settled and adds no status line.
  */
 function liveClient(answers: LiveAnswer[] = FIXTURE_EVERYWHERE): QueryClient {
@@ -235,13 +242,19 @@ function personaLink(html: string, id: string): Anchor {
   return found;
 }
 
-/** The View control's buttons, each name to its `aria-pressed`. */
+/**
+ * The View control's radios, each name to its `aria-checked`: the control is a `SegmentedControl`,
+ * a `div` with the radio group role, labelled "View".
+ */
 function viewOf(html: string): Record<string, string | undefined> {
-  const group = elementOf(html, "fieldset", 'aria-label="View"');
+  const group = html.match(
+    /<div(?=[^>]*\srole="radiogroup")(?=[^>]*\saria-label="View")[^>]*>(.*?)<\/div>/s,
+  )?.[1];
+  if (group === undefined) throw new Error('No <div role="radiogroup" aria-label="View">');
   return Object.fromEntries(
-    [...group.matchAll(/<button(\s[^>]*)?>(.*?)<\/button>/gs)].map((m) => [
+    [...withoutNested("div", group).matchAll(/<button(\s[^>]*)?>(.*?)<\/button>/gs)].map((m) => [
       textOf(withoutHidden(m[2] ?? "")),
-      attributesOf(m[1] ?? "")["aria-pressed"],
+      attributesOf(m[1] ?? "")["aria-checked"],
     ]),
   );
 }
@@ -265,7 +278,7 @@ const SLIDER_IDS = [
 
 /**
  * `profile` with each threshold's softness written out, 0 where it sets none: the hard cut
- * `perceive` reads either way, and what the preview resolves a softness the URL leaves out to.
+ * `perceive` reads either way, and what the Lens resolves a softness the URL leaves out to.
  */
 function softnessWrittenOut(profile: Profile): Profile {
   const perception = { ...profile.perception };
@@ -330,7 +343,7 @@ test("the drawn elements are exactly the shown elements of perceive for the URL'
     const html = await render(url);
     expect(drawnBoxes(html), url).toEqual(shownElements(expected));
     // The screen perceives the stored page itself, with the URL's profile and seed, and the target
-    // app's jargon list, so K2 masks in the preview what it masks in a run.
+    // app's jargon list, so K2 masks in the Lens what it masks in a run.
     expect(perceiveSpy.mock.calls.length, url).toBeGreaterThan(0);
     for (const [measurement, callProfile, callSeed, callOptions] of perceiveSpy.mock.calls) {
       expect(measurement, url).toStrictEqual(measurementFixture);
@@ -477,7 +490,7 @@ test("every slider has a label pointing at its input and an aria-valuetext", asy
   }
 });
 
-test("Perceived and Evidence carry aria-pressed in both views", async () => {
+test("Perceived and Evidence carry aria-checked in both views", async () => {
   expect(viewOf(await render(VERA))).toEqual({ Perceived: "true", Evidence: "false" });
   const evidence = await render(`${VERA}&evidence=true`);
   expect(viewOf(evidence)).toEqual({ Perceived: "false", Evidence: "true" });
@@ -589,7 +602,8 @@ test("Milo, on a phone, gets the phone's measurement, drawn no wider than the ph
   expect(drawnBoxes(html)).toEqual(
     shownElements(realPerceive(phone, profileFixture("prof_milo"), 1)),
   );
-  expect(html).toContain('style="max-width:412px"');
+  const frame = html.match(/<div(?=[^>]*\sdata-lens-stage="")[^>]*>/)?.[0] ?? "";
+  expect(styleOf(attributesOf(frame))["max-width"]).toBe("412px");
 });
 
 test("the page in the URL is the page measured and drawn", async () => {
@@ -692,10 +706,10 @@ test("on /deliveries the card counts axe-core's one violation and names its rule
   expect(lineOf(card)).toMatch(/^axe-core, WCAG 2\.2 A and AA: 1 violation /);
   expect(axeRulesOf(card)).toEqual(["color-contrast, 1 element"]);
   expect(lineOf(card)).toContain(SCANNED_ONCE);
-  // In the stage, after the page picker and above the page's title and drawing.
+  // In the stage's readout strip, after the page's drawing.
   const at = html.indexOf('aria-label="axe-core"');
-  expect(at).toBeGreaterThan(html.indexOf('aria-label="Page"'));
-  expect(at).toBeLessThan(html.indexOf('id="preview-page-title"'));
+  expect(html).toContain("data-lens-stage");
+  expect(at).toBeGreaterThan(html.indexOf("data-lens-stage"));
   // The scan is by page: Milo, on a phone, sees the same card.
   expect(axeCardOf(await render("/lens?persona=prof_milo"))).toBe(card);
 });
@@ -758,3 +772,145 @@ test("while the page is scanned the card says so, and the stage's status line st
   expect(statusOf(html)).toBeUndefined();
   expect(axeCardOf(html)).not.toContain("role=");
 });
+
+// ---------------------------------------------------------------------------
+// The gauges and the readout strip (s3-11)
+// ---------------------------------------------------------------------------
+
+/**
+ * The rail's gauge for `metric`, as it reads: its label, readout, tags and softness row. Each
+ * gauge runs from its start to the next one's, the last to the end of the rail.
+ */
+function gaugeOf(html: string, metric: MetricName): string {
+  const rail = html.match(/<aside(?:\s[^>]*)?>(.*?)<\/aside>/s)?.[1] ?? "";
+  const gauge = rail
+    .split(/(?=<div[^>]*\sdata-slot="threshold-gauge")/)
+    .find((part) => part.includes(`id="preview-${metric}"`));
+  if (gauge === undefined) throw new Error(`No gauge for ${metric}`);
+  return lineOf(gauge);
+}
+
+/**
+ * The strip's description list, each term to what it reads: the three counts, and the rules fired,
+ * their tags joined by spaces. The strip holds the page's one `<dl>`.
+ */
+function stripOf(html: string): Record<string, string> {
+  const list = html.match(/<dl(?:\s[^>]*)?>(.*?)<\/dl>/s)?.[1];
+  if (list === undefined) throw new Error("No <dl>");
+  return detailsOf(list);
+}
+
+/** What the strip reads for `observation`, by `lensCounts` and `rulesFired`. */
+function expectedStrip(observation: FullObservation): Record<string, string> {
+  const counts = lensCounts(observation);
+  const rules = rulesFired(observation);
+  return {
+    visible: String(counts.visible),
+    degraded: String(counts.degraded),
+    removed: String(counts.removed),
+    "rules fired": rules.length === 0 ? "none" : rules.join(" "),
+  };
+}
+
+test("a moved threshold reads folk with no source and what it was; the persona's own, her source", async () => {
+  // Beat 2: Vera's contrast dragged from her 3:1 to 4.5:1. A slider value cites nothing.
+  const moved = gaugeOf(await render(`${VERA}&contrast=4.5`), "contrast");
+  expect(moved).toContain("4.5:1");
+  expect(moved).toContain("P1 folk · no source");
+  expect(moved).toContain("was 3:1");
+  expect(moved).not.toContain("wcag22");
+  // At her own values the threshold is hers, with her source, and nothing was moved.
+  const own = gaugeOf(await render(VERA), "contrast");
+  expect(own).toContain("P1 wcag22");
+  expect(own).not.toContain("no source");
+  expect(own).not.toContain("was");
+  // The gauges she did not move keep their own sources.
+  expect(gaugeOf(await render(`${VERA}&contrast=4.5`), "fontPx")).toContain("P3 legge2011");
+});
+
+test("the strip's counts and rules fired are those of the observation drawn", async () => {
+  const beat2: Profile = {
+    ...vera,
+    perception: {
+      ...vera.perception,
+      contrast: { threshold: 4.5, softness: 0.5, provenance: "folk" },
+    },
+  };
+  const cases: { url: string; profile: Profile }[] = [
+    { url: VERA, profile: vera },
+    { url: `${VERA}&contrast=4.5`, profile: beat2 },
+    { url: "/lens?persona=prof_zoya&seed=1", profile: zoya },
+    { url: "/lens?persona=prof_ada&seed=1", profile: profileFixture("prof_ada") },
+  ];
+  for (const { url, profile } of cases) {
+    const expected = realPerceive(measurementFixture, profile, 1, { jargon: targetAppJargon });
+    const html = await render(url);
+    expect(stripOf(html), url).toEqual(expectedStrip(expected));
+    // The counts add up to the page, and the shown ones are the boxes drawn.
+    const counts = lensCounts(expected);
+    expect(counts.visible + counts.degraded + counts.removed, url).toBe(expected.elements.length);
+    expect(counts.visible + counts.degraded, url).toBe(drawnBoxes(html).length);
+  }
+  // Beat 2 removes and fires: the comparison cannot pass on an empty strip.
+  expect(expectedStrip(realPerceive(measurementFixture, beat2, 1))).toMatchObject({
+    removed: "2",
+    "rules fired": "P1 contrast P4 target",
+  });
+  expect(stripOf(await render("/lens?persona=prof_ada&seed=1"))["rules fired"]).toBe("none");
+});
+
+test("Kai's strip names the attention cap that cut his page", async () => {
+  const expected = realPerceive(measurementFixture, kai, 1, { jargon: targetAppJargon });
+  expect(rulesFired(expected)).toContain("A1 attention");
+  expect(stripOf(await render("/lens?persona=prof_kai"))["rules fired"]).toBe(
+    rulesFired(expected).join(" "),
+  );
+});
+
+test("while the page is measured, the strip's counts and rules are skeletons", async () => {
+  const strip = stripOf(await render("/lens?persona=prof_vera&page=/account", new QueryClient()));
+  expect(strip).toEqual({ visible: "", degraded: "", removed: "", "rules fired": "" });
+});
+
+test("lensCounts splits an observation by how the stage draws it", () => {
+  // The fixture: five visible, the archive link degraded, ten removed by perception, attention
+  // and the viewport.
+  expect(lensCounts(observationFixture)).toEqual({ visible: 5, degraded: 1, removed: 10 });
+  // Renamed by a knowledge rule, the degraded link reaches the Actor visible, read whole, and is
+  // drawn so.
+  expect(lensCounts(renamedArchive())).toEqual({ visible: 6, degraded: 0, removed: 10 });
+});
+
+test("rulesFired names each rule that fired once, in the strip's order", () => {
+  // P1 on three elements and P3 on one, A1 on three, V2 on five: each once, perception first.
+  expect(rulesFired(observationFixture)).toEqual([
+    "P1 contrast",
+    "P3 font size",
+    "V2 viewport",
+    "A1 attention",
+  ]);
+  expect(rulesFired(renamedArchive())).toEqual([
+    "P1 contrast",
+    "P3 font size",
+    "V2 viewport",
+    "K1 pattern",
+    "A1 attention",
+  ]);
+  expect(rulesFired({ ...observationFixture, elements: [] })).toEqual([]);
+});
+
+/** The observation fixture with its degraded archive link renamed by K1. */
+function renamedArchive(): FullObservation {
+  return {
+    ...observationFixture,
+    elements: observationFixture.elements.map((element): ObservedElement => {
+      if (element.state !== "degraded") return element;
+      const { maskedName: _masked, ...rest } = element;
+      return {
+        ...rest,
+        decisions: [...element.decisions, { stage: "knowledge", rule: "K1" }],
+        renamedName: "link",
+      };
+    }),
+  };
+}

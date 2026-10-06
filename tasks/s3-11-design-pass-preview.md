@@ -55,10 +55,23 @@ The Lens, Wayford's hero screen, matches `docs/design/screens/lens.html`, and be
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/web test` passes, the preview's browser test included
-- [ ] `pnpm --filter @wayford/web check:self` passes with the Lens listed, in both themes. A test shows that a shortfall inside an `exclude` region is skipped and one outside it is not.
-- [ ] The PR shows beats 1 to 3 at 1280 × 720 beside `docs/design/screens/lens.html`, and the reviewer approves the look
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+- [x] `pnpm --filter @wayford/web test` passes, the preview's browser test included: `Test Files 44 passed (44)`, `Tests 381 passed (381)`. The browser test is now `src/screens/lens.browser.test.ts`, with a second test: a contrast move that removes Order archive fades its ghost out once (`lens-out`, 0.24 s, one iteration), and under reduced motion its animation is `none`
+- [x] `pnpm --filter @wayford/web check:self` passes with the Lens listed, in both themes: `lens: skips [data-lens-stage]`, then `2 screens checked in Daylight and Night: 0 shortfalls`, exit 0. `scripts/self-check.browser.test.ts`: "a shortfall inside an exclude region is skipped, one outside it is not", and "an exclude that matches nothing fails, naming the selector"
+- [ ] The PR shows beats 1 to 3 at 1280 × 720 beside `docs/design/screens/lens.html`, and the reviewer approves the look. The screenshots are in the PR, taken on the live stack in Daylight and Night; the reviewer's approval is still to come
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root: `Checked 353 files … No fixes applied.`, typecheck exit 0, `Test Files 139 passed (139)`, `Tests 1963 passed (1963)`
+
+## Outcome
+
+Built as the spec says (`docs/specs/2026-10-06-s3-11-lens-redesign.md`), with these differences from this file and from `lens.html`:
+
+- The tests and the URL pin seven sliders, so each gauge keeps a softness row, and the gauges drop `lens.html`'s scale row of landmark numbers to fit 720. The ruler runs 1–7, 0–32 and 0–56, as `lens.html` draws it; the URL still takes values up to 21, 48 and 96.
+- The seed is a stepper whose middle box is the native range input, with − and + buttons.
+- The persona switcher and the page picker stay links, so Back keeps working. The View switch is `SegmentedControl`, a radio group, so the test that read `aria-pressed` reads `aria-checked`.
+- The axe card is in the strip, after the drawing; the s4-06 test that put it above the page's title follows. Every sentence the tests read is kept word for word.
+- The page is drawn to scale, fit to the height the strip leaves: 589 × 306 px on `/deliveries` (0.46), the same in both views. `lens.html`'s redraw is stylised at full size. Only the flags and the strip's counts and tags are drawn at full size; an outline and a hatch sit on the scaled box, so Order archive is 47 × 17 px on screen and its masked name about 7 px. Beat 2's moment in Perceived is that box fading out. A flag may run past the frame's side onto the measuring surface; flags of elements close together still overlap (Kai's attention cuts in Evidence, Zoya on `/account`).
+- No count deltas: they would need a second filter run.
+- `lens.html`'s frame shadow is left out, as `docs/DESIGN.md` allows shadows only on cast cards and a finished lane.
+- `router.tsx` changed one import, for the rename.
 
 ## Out of scope
 

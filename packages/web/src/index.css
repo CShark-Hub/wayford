@@ -147,6 +147,31 @@
       translate: 100%;
     }
   }
+  /* The Lens's one choreographed moment, 240 ms, once per element that changes state as a
+     threshold moves (docs/DESIGN.md, "Motion"). Each runs from where the element was to its
+     resting style, so with the animation `none` the element simply is its final look: `lens-in`
+     fades a new look in, `lens-out` fades a leaving element out, or the hatch off an outline
+     drawing in from it, and `lens-flag` drops a cut flag in. The flag's moves
+     `transform`, which adds to the `translate` that centres the flag, so it never jumps. */
+  --animate-lens-in: lens-in 240ms ease-out;
+  --animate-lens-out: lens-out 240ms ease-out;
+  --animate-lens-flag: lens-flag 240ms ease-out;
+  @keyframes lens-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes lens-out {
+    from {
+      opacity: 1;
+    }
+  }
+  @keyframes lens-flag {
+    from {
+      transform: translateY(-8px);
+      opacity: 0;
+    }
+  }
 }
 
 /* The type scale: one class per style, as tokens.css names them. */
@@ -267,6 +292,42 @@
   --color-destructive: var(--fault);
 }
 
+/* The two patterns components.css draws the Lens with, in token colours; the stripe and tick
+   geometry is the drawing's own. `hatch` is a degraded element's stripes, in `--line` unless an
+   element sets `--hatch-line` (the gauge's softness band draws them in signal). */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--hatch-line, var(--line)) 0 2px,
+    transparent 2px 7px
+  );
+}
+/* A measuring surface (docs/DESIGN.md, "Space, shape and layout"): sunken paper under a 16 px dot
+   grid, a hairline edge, and a 12 px tick at each corner, 8 px in, that never takes a pointer. */
+@utility measure {
+  position: relative;
+  border: var(--stroke-hair) solid var(--line);
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle, var(--line) 1px, transparent 1.2px) 0 0 / var(--space-4) var(--space-4),
+    var(--paper-sunken);
+  &::before {
+    content: "";
+    position: absolute;
+    inset: var(--space-2);
+    pointer-events: none;
+    background:
+      linear-gradient(var(--ink-3), var(--ink-3)) top left / var(--space-3) 1.5px no-repeat,
+      linear-gradient(var(--ink-3), var(--ink-3)) top left / 1.5px var(--space-3) no-repeat,
+      linear-gradient(var(--ink-3), var(--ink-3)) top right / var(--space-3) 1.5px no-repeat,
+      linear-gradient(var(--ink-3), var(--ink-3)) top right / 1.5px var(--space-3) no-repeat,
+      linear-gradient(var(--ink-3), var(--ink-3)) bottom left / var(--space-3) 1.5px no-repeat,
+      linear-gradient(var(--ink-3), var(--ink-3)) bottom left / 1.5px var(--space-3) no-repeat,
+      linear-gradient(var(--ink-3), var(--ink-3)) bottom right / var(--space-3) 1.5px no-repeat,
+      linear-gradient(var(--ink-3), var(--ink-3)) bottom right / 1.5px var(--space-3) no-repeat;
+  }
+}
+
 @layer base {
   /* Native scrollbars and form controls follow the theme too. */
   :root {
@@ -288,13 +349,16 @@
     outline: var(--stroke-rule) solid var(--focus-ring);
     outline-offset: var(--stroke-rule);
   }
-  /* Under reduced motion every duration is 0: no transition, no shimmer. A `transition-*`
-     utility reads the default duration unless a `duration-*` class sets its own, which
-     docs/DESIGN.md rules out. Base outranks the theme layer that sets both. */
+  /* Under reduced motion every duration is 0: no transition, no shimmer, no Lens moment. A
+     `transition-*` utility reads the default duration unless a `duration-*` class sets its own,
+     which docs/DESIGN.md rules out. Base outranks the theme layer that sets them all. */
   @media (prefers-reduced-motion: reduce) {
     :root {
       --default-transition-duration: 0s;
       --animate-shimmer: none;
+      --animate-lens-in: none;
+      --animate-lens-out: none;
+      --animate-lens-flag: none;
     }
   }
 }

@@ -1,12 +1,13 @@
 /**
  * `pnpm --filter @wayford/web check:self`: the web app on its own Vite dev server, each listed
  * screen measured in Chromium at the projector's 1280 × 720 in Daylight and in Night, the floors
- * first, one line per shortfall and a summary. It exits 1 on any shortfall or failed screen, and 0
- * otherwise.
+ * first, then what each screen skips, one line per shortfall and a summary. It exits 1 on any
+ * shortfall or failed screen, and 0 otherwise.
  *
  *   floors: text 4.5:1 and 16 px, targets 32 px
+ *   lens: skips [data-lens-stage]
  *   cast · Night  link "Runs"  contrast 3.1 < 4.5
- *   1 screen checked in Daylight and Night: 1 shortfall
+ *   2 screens checked in Daylight and Night: 1 shortfall
  */
 import { type Browser, chromium } from "playwright";
 import { THEME_NAMES } from "../src/theme.js";
@@ -31,6 +32,9 @@ function line(shortfall: Shortfall, theme: string): string {
 
 const { contrast, fontPx, targetPx } = SELF_CHECK_FLOOR;
 console.log(`floors: text ${contrast}:1 and ${fontPx} px, targets ${targetPx} px`);
+for (const { name, exclude } of SELF_CHECK_SCREENS) {
+  if (exclude !== undefined) console.log(`${name}: skips ${exclude}`);
+}
 
 const app = await startWebApp();
 let browser: Browser | undefined;

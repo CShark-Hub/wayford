@@ -312,7 +312,7 @@ test("each preview page is a page param, and anything else falls back to /delive
 });
 
 test("a page link back to /deliveries leaves the page param out", () => {
-  // Keeping persona, seed, sliders and view is `preview.test.tsx`'s page-control test.
+  // Keeping persona, seed, sliders and view is `lens.test.tsx`'s page-control test.
   const onData = validate({ persona: "prof_vera", page: "/settings/data" });
   expect(pageSearch(onData, "/deliveries")).toStrictEqual({
     persona: "prof_vera",

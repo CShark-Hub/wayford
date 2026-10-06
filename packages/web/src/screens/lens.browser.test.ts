@@ -7,7 +7,7 @@
  * the measurement nor the scan (s4-06). Then the page control opens `/account`, which fetches both:
  * the spy is seen to catch the screen's fetches, so its silence before means something.
  *
- * The static tests in `preview.test.tsx` cannot show this: a static render runs no effect, so
+ * The static tests in `lens.test.tsx` cannot show this: a static render runs no effect, so
  * nothing there would fetch either way.
  */
 import { fileURLToPath } from "node:url";
@@ -173,4 +173,52 @@ test("slider moves redraw the page and make no request; a page link does", async
   );
   await card.getByText("axe-core, WCAG 2.2 A and AA: 0 violations", { exact: true }).waitFor();
   await page.close();
+});
+
+/** What the computed style says of an element's animation. */
+function animationOf(element: Element) {
+  const style = getComputedStyle(element);
+  return {
+    name: style.animationName,
+    iterations: style.animationIterationCount,
+    duration: style.animationDuration,
+  };
+}
+
+test("an element a threshold move removes fades out once, and under reduced motion is simply gone", async () => {
+  // Order archive's contrast is 2.005:1, so at 2 with no band it is drawn and at 2.1 it is cut.
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    const page = await spiedPage();
+    await page.emulateMedia({ reducedMotion });
+    await page.goto(`${origin}/lens?persona=prof_vera&seed=1&contrast=2&contrastSoftness=0`);
+    const archive = page.locator("[data-state]", { hasText: "Order archive" });
+    await archive.waitFor();
+    await press(page, "preview-contrast", "ArrowRight", 1);
+    // Drawn no more: a ghost of it, hidden from assistive technology, takes its place.
+    const ghost = page.locator("[data-leaving]");
+    await ghost.waitFor({ state: "attached" });
+    await expect.poll(() => archive.count()).toBe(0);
+    expect(await ghost.getAttribute("aria-hidden"), reducedMotion).toBe("true");
+    if (reducedMotion === "reduce") {
+      expect((await ghost.evaluate(animationOf)).name).toBe("none");
+    } else {
+      expect(await ghost.evaluate(animationOf)).toEqual({
+        name: "lens-out",
+        iterations: "1",
+        duration: "0.24s",
+      });
+    }
+    // Either way it rests unseen, and a further move that changes nothing replays nothing: the
+    // ghost stays the same node, with no animation running.
+    await expect.poll(() => ghost.evaluate((element) => element.getAnimations().length)).toBe(0);
+    expect(await ghost.evaluate((element) => getComputedStyle(element).opacity)).toBe("0");
+    await ghost.evaluate((element) => element.setAttribute("data-seen", ""));
+    await press(page, "preview-contrast", "ArrowRight", 1);
+    await page.waitForFunction(
+      () => new URLSearchParams(location.search).get("contrast") === "2.2",
+    );
+    expect(await ghost.getAttribute("data-seen")).toBe("");
+    expect(await ghost.evaluate((element) => element.getAnimations().length)).toBe(0);
+    await page.close();
+  }
 });

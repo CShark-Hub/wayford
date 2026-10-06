@@ -8,7 +8,9 @@
  * `perceive.test.ts`, so a regenerated measurement leaves this file alone.
  *
  * The markup is read back as the screen tests read it: a drawn box by its `data-ref`, `data-state`
- * and text, and by the measured px inside each `calc(N * var(--px))`.
+ * and text, and by the measured px inside each `calc(N * var(--px))`. A look is read by the
+ * `FILTER_STATE_CLASS` classes it carries, and the animation's tracking by `nextTrack` alone: a
+ * static render has no second render, so it carries no animation.
  */
 import {
   type Bbox,
@@ -23,10 +25,13 @@ import { kebabElement as KEBAB, measurementFixture, profileFixture } from "@wayf
 import { perceive } from "@wayford/filter/perceive";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { PerceivedPage } from "./perceived-page.js";
+import { FILTER_STATE_CLASS, type Look } from "../components/filter-states.js";
+import { croppedHeight, nextTrack, PerceivedPage } from "./perceived-page.js";
 import {
+  attributesOf,
   bboxOf,
   captionOf,
+  classesOf,
   decode,
   divsWith,
   drawnBoxes,
@@ -223,19 +228,37 @@ function render(full: FullObservation, view: { evidence: boolean; subject?: stri
   );
 }
 
-/** What an outline says about a removed element. */
-type Outline = { name: string; tag: string[]; bbox: Bbox };
+/** The classes of a `FilterState`'s look, as a list. */
+function lookOf(state: keyof typeof FILTER_STATE_CLASS): string[] {
+  return FILTER_STATE_CLASS[state].split(" ");
+}
+
+/**
+ * What an outline says about a removed element: its name for screen readers, its flag's lines (the
+ * tag), its box, and the classes of the outline and of its flag.
+ */
+type Outline = { name: string; tag: string[]; bbox: Bbox; classes: string[]; flag: string[] };
 
 function outlines(html: string): Outline[] {
   return divsWith(html, "data-removed").map(({ attributes, inner }) => {
-    const [, name = "", tag = ""] =
-      inner.match(/^<span class="sr-only">(.*?)<\/span><span[^>]*>(.*)<\/span>$/s) ?? [];
+    const [, name = "", flag = "", tag = ""] =
+      inner.match(/^<span class="sr-only">(.*?)<\/span><span([^>]*)>(.*)<\/span>$/s) ?? [];
     return {
       name: textOf(name),
       tag: [...tag.matchAll(/<span>(.*?)<\/span>/g)].map((m) => textOf(m[1] ?? "")),
       bbox: bboxOf(styleOf(attributes)),
+      classes: classesOf(attributes),
+      flag: classesOf(attributesOf(flag)),
     };
   });
+}
+
+/** The side of its element an outline's flag is drawn on, from its placing class. */
+function flagSideOf(outline: Outline): "left" | "right" | "inside" | undefined {
+  if (outline.flag.includes("right-full")) return "left";
+  if (outline.flag.includes("left-full")) return "right";
+  if (outline.flag.includes("left-2")) return "inside";
+  return undefined;
 }
 
 /**
@@ -314,12 +337,10 @@ test("a degraded element shows its masked name and never its real one", () => {
   }
 });
 
-/** The refs of the drawn boxes in the muted foreground. */
+/** The refs of the drawn boxes in the degraded look: hatched, the masked name muted. */
 function mutedRefs(html: string): (string | undefined)[] {
   return divsWith(html, "data-state")
-    .filter(({ attributes }) =>
-      (attributes.class ?? "").split(/\s+/).includes("text-muted-foreground"),
-    )
+    .filter(({ attributes }) => classesOf(attributes).includes("hatch"))
     .map(({ attributes }) => attributes["data-ref"]);
 }
 
@@ -349,6 +370,21 @@ test("a box is muted exactly when its element is degraded and not renamed", () =
     name: "button",
   });
   expect(decode(html)).not.toContain(KEBAB.name);
+});
+
+test("a renamed element is drawn renamed, mono with a dotted underline, never hatched", () => {
+  // Perception degraded the kebab, but the Actor reads its bare role whole, as visible.
+  const renamed = veraRenamedAndDegraded();
+  const kebab = observed(renamed, KEBAB.key);
+  for (const evidence of [false, true]) {
+    const box = divsWith(render(renamed, { evidence }), "data-state").find(
+      ({ attributes }) => attributes["data-ref"] === kebab.ref,
+    );
+    expect(box, `evidence ${evidence}`).toBeDefined();
+    const classes = classesOf(box?.attributes ?? {});
+    expect(classes).toEqual(expect.arrayContaining(lookOf("renamed")));
+    expect(classes).not.toContain("hatch");
+  }
 });
 
 test("an invisible element is not drawn, and its name appears nowhere in the perception view", () => {
@@ -381,26 +417,78 @@ test("with evidence, exactly the invisible elements are outlined, tagged with wh
   // Each tag in the spec's words. Vera's hard target cut, and her contrast band below its roll.
   const removing = render(veraRemoving(), { evidence: true });
   expect(outlineOf(removing, measured(BRAND).name).tag).toEqual([
-    `P4 ${metric(BRAND, "targetPx")} < ${threshold(vera, "targetPx")}`,
+    `P4 · ${metric(BRAND, "targetPx")} < ${threshold(vera, "targetPx")}`,
   ]);
   expect(outlineOf(removing, measured(ARCHIVE).name).tag).toEqual([
-    `P1 ${metric(ARCHIVE, "contrast")} < ${threshold(vera, "contrast")}`,
+    `P1 · ${metric(ARCHIVE, "contrast")} < ${threshold(vera, "contrast")}`,
   ]);
+});
+
+test("a flag gives the numbers exactly as perceive recorded them", () => {
+  // Order archive's 2.005:1 under Vera's 3:1, unrounded.
+  const removing = render(veraRemoving(), { evidence: true });
+  expect(outlineOf(removing, "Order archive").tag).toEqual(["P1 · 2.005 < 3"]);
 });
 
 test("a tag lists the rules that removed the element, never one that only degraded it", () => {
   // Zoya's contrast band only degrades the lead paragraph; her font cut removes it.
   const zoyaHtml = render(zoyaSoftUnderHard(), { evidence: true });
   expect(outlineOf(zoyaHtml, measured(LEAD).name).tag).toEqual([
-    `P3 ${metric(LEAD, "fontPx")} < ${threshold(zoya, "fontPx")}`,
+    `P3 · ${metric(LEAD, "fontPx")} < ${threshold(zoya, "fontPx")}`,
   ]);
   // Below the fold, V2 removes Order archive and Vera's band only degrades it.
   const belowHtml = render(veraBelowTheFold(), { evidence: true });
-  expect(outlineOf(belowHtml, measured(ARCHIVE).name).tag).toEqual(["V2 below"]);
+  expect(outlineOf(belowHtml, measured(ARCHIVE).name).tag).toEqual(["V2 · below"]);
   // Kai sets no threshold, so his cap is all that removes an element, and A1 is its whole tag.
   const kaiHtml = render(observe(measurementFixture, kai, 1), { evidence: true });
   expect(outlines(kaiHtml).length).toBeGreaterThan(0);
-  expect(outlines(kaiHtml).every((outline) => outline.tag.join() === "A1")).toBe(true);
+  expect(outlines(kaiHtml).every((outline) => outline.tag.join() === "A1 · attention")).toBe(true);
+});
+
+test("a removal a perception rule made is drawn in signal; a cut that measured nothing is quiet", () => {
+  // Vera's contrast band and target cut: dashed signal outlines, signal flags.
+  const removing = outlines(render(veraRemoving(), { evidence: true }));
+  expect(removing.length).toBeGreaterThan(0);
+  for (const outline of removing) {
+    expect(outline.classes, outline.name).toEqual(expect.arrayContaining(lookOf("removed")));
+    expect(outline.flag, outline.name).toContain("bg-signal");
+  }
+  // Kai's attention cap and V2 below the fold: dashed line-strong outlines, quiet flags, and no
+  // signal on either, since neither measured anything.
+  const kaiCuts = outlines(render(observe(measurementFixture, kai, 1), { evidence: true }));
+  const belowCut = outlineOf(
+    render(veraBelowTheFold(), { evidence: true }),
+    measured(ARCHIVE).name,
+  );
+  for (const outline of [...kaiCuts, belowCut]) {
+    expect(outline.classes, outline.name).toEqual(expect.arrayContaining(lookOf("cut")));
+    expect(outline.flag, outline.name).toEqual(
+      expect.arrayContaining(["bg-surface", "text-ink-2"]),
+    );
+    expect(
+      [...outline.classes, ...outline.flag].filter((c) => c.includes("signal")),
+      outline.name,
+    ).toEqual([]);
+  }
+});
+
+test("a flag sits beside its element, on the side with more room", () => {
+  // Zoya's target cut removes the nav links, at the page's right: their flags go left.
+  const zoyaHtml = render(observe(measurementFixture, zoya, 1), { evidence: true });
+  for (const key of [
+    "banner/navigation:Main//link:Home",
+    "banner/navigation:Main//link:Your account",
+    "banner/navigation:Main//link:Settings",
+  ]) {
+    expect(flagSideOf(outlineOf(zoyaHtml, measured(key).name)), key).toBe("left");
+  }
+  // Order archive, at the left of the page, takes its flag on the right.
+  const removing = render(veraRemoving(), { evidence: true });
+  expect(flagSideOf(outlineOf(removing, measured(ARCHIVE).name))).toBe("right");
+  // The lead paragraph is 832 px of a 1280 px page, 224 px from each edge: under a quarter of the
+  // page on either side, so its flag goes inside.
+  const lead = render(zoyaSoftUnderHard(), { evidence: true });
+  expect(flagSideOf(outlineOf(lead, measured(LEAD).name))).toBe("inside");
 });
 
 test("the caption says evidence, not perception, in the evidence view only, for its subject", () => {
@@ -420,10 +508,10 @@ test("the caption says evidence, not perception, in the evidence view only, for 
 /** Each drawn box's name, and whether it wraps its name rather than keep it on one line. */
 function wrapsByName(html: string): Map<string, boolean> {
   return new Map(
-    divsWith(html, "data-state").map(({ attributes, inner }) => {
-      const classes = (attributes.class ?? "").split(" ");
-      return [textOf(inner), classes.includes("whitespace-normal")];
-    }),
+    divsWith(html, "data-state").map(({ attributes, inner }) => [
+      textOf(inner),
+      classesOf(attributes).includes("whitespace-normal"),
+    ]),
   );
 }
 
@@ -438,4 +526,135 @@ test("a text block more than one line tall wraps its name; a control and a one-l
   // On the desktop page the paragraph is one line tall, and keeps to it.
   const onDesktop = wrapsByName(render(observe(measurementFixture, ada, 1), { evidence: false }));
   expect(onDesktop.get(lead.name)).toBe(false);
+});
+
+// ---------------------------------------------------------------------------
+// The canvas
+// ---------------------------------------------------------------------------
+
+/** The style of the `[data-lens-stage]` frame, and of the canvas it holds. */
+function frameAndCanvas(html: string) {
+  const [, frame = "", canvas = ""] =
+    html.match(/<div((?:\s[^>]*)?\sdata-lens-stage=""[^>]*)><div([^>]*)>/) ?? [];
+  return { frame: styleOf(attributesOf(frame)), canvas: styleOf(attributesOf(canvas)) };
+}
+
+test("the canvas ends 24 px under the lowest element in the viewport, whatever its state", () => {
+  // The fixture's elements end at Order archive's bottom edge.
+  const lowest = 639.0625;
+  expect(measured(ARCHIVE).bbox.y + measured(ARCHIVE).bbox.height).toBe(lowest);
+  const full = observe(measurementFixture, ada, 1);
+  expect(croppedHeight(full)).toBe(lowest + 24);
+  // Removed, Order archive still sets the crop, so a slider never moves the canvas's edge.
+  expect(croppedHeight(veraRemoving())).toBe(lowest + 24);
+  // The canvas is that tall, and the frame fits it to the height it is given.
+  const { frame, canvas } = frameAndCanvas(render(full, { evidence: false }));
+  expect(canvas.height).toBe(`calc(${lowest + 24} * var(--px))`);
+  expect(canvas["--px"]).toBe("calc(100cqw / 1280)");
+  expect(frame.width).toBe(`min(100cqw, (100cqh - 2px) * 1280 / ${lowest + 24} + 2px)`);
+});
+
+test("an element below the fold does not extend the canvas, and the viewport's height bounds it", () => {
+  const archive = measured(ARCHIVE);
+  const { height } = measurementFixture.viewport;
+  // Another link wholly below the fold: V2 removes it, and the canvas ends where it did.
+  const belowTheFold = PageMeasurement.parse({
+    ...measurementFixture,
+    elements: [
+      ...measurementFixture.elements,
+      {
+        ...archive,
+        key: "main//link:Older orders",
+        name: "Older orders",
+        bbox: { ...archive.bbox, y: height + 10 },
+      },
+    ],
+  });
+  expect(croppedHeight(observe(belowTheFold, ada, 1))).toBe(
+    croppedHeight(observe(measurementFixture, ada, 1)),
+  );
+  // Order archive straddling the fold: the canvas takes the viewport's height, and no more.
+  const straddling = withElement(ARCHIVE, (e) => ({ ...e, bbox: { ...e.bbox, y: height - 10 } }));
+  expect(croppedHeight(observe(straddling, ada, 1))).toBe(height);
+  // Nothing in the viewport: the canvas is the viewport.
+  const nothingShown = PageMeasurement.parse({
+    ...measurementFixture,
+    elements: [{ ...archive, bbox: { ...archive.bbox, y: height + 10 } }],
+  });
+  expect(croppedHeight(observe(nothingShown, ada, 1))).toBe(height);
+});
+
+// ---------------------------------------------------------------------------
+// The one animation
+// ---------------------------------------------------------------------------
+
+test("a static render carries no animation and no leaving element", () => {
+  for (const [label, full] of Object.entries(cases())) {
+    for (const evidence of [false, true]) {
+      const html = render(full, { evidence });
+      expect(html, `${label}, evidence ${evidence}`).not.toContain("animate-");
+      expect(html, `${label}, evidence ${evidence}`).not.toContain("data-leaving");
+    }
+  }
+});
+
+const LOOKS: Look[] = ["visible", "degraded", "visible"];
+const NAMES = ["Home", "Order ar…", "Settings"];
+
+test("a first render starts every counter at 0", () => {
+  expect(nextTrack(undefined, LOOKS, NAMES)).toEqual({
+    looks: LOOKS,
+    names: NAMES,
+    changes: [0, 0, 0],
+    was: [undefined, undefined, undefined],
+  });
+});
+
+test("a render that changes nothing returns the track itself, so React settles", () => {
+  const track = nextTrack(undefined, LOOKS, NAMES);
+  expect(nextTrack(track, [...LOOKS], [...NAMES])).toBe(track);
+});
+
+test("a look that changes counts up and keeps what the element was", () => {
+  const first = nextTrack(undefined, LOOKS, NAMES);
+  const removed = nextTrack(first, ["visible", "removed", "visible"], ["Home", "", "Settings"]);
+  expect(removed.changes).toEqual([0, 1, 0]);
+  expect(removed.was).toEqual([undefined, { look: "degraded", name: "Order ar…" }, undefined]);
+  // A change elsewhere leaves this one's counter and `was` as they were.
+  const another = nextTrack(removed, ["degraded", "removed", "visible"], ["Ho…", "", "Settings"]);
+  expect(another.changes).toEqual([1, 1, 0]);
+  expect(another.was).toEqual([
+    { look: "visible", name: "Home" },
+    { look: "degraded", name: "Order ar…" },
+    undefined,
+  ]);
+  // Back again: the counter goes on up, and `was` is now the removed look.
+  const back = nextTrack(
+    another,
+    ["degraded", "visible", "visible"],
+    ["Ho…", "Order archive", "Settings"],
+  );
+  expect(back.changes).toEqual([1, 2, 0]);
+  expect(back.was[1]).toEqual({ look: "removed", name: "" });
+});
+
+test("a name that changes in the same look keeps the counters", () => {
+  const first = nextTrack(undefined, LOOKS, NAMES);
+  const renamed = nextTrack(first, LOOKS, ["Home", "Ord… ar…", "Settings"]);
+  expect(renamed).not.toBe(first);
+  expect(renamed.names).toEqual(["Home", "Ord… ar…", "Settings"]);
+  expect(renamed.changes).toEqual([0, 0, 0]);
+  expect(renamed.was).toEqual([undefined, undefined, undefined]);
+});
+
+test("a new element count starts the track over", () => {
+  const first = nextTrack(undefined, LOOKS, NAMES);
+  const moved = nextTrack(first, ["visible", "removed", "visible"], ["Home", "", "Settings"]);
+  expect(moved.changes).toEqual([0, 1, 0]);
+  expect(nextTrack(moved, ["removed", "visible"], ["", "Settings"])).toEqual({
+    looks: ["removed", "visible"],
+    names: ["", "Settings"],
+    changes: [0, 0],
+    was: [undefined, undefined],
+  });
 });

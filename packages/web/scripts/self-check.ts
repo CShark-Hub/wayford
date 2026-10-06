@@ -5,7 +5,14 @@
  * "Package import rules").
  */
 import { fileURLToPath } from "node:url";
-import { METRIC_NAMES, type MetricName, type PageMeasurement, WayfordError } from "@wayford/core";
+import {
+  type Bbox,
+  METRIC_NAMES,
+  type MetricName,
+  type PageMeasurement,
+  WayfordError,
+} from "@wayford/core";
+import { axeScanFixture, measurementFixture } from "@wayford/core/fixtures";
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
 import { createServer } from "vite";
@@ -36,6 +43,11 @@ export interface SelfCheckScreen {
   ready: string;
   /** Each a JSON body, keyed by its path under `/api`, such as `/runs`. */
   responses: Record<string, unknown>;
+  /**
+   * A CSS selector whose elements the check skips: an element whose box centre lies inside one is
+   * not held to the floors.
+   */
+  exclude?: string;
 }
 
 /** The screens that must pass. The shell is measured around each of them. */
@@ -46,6 +58,19 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     ready: 'role=heading[name="Cast"s]',
     // The personas come bundled with the app, so the screen asks io for nothing.
     responses: {},
+  },
+  {
+    name: "lens",
+    path: "/lens",
+    // Ready once the page is drawn and the axe-core card lists its scan.
+    ready: 'main:has([data-state]):has(section[aria-label="axe-core"] li)',
+    // Vera on the stored /deliveries, measured live, and its scan.
+    responses: { "/measure": measurementFixture, "/axe": axeScanFixture("/deliveries") },
+    // The drawn page keeps the target app's sizes, scaled down, on purpose: it is what the filter
+    // measures (docs/DESIGN.md, "Checked by"). Its boxes are divs, which `collect` does not
+    // measure today, so this is a guard: a box drawn as a heading, a paragraph or a control would
+    // be skipped, not failed. The rail, the controls, the strip and the caption are checked.
+    exclude: "[data-lens-stage]",
   },
 ];
 
@@ -59,11 +84,21 @@ export type Shortfall = { screen: string; key: string; role: string; name: strin
  * Every element under the floor, from a measurement. Pure. Each comparison is strict, as the
  * filter's `>=` passes a value at the floor. Text with a font size but no contrast stands on a
  * background `collect` could not read, which the filter's own AA check fails (`docs/RULES.md`, #125).
+ *
+ * An element whose box centre lies inside one of the `excluded` regions is skipped. The centre, not
+ * the whole box, so an element clipped at a region's edge is skipped too.
  */
-export function shortfalls(screen: string, measurement: PageMeasurement): Shortfall[] {
+export function shortfalls(
+  screen: string,
+  measurement: PageMeasurement,
+  excluded: readonly Bbox[] = [],
+): Shortfall[] {
+  const checked = measurement.elements.filter(
+    ({ bbox }) => !excluded.some((region) => centreInside(bbox, region)),
+  );
   // Every element gets every check: a control carries its label's contrast and font size, and the
   // schema keeps `targetPx` off text blocks.
-  return measurement.elements.flatMap(({ key, role, name, metrics }): Shortfall[] => {
+  return checked.flatMap(({ key, role, name, metrics }): Shortfall[] => {
     const element = { screen, key, role, name };
     const unmeasured = metrics.fontPx !== undefined && metrics.contrast === undefined;
     return [
@@ -75,6 +110,13 @@ export function shortfalls(screen: string, measurement: PageMeasurement): Shortf
       }),
     ];
   });
+}
+
+/** Whether `box`'s centre lies inside `region`, its edges included. */
+function centreInside(box: Bbox, region: Bbox): boolean {
+  const x = box.x + box.width / 2 - region.x;
+  const y = box.y + box.height / 2 - region.y;
+  return x >= 0 && x <= region.width && y >= 0 && y <= region.height;
 }
 
 /** The measurement, kept so a caller can see what was measured, and its shortfalls. */
@@ -93,6 +135,11 @@ export interface ScreenCheck {
  * script in `index.html` opens the screen in it. A screen that opens in any other theme throws a
  * `WayfordError` with code `self_check_theme`, so a broken boot script cannot pass as Daylight
  * twice.
+ *
+ * Given `exclude`, the boxes of the elements it matches are read right after the measurement, in
+ * the same viewport coordinates as each `bbox`, and what lies inside them is skipped. An `exclude`
+ * that matches nothing throws a `WayfordError` with code `self_check_exclude`: the entry is broken,
+ * and the screen would be checked whole without anyone seeing why.
  */
 export async function checkScreen(
   page: Page,
@@ -137,9 +184,26 @@ export async function checkScreen(
     }
   }
   const measurement = await collect(page);
+  const excluded = screen.exclude === undefined ? [] : await regions(page, screen.exclude);
   // A request made after the screen was ready may have changed what was measured.
   if (unlisted !== undefined) throw unlisted;
-  return { measurement, shortfalls: shortfalls(screen.name, measurement) };
+  if (screen.exclude !== undefined && excluded.length === 0) {
+    throw new WayfordError(
+      "self_check_exclude",
+      `the ${screen.name} screen's exclude ${JSON.stringify(screen.exclude)} matches nothing`,
+    );
+  }
+  return { measurement, shortfalls: shortfalls(screen.name, measurement, excluded) };
+}
+
+/** The box of every element `selector` matches, as `getBoundingClientRect` gives it. */
+function regions(page: Page, selector: string): Promise<Bbox[]> {
+  return page.locator(selector).evaluateAll((elements) =>
+    elements.map((element) => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    }),
+  );
 }
 
 function notListed(screen: SelfCheckScreen, path: string): WayfordError {

@@ -10,6 +10,22 @@ export function pickedValue<T extends string>(current: T, next: string): T {
   return next === "" ? current : (next as T);
 }
 
+/** `.wf-seg`'s well. Exported with `segmentItem` so a row of links can wear the same look. */
+export const SEGMENT_GROUP =
+  "inline-flex gap-0.5 rounded-sm border border-line bg-paper-sunken p-0.75";
+
+/**
+ * A segment's look. Radix marks the picked item `data-state="on"`; a link to the page that is
+ * shown is marked `aria-current="page"`, and is drawn picked the same way.
+ */
+export function segmentItem(mono?: boolean): string {
+  return cn(
+    "inline-flex min-h-8.5 items-center gap-2 rounded-xs px-3.5 text-ink-2 transition-colors hover:text-ink data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:ring-1 data-[state=on]:ring-line-strong aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=page]:ring-1 aria-[current=page]:ring-line-strong",
+    // Mono items take `mono-label`, the mono face with tabular figures, at regular weight.
+    mono ? "mono-label font-normal" : "label",
+  );
+}
+
 /**
  * One choice out of a few, drawn as `.wf-seg`. Radix `ToggleGroup` gives it arrow-key focus;
  * `label` names the group for assistive technology. `onValueChange` fires only when the value
@@ -37,18 +53,10 @@ export function SegmentedControl<T extends string>({
         const picked = pickedValue(value, next);
         if (picked !== value) onValueChange(picked);
       }}
-      className="inline-flex gap-0.5 rounded-sm border border-line bg-paper-sunken p-0.75"
+      className={SEGMENT_GROUP}
     >
       {options.map((option) => (
-        <ToggleGroup.Item
-          key={option.value}
-          value={option.value}
-          className={cn(
-            "inline-flex min-h-8.5 items-center gap-2 rounded-xs px-3.5 text-ink-2 transition-colors hover:text-ink data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:ring-1 data-[state=on]:ring-line-strong",
-            // Mono items take `mono-label`, the mono face with tabular figures, at regular weight.
-            mono ? "mono-label font-normal" : "label",
-          )}
-        >
+        <ToggleGroup.Item key={option.value} value={option.value} className={segmentItem(mono)}>
           {option.label}
         </ToggleGroup.Item>
       ))}

@@ -68,6 +68,11 @@ export function attributesOf(tag: string): Record<string, string> {
   );
 }
 
+/** A `class` attribute, as its list of classes. */
+export function classesOf(attributes: Record<string, string>): string[] {
+  return (attributes.class ?? "").split(/\s+/);
+}
+
 /** A `style` attribute, each property to its value. */
 export function styleOf(attributes: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
