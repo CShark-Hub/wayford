@@ -97,10 +97,10 @@ Monday 2026-10-05 to Friday 2026-10-16, two calendar weeks, since week 3 finishe
 |---|---|---|---|---|---|
 | s3-07 | Design direction, tokens and the self-check | M | — | Grzegorz | done |
 | s1-06 | Route-open share per persona and seed set | S | — | Marcin | done |
-| s4-06 | axe-core sidecar | M | — (s4-04 for axe findings) | Dawid | review |
+| s4-06 | axe-core sidecar | M | — (s4-04 for axe findings) | Dawid | done |
 | s1-05 | Filter: vocabulary (K2) | M | — | Grzegorz | done |
 | s2-12 | io runs a run set on the chosen Actor backend | S | s2-06 | Dawid | done |
-| s3-10 | Jev decisions in run detail | S | s2-06 | Grzegorz | review |
+| s3-10 | Jev decisions in run detail | S | s2-06 | Grzegorz | done |
 | s4-04 | Analyst and the report API | L | s1-06 | Dawid | done |
 | s4-05 | Sweep: the boundary value on one capability axis | L | s1-06 (s2-12 for the Jev box) | Grzegorz | done |
 | s3-13 | Redesign foundation: tokens, themes, top bar, renamed routes | M | — (rebases on s4-06) | Tomasz | doing |
