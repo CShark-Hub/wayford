@@ -51,14 +51,26 @@ The report screen shows one task's report: per persona the two numbers side by s
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/web test` passes:
+- [x] `pnpm --filter @wayford/web test` passes:
   - on the `Report` fixture, every finding renders in its group;
   - a soft finding shows its source;
   - every evidence link points at its run and step;
   - a `null` route-open share reads "—".
-- [ ] `pnpm --filter @wayford/web check:self` passes with the report screen listed, in both themes
-- [ ] After `seed:demo --fake` (or on stored runs before `s4-07` lands), clicking Kai's row and then a failed run's evidence opens run detail at that step. Screenshots in the PR, beside `docs/design/screens/report.html`.
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+
+  Evidence, 51 files and 498 tests:
+  - `report.test.tsx`: "each finding is in its own group", the evidence-chip hrefs on both fixtures, and "on the easy goal, route open reads — with its reason".
+  - `finding.test.tsx`: "a soft finding is dotted, tagged soft, and shows its rule and its source", and the `findingLine` table, where no hypothesis is ever drawn as a measurement on any provenance.
+  - Breaking each guarded line in a probe turned its test red (both branch reviews).
+- [x] `pnpm --filter @wayford/web check:self` passes with the report screen listed, in both themes
+  - "3 screens checked in Daylight and Night: 0 shortfalls" (cast, lens, report). The report is served the `task_past-order` fixture.
+- [x] After `seed:demo --fake` (or on stored runs before `s4-07` lands), clicking Kai's row and then a failed run's evidence opens run detail at that step. Screenshots in the PR, beside `docs/design/screens/report.html`.
+  - `s4-07` was still open (PR #177), so its own `seed:demo --fake --reset` ran from a worktree of its head into this branch's database: 200 runs, 2 reports, 2 sweeps, 59 s, $0.
+  - This branch's `pnpm dev` then served that database. On `/report/task_past-order`, clicking Kai's name and then his chip `run_01m49ah4k6g604mtwxat13re1h · step 1 · Gave up` opened `/runs/run_01m49ah4k6g604mtwxat13re1h?step=1`, showing "Step 1".
+  - That step shows "Order archive" invisible for Kai, cut by A1, as the finding says.
+  - The screenshots are on the PR, beside the drawing, from the unmerged `assets/s3-08-screenshots` branch.
+  - `report.browser.test.ts` proves the same click path on served fixtures, in every run of the suite.
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+  - 146 files and 2,080 tests, after merging `main` with s3-11 (the Lens), s3-12 and s3-09 on the board.
 
 ## Out of scope
 
@@ -68,3 +80,22 @@ The report screen shows one task's report: per persona the two numbers side by s
 ## Notes for the reviewer
 
 - Check that no hypothesis can be styled like a measurement.
+
+## Outcome
+
+- **The screen** is `/report/$taskId` (`screens/report.tsx`), with the cast table and findings in `report/` and the components the design assigns to this task in `components/` (seed strip, readout and gap bar, finding card, certainty glyph, empty state, outcome words). Spec: `docs/specs/2026-10-06-s3-08-report-screen.md`.
+- **Each number opens its runs, with one caveat.**
+  - The seed cells open each counted run exactly.
+  - The two readouts open the runs screen filtered by task, persona and, for got through, outcome. That is a superset: older runs, the other backend and sweep runs, which the report leaves out. Each link's title says so.
+  - An exact filter is a question for the team (s3-14).
+- **Clicking a row** picks the persona (`?persona=`): the findings narrow to theirs, measurements stay, and a line above says so with "Show all". Beat 5's "click Kai's row, then one failed run" goes through the outcome word on each evidence chip.
+- **Design calls flagged for the design owner:**
+  - The goal sentence is `display-m` as drawn, not DESIGN's `display-xl`, for the fit at 1280 × 720.
+  - The persona name is set at 24 px, as drawn, which DESIGN's scale has no style for.
+- **Three files outside the list:**
+  - `api/runs.ts` exports two helpers.
+  - `scripts/self-check.ts` lists the screen.
+  - `screens/lens.test.tsx`, from s3-11, lists `04 Report` in its nav assertion.
+- **Follow-ups:**
+  - A shared `CurrentLink` with run detail, and `PersonaName` and `DEMO_GOAL` moved out of `runs/` and `arena/`. These touch s3-12's files.
+  - Shared test and browser harnesses with the lens tests (s3-11).

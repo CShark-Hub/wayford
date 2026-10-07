@@ -364,6 +364,14 @@ test("persona, success and error cells link to the runs behind them", async () =
   expect(vera.map((link) => link.text)).toEqual(["Vera"]);
 });
 
+test("each task's header links to that task's report", async () => {
+  const html = await render("/runs");
+  for (const taskId of [HARD, EASY]) {
+    const header = firstOf(taskSection(html, taskId), "div");
+    expect(linksOf(header), taskId).toEqual([{ href: `/report/${taskId}`, text: "Report" }]);
+  }
+});
+
 test("the persona link opens exactly the runs the row counts", async () => {
   const html = await render(`/runs?taskId=${HARD}&profileId=prof_zoya`);
   expect(listedIds(html)).toEqual(["run_zoya-hard-1", "run_zoya-hard-2"]);

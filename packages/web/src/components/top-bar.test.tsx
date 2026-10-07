@@ -35,16 +35,24 @@ function linksOf(html: string) {
   }));
 }
 
-test("the story nav numbers Cast, Lens and Race, and nothing else", async () => {
+/** The path a story entry opens: its `to`, each `$param` in it replaced by the entry's value. */
+function pathOf(entry: (typeof STORY_NAV)[number]): string {
+  const params: Readonly<Record<string, string>> = "params" in entry ? entry.params : {};
+  return entry.to.replace(/\$(\w+)/g, (_, name: string) => params[name] ?? "");
+}
+
+test("the story nav numbers Cast, Lens, Race and Report, and nothing else", async () => {
   const nav = linksOf(elementOf(await render("/cast"), "nav", 'aria-label="Story"'));
   expect(nav.map(({ name, attributes, numbers }) => [numbers[0], name, attributes.href])).toEqual([
     ["01", "Cast", "/cast"],
     ["02", "Lens", "/lens"],
     ["03", "Race", "/race"],
+    // The hard goal's report, the one the demo walks.
+    ["04", "Report", "/report/task_past-order"],
   ]);
 });
 
-test.each(STORY_NAV.map((entry) => [entry.to, entry.label] as const))(
+test.each(STORY_NAV.map((entry) => [pathOf(entry), entry.label] as const))(
   "on %s, only %s is the current page",
   async (path, label) => {
     const nav = linksOf(elementOf(await render(path), "nav", 'aria-label="Story"'));
@@ -52,6 +60,13 @@ test.each(STORY_NAV.map((entry) => [entry.to, entry.label] as const))(
     expect(current.map((link) => link.name)).toEqual([label]);
   },
 );
+
+test("on another task's report, no story entry is the current page", async () => {
+  const nav = linksOf(
+    elementOf(await render("/report/task_next-parcel"), "nav", 'aria-label="Story"'),
+  );
+  expect(nav.filter((link) => link.attributes["aria-current"] === "page")).toEqual([]);
+});
 
 test("Runs sits outside the story nav, Events has no link, and the slot is empty", async () => {
   const bar = topBarOf(await render("/runs"));

@@ -12,7 +12,7 @@ import {
   type PageMeasurement,
   WayfordError,
 } from "@wayford/core";
-import { axeScanFixture, measurementFixture } from "@wayford/core/fixtures";
+import { axeScanFixture, measurementFixture, reportFixture } from "@wayford/core/fixtures";
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
 import { createServer } from "vite";
@@ -71,6 +71,13 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     // measure today, so this is a guard: a box drawn as a heading, a paragraph or a control would
     // be skipped, not failed. The rail, the controls, the strip and the caption are checked.
     exclude: "[data-lens-stage]",
+  },
+  {
+    name: "report",
+    path: "/report/task_past-order",
+    ready: "role=heading[name=/^Measurement/]",
+    // The hard goal's report, which holds a finding of each certainty. The screen asks for no more.
+    responses: { "/reports/task_past-order": reportFixture("task_past-order") },
   },
 ];
 

@@ -6,18 +6,20 @@
 import { Link } from "@tanstack/react-router";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { createPortal } from "react-dom";
+import { DEMO_GOAL } from "../arena/panel-state.js";
 import { ThemeToggle } from "./theme-toggle.js";
 import { buttonVariants } from "./ui/button.js";
 
 /**
  * The story's screens, numbered in the order the demo walks them. A screen joins once its route
- * exists: `s3-08` adds `04 Report` and `s3-09` adds `05 Boundary`. Runs sits apart, and Events, the
- * m0-07 debug screen, keeps its route but has no entry.
+ * exists: `s3-09` adds `05 Boundary`. Report opens the hard goal's report, the one the demo walks.
+ * Runs sits apart, and Events, the m0-07 debug screen, keeps its route but has no entry.
  */
 export const STORY_NAV = [
   { number: "01", label: "Cast", to: "/cast" },
   { number: "02", label: "Lens", to: "/lens" },
   { number: "03", label: "Race", to: "/race" },
+  { number: "04", label: "Report", to: "/report/$taskId", params: { taskId: DEMO_GOAL } },
 ] as const;
 
 // TanStack's Link marks the current page with `aria-current="page"`, so the style keys on what a
@@ -73,9 +75,9 @@ export function TopBar() {
           focus outlines inside the scroll box. */}
       <nav aria-label="Story" className="min-w-0 overflow-x-auto p-1">
         <ul className="mx-auto flex w-max items-center gap-1">
-          {STORY_NAV.map(({ number, label, to }) => (
-            <li key={to}>
-              <Link to={to} className={NAV_LINK}>
+          {STORY_NAV.map(({ number, label, ...target }) => (
+            <li key={target.to}>
+              <Link {...target} className={NAV_LINK}>
                 {/* The list gives the order, so the link's name is the screen's name alone. */}
                 <span
                   aria-hidden="true"

@@ -12,7 +12,8 @@
  *
  * The persona, success and error cells link to the runs behind them (`AGENTS.md`, "Every verdict
  * clickable through to evidence"): the persona to its runs on the task, the success and error
- * counts to those runs alone. A count of none has no run to show, so it stays plain text.
+ * counts to those runs alone. A count of none has no run to show, so it stays plain text. Each
+ * task's header links to the task's report.
  */
 import { Link } from "@tanstack/react-router";
 import type { RunResult } from "@wayford/core";
@@ -228,6 +229,13 @@ function TaskResult({ stats, goal }: { stats: TaskStats; goal: string | undefine
         {goal === undefined ? null : (
           <span className="font-mono text-xs text-muted-foreground">{taskId}</span>
         )}
+        <Link
+          to="/report/$taskId"
+          params={{ taskId }}
+          className={`ml-auto inline-flex min-h-(--target-min) items-center ${EVIDENCE_LINK}`}
+        >
+          Report
+        </Link>
       </div>
       <div className="flex flex-wrap gap-6">
         <ChartFigure caption="Success rate, %">

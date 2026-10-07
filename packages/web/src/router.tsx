@@ -3,6 +3,7 @@ import { arenaRoute } from "./screens/arena.js";
 import { eventsRoute } from "./screens/events.js";
 import { lensRoute } from "./screens/lens.js";
 import { personasRoute } from "./screens/personas.js";
+import { reportRoute } from "./screens/report.js";
 import { runDetailRoute } from "./screens/run-detail.js";
 import { runsRoute } from "./screens/runs.js";
 import { rootRoute } from "./shell.js";
@@ -23,6 +24,7 @@ const routeTree = rootRoute.addChildren([
   eventsRoute,
   personasRoute,
   lensRoute,
+  reportRoute,
   runsRoute,
   runDetailRoute,
 ]);

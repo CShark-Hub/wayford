@@ -519,6 +519,7 @@ test("the top bar's story nav has a Lens link to /lens, between Cast and Race", 
     ["Cast", "/cast"],
     ["Lens", "/lens"],
     ["Race", "/race"],
+    ["Report", "/report/task_past-order"],
   ]);
   expect(onLens[1]?.attributes["aria-current"]).toBe("page");
   const onCast = linksOf(elementOf(await render("/cast"), "nav", 'aria-label="Story"'));

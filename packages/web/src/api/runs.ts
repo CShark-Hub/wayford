@@ -8,7 +8,8 @@
  * bodies with schemas built from core's here, since web may not import io. A body that fails its
  * schema rejects with zod's account of why, so a screen says io sent something that is not a run
  * instead of drawing half of one. Screenshots, the video and the trace are files the browser
- * fetches itself, so for those this file only builds the URL.
+ * fetches itself, so for those this file only builds the URL. `api/reports.ts` reads its answers
+ * through this file's `parseResponse` and `postJson`, so a refusal reads the same there.
  */
 import { queryOptions } from "@tanstack/react-query";
 import {
@@ -54,13 +55,17 @@ async function refusal(response: Response): Promise<Error> {
  * status, and io's reason when it sent one. A body `schema` refuses rejects naming `what` it
  * should have been.
  */
-async function parseResponse<T>(response: Response, schema: ZodType<T>, what: string): Promise<T> {
+export async function parseResponse<T>(
+  response: Response,
+  schema: ZodType<T>,
+  what: string,
+): Promise<T> {
   if (!response.ok) throw await refusal(response);
   return parseBody(response, schema, what);
 }
 
 /** `POST` `body` to `path` as JSON. io answers 415 to any other content type. */
-function postJson(path: string, body: unknown): Promise<Response> {
+export function postJson(path: string, body: unknown): Promise<Response> {
   return fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
