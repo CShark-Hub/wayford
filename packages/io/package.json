@@ -12,6 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "dev": "tsx watch src/server.ts",
+    "scout": "tsx src/scout-cli.ts",
     "seed:demo": "tsx src/seed-demo-cli.ts",
     "sweep": "tsx src/sweep-cli.ts",
     "test": "vitest run",

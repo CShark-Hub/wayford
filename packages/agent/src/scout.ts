@@ -6,10 +6,11 @@
  * Scout reuses the Actor loop whole. Each attempt is an ordinary run of `runActor`, with Scout's
  * own profile, which constrains nothing, and its LLM on the `scout` role. So an attempt emits
  * `runStarted` like any run, with Scout's model as `modelIds.actor` (`ModelIds` in core), and its
- * folder holds the evidence a path points at.
+ * folder holds the evidence a path points at. The caller hands in the run function, `runActor` on
+ * its own browser: so io's Scout shares the Chromium its runs use, and a test hands a fake one.
  *
- * Run by hand when the target app changes (`run-scout.ts`). There is no cache and no DOM hash: we
- * own the app and know when it changes.
+ * Run by hand when the target app changes (`run-scout.ts`), or by io on a stored task. There is no
+ * cache and no DOM hash: whoever starts it knows when the site changed.
  *
  * The Actor never reads what Scout writes (`AGENTS.md`). So this module is not in the package's
  * main entry: it ships as `@wayford/agent/scout`, as the fake adapter ships as `./fake`, and a
@@ -34,8 +35,7 @@ import {
 } from "@wayford/core";
 import { targetAppJargon } from "@wayford/core/fixtures";
 import type { Logger } from "pino";
-import type { Browser } from "playwright";
-import { runActor } from "./actor-loop.js";
+import type { RunActorOptions } from "./actor-loop.js";
 import type { Llm } from "./llm.js";
 import { llmActor } from "./llm-actor.js";
 import type { LlmSettings } from "./llm-settings.js";
@@ -64,9 +64,12 @@ export const SCOUT_PROFILE: Profile = {
 /** Every attempt runs, so "the shortest" and "every success" mean something. */
 const SCOUT_ATTEMPTS = 3;
 
+/** `runActor` without the browser, which belongs to whoever built the function. */
+export type ScoutRunFn = (options: Omit<RunActorOptions, "browser">) => Promise<RunResult>;
+
 export interface ScoutOptions {
-  /** The caller's, as for `runActor`: Scout never launches or closes it. */
-  browser: Browser;
+  /** Runs each attempt: `runActor` on the caller's browser, which Scout never launches or closes. */
+  run: ScoutRunFn;
   task: Task;
   /**
    * The target app's parameters, which each attempt gets with the app's jargon list. Absent on
@@ -90,7 +93,7 @@ export interface ScoutOptions {
  * Walks `task` `SCOUT_ATTEMPTS` times, one attempt after another with run seeds 1, 2 and 3, writes
  * its `GroundTruth` to `<dir>/<task id>.json` and returns it.
  *
- * Rejects when an attempt's `runActor` rejects, which leaves no ground truth: before the run
+ * Rejects when an attempt's `run` rejects, which leaves no ground truth: before the run
  * starts, or when its record cannot be folded or written (`runActor`). Rejects with
  * `scout_inconclusive`, and writes nothing, when no attempt reached the goal and one of them
  * crashed: a crash is no evidence that the goal is out of reach.
@@ -100,8 +103,7 @@ export async function scout(options: ScoutOptions): Promise<GroundTruth> {
   const results: RunResult[] = [];
   for (let seed = 1; seed <= SCOUT_ATTEMPTS; seed++) {
     results.push(
-      await runActor({
-        browser: options.browser,
+      await options.run({
         profile: SCOUT_PROFILE,
         task,
         seed,
@@ -177,4 +179,46 @@ function pathOf(result: RunResult): ScoutPath {
     reachedUrl = step.urlAfter;
   }
   return { steps, reachedUrl };
+}
+
+/**
+ * What one task's ground truth says, what its attempts cost and where it was written, as both
+ * Scout CLIs print it: agent's on the fixture goals and io's on a stored task.
+ */
+export function scoutSummary(truth: GroundTruth, usd: number, file: string): string {
+  const reached = truth.attempts.filter((attempt) => attempt.outcome === "success").length;
+  const lines = [
+    `${truth.taskId}: reached in ${reached} of ${truth.attempts.length} attempts`,
+    ...truth.attempts.map(
+      ({ runId, outcome, path }) =>
+        `  ${runId}  ${outcome}${path === undefined ? "" : `  ${pathLine(path)}`}`,
+    ),
+  ];
+  if (truth.shortest !== undefined) {
+    const steps = truth.shortest.path.steps.length;
+    lines.push(`shortest  ${truth.shortest.runId} (${steps} step${steps === 1 ? "" : "s"})`);
+  }
+  if (truth.target !== undefined) {
+    lines.push(`target    ${JSON.stringify(truth.target.key)} on ${page(truth.target.page)}`);
+  }
+  lines.push(`model     ${truth.modelId}`, `cost      ${usd.toFixed(6)} USD`, `file      ${file}`);
+  return lines.join("\n");
+}
+
+/** A URL as the summary shows it: its path, since Scout stays on the task's one site. */
+function page(url: string): string {
+  return new URL(url).pathname;
+}
+
+/**
+ * A path on one line: `/ —click "<key>"→ /deliveries —click "<key>"→ /deliveries/archive`. A key
+ * holds the page's own text, quoted as JSON so a control character in it cannot reach the
+ * terminal.
+ */
+function pathLine(path: ScoutPath): string {
+  const steps = path.steps.map(
+    (step) =>
+      `${page(step.url)} —${step.action}${step.key === undefined ? "" : ` ${JSON.stringify(step.key)}`}→`,
+  );
+  return [...steps, page(path.reachedUrl)].join(" ");
 }

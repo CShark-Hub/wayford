@@ -7,13 +7,18 @@
  * `runSweep` on io's runner, as `POST /runs` runs a set. The runs, their files and the sweep are
  * stored where the io server stores them, so the dashboard and `GET /sweeps` see them.
  *
- * Cheapest first: the arguments, then the env, the database, the task and the persona, then every
- * refusal (the range, the axis on this persona, the cost estimate), all before the target app is
- * served on 5174 or a browser launched. A running `pnpm dev` holds 5174 and has to be stopped.
+ * The task is any stored task, or a fixture (s4-10). Cheapest first: the arguments, then the env,
+ * the database, the task and the persona, then every refusal (Jev off the target app, the range,
+ * the axis on this persona, the cost estimate), all before anything is served or a browser
+ * launched. Off the target app nothing is served or built. On it, the target app already
+ * answering on 5174 is reused, a running `pnpm dev` or preview, and a build is served only when
+ * nothing does. The header's `site` line says which, and when it is the dev server, that
+ * `docs/STACK.md` wants a build. A sweep on the hard goal builds all the same: its route walk
+ * serves its own copy on a free port (`walkRoutes`).
  *
- * It is one of five io entry points, with `server.ts`, the `analyse` CLI, `seed:demo` and the
- * illustration capture CLI, that load agent's runtime and Playwright, so it stays out of the
- * barrel, and no test imports it: it loads `.env` and starts billed runs.
+ * It is one of six io entry points, with `server.ts`, the `analyse` CLI, the Scout CLI,
+ * `seed:demo` and the illustration capture CLI, that load agent's runtime and Playwright, so it
+ * stays out of the barrel, and no test imports it: it loads `.env` and starts billed runs.
  *
  * Exit 0 when every value ran with no `error` run, boundary or not: a boundary is a measurement.
  * 1 for a refusal, a failure, a stop for spend, or any errored run, after the table. 2 for a usage
@@ -41,8 +46,9 @@ import {
   readMaxUsd,
   readSeeds,
   scriptArgs,
-  serveOnFixturePort,
-  TARGET_APP_PORT,
+  siteLine,
+  TARGET_APP_ORIGIN,
+  targetAppOnFixturePort,
 } from "@wayford/agent/cli";
 import {
   MAX_RUN_SET_SEEDS,
@@ -54,7 +60,7 @@ import {
   type Task,
   WayfordError,
 } from "@wayford/core";
-import { profileFixtures, targetAppJargon, taskFixtures } from "@wayford/core/fixtures";
+import { profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import { hasRouteTable, routeOpenSeeds, routesFor, walkRoutes } from "@wayford/filter/routes";
 import pino from "pino";
 import type { Browser } from "playwright";
@@ -62,8 +68,8 @@ import { actorBackends } from "./actor-backends.js";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
-import { loadTask } from "./db/tasks.js";
-import { createRunner } from "./runner.js";
+import { loadTaskOrFixture } from "./db/tasks.js";
+import { createRunner, onTargetApp, refuseJevOffTargetApp } from "./runner.js";
 import { exitOnTermination } from "./shutdown.js";
 import { routeOpenFrom, runSweep } from "./sweep.js";
 import { boundaryLine, percent, routeOpenShare, shown, wallTime } from "./sweep-text.js";
@@ -145,7 +151,7 @@ function readArguments(argv: readonly string[]): Arguments | string {
 
 /** A stored task, else a fixture task: fixtures are not seeded into the database. */
 async function findTask(db: Db, id: string): Promise<Task> {
-  const task = (await loadTask(db, id)) ?? taskFixtures.find((fixture) => fixture.id === id);
+  const task = await loadTaskOrFixture(db, id);
   if (task !== undefined) return task;
   throw new WayfordError("task_not_found", `no task ${id}, stored or in core's fixtures`);
 }
@@ -193,6 +199,7 @@ async function main(args: Arguments): Promise<number> {
     const profile = findPersona(args.persona);
 
     // Every refusal before anything is served or launched. `runSweep` checks the plan again.
+    refuseJevOffTargetApp(task, backend, TARGET_APP_ORIGIN);
     const values = sweepPlan(profile, args.axis, args.from, args.to, args.step);
     const estimate = checkEstimate(
       priceOf(loadModelPrices(), model),
@@ -207,10 +214,12 @@ async function main(args: Arguments): Promise<number> {
     // Before Chromium launches: Playwright's handlers keep a SIGTERM from ending the process.
     exitOnTermination();
 
-    // The walk, once on the persona's device, serves its own app, so the two start together. A
-    // task with no route table has nothing to walk.
+    // The app is served only for a task on it, and only when nothing already serves it. The walk,
+    // once on the persona's device, serves its own app, so the two start together. A task with no
+    // route table, every task off the app among them, has nothing to walk.
+    const onApp = onTargetApp(task, TARGET_APP_ORIGIN);
     const [served, walked] = await Promise.allSettled([
-      serveOnFixturePort(),
+      onApp ? targetAppOnFixturePort() : undefined,
       hasRouteTable(task.id) ? walkRoutes([profile.device]) : undefined,
     ]);
     if (served.status === "rejected") throw served.reason;
@@ -236,10 +245,8 @@ async function main(args: Arguments): Promise<number> {
         db,
         run: sharedChromium(browser),
         ...actorBackends(settings),
-        // The fixtures' origin, where the tasks start, as `server.ts` has it. Not `app.origin`: Vite
-        // reports `127.0.0.1` there under `--dns-result-order=ipv4first`, and every set would then
-        // run as another site, without the app's parameters and jargon list.
-        targetAppOrigin: `http://localhost:${TARGET_APP_PORT}`,
+        // A task off it gets neither the parameters nor the jargon list (ADR 0003, D2).
+        targetAppOrigin: TARGET_APP_ORIGIN,
         // The app's defaults, as the arena's runs: the walk measured the same page.
         params: TARGET_APP_DEFAULTS,
         jargon: targetAppJargon,
@@ -265,6 +272,7 @@ async function main(args: Arguments): Promise<number> {
               console.log(
                 [
                   `task       ${task.id}`,
+                  `site       ${siteLine(new URL(task.startUrl).origin, app?.reused)}`,
                   `persona    ${profile.id} (${profile.label})`,
                   `axis       ${args.axis}, ${values.map((value) => shown(args.axis, value)).join(", ")}`,
                   `backend    ${backend}, ${model}`,
@@ -313,7 +321,8 @@ async function main(args: Arguments): Promise<number> {
       return errors > 0 ? 1 : 0;
     } finally {
       for (const launch of launched) await launch.close();
-      await app.close();
+      // A no-op for an app this command reused: it closes only what it served.
+      await app?.close();
     }
   } finally {
     db.$client.close();

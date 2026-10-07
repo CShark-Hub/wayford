@@ -108,7 +108,8 @@ export interface RunSetOptions {
 export interface Runner {
   /**
    * Mints one id per seed × persona, in seed-major order, and queues the runs, all on `options`.
-   * Returns at once.
+   * Returns at once. Throws `jev_off_target_app`, minting nothing, for Jev off the target app
+   * (`refuseJevOffTargetApp`).
    */
   start(
     task: Task,
@@ -127,14 +128,41 @@ export interface Runner {
 export const MAX_CONCURRENT_RUNS = 5;
 
 /**
+ * Whether `task` starts on the target app at `targetAppOrigin`, port included
+ * (`docs/adr/0003-any-target.md`, D2). `URL.origin` keeps the port and drops a scheme's default
+ * one, so `localhost:8080` is never the app on 5174.
+ */
+export function onTargetApp(task: Pick<Task, "startUrl">, targetAppOrigin: string): boolean {
+  return new URL(task.startUrl).origin === new URL(targetAppOrigin).origin;
+}
+
+/**
+ * Throws `WayfordError("jev_off_target_app")` for Jev on a task off the target app: Jev's gate
+ * covered the target app only, so off it every run is on the LLM (`docs/adr/0003-any-target.md`,
+ * D9). Anything else passes.
+ */
+export function refuseJevOffTargetApp(
+  task: Task,
+  backend: ActorBackendName,
+  targetAppOrigin: string,
+): void {
+  if (backend !== "jev" || onTargetApp(task, targetAppOrigin)) return;
+  throw new WayfordError(
+    "jev_off_target_app",
+    `task ${task.id} starts on ${new URL(task.startUrl).origin}, off the target app, and Jev's ` +
+      "gate covered the target app only, so a run off it is on the LLM " +
+      "(docs/adr/0003-any-target.md, D9)",
+  );
+}
+
+/**
  * A runner over one database and one `run`. Its slots and live runs are its own, so two runners
  * share nothing; `createApp` builds one, so an app runs at most five runs at once. Live runs are
  * kept for the runner's life.
  */
 export function createRunner(options: RunnerOptions): Runner {
   const { db, run, backends, defaultBackend, params, jargon, runsDir, logger } = options;
-  // `URL.origin` keeps the port and drops a scheme's default one, so `localhost:8080` is never the
-  // app on 5174.
+  // Parsed now, so a bad origin fails when the runner is built.
   const targetApp = new URL(options.targetAppOrigin).origin;
   const lives = new Map<string, LiveRun>();
   const slots = slotQueue(MAX_CONCURRENT_RUNS);
@@ -184,17 +212,20 @@ export function createRunner(options: RunnerOptions): Runner {
 
   return {
     start(task, profiles, seeds, { backend: name = defaultBackend, sweep } = {}) {
+      // Before any id is minted, so a refused set starts nothing and stores nothing.
+      refuseJevOffTargetApp(task, name, targetApp);
       // Picked once for the whole set, so its runs never mix backends.
       const backend = backends[name];
       // The key is left out of a set that is no sweep's, not set to undefined.
       const inSweep = sweep === undefined ? {} : { sweep };
       // Decided once: a set has one task, so all its runs are on one site. Off the target app both
       // keys are left out, which `runActor` reads as another site.
-      const origin = new URL(task.startUrl).origin;
-      const site = origin === targetApp ? { params, jargon } : {};
+      const onApp = onTargetApp(task, targetApp);
+      const site = onApp ? { params, jargon } : {};
       // Said once per set, so a task typed as `127.0.0.1` for the app's `localhost` does not
       // change how its runs perceive without a word.
-      if (origin !== targetApp) {
+      if (!onApp) {
+        const origin = new URL(task.startUrl).origin;
         logger.info({ taskId: task.id, origin, targetApp }, "the set runs off the target app");
       }
       const started: StartedRun[] = [];
@@ -392,9 +423,9 @@ const NO_COST: Cost = { tokensIn: 0, tokensOut: 0, usd: 0 };
  * `runFailed.error` for what a run threw: `<code>: <message>` for a `WayfordError`, as `runActor`
  * writes its own, and the value as a string otherwise (`<name>: <message>` for an `Error`). Never
  * empty, as the schema asks. Only the stream carries it, since `RunResult` keeps no error text,
- * and the log keeps the whole error.
+ * and the log keeps the whole error. A failed Scout job's error is written the same way.
  */
-function failureText(error: unknown): string {
+export function failureText(error: unknown): string {
   return error instanceof WayfordError
     ? `${error.code}: ${error.message}`
     : String(error) || "no message";

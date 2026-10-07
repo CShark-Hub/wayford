@@ -291,6 +291,50 @@ describe("POST /runs", () => {
     });
   });
 
+  describe("off the target app (s4-10)", () => {
+    /** The hard goal's task, started on a public site instead of the target app. */
+    const foreign = { ...otherTask, startUrl: "https://example.com/" };
+
+    /** An app on `options` with `foreign` stored beside the easy goal. */
+    async function appOff(run: FakeRun, options: TestAppOptions = {}): Promise<TestApp> {
+      const t = await appOn(run, options);
+      await saveTask(t.db, foreign);
+      return t;
+    }
+
+    test("Jev on a task off the target app is a 422 naming D9 and starts no run, whether named or the default", async () => {
+      const cases = [
+        { options: {}, extra: { backend: "jev" } },
+        { options: { defaultBackend: "jev" as const }, extra: {} },
+      ];
+      for (const { options, extra } of cases) {
+        const run = fakeRun();
+        const { app } = await appOff(run, options);
+        const request = { taskId: foreign.id, profileIds: ["prof_ada"], seeds: [1, 2], ...extra };
+
+        const { status, body } = await postJson(app, "/runs", request);
+
+        expect(status, JSON.stringify(options)).toBe(422);
+        expect(body).toStrictEqual({
+          error: expect.stringMatching(/docs\/adr\/0003-any-target\.md.*D9/),
+        });
+        expect(body.error).toContain(foreign.id);
+        await sleep(30);
+        expect(run.calls).toStrictEqual([]);
+        expect((await getJson(app, "/runs")).body).toStrictEqual([]);
+      }
+    });
+
+    test("the LLM off the target app and Jev on it still start", async () => {
+      const { app } = await appOff(fakeRun(), { defaultBackend: "jev" });
+      const runs = [
+        ...(await startRuns(app, ["prof_ada"], [1], { taskId: foreign.id, backend: "llm" })),
+        ...(await startRuns(app, ["prof_ada"], [1])),
+      ];
+      for (const { id } of runs) await streamedAndStored(app, id);
+    });
+  });
+
   test("ten seeds, the project's seed-set size, are one request", async () => {
     const { app } = await appOn();
     const seeds = Array.from({ length: 10 }, (_, i) => i + 1);

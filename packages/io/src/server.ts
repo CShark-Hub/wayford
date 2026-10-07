@@ -3,16 +3,17 @@
  * backends, listen. Everything worth testing lives in `app.ts`, so this file does nothing on import
  * that a test would want. `pnpm dev` runs it under `tsx watch`.
  *
- * It, the `analyse` CLI, the sweep CLI, `sweep-cli.ts`, `seed:demo`, `seed-demo-cli.ts`, and the
- * capture CLI, `illustration-cli.ts`, are the only io entry points that load agent's runtime and
- * Playwright, through `actor-backends.ts`, `analyst-routes.ts`, `axe-scan.ts`, `chromium.ts`,
- * `live-illustration.ts`, `live-measure.ts` and `seed-demo.ts`
- * (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
+ * It, the `analyse` CLI, the sweep CLI, `sweep-cli.ts`, the Scout CLI, `scout-cli.ts`, `seed:demo`,
+ * `seed-demo-cli.ts`, and the capture CLI, `illustration-cli.ts`, are the only io entry points
+ * that load agent's runtime and Playwright, through `actor-backends.ts`, `analyst-routes.ts`,
+ * `axe-scan.ts`, `chromium.ts`, `live-illustration.ts`, `live-measure.ts`, `scout-task.ts` and
+ * `seed-demo.ts` (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
  */
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createLlm, parseLlmSettings, TARGET_APP_DEFAULTS } from "@wayford/agent";
+import { TARGET_APP_ORIGIN } from "@wayford/agent/cli";
 import { profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import pino from "pino";
 import { actorBackends } from "./actor-backends.js";
@@ -24,6 +25,7 @@ import { loadConfigFromEnvFile } from "./config.js";
 import { migrateDatabase, openDatabase } from "./db/database.js";
 import { liveIllustration } from "./live-illustration.js";
 import { liveMeasure } from "./live-measure.js";
+import { scoutTask } from "./scout-task.js";
 import { exitOnTermination } from "./shutdown.js";
 
 /**
@@ -31,9 +33,6 @@ import { exitOnTermination } from "./shutdown.js";
  * run's files, gitignored.
  */
 const RUNS_DIR = fileURLToPath(new URL("../../../runs/", import.meta.url));
-
-/** The target app, where `pnpm dev` and its production preview both serve it (`docs/STACK.md`, "Ports"). */
-const TARGET_APP_ORIGIN = "http://localhost:5174";
 
 // Before the first run or measurement launches Chromium: Playwright's handlers keep a SIGTERM
 // from ending io.
@@ -54,6 +53,8 @@ const db = openDatabase(config.DATABASE_URL);
 // One Chromium for every run, every measurement, every picture and every axe-core scan, launched
 // by the first one.
 const browser = sharedBrowser();
+// The runs and Scout's attempts alike open their contexts on it.
+const run = sharedChromium(browser);
 
 const app = createApp({
   // io's own host by each loopback name, on its port: any other `Host` is refused (ADR 0003, D7).
@@ -61,7 +62,7 @@ const app = createApp({
   llm,
   db,
   runsDir: RUNS_DIR,
-  run: sharedChromium(browser),
+  run,
   // The preview's live page (s3-05): a target-app page at the app's defaults like the arena's runs,
   // or any page as given (s4-09). The route builds the URL, from `targetAppOrigin` for `page=`, and
   // a page on that origin loads strictly whichever way it was asked.
@@ -86,8 +87,11 @@ const app = createApp({
     devices: profileFixtures.map((profile) => profile.device),
     jargon: targetAppJargon,
   }),
-  // Where `pnpm --filter @wayford/agent scout` writes each task's ground truth.
+  // Where `POST /tasks/:id/scout`, `pnpm --filter @wayford/io scout` and
+  // `pnpm --filter @wayford/agent scout` write each task's ground truth.
   groundTruthDir: join(RUNS_DIR, "ground-truth"),
+  // Scout on a stored task (s4-10), on the `scout` role.
+  scout: scoutTask({ run, settings, logger }),
   // Jev's pinned model, which marks a stored run as a Jev run.
   jevModel: settings.jevModel,
   logger,

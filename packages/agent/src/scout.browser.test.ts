@@ -18,6 +18,7 @@ import pino from "pino";
 import { type Browser, chromium } from "playwright";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import type { z } from "zod";
+import { runActor } from "./actor-loop.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
 import type { CompleteRequest } from "./llm.js";
 import { parseLlmSettings } from "./llm-settings.js";
@@ -109,7 +110,7 @@ function scoutOn(answers: unknown[]): { fake: FakeLlm; run: Promise<GroundTruth>
   const fake = fakeLlm({ scout: answers });
   const task: Task = { ...taskFixture("task_past-order"), startUrl: `${app.origin}/` };
   const run = scout({
-    browser,
+    run: (options) => runActor({ ...options, browser }),
     task,
     params: TARGET_APP_DEFAULTS,
     dir,

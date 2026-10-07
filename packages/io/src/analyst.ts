@@ -45,7 +45,7 @@ import {
   type UnevidencedClosure,
   WayfordError,
 } from "@wayford/core";
-import { profileFixtures, taskFixtures } from "@wayford/core/fixtures";
+import { profileFixtures } from "@wayford/core/fixtures";
 import type { Logger } from "pino";
 import { z } from "zod";
 import { axeDrafts } from "./analyst-axe.js";
@@ -63,7 +63,7 @@ import type { AxeLookup } from "./axe.js";
 import type { Db } from "./db/database.js";
 import { saveReport } from "./db/reports.js";
 import { listRuns } from "./db/runs.js";
-import { loadTask } from "./db/tasks.js";
+import { loadTaskOrFixture } from "./db/tasks.js";
 
 /** The prompt template, a file so a test can read what the model is told. */
 export const ANALYST_PROMPT_FILE = fileURLToPath(new URL("./analyst-prompt.md", import.meta.url));
@@ -152,8 +152,7 @@ export async function analyseAndStore(
   taskId: TaskId,
   backend: ReportBackend,
 ): Promise<Analysis> {
-  const task =
-    (await loadTask(deps.db, taskId)) ?? taskFixtures.find((fixture) => fixture.id === taskId);
+  const task = await loadTaskOrFixture(deps.db, taskId);
   if (task === undefined) return { ok: false, error: `no task ${taskId}` };
   const { chosen, leftOut } = selectRuns(
     // Sweep runs included: `chooseRuns` leaves them out and counts them for the report.

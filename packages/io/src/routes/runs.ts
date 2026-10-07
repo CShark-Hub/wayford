@@ -7,8 +7,9 @@
  * - `POST /`: a `RunsRequest`. 202 `{ runs }`, one `StartedRun` per seed × persona, seed-major,
  *   every run on the Actor backend the request names, or the runner's default.
  *   400 `{ error }` for a body that is not a `RunsRequest`; 404 `{ error }` naming every unknown
- *   task and profile id; 415 from `createApp` for a body that is not `application/json`. On a 400,
- *   404 or 415 no run starts.
+ *   task and profile id; 415 from `createApp` for a body that is not `application/json`; 422
+ *   `{ error }` naming `docs/adr/0003-any-target.md` D9 for Jev, named or the default, on a task
+ *   off the target app. On a 400, 404, 415 or 422 no run starts.
  * - `GET /`: every stored run matching the query's `taskId`, `profileId` and `outcome`, newest
  *   first, as `RunResult[]`. A sweep's runs are listed only under `?sweepId=`, never with the
  *   persona's own. Any other key is a 400, so a misspelt filter never lists every run.
@@ -46,6 +47,7 @@ import {
   Seed,
   SweepId,
   TaskId,
+  WayfordError,
 } from "@wayford/core";
 import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { type Context, Hono } from "hono";
@@ -149,7 +151,15 @@ export function runsRoute({ db, runner, runsDir, replaySpacingMs = 300 }: RunsRo
         }
         // In request order, which the runner keeps within each seed.
         const profiles = profileIds.flatMap((id) => PROFILES.get(id) ?? []);
-        return c.json({ runs: runner.start(task, profiles, seeds, set) }, 202);
+        try {
+          return c.json({ runs: runner.start(task, profiles, seeds, set) }, 202);
+        } catch (error) {
+          // The body is valid, but the runner refuses what it asks for, before it starts anything.
+          if (error instanceof WayfordError && error.code === "jev_off_target_app") {
+            return c.json({ error: error.message }, 422);
+          }
+          throw error;
+        }
       },
     )
     .get(

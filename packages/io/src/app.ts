@@ -13,6 +13,7 @@ import { runsRoute } from "./routes/runs.js";
 import { sweepsRoute } from "./routes/sweeps.js";
 import { tasksRoute } from "./routes/tasks.js";
 import { createRunner, type RunnerOptions } from "./runner.js";
+import { createScoutJobs, type ScoutFn } from "./scout-jobs.js";
 
 /**
  * What the app runs on: the hosts it answers to, the runner's options, the one `Llm` the Extractor
@@ -48,6 +49,11 @@ export type AppOptions = RunnerOptions & {
   routes: RouteFacts;
   /** Where Scout writes `<task id>.json`. A missing file is a report with no ground truth. */
   groundTruthDir: string;
+  /**
+   * Scouts one task for `POST /tasks/:id/scout`, writing to `groundTruthDir`. Handed in, like
+   * `measure`, since agent's Scout loads its runtime: `server.ts` wires it (`scout-task.ts`).
+   */
+  scout: ScoutFn;
   /** Jev's pinned model id, which marks a stored run as a Jev run (`backendOf`). */
   jevModel: string;
   replaySpacingMs?: number;
@@ -61,10 +67,11 @@ const OTHER_SITES = ["cross-site", "same-site"];
 
 /**
  * io's HTTP surface. Each resource lives in its own file under `routes/`; this builds the app's
- * one `Runner`, so its five slots hold for every request, and its one axe-core lookup, which `/axe`
- * and `/reports` share, so requests for one page share one scan, and mounts the routes. Tests
- * drive the whole API through `app.request` without opening a port, on a fake `Llm` and a fake
- * run. `server.ts` is the process that listens.
+ * one `Runner`, so its five slots hold for every request, its one axe-core lookup, which `/axe`
+ * and `/reports` share, so requests for one page share one scan, and its one set of Scout jobs, so
+ * a task has one Scout at a time, and mounts the routes. Tests drive the whole API through
+ * `app.request` without opening a port, on a fake `Llm` and a fake run. `server.ts` is the process
+ * that listens.
  *
  * Before anything else, a request is a 403 when it names a host outside `hosts`, in its `Host`
  * header or its URL, or when its `Sec-Fetch-Site` is `cross-site` or `same-site` (ADR 0003, D7).
@@ -92,6 +99,7 @@ const OTHER_SITES = ["cross-site", "same-site"];
 export function createApp(options: AppOptions) {
   const runner = createRunner(options);
   const axe = axeLookup({ db: options.db, scan: options.scanAxe });
+  const scouts = createScoutJobs(options);
   return new Hono()
     .use(async (c, next) => {
       const named = [c.req.header("host"), new URL(c.req.url).host];
@@ -121,7 +129,7 @@ export function createApp(options: AppOptions) {
     .route("/reports", reportsRoute({ ...options, axe }))
     .route("/runs", runsRoute({ ...options, runner }))
     .route("/sweeps", sweepsRoute(options))
-    .route("/tasks", tasksRoute(options))
+    .route("/tasks", tasksRoute({ ...options, scouts }))
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
       options.logger.error({ err: error }, "a request failed");

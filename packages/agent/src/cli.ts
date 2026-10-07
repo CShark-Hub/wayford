@@ -12,7 +12,7 @@
  */
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { Seed, WayfordError } from "@wayford/core";
+import { type RunEvent, Seed, WayfordError } from "@wayford/core";
 import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
 import { type Browser, chromium } from "playwright";
 import { ActorBackendName } from "./llm-settings.js";
@@ -35,6 +35,14 @@ export function loadRootEnv(): void {
 export const TARGET_APP_PORT = 5174;
 
 /**
+ * The fixtures' origin, where the target app's tasks start: what decides a task is on the app
+ * (ADR 0003, D2). Not a served app's `origin`: Vite reports `127.0.0.1` there under
+ * `--dns-result-order=ipv4first`, and every run would then be on another site, without the app's
+ * parameters and jargon list.
+ */
+export const TARGET_APP_ORIGIN = `http://localhost:${TARGET_APP_PORT}`;
+
+/**
  * Serves the build on 5174, so the observation's `URL:` line, the prompt and the recorded URLs
  * read the origin core's task fixtures name. Or says why not in one line: a setup to fix, not a
  * bug's stack. When the port is taken, the line also says what most likely holds it.
@@ -52,6 +60,73 @@ export async function serveOnFixturePort(): Promise<TargetApp> {
       `the target app could not be served on ${TARGET_APP_PORT}: ${reason}.${taken}`,
       { cause: error },
     );
+  }
+}
+
+/**
+ * What the target app's home page holds and another app's does not: the name in its `<title>`
+ * (`packages/target-app/index.html`).
+ */
+const TARGET_APP_MARK = "Quillmere";
+
+/**
+ * The target app on 5174: what already answers there, or a build served on it, so it is never
+ * served twice beside `pnpm dev`. `reused` says which: `"dev"` for Vite's dev server, `"build"`
+ * for a preview, `false` when this call served the build. `close` closes only what this call
+ * served. `port` and `serve` are for tests: a free port, and a serve that builds nothing.
+ */
+export async function targetAppOnFixturePort(
+  options: { port?: number; serve?: () => Promise<TargetApp> } = {},
+): Promise<TargetApp & { reused: "dev" | "build" | false }> {
+  const origin =
+    options.port === undefined ? TARGET_APP_ORIGIN : `http://localhost:${options.port}`;
+  // A refused connection, a timeout or any other fetch error means nothing serves the port; if
+  // something holds it all the same, `serveOnFixturePort` fails with its own line, so the app is
+  // still not served twice.
+  const home = await probe(`${origin}/`);
+  if (home === undefined) {
+    const app = await (options.serve ?? serveOnFixturePort)();
+    return { origin: app.origin, close: () => app.close(), reused: false };
+  }
+  // Vite moves another project to 5174 when 5173 is taken. Runs on it would be billed against that
+  // app with the target app's parameters, and stored as the target app's.
+  if (!home.text.includes(TARGET_APP_MARK)) {
+    throw new WayfordError(
+      "target_app_unavailable",
+      `something other than the target app answers on ${origin}: its home page does not name ${TARGET_APP_MARK}. Stop it, so the target app can be served there.`,
+    );
+  }
+  // Vite's dev server serves its client script; a preview of the build answers 404 for it.
+  const client = await probe(`${origin}/@vite/client`);
+  return { origin, close: async () => {}, reused: client?.status === 200 ? "dev" : "build" };
+}
+
+/**
+ * Where a command's task runs, for its header: the task's origin, and whether it is the target
+ * app and how that is served. `reused` is `targetAppOnFixturePort`'s, undefined off the app, where
+ * nothing is served. The dev server is said out loud: `docs/STACK.md` wants a build for seeded runs.
+ */
+export function siteLine(origin: string, reused: "dev" | "build" | false | undefined): string {
+  switch (reused) {
+    case undefined:
+      return `${origin}, not the target app: no parameters, no jargon list`;
+    case false:
+      return `${origin}, the target app, served here`;
+    case "build":
+      return `${origin}, the target app, already served`;
+    case "dev":
+      return `${origin}, the target app on the dev server (pnpm dev): docs/STACK.md wants a build for seeded runs`;
+  }
+}
+
+/** The status and body `url` answers within a second, or undefined when it does not answer. */
+async function probe(url: string): Promise<{ status: number; text: string } | undefined> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(1000) });
+    // Read whole, so the socket closes and a test's server can close.
+    return { status: response.status, text: await response.text() };
+  } catch {
+    return undefined;
   }
 }
 
@@ -128,6 +203,23 @@ export function readBackend(
   const parsed = ActorBackendName.safeParse(text);
   if (parsed.success) return { backend: parsed.data };
   return { error: `--backend is ${ActorBackendName.options.join(" or ")}, got ${text}` };
+}
+
+/**
+ * A live line for a Scout attempt's start and end, so a slow model is not silence. agent's and
+ * io's Scout commands print the same lines.
+ */
+export function attemptLine(event: RunEvent): string | undefined {
+  switch (event.type) {
+    case "runStarted":
+      return `  attempt ${event.seed}  ${event.runId}`;
+    case "runFinished":
+      return `    ${event.outcome} after ${event.stepIndex + 1} steps`;
+    case "runFailed":
+      return `    error: ${event.error}`;
+    default:
+      return undefined;
+  }
 }
 
 /**

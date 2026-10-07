@@ -150,6 +150,18 @@ test("a task on the target app's origin gets the parameters and the jargon list;
   }
 });
 
+test("start refuses Jev off the target app, named or by default, and calls or stores no run", async () => {
+  const off = { ...task, startUrl: "https://shop.example/" };
+  const refused = expect.objectContaining({ code: "jev_off_target_app" });
+  const run = fakeRun();
+  expect(() => runnerOn(run).start(off, [ada, vera], [1, 2], { backend: "jev" })).toThrow(refused);
+  expect(() => runnerOn(run, { defaultBackend: "jev" }).start(off, [ada], [1])).toThrow(refused);
+
+  await sleep(30);
+  expect(run.calls).toHaveLength(0);
+  expect(await listRuns(store.db)).toStrictEqual([]);
+});
+
 test("a target-app origin that is no URL fails when the runner is built, not on the first run", () => {
   expect(() => runnerOn(fakeRun(), { targetAppOrigin: "not a url" })).toThrow();
 });

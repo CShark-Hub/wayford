@@ -6,13 +6,13 @@
  * scripted per run, so no io test needs a browser or a model, and `gate`, which holds one open;
  * `readSse` and `readEvents`, which read a server-sent event stream message by message;
  * `noIllustration`, the default picture, which throws; `noAxeViolations`, the default axe-core
- * scan, which finds nothing; `quiet` and `capture`, a logger that writes nothing and one that
- * keeps every warning; for the Analyst's tests, `storedRun`, `fakeAxe` and Vera's `/deliveries`
- * as the filter gives it; and for the browser tests on any page, `anyPage`, a site's page with a
- * 404 stylesheet, a 404 font face and an endless animation, `FAINT_TEXT`, its paragraph,
- * `FAILED_FONT_PAGE`, a page whose only fault is its font, and `serveLocal`, `servePage` and
- * `stopLocal`, a Node server on a free port. io's test files share
- * it, as agent's callers share `fake-llm.ts`.
+ * scan, which finds nothing; `noScout`, the default Scout, which throws; `quiet` and `capture`, a
+ * logger that writes nothing and one that keeps every warning; for the Analyst's tests,
+ * `storedRun`, `fakeAxe` and Vera's `/deliveries` as the filter gives it; and for the browser tests
+ * on any page, `anyPage`, a site's page with a 404 stylesheet, a 404 font face and an endless
+ * animation, `FAINT_TEXT`, its paragraph, `FAILED_FONT_PAGE`, a page whose only fault is its font,
+ * and `serveLocal`, `servePage` and `stopLocal`, a Node server on a free port. io's test files
+ * share it, as agent's callers share `fake-llm.ts`.
  */
 import { once } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -63,6 +63,7 @@ import type { PageRef } from "./page-ref.js";
 import type { IllustrateFn } from "./routes/illustration.js";
 import type { MeasureFn } from "./routes/measure.js";
 import type { RunFn, RunnerOptions } from "./runner.js";
+import type { ScoutFn } from "./scout-jobs.js";
 
 export interface TempStore {
   /** The temporary folder, holding `runs/` and `wayford.sqlite`. */
@@ -137,6 +138,13 @@ export const noMeasure: MeasureFn = () => {
  */
 export const noIllustration: IllustrateFn = () => {
   throw new Error("this io test takes no picture");
+};
+
+/**
+ * A `ScoutFn` that throws if called: a test that scouts says how, as `routes/tasks.test.ts` does.
+ */
+export const noScout: ScoutFn = () => {
+  throw new Error("this io test scouts no task");
 };
 
 /**
@@ -244,8 +252,8 @@ export type TestApp = TempStore & { app: ReturnType<typeof createApp> };
 /**
  * The whole app on a `tempStore()`, answering `localhost`, the host `app.request` gives a bare
  * path, on `runnerDefaults`, the fake `Llm` with no answers, `noMeasure`, `noIllustration`,
- * `noAxeViolations` and `analystDefaults`. `options` replaces any of them. The fixture replay keeps
- * the route's own pace unless `replaySpacingMs` is given.
+ * `noAxeViolations`, `noScout` and `analystDefaults`. `options` replaces any of them. The fixture
+ * replay keeps the route's own pace unless `replaySpacingMs` is given.
  */
 export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
   const store = await tempStore();
@@ -256,6 +264,7 @@ export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
     measure: noMeasure,
     illustrate: noIllustration,
     scanAxe: noAxeViolations,
+    scout: noScout,
     ...analystDefaults(store),
     ...options,
   });
