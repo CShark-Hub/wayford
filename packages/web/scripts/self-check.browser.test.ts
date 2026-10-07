@@ -12,11 +12,10 @@
  * until New race clears it. Run detail's ← and → are pressed on the page itself, and its
  * screenshot crop is measured against the click point and the flag that names the action.
  */
-import { RunEvent, RunResult } from "@wayford/core";
+import { RunEvent, RunResult, type StartedRun } from "@wayford/core";
 import { runEventFixtures, runResultFixture } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from "vitest";
-import type { StartedRun } from "../src/api/runs.js";
 import { demoRace, eventsOf } from "../src/arena/demo-race.js";
 import { stuckRun } from "../src/arena/fixture-race.js";
 import { THEME_NAMES } from "../src/theme.js";
@@ -580,14 +579,14 @@ describe("on the web app", () => {
       expect(await analyse.getAttribute("class")).toMatch(/\bbg-ink\b/);
     });
 
-    test("Back from the report the race leads to finds the race as it ended, and New race clears it", async () => {
+    test("Back from the report the race leads to finds the race as it ended, and after New race finds the panel", async () => {
       const page = await newPage();
       await checkScreen(page, app.origin, raceEndedScreen(), "light");
       await page.getByRole("link", { name: "See the report", exact: true }).click();
       await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
 
       await page.goBack();
-      // The same runs followed again: io replays each stream from its start.
+      // The race's own URL, its runs followed again: io replays each stream from its start.
       for (const persona of ["Ada", "Kai", "Vera"]) {
         await page.getByRole("article", { name: persona, exact: true }).waitFor();
       }
@@ -597,13 +596,21 @@ describe("on the web app", () => {
         .waitFor();
       expect(await resultLineOf(page).textContent()).toBe("1/3 got through");
 
-      // New race: the panel, which asks for the goal to be checked again, since the race spent its
-      // check. Away to the report and Back finds the panel, not the race.
+      // New race: the panel, at its own URL, which asks for the goal to be checked again, since the
+      // race spent its check. Away to the report and Back finds the panel, not the race.
       await page.getByRole("button", { name: "New race", exact: true }).click();
       const start = page.getByRole("button", { name: "Start the race", exact: true });
       await start.waitFor();
       expect(await start.isDisabled()).toBe(true);
-      await page.goForward();
+      // The panel kept the last race's choices while the Race was left for the report.
+      for (const persona of ["Ada", "Kai", "Vera"]) {
+        const button = page.getByRole("button", { name: persona, exact: true });
+        expect(await button.getAttribute("aria-pressed"), persona).toBe("true");
+      }
+      await page
+        .getByRole("navigation", { name: "Story" })
+        .getByRole("link", { name: "Report", exact: true })
+        .click();
       await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
       await page.goBack();
       await start.waitFor();

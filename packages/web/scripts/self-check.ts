@@ -19,6 +19,7 @@ import {
   type RunEvent,
   type RunId,
   type RunResult,
+  runResultFromEvents,
   WayfordError,
 } from "@wayford/core";
 import {
@@ -123,13 +124,41 @@ function laneOf(page: Page, name: string) {
   return page.getByRole("article", { name, exact: true });
 }
 
+/** The id io gives `demoRace` when the self-check starts it. */
+const DEMO_RACE_ID = "race_demo";
+
+/**
+ * `demoRace` as io keeps it: on the hard goal, started at the fixture's first timestamp, with
+ * `status`.
+ */
+function demoRaceRecord(status: "running" | "finished") {
+  return {
+    id: DEMO_RACE_ID,
+    task: taskFixture("task_past-order"),
+    startedAt: "2026-09-22T10:00:00.000Z",
+    runs: demoRace.runs,
+    status,
+  };
+}
+
+/**
+ * The History the start panel lists: `demoRace` running, and two earlier races of it finished,
+ * newest first, as io lists them. Its rows are measured with the panel.
+ */
+const DEMO_HISTORY = [
+  demoRaceRecord("running"),
+  { ...demoRaceRecord("finished"), id: "race_demo-2", startedAt: "2026-09-22T09:50:00.000Z" },
+  { ...demoRaceRecord("finished"), id: "race_demo-1", startedAt: "2026-09-22T09:40:00.000Z" },
+];
+
 /**
  * The Race with `demoRace`'s three runs started, each streaming its `events`. `act` checks the hard
  * goal, picks Ada, Kai and Vera, starts the race and waits for each lane's `waits`. io answers the
- * goal accepted as it stands (201), the three runs started (202), the hard goal's stored report,
- * each run's events as its stream, and every screenshot up to the latest of each, read off
- * `runView`. A lane shows only the latest once its stream has delivered, but a stream that arrived
- * in two chunks would draw an earlier one first, and an unlisted request fails the check.
+ * panel's History empty, the goal accepted as it stands (201), the three runs started as one race
+ * (202), the race running when the screen opens it by its id, the hard goal's stored report, each
+ * run's events as its stream, and every screenshot up to the latest of each, read off `runView`. A
+ * lane shows only the latest once its stream has delivered, but a stream that arrived in two chunks
+ * would draw an earlier one first, and an unlisted request fails the check.
  */
 export function raceScreen({
   name,
@@ -154,9 +183,11 @@ export function raceScreen({
     path: "/race",
     ready,
     responses: {
+      "/races": [],
       "/tasks": jsonAnswer({ task: taskFixture("task_past-order"), rewritten: false }, 201),
-      "/runs": jsonAnswer({ runs: demoRace.runs }, 202),
-      // The hard goal's stored report, which the race reads as it starts, to lead to once over.
+      "/runs": jsonAnswer({ raceId: DEMO_RACE_ID, runs: demoRace.runs }, 202),
+      [`/races/${DEMO_RACE_ID}`]: demoRaceRecord("running"),
+      // The hard goal's stored report, which the race reads as it opens, to lead to once over.
       "/reports/task_past-order": reportFixture("task_past-order"),
       ...Object.fromEntries(
         streams.map(([runId, runEvents]) => [
@@ -182,6 +213,39 @@ export function raceScreen({
       for (const [persona, text] of Object.entries(waits)) {
         await laneOf(page, persona).getByText(text, { exact: true }).waitFor();
       }
+    },
+  };
+}
+
+/**
+ * A finished race reopened from the History: `demoRace` drawn from its runs' records, Ada through
+ * and Vera given up, and Kai's run, which io never stored, as a lost lane with its note in fault.
+ * No stream is opened, so none is listed; the hard goal's stored report is, for the way on.
+ */
+function raceStoredScreen(): SelfCheckScreen {
+  const [ada, kai, vera] = demoRace.runs;
+  if (ada === undefined || kai === undefined || vera === undefined) {
+    throw new Error("demoRace has no 3 runs");
+  }
+  const recorded = [ada, vera].map((run) => runResultFromEvents(demoRace.events.get(run.id) ?? []));
+  const race = { ...demoRaceRecord("finished"), id: "race_demo-2" };
+  return {
+    name: "race-stored",
+    path: `/race/${race.id}`,
+    ready: 'role=article[name="Kai"s] >> text="Stream lost"',
+    responses: {
+      [`/races/${race.id}`]: race,
+      "/reports/task_past-order": reportFixture("task_past-order"),
+      [`/runs/${kai.id}`]: jsonAnswer({ error: `no stored run ${kai.id}` }, 404),
+      ...Object.fromEntries(recorded.map((run) => [`/runs/${run.id}`, run])),
+      ...Object.fromEntries(
+        recorded.flatMap((run) => {
+          const shot = run.steps.findLast((step) => step.screenshotPath !== undefined);
+          return shot === undefined
+            ? []
+            : [[`/runs/${run.id}/steps/${shot.stepIndex}/screenshot`, PNG_ANSWER]];
+        }),
+      ),
     },
   };
 }
@@ -271,9 +335,13 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
   {
     name: "race",
     path: "/race",
-    ready: 'role=button[name="Start the race"s]',
-    // The setup strip: the goals and the personas come bundled with the app.
-    responses: {},
+    ready: 'role=heading[name="finished · 2"s]',
+    // The setup strip: the goals and the personas come bundled with the app. The History under it,
+    // whose finished rows link the hard goal's stored report.
+    responses: {
+      "/races": DEMO_HISTORY,
+      "/reports/task_past-order": reportFixture("task_past-order"),
+    },
   },
   raceScreen({
     name: "race-live",
@@ -282,6 +350,7 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     waits: { Ada: "1st", Kai: "5 steps so far", Vera: "5 steps" },
     ready: 'role=article[name="Vera"s] >> text="Gave up"',
   }),
+  raceStoredScreen(),
   {
     name: "report",
     path: "/report/task_past-order",

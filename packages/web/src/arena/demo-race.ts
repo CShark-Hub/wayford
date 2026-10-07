@@ -9,9 +9,8 @@
  * and `./fixture-race.js` reaches Vite's `import.meta.glob` through `./panel-state.js`. This file
  * imports only core, its fixtures and a type, none of which needs Vite.
  */
-import { RunEvent, type RunId } from "@wayford/core";
+import { RunEvent, type RunId, type StartedRun } from "@wayford/core";
 import { runEventFixtures } from "@wayford/core/fixtures";
-import type { StartedRun } from "../api/runs.js";
 
 const firstEvent = runEventFixtures[0];
 if (firstEvent === undefined) throw new Error("the fixture stream holds no event");

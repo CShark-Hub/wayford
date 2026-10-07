@@ -26,6 +26,7 @@ import { z } from "zod";
 import { analystCase } from "./analyst-digest.js";
 import { DEFAULT_DATABASE_URL } from "./config.js";
 import { sqliteFilePath } from "./db/database.js";
+import { listRaces, saveRace } from "./db/races.js";
 import { saveReport } from "./db/reports.js";
 import { saveRun } from "./db/runs.js";
 import { saveSweep } from "./db/sweeps.js";
@@ -234,7 +235,7 @@ describe("the store before a seed", () => {
     await store.close();
   });
 
-  test("the counts take every run, report and sweep; a reset empties them and their run folders", async () => {
+  test("the counts take every run, report and sweep; a reset empties them, the races and their run folders", async () => {
     for (const [i, id] of ["run_ada-1", "run_kai-2"].entries()) {
       await saveRun(
         store.db,
@@ -249,6 +250,16 @@ describe("the store before a seed", () => {
     if (report === undefined || sweep === undefined) throw new Error("core has no fixtures");
     await saveReport(store.db, report);
     await saveSweep(store.db, sweep);
+    // The race the two runs made: a History entry whose runs a reset deletes must go with them.
+    await saveRace(store.db, {
+      id: "race_ada",
+      task: hardGoal,
+      startedAt: "2026-10-06T12:00:00.000Z",
+      runs: [
+        { id: "run_ada-1", profileId: ada.id, seed: 1 },
+        { id: "run_kai-2", profileId: ada.id, seed: 2 },
+      ],
+    });
     await mkdir(join(store.runsDir, "ground-truth"));
     await writeFile(join(store.runsDir, "ground-truth", `${hardGoal.id}.json`), "{}");
     await writeFile(join(store.runsDir, "notes.txt"), "kept");
@@ -258,6 +269,7 @@ describe("the store before a seed", () => {
     await emptyStore(store.db, store.runsDir);
 
     expect(await storedCounts(store.db)).toStrictEqual({ runs: 0, reports: 0, sweeps: 0 });
+    expect(await listRaces(store.db)).toStrictEqual([]);
     expect((await readdir(store.runsDir)).sort()).toStrictEqual(["ground-truth", "notes.txt"]);
     expect(await readdir(join(store.runsDir, "ground-truth"))).toStrictEqual([
       `${hardGoal.id}.json`,

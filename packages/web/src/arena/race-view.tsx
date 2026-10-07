@@ -1,8 +1,9 @@
 /**
  * The race as `docs/design/screens/race.html` draws it (`docs/PLAN.md` F6): the goal strip, then
- * one lane per run in start order, stacked full width. A pure view of a `RaceSnapshot`:
- * `followRace` keeps the snapshot and this folds it into each `RaceLane`'s props, so a test renders
- * any moment of a race without a stream.
+ * one lane per run in start order, stacked full width. A pure view of each run's `LaneFold`: the
+ * screen folds a live race's snapshot with `liveLane` and a finished race's stored runs with
+ * `storedLane`, and this turns the folds into each `RaceLane`'s props, so a test renders any moment
+ * of a race without a stream.
  *
  * A lane says what its state rests on: the page a stuck persona left as it was, a crash's message,
  * the state a lost stream was last seen in. The narration is the model's, labelled as written after
@@ -15,11 +16,11 @@
  * the runs that got through, with the places their goal posts show to the eye. Every other ended
  * run follows with no number, its outcome word and its clock, and a lost run comes last.
  *
- * Each lane links to its run detail as soon as io has stored the run (`runStored`), and once the
- * race is over (`raceOver`) the goal strip leads on to a report, whatever the outcomes.
+ * Each lane links to its run detail once io holds the run's record (its fold's `stored`), and once
+ * the race is `over` the goal strip leads on to a report, whatever the outcomes.
  */
 import { Link } from "@tanstack/react-router";
-import type { Profile, RunEvent, Seed, Task, TaskId } from "@wayford/core";
+import type { Profile, Seed, StartedRun, Task, TaskId } from "@wayford/core";
 import type { ReactElement } from "react";
 import { OUTCOME_WORDS } from "#components/outcome";
 import { PersonaAvatar } from "#components/persona-avatar";
@@ -28,7 +29,7 @@ import { SourceBadge } from "#components/source-badge";
 import { Tag } from "#components/tag";
 import { TopBarSlot } from "#components/top-bar";
 import { Button, buttonVariants } from "#components/ui/button";
-import { type StartedRun, screenshotUrl } from "../api/runs.js";
+import { screenshotUrl } from "../api/runs.js";
 import { slotOf } from "../avatar/slots.js";
 import { STATE_WORDS } from "../avatar/state.js";
 import { count } from "../components/outcome-words.js";
@@ -36,15 +37,9 @@ import { STUCK_STEPS } from "./avatar-state.js";
 import {
   clockText,
   finishOrder,
+  type LaneFold,
   laneOutcome,
-  type RaceSnapshot,
   type RunView,
-  raceOver,
-  runStored,
-  runView,
-  stepPips,
-  stepsText,
-  streamLost,
   throughPlaces,
 } from "./race.js";
 import { successText } from "./start-panel.js";
@@ -94,24 +89,15 @@ function AnalyseLink({
   );
 }
 
-/**
- * One run as its lane folds it: the persona's name, the run's events so far, their view, and
- * whether its stream was lost.
- */
-type Lane = {
-  run: StartedRun;
-  name: string;
-  events: readonly RunEvent[];
-  view: RunView;
-  lost: boolean;
-};
+/** One run as its lane draws it: the run, the name its lane carries, and its fold. */
+type Lane = { run: StartedRun; name: string } & LaneFold;
 
 /**
  * `lane`'s `RaceLane`. `place` is its place among the runs that got through. Its avatar shows the
  * live state, or, on a lost lane, no state and dimmed, and a lost lane's track no step under way.
  */
 function LaneOf({
-  lane: { run, name, events, view, lost },
+  lane: { run, name, view, pips, steps, lost, note, stored },
   profile,
   place,
 }: {
@@ -132,7 +118,7 @@ function LaneOf({
       slot={slotOf(run.profileId)}
       avatar={avatar}
       name={name}
-      pips={stepPips(events, lost)}
+      pips={pips}
       place={place}
       shot={
         view.screenshotStep === undefined
@@ -144,25 +130,27 @@ function LaneOf({
       }
       outcome={laneOutcome(view, lost)}
       clock={clockText(view.elapsedMs)}
-      steps={stepsText(events, view.ended !== undefined)}
-      detail={detailOf(view, lost)}
+      steps={steps}
+      detail={note ?? detailOf(view, lost)}
       narration={view.narration}
-      runId={runStored(events) ? run.id : undefined}
+      runId={stored ? run.id : undefined}
     />
   );
 }
 
 /**
- * The race after `snapshot`: `task`'s goal as the personas got it, under its preset's `label`, the
- * one `seed` every run shares, a lane per run of `runs` in their order, and the finish order for
- * screen readers. Every run's persona is in `profiles`, the list io checks the ids against; were
- * one not, its id would name it, with no avatar.
+ * The race with each run's lane as `foldOf` folds it: `task`'s goal as the personas got it, under
+ * its preset's `label`, the `seeds` its runs share, a lane per run of `runs` in their order, and the
+ * finish order for screen readers. Every run's persona is in `profiles`, the list io checks the
+ * ids against; were one not, its id would name it, with no avatar. A race on more than one seed
+ * names each lane's seed after its persona, since each persona then has a lane per seed.
  *
- * The top bar's badge reads `live` while a stream can still bring an event, and nothing once the
- * race is over (`raceOver`): the race holds nothing stored.
+ * `source` is where the folds come from. The top bar's badge reads `live` while a live race is not
+ * `over`, so a stream can still bring an event, and nothing once it is: the screen holds no record,
+ * only what the streams brought. A race drawn from its runs' records reads `stored`.
  *
- * "New race" calls `onNewRace` once the race is over (`raceOver`): io cannot cancel a run, so a new
- * race started sooner would queue behind this one's runs. Until then it says why it waits.
+ * "New race" calls `onNewRace` at any time: several races can run at once. io cannot cancel a run,
+ * so while the race is not `over` it says that a new race's runs queue behind these.
  *
  * Once the race is over, a line under the buttons says how many runs got through, in k/n, and how
  * many streams were lost, and the strip leads on to a report. Every race is checked anew, and the
@@ -177,33 +165,33 @@ function LaneOf({
 export function RaceView({
   task,
   label,
-  seed,
+  seeds,
   runs,
-  snapshot,
+  foldOf,
+  source,
+  over,
   profiles,
   reportTask,
   onNewRace,
 }: {
   task: Task;
   label: string;
-  seed: Seed;
+  seeds: readonly Seed[];
   runs: readonly StartedRun[];
-  snapshot: RaceSnapshot;
+  foldOf: (run: StartedRun) => LaneFold;
+  source: "live" | "stored";
+  over: boolean;
   profiles: readonly Profile[];
   reportTask: TaskId | undefined;
   onNewRace: () => void;
 }) {
   const profileOf = new Map(profiles.map((profile) => [profile.id, profile]));
-  // Each run folded once per render: its lane and the finish order read the same view.
   const lanes: Lane[] = runs.map((run) => {
-    const events = snapshot.events.get(run.id) ?? [];
-    const view = runView(events);
+    const persona = profileOf.get(run.profileId)?.label ?? run.profileId;
     return {
       run,
-      name: profileOf.get(run.profileId)?.label ?? run.profileId,
-      events,
-      view,
-      lost: streamLost(view, snapshot.streams.get(run.id)),
+      name: seeds.length > 1 ? `${persona}, seed ${run.seed}` : persona,
+      ...foldOf(run),
     };
   });
   const laneOf = new Map(lanes.map((lane) => [lane.run.id, lane]));
@@ -218,10 +206,15 @@ export function RaceView({
     ...finishes.filter(({ run }) => !places.has(run.id)),
   ];
   const lost = lanes.filter((lane) => lane.lost);
-  const over = raceOver(runs, snapshot);
   return (
     <section aria-labelledby="race-goal" className="flex flex-col pb-(--space-4)">
-      <TopBarSlot>{over ? null : <SourceBadge source="live" />}</TopBarSlot>
+      <TopBarSlot>
+        {source === "stored" ? (
+          <SourceBadge source="stored" />
+        ) : over ? null : (
+          <SourceBadge source="live" />
+        )}
+      </TopBarSlot>
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-(--space-6) pt-(--space-4) pb-(--space-4)">
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-(--space-3)">
@@ -236,14 +229,13 @@ export function RaceView({
         <div className="flex flex-col items-end gap-(--space-1)">
           <div className="flex items-center gap-(--space-2)">
             <span className="inline-flex h-(--control-h) items-center gap-(--space-2) rounded-sm border border-line-strong bg-surface px-3.5 mono text-ink">
-              <span className="text-ink-3">seed</span>
-              {seed}
+              <span className="text-ink-3">{seeds.length > 1 ? "seeds" : "seed"}</span>
+              {seeds.join(", ")}
             </span>
             <Button
               type="button"
               variant="outline"
               onClick={onNewRace}
-              disabled={!over}
               aria-describedby={over ? undefined : NEW_RACE_LINE_ID}
             >
               New race
@@ -272,8 +264,8 @@ export function RaceView({
             </div>
           ) : (
             <p id={NEW_RACE_LINE_ID} className="max-w-80 text-right body text-ink-3">
-              New race opens once every run has ended: io keeps running them, and a new race would
-              queue behind them.
+              io keeps running this race, and the Race tab brings you back to it. A new race queues
+              its runs behind these.
             </p>
           )}
           {over && reportTask !== undefined ? (

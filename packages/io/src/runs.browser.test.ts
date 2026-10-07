@@ -10,7 +10,7 @@
  */
 import { llmActor, parseLlmSettings } from "@wayford/agent";
 import { fakeLlm } from "@wayford/agent/fake";
-import { type ActorResponse, runResultFromEvents } from "@wayford/core";
+import { type ActorResponse, runResultFromEvents, type StartedRun } from "@wayford/core";
 import { taskFixture } from "@wayford/core/fixtures";
 import {
   serveTargetApp,
@@ -21,7 +21,6 @@ import { type Browser, chromium } from "playwright";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { saveTask } from "./db/tasks.js";
-import type { StartedRun } from "./runner.js";
 import { noBackend, postJson, readEvents, type TestApp, testApp } from "./test-app.js";
 
 // Building the app and launching Chromium take longer than vitest's 5 s hook default, and each run

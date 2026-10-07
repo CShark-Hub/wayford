@@ -20,8 +20,8 @@ export type RunFilter = Partial<Pick<RunResult, "taskId" | "profileId" | "outcom
 };
 
 /**
- * A valid timestamp at millisecond width, so `started_at` sorts as text in time order: runs' and
- * sweeps'.
+ * A valid timestamp at millisecond width, so `started_at` sorts as text in time order: runs',
+ * sweeps' and races'.
  */
 export const atMillisecondWidth = (timestamp: string): string => new Date(timestamp).toISOString();
 

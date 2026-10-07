@@ -215,7 +215,8 @@ Single Node process: HTTP API, in-process job runner, Playwright. No queue, no w
 
 ```
 POST /tasks            Extractor: sentence -> Task
-POST /runs             { taskId, profileIds, seeds } -> runIds
+POST /runs             { taskId, profileIds, seeds } -> raceId, runIds
+GET  /races, /races/:id  each POST /runs's run set, stored as a race; running or finished, read off the runner
    job runner: for each persona x seed: Actor loop (Scout runs per task, by hand)
    Actor step: page -> DOM metrics -> filter(profile, seed) -> Observation
                -> Actor backend (LLM or Jev) -> Action -> behaviour dice -> Playwright -> evidence + RunEvent

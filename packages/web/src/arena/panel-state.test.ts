@@ -6,12 +6,14 @@ import { dispatched, sixProfiles, withPersonas } from "./fixture-race.js";
 import {
   checkedFor,
   GOAL_PRESETS,
+  goalLabel,
   initialPanel,
   MAX_PERSONAS,
   MIN_PERSONAS,
   NO_SUCCESS,
   type PanelState,
   panelReducer,
+  presetTaskOf,
   runsRequestOf,
   seedOf,
   startBlocker,
@@ -437,4 +439,32 @@ test("runsRequestOf without an accepted check or a seed is a bug, and throws", (
   expect(() =>
     runsRequestOf(dispatched(ready(), { type: "seedEdited", seed: "" }), bundledProfiles),
   ).toThrow(Error);
+});
+
+test("goalLabel names the preset a stored task was checked from by its start URL and success", () => {
+  // The Extractor stores each checked sentence under a new id, which names no preset.
+  expect(goalLabel(acceptedTask)).toBe("Hard goal");
+  expect(goalLabel({ startUrl: easy.startUrl, success: easy.success })).toBe("Easy goal");
+  // Another success condition on the same page, or another site, is no preset's.
+  expect(
+    goalLabel({
+      startUrl: hard.startUrl,
+      success: { type: "urlMatches", pattern: "**/elsewhere" },
+    }),
+  ).toBe("Goal");
+  expect(goalLabel({ startUrl: "https://example.com/", success: hard.success })).toBe("Goal");
+});
+
+test("presetTaskOf names the preset's own task only when the goal is its sentence word for word", () => {
+  // The check minted a new task id, but the goal is the hard preset's sentence as it stands.
+  expect(acceptedTask.goal).toBe(hard.sentence);
+  expect(presetTaskOf(acceptedTask)).toBe(hard.id);
+  // An edited sentence, or one the check rewrote, is no longer the goal the stored report is on.
+  expect(presetTaskOf({ ...acceptedTask, goal: "find what you ordered in the summer" })).toBe(
+    undefined,
+  );
+  // Nor is the preset's sentence with a success of the person's own: the preset's report counts
+  // arriving at the preset's page, so it is on another goal.
+  const typed = { type: "urlMatches" as const, pattern: "**/account/address" };
+  expect(presetTaskOf({ ...acceptedTask, success: typed })).toBe(undefined);
 });

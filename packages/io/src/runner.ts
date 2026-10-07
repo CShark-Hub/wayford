@@ -35,13 +35,13 @@ import {
   type Cost,
   newId,
   type Profile,
-  type ProfileId,
   RunEvent,
   type RunId,
   type RunResult,
   type RunSweep,
   runResultFromEvents,
   type Seed,
+  type StartedRun,
   stepCapOf,
   type Task,
   WayfordError,
@@ -92,16 +92,6 @@ export interface RunnerOptions {
    */
   groundTruthDir: string;
   logger: Logger;
-}
-
-/**
- * One run of a set, as `start` hands it back. A run still waiting for a slot has sent no
- * `runStarted`, so the receipt names its persona and seed.
- */
-export interface StartedRun {
-  id: RunId;
-  profileId: ProfileId;
-  seed: Seed;
 }
 
 /** A run's live side: what the events route streams. */

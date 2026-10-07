@@ -4,11 +4,12 @@
  *
  * Every table follows one pattern: the whole record as a JSON document, and
  * real columns only for what a query filters or sorts on. `runs.ts`, `tasks.ts`,
- * `reports.ts`, `sweeps.ts` and `axe.ts` parse each document with its core
- * schema on the way in and out (`parseRow` in `database.ts`). `profiles` has no
- * read or write functions yet, so nothing checks its rows. Findings are stored
- * inside their report. `axe_results` holds one axe-core scan per page, keyed
- * by the page's whole URL, origin included.
+ * `reports.ts`, `sweeps.ts`, `races.ts` and `axe.ts` parse each document with its
+ * core schema on the way in and out (`parseRow` in `database.ts`). `profiles` has no read or write
+ * functions yet, so nothing checks its rows. Findings are stored inside their
+ * report. `axe_results` holds one axe-core scan per page, keyed by the page's
+ * whole URL, origin included. `races` holds the run set each `POST /runs`
+ * started, with no status: the runner says that at read time.
  *
  * Written to stay Postgres-compatible (`docs/STACK.md`): `text`, `integer` and
  * `real` only, nothing SQLite-only. A switch rewrites this file with `pg-core`
@@ -16,13 +17,14 @@
  * - `document` becomes `jsonb`;
  * - `runs.seed` becomes `bigint`, since a `uint32` seed overflows `integer`;
  * - `runs.cost_usd` becomes `double precision`, since Postgres `real` is 4 bytes;
- * - `runs.started_at` and `sweeps.started_at` become `timestamptz`. As `text`
- *   they sort correctly too, because `saveRun` and `saveSweep` store them at a
- *   fixed width.
+ * - `runs.started_at`, `sweeps.started_at` and `races.started_at` become
+ *   `timestamptz`. As `text` they sort correctly too, because `saveRun`,
+ *   `saveSweep` and `saveRace` store them at a fixed width.
  */
 import {
   type AxeScan,
   type Profile,
+  type Race,
   type Report,
   RUN_OUTCOMES,
   type RunResult,
@@ -81,6 +83,18 @@ export const sweeps = sqliteTable("sweeps", {
   axis: text("axis", { enum: SWEEP_AXES }).notNull(),
   startedAt: text("started_at").notNull(),
   document: text("document", { mode: "json" }).$type<Sweep>().notNull(),
+});
+
+/**
+ * A stored race is its whole `Race`, its task and its runs' receipts included: the run set one
+ * `POST /runs` started (issue #194). Its status is not stored, since only the runner knows it
+ * (`routes/races.ts`). `started_at` is lifted out of the document, at a fixed width, for the race
+ * list's order: nothing else filters or sorts races.
+ */
+export const races = sqliteTable("races", {
+  id: text("id").primaryKey(),
+  startedAt: text("started_at").notNull(),
+  document: text("document", { mode: "json" }).$type<Race>().notNull(),
 });
 
 /**

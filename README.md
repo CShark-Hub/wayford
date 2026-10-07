@@ -170,7 +170,7 @@ The web app is built on the design system in [`docs/DESIGN.md`](docs/DESIGN.md):
 |---|---|---|
 | Cast | `/cast` | The five personas and their capability bundles |
 | Lens | `/lens` | The page as the persona's filter leaves it: visible, degraded (hatched, masked name) or removed. Thresholds as gauges, the evidence one switch away, axe's result for the page |
-| Race | `/race` | Three to five personas live on one goal, each with its latest screenshot and the agent's narration |
+| Race | `/race` | Three to five personas live on one goal, each with its latest screenshot and the agent's narration. A race keeps its URL, `/race/$raceId`, so leaving it or a reload loses nothing, and the History under the start panel lists every race, running ones first |
 | Report | `/report/$taskId` | Per persona over the seed set: route open, got through and median time, and the findings grouped by certainty, each opening its evidence |
 | Run detail | `/runs/$runId` | One run step by step: the screenshot beside the text the model read, the action, the dice, Jev's options and draw, and the video and trace downloads |
 | Runs | `/runs` | Every run, filtered by goal, persona and outcome |

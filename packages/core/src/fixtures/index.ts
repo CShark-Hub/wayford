@@ -20,6 +20,7 @@ import { JargonList } from "../jargon.js";
 import { MeasuredElement, PageMeasurement } from "../measurement.js";
 import { FullObservation } from "../observation.js";
 import { Profile } from "../profile.js";
+import { Race } from "../race.js";
 import { Report } from "../report.js";
 import { DecisionRecord, RunEvent, RunResult } from "../run.js";
 import { Sweep } from "../sweep.js";
@@ -238,6 +239,13 @@ export const decisionRecordFixture: DecisionRecord = readJson(
  * open. His own cap, 11, lies between 10 and 12. One run at 8 errored.
  */
 export const sweepFixtures: Sweep[] = readJson("sweeps.json", Sweep.array());
+
+/**
+ * The run set one `POST /runs` started on the hard goal (issue #194): Ada, Kai and Vera on seed 1,
+ * seed-major, the runs the hard goal's report fixture cites for that seed. Its task is
+ * `tasks.json`'s, whole.
+ */
+export const raceFixture: Race = readJson("race.json", Race);
 
 /**
  * The Analyst's report (`s4-04`) on each goal of the target app, hard first, hand-written for the

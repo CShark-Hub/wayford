@@ -8,6 +8,7 @@ import { healthRoute } from "./routes/health.js";
 import { type IllustrateFn, illustrationRoute } from "./routes/illustration.js";
 import { type MeasureFn, measureRoute } from "./routes/measure.js";
 import { profilesRoute } from "./routes/profiles.js";
+import { racesRoute } from "./routes/races.js";
 import { reportsRoute } from "./routes/reports.js";
 import { runsRoute } from "./routes/runs.js";
 import { sweepsRoute } from "./routes/sweeps.js";
@@ -124,6 +125,7 @@ export function createApp(options: AppOptions) {
     .route("/illustration", illustrationRoute(options))
     .route("/measure", measureRoute(options))
     .route("/profiles", profilesRoute())
+    .route("/races", racesRoute({ ...options, runner }))
     .route("/reports", reportsRoute({ ...options, axe }))
     .route("/runs", runsRoute({ ...options, runner }))
     .route("/sweeps", sweepsRoute(options))

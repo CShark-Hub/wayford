@@ -4,18 +4,29 @@
  * clock (F6 AC3), so the same events always give the same tiles and the same finish order.
  *
  * One `EventSource` per run: io streams each run on its own `GET /runs/:id/events`, and every open
- * stream holds one of the few HTTP/1.1 connections a browser opens per origin. That caps a race at
- * `MAX_PERSONAS` runs; the comment on it in `panel-state.ts` gives the count.
+ * stream holds one of the few HTTP/1.1 connections a browser opens per origin. That caps a race
+ * followed live at `MAX_PERSONAS` runs; the comment on it in `panel-state.ts` gives the count. A run
+ * set started through io's API can be larger, and the screen does not follow it live.
  *
  * The lane folds, below `followRace`, turn one run's events and view into what its `RaceLane`
  * draws: the pips, the place among the runs that got through, the clock, the steps line and the
- * outcome. Each is pure, and formats only what it is given.
+ * outcome. Each is pure, and formats only what it is given. A race reopened once it has finished
+ * is drawn from its runs' stored records instead (`storedLane`), since io streams only the runs its
+ * process holds.
  */
-import type { Action, RunEvent, RunId, RunLimit, RunOutcome } from "@wayford/core";
+import type {
+  Action,
+  RunEvent,
+  RunId,
+  RunLimit,
+  RunOutcome,
+  RunResult,
+  RunStep,
+  StartedRun,
+} from "@wayford/core";
 import { type OutcomeKind, outcomeKind } from "#components/outcome";
 import type { Pip } from "#components/race-lane";
 import { type StreamStatus, subscribeToRunEvents } from "../api/run-events.js";
-import type { StartedRun } from "../api/runs.js";
 import type { AvatarState } from "../avatar/state.js";
 import { avatarView } from "./avatar-state.js";
 
@@ -36,9 +47,10 @@ export type RunView = {
   screenshotStep: number | undefined;
   /**
    * From the terminal event: the outcome (`error` for `runFailed`), when, `runFinished`'s limit if
-   * it names one, and `runFailed`'s error.
+   * it names one, and `runFailed`'s error. A stored run's record keeps the limit, but neither the
+   * time of its end nor the error, so `storedLane` leaves those two out.
    */
-  ended?: { outcome: RunOutcome; at: string; limit?: RunLimit; error?: string };
+  ended?: { outcome: RunOutcome; at?: string; limit?: RunLimit; error?: string };
 };
 
 /** `events`, one run's events so far in stream order, as its tile shows them. Pure. */
@@ -322,6 +334,11 @@ export function stepsText(events: readonly RunEvent[], ended: boolean): string {
   const begun = new Set(
     events.flatMap((event) => (event.type === "stepObserved" ? [event.stepIndex] : [])),
   ).size;
+  return stepsLine(begun, ended);
+}
+
+/** `begun` steps in words, "so far" while the run has not `ended`. */
+function stepsLine(begun: number, ended: boolean): string {
   const count = `${begun} ${begun === 1 ? "step" : "steps"}`;
   return ended ? count : `${count} so far`;
 }
@@ -352,3 +369,99 @@ export function laneOutcome(view: RunView, lost: boolean): OutcomeKind {
       return "error";
   }
 }
+
+/**
+ * What one lane draws, folded from its run's live events (`liveLane`) or from its stored record
+ * (`storedLane`): the run's view, the track's pips, the steps line, and whether the arena lost the
+ * run. `note`, when set, is the lane's detail line in place of the one its view gives.
+ */
+export type LaneFold = {
+  view: RunView;
+  pips: Pip[];
+  steps: string;
+  /** The run's stream broke for good before its end, or io kept no record of it. */
+  lost: boolean;
+  /** io holds the run's record, so its lane links to its run detail (`runStored`). */
+  stored: boolean;
+  note?: string;
+};
+
+/** Run `id`'s lane after `snapshot`: its events so far and its stream's status, folded. Pure. */
+export function liveLane(snapshot: RaceSnapshot, id: RunId): LaneFold {
+  const events = snapshot.events.get(id) ?? [];
+  const view = runView(events);
+  const lost = streamLost(view, snapshot.streams.get(id));
+  return {
+    view,
+    pips: stepPips(events, lost),
+    steps: stepsText(events, view.ended !== undefined),
+    lost,
+    stored: runStored(events),
+  };
+}
+
+/** The avatar's state for a stored outcome, as `avatarView` gives it at the terminal event. */
+const ENDED_STATES: Record<RunOutcome, AvatarState> = {
+  success: "done",
+  gave_up: "gaveUp",
+  budget_exceeded: "gaveUp",
+  error: "error",
+};
+
+/**
+ * Whether a stored step's action landed: it reached `urlAfter`, which only `actionPerformed` sets.
+ * A complete step always has; a cut-short run's last step has only if its action landed before the
+ * end; a wasted step ran nothing.
+ */
+function landed(step: RunStep): step is RunStep & { performedAction: Action } {
+  return !("wasted" in step) && step.urlAfter !== undefined && step.performedAction !== undefined;
+}
+
+/**
+ * A finished run's lane, from its stored record: what its live lane showed at its end, as far as
+ * the record keeps it. The fold of the stream is the record (`runResultFromEvents`), so the pips,
+ * the steps, the clock, the latest screenshot and narration, and the outcome come out as the live
+ * lane drew them, the limit that ended a budget run out included. The record keeps no error text
+ * and no end time, so an Error lane has no detail line and `ended` no `at`. Pure.
+ */
+export function storedLane(run: RunResult): LaneFold {
+  const steps = run.steps.toSorted((a, b) => a.stepIndex - b.stepIndex);
+  const narration = steps.findLast((step) => step.narration !== "")?.narration;
+  const screenshotStep = steps.findLast((step) => step.screenshotPath !== undefined)?.stepIndex;
+  return {
+    view: {
+      state: ENDED_STATES[run.outcome],
+      stuckOn: undefined,
+      elapsedMs: run.durationMs,
+      narration,
+      screenshotStep,
+      // The limit only when the record names one, as `runView` reads it off `runFinished`.
+      ended: { outcome: run.outcome, ...(run.limit === undefined ? {} : { limit: run.limit }) },
+    },
+    // As `stepPips` draws an ended run: a wasted step hatched, a landed one named by its action,
+    // and the step the run stopped in, which never landed, none.
+    pips: steps.flatMap((step): Pip[] => {
+      if ("wasted" in step) return [{ kind: "wasted", word: "wasted" }];
+      const pip = landed(step) ? pipOf(step.performedAction) : undefined;
+      return pip === undefined ? [] : [pip];
+    }),
+    steps: stepsLine(steps.length, true),
+    lost: false,
+    stored: true,
+  };
+}
+
+/**
+ * The lane of a finished race's run that io kept no record of: the run never started, which io
+ * stores none of (`closeOut` in `packages/io/src/runner.ts`), or io stopped while it was under
+ * way, or could not store it. Nothing is known of it but its persona and seed, so it is drawn as a
+ * lost stream, and its note names what may have happened.
+ */
+export const UNSTORED_LANE: LaneFold = {
+  view: runView([]),
+  pips: [],
+  steps: "no steps stored",
+  lost: true,
+  stored: false,
+  note: "No record: the run never started, or io stopped or failed to store it",
+};

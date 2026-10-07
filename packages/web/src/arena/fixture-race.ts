@@ -9,9 +9,8 @@
  * Vite's `import.meta.glob`, so plain `tsx`, which runs `check:self`, cannot import this file. The
  * race the self-check serves lives in `./demo-race.js` for that reason.
  */
-import { Profile, RunEvent, type Task } from "@wayford/core";
+import { Profile, RunEvent, type StartedRun, type Task } from "@wayford/core";
 import { profileFixture, runEventFixtures, taskFixture } from "@wayford/core/fixtures";
-import type { StartedRun } from "../api/runs.js";
 import { type PanelAction, type PanelState, panelReducer } from "./panel-state.js";
 
 /** Six personas, one more than the panel takes: five fixture personas exist, so all six are made. */

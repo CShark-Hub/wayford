@@ -257,6 +257,7 @@ export const ID_PREFIXES = {
   step: "step",
   finding: "fnd",
   sweep: "swp",
+  race: "race",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];
@@ -282,6 +283,7 @@ export const RunId = prefixedId(ID_PREFIXES.run);
 export const StepId = prefixedId(ID_PREFIXES.step);
 export const FindingId = prefixedId(ID_PREFIXES.finding);
 export const SweepId = prefixedId(ID_PREFIXES.sweep);
+export const RaceId = prefixedId(ID_PREFIXES.race);
 
 export type ProfileId = z.infer<typeof ProfileId>;
 export type TaskId = z.infer<typeof TaskId>;
@@ -289,3 +291,4 @@ export type RunId = z.infer<typeof RunId>;
 export type StepId = z.infer<typeof StepId>;
 export type FindingId = z.infer<typeof FindingId>;
 export type SweepId = z.infer<typeof SweepId>;
+export type RaceId = z.infer<typeof RaceId>;

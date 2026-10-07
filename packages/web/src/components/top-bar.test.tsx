@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
+import { forgetRace, showRace } from "../arena/shown-race.js";
 import { attributesOf, elementOf, textOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import { STORY_NAV, TopBarSlot } from "./top-bar.js";
@@ -71,6 +72,31 @@ test.each(["/boundary", "/boundary?axis=maxElements", "/boundary/swp_vera-contra
     expect(current.map((link) => link.name)).toEqual(["Boundary"]);
   },
 );
+
+test("once a race was opened, Race leads back to it from any screen, and is current on it", async () => {
+  showRace("race_shown");
+  try {
+    const race = (html: string) =>
+      linksOf(elementOf(html, "nav", 'aria-label="Story"')).find((link) => link.name === "Race");
+    expect(race(await render("/cast"))?.attributes).toStrictEqual({
+      href: "/race/race_shown",
+      class: expect.any(String),
+    });
+    expect(race(await render("/race/race_shown"))?.attributes["aria-current"]).toBe("page");
+  } finally {
+    forgetRace();
+  }
+  // Forgotten, as the start panel forgets it: Race leads to the panel again.
+  const nav = linksOf(elementOf(await render("/cast"), "nav", 'aria-label="Story"'));
+  expect(nav.find((link) => link.name === "Race")?.attributes.href).toBe("/race");
+});
+
+// A race by id keeps the Race current, as a stored sweep keeps Boundary.
+test("on /race/race_x, Race is the current page", async () => {
+  const nav = linksOf(elementOf(await render("/race/race_x"), "nav", 'aria-label="Story"'));
+  const current = nav.filter((link) => link.attributes["aria-current"] === "page");
+  expect(current.map((link) => link.name)).toEqual(["Race"]);
+});
 
 test("on another task's report, no story entry is the current page", async () => {
   const nav = linksOf(

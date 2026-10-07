@@ -1,0 +1,32 @@
+{
+  "id": "race_past-order",
+  "task": {
+    "id": "task_past-order",
+    "goal": "you want to see what you ordered three months ago",
+    "startUrl": "http://localhost:5174/",
+    "success": {
+      "type": "urlMatches",
+      "pattern": "**/deliveries/archive"
+    },
+    "sourceStory": "As a customer I want to click through to the archive from the Deliveries tab so that I can look up something I ordered months ago.",
+    "strippedPaths": ["Deliveries", "archive"]
+  },
+  "startedAt": "2026-09-22T09:59:58.000Z",
+  "runs": [
+    {
+      "id": "run_ada-past-order-1",
+      "profileId": "prof_ada",
+      "seed": 1
+    },
+    {
+      "id": "run_kai-past-order-1",
+      "profileId": "prof_kai",
+      "seed": 1
+    },
+    {
+      "id": "run_vera-past-order-1",
+      "profileId": "prof_vera",
+      "seed": 1
+    }
+  ]
+}

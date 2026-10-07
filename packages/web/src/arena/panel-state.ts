@@ -154,6 +154,49 @@ export function presetOf(id: TaskId): GoalPreset | undefined {
   return GOAL_PRESETS.find((preset) => preset.id === id);
 }
 
+/** Whether `a` and `b` are the one condition: same type, same fields. */
+function sameSuccess(a: SuccessCondition, b: SuccessCondition): boolean {
+  switch (a.type) {
+    case "urlMatches":
+      return b.type === a.type && b.pattern === a.pattern;
+    case "selectorPresent":
+      return b.type === a.type && b.selector === a.selector;
+    case "requestObserved":
+      return b.type === a.type && b.method === a.method && b.urlPattern === a.urlPattern;
+  }
+}
+
+/**
+ * The preset a stored task was checked from, with the preset's success. The Extractor stores each
+ * checked sentence as a task of its own, so its id names no preset; its start URL is the preset's,
+ * and its success too, unless the person typed one of their own (issue #196). None for a task with
+ * a success of the person's own, or one checked for another site.
+ */
+function presetFor(task: Pick<Task, "startUrl" | "success">): GoalPreset | undefined {
+  return GOAL_PRESETS.find(
+    ({ startUrl, success }) => startUrl === task.startUrl && sameSuccess(success, task.success),
+  );
+}
+
+/** The label of the preset a stored task was checked from, such as "Hard goal", or "Goal". */
+export function goalLabel(task: Pick<Task, "startUrl" | "success">): string {
+  return presetFor(task)?.label ?? "Goal";
+}
+
+/**
+ * The preset's own task, when a stored task's goal is its preset's sentence word for word and its
+ * success the preset's: the stored report on that task, the one `seed:demo` writes, is on the same
+ * goal. Every race is checked anew (`startSucceeded` spends the check) and the check mints a new
+ * task, so a race's own task has no report until its runs are analysed. Undefined when the sentence
+ * or the success was edited, or the check rewrote the sentence.
+ */
+export function presetTaskOf(
+  task: Pick<Task, "goal" | "startUrl" | "success">,
+): TaskId | undefined {
+  const preset = presetFor(task);
+  return preset?.sentence === task.goal ? preset.id : undefined;
+}
+
 /**
  * The preset the panel is on. `initialPanel` and the reducer only ever set a preset `GOAL_PRESETS`
  * holds, so a missing one is a bug, and throws.

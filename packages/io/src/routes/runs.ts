@@ -4,8 +4,9 @@
  * file validates at the edge, looks the inputs up, and serves what the runner and the database
  * hold.
  *
- * - `POST /`: a `RunsRequest`. 202 `{ runs }`, one `StartedRun` per seed × persona, seed-major,
- *   every run on the Actor backend the request names, or the runner's default.
+ * - `POST /`: a `RunsRequest`. 202 `{ raceId, runs }`, one `StartedRun` per seed × persona,
+ *   seed-major, every run on the Actor backend the request names, or the runner's default; the
+ *   set is stored as a race under `raceId` (`routes/races.ts`).
  *   400 `{ error }` for a body that is not a `RunsRequest`; 404 `{ error }` naming every unknown
  *   task and profile id; 415 from `createApp` for a body that is not `application/json`; 422
  *   `{ error }` naming `docs/adr/0003-any-target.md` D9 for Jev, named or the default, on a task
@@ -41,10 +42,13 @@ import { zValidator } from "@hono/zod-validator";
 import type { ActorBackendName } from "@wayford/agent";
 import {
   MAX_RUN_SET_SEEDS,
+  newId,
   ProfileId,
+  type Race,
   type RunEvent,
   RunOutcome,
   Seed,
+  type StartedRun,
   SweepId,
   TaskId,
   WayfordError,
@@ -54,6 +58,7 @@ import { type Context, Hono } from "hono";
 import { type SSEMessage, type SSEStreamingApi, streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { Db } from "../db/database.js";
+import { saveRace } from "../db/races.js";
 import { listRuns, loadRun } from "../db/runs.js";
 import { loadTask } from "../db/tasks.js";
 import { attachment, runFilePath } from "../run-files.js";
@@ -151,8 +156,9 @@ export function runsRoute({ db, runner, runsDir, replaySpacingMs = 300 }: RunsRo
         }
         // In request order, which the runner keeps within each seed.
         const profiles = profileIds.flatMap((id) => PROFILES.get(id) ?? []);
+        let runs: StartedRun[];
         try {
-          return c.json({ runs: runner.start(task, profiles, seeds, set) }, 202);
+          runs = runner.start(task, profiles, seeds, set);
         } catch (error) {
           // The body is valid, but the runner refuses what it asks for, before it starts anything.
           if (error instanceof WayfordError && error.code === "jev_off_target_app") {
@@ -160,6 +166,12 @@ export function runsRoute({ db, runner, runsDir, replaySpacingMs = 300 }: RunsRo
           }
           throw error;
         }
+        // Stored once the runner has minted the run ids; `new Date()` is a timestamp, never a
+        // decision. A save that throws is a 500, and the runs are queued by then: they run, and
+        // are stored as ordinary runs in no race.
+        const race: Race = { id: newId("race"), task, startedAt: new Date().toISOString(), runs };
+        await saveRace(db, race);
+        return c.json({ raceId: race.id, runs }, 202);
       },
     )
     .get(

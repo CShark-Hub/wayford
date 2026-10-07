@@ -9,13 +9,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseLlmSettings } from "@wayford/agent";
-import { RunId, RunResult, runResultFromEvents } from "@wayford/core";
+import { RaceId, RunId, RunResult, runResultFromEvents, type StartedRun } from "@wayford/core";
 import { runResultFixture, taskFixture } from "@wayford/core/fixtures";
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import { actorBackends } from "../actor-backends.js";
 import { saveRun } from "../db/runs.js";
 import { saveTask } from "../db/tasks.js";
-import { MAX_CONCURRENT_RUNS, type StartedRun } from "../runner.js";
+import { MAX_CONCURRENT_RUNS } from "../runner.js";
 import {
   type FakeRun,
   type FakeScript,
@@ -137,8 +137,9 @@ describe("POST /runs", () => {
     });
 
     expect(status).toBe(202);
-    // Seed-major: every persona on the first seed, then the second.
+    // Seed-major: every persona on the first seed, then the second. The set is one race.
     expect(body).toStrictEqual({
+      raceId: expect.any(String),
       runs: [
         { id: expect.any(String), profileId: "prof_ada", seed: 1 },
         { id: expect.any(String), profileId: "prof_vera", seed: 1 },
@@ -146,6 +147,7 @@ describe("POST /runs", () => {
         { id: expect.any(String), profileId: "prof_vera", seed: 2 },
       ],
     });
+    expect(RaceId.safeParse(body.raceId).success).toBe(true);
     const runs: StartedRun[] = body.runs;
     for (const { id } of runs) expect(RunId.safeParse(id).success).toBe(true);
     expect(new Set(idsOf(runs)).size).toBe(4);
@@ -159,7 +161,7 @@ describe("POST /runs", () => {
     expect(idsOf(listed.body)).toStrictEqual(idsOf(runs));
   });
 
-  test("a repeated seed is a 400 and starts no run", async () => {
+  test("a repeated seed is a 400 and starts no run or race", async () => {
     const run = fakeRun();
     const { app } = await appOn(run);
 
@@ -173,9 +175,10 @@ describe("POST /runs", () => {
     expect(body.error).toContain("seeds");
     expect(run.calls).toStrictEqual([]);
     expect((await getJson(app, "/runs")).body).toStrictEqual([]);
+    expect((await getJson(app, "/races")).body).toStrictEqual([]);
   });
 
-  test("a repeated profile id, an empty list, 11 seeds, a key it does not know or a backend that is not llm or jev is a 400 and starts no run", async () => {
+  test("a repeated profile id, an empty list, 11 seeds, a key it does not know or a backend that is not llm or jev is a 400 and starts no run or race", async () => {
     const run = fakeRun();
     const { app } = await appOn(run);
     const seeds = Array.from({ length: 11 }, (_, i) => i + 1);
@@ -201,9 +204,10 @@ describe("POST /runs", () => {
     }
     expect(run.calls).toStrictEqual([]);
     expect((await getJson(app, "/runs")).body).toStrictEqual([]);
+    expect((await getJson(app, "/races")).body).toStrictEqual([]);
   });
 
-  test("a body that is not JSON, or not sent as JSON, is refused and starts no run", async () => {
+  test("a body that is not JSON, or not sent as JSON, is refused and starts no run or race", async () => {
     const run = fakeRun();
     const { app } = await appOn(run);
     const post = (type: string | undefined, body: string) =>
@@ -230,6 +234,7 @@ describe("POST /runs", () => {
     }
     expect(run.calls).toStrictEqual([]);
     expect((await getJson(app, "/runs")).body).toStrictEqual([]);
+    expect((await getJson(app, "/races")).body).toStrictEqual([]);
 
     // The same body as JSON, with a charset, starts its run: only the type was refused.
     const accepted = await post("application/json; charset=utf-8", valid);
@@ -322,6 +327,7 @@ describe("POST /runs", () => {
         await sleep(30);
         expect(run.calls).toStrictEqual([]);
         expect((await getJson(app, "/runs")).body).toStrictEqual([]);
+        expect((await getJson(app, "/races")).body).toStrictEqual([]);
       }
     });
 
@@ -345,7 +351,7 @@ describe("POST /runs", () => {
     for (const { id } of runs) await streamOf(app, id);
   });
 
-  test("an unknown task or profile is a 404 naming every unknown id, and starts no run", async () => {
+  test("an unknown task or profile is a 404 naming every unknown id, and starts no run or race", async () => {
     const run = fakeRun();
     const { app } = await appOn(run);
 
@@ -379,6 +385,7 @@ describe("POST /runs", () => {
 
     expect(run.calls).toStrictEqual([]);
     expect((await getJson(app, "/runs")).body).toStrictEqual([]);
+    expect((await getJson(app, "/races")).body).toStrictEqual([]);
   });
 
   test("a run that throws is stored as error and the others are stored", async () => {

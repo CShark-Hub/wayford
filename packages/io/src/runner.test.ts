@@ -14,6 +14,7 @@ import {
   type RunEvent,
   runResultFromEvents,
   type Seed,
+  type StartedRun,
 } from "@wayford/core";
 import {
   groundTruthFixture,
@@ -34,7 +35,6 @@ import {
   type RunFn,
   type Runner,
   type RunnerOptions,
-  type StartedRun,
 } from "./runner.js";
 import {
   capture,

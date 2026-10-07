@@ -46,7 +46,7 @@ import { labelOf, NONE, plural } from "./analyst-text.js";
 import { DEFAULT_DATABASE_URL } from "./config.js";
 import { type Db, sqliteFilePath } from "./db/database.js";
 import { loadRun } from "./db/runs.js";
-import { reports, runs, sweeps } from "./db/schema.js";
+import { races, reports, runs, sweeps } from "./db/schema.js";
 import type { Runner, RunnerOptions } from "./runner.js";
 import { ended, routeOpenFrom, runSweep, type SweepInput } from "./sweep.js";
 import { boundaryLine, routeOpenShare, shown, wallTime } from "./sweep-text.js";
@@ -307,7 +307,8 @@ export async function storedCounts(db: Db) {
 }
 
 /**
- * `--reset`: every run, report and sweep deleted in one transaction, then, when `runsDir` is given,
+ * `--reset`: every run, report, sweep and race deleted in one transaction, so the Race's History
+ * lists no race whose runs are gone, then, when `runsDir` is given,
  * each deleted run's folder under it, by its id. A `RunId` is `run_` and `[a-z0-9-]`, so the path
  * never leaves `runsDir`, and Scout's `ground-truth/` and the calibration reports beside the run
  * folders are never named. Tasks, profiles and the stored axe-core scans are kept.
@@ -320,6 +321,7 @@ export async function emptyStore(db: Db, runsDir?: string): Promise<void> {
     const gone = tx.delete(runs).returning({ id: runs.id }).all();
     tx.delete(reports).run();
     tx.delete(sweeps).run();
+    tx.delete(races).run();
     return gone;
   });
   if (runsDir === undefined) return;

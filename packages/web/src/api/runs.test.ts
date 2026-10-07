@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import type { StartedRun } from "@wayford/core";
 import { runResultFixture, taskFixtures } from "@wayford/core/fixtures";
 import { afterEach, expect, test, vi } from "vitest";
 import { fixtureRuns } from "../runs/fixture-runs.js";
@@ -9,7 +10,6 @@ import {
   fetchTasks,
   runQuery,
   runsQuery,
-  type StartedRun,
   screenshotUrl,
   startRuns,
   type TaskRequest,
@@ -212,11 +212,12 @@ test("a 201 or a 422 that is not io's answer rejects with zod's account of why",
   await expect(refused).rejects.toThrow("→ at survived");
 });
 
-test("startRuns posts the task, personas and seeds to /api/runs as JSON and reads the started runs", async () => {
-  const fetch = answer(Response.json({ runs: startedRuns }, { status: 202 }));
+test("startRuns posts the task, personas and seeds to /api/runs as JSON and reads the started race", async () => {
+  const started = { raceId: "race_ada-vera", runs: startedRuns };
+  const fetch = answer(Response.json(started, { status: 202 }));
   await expect(
     startRuns({ taskId: "task_past-order", profileIds: ["prof_ada", "prof_vera"], seeds: [1] }),
-  ).resolves.toStrictEqual(startedRuns);
+  ).resolves.toStrictEqual(started);
   expect(sent(fetch)).toStrictEqual({
     url: "/api/runs",
     method: "POST",
@@ -235,9 +236,15 @@ test("startRuns rejects a non-OK answer with its status, and io's reason when it
   await expect(startRuns(request)).rejects.toThrow(/^io answered 502$/);
 });
 
-test("a 202 that is not a list of started runs rejects with zod's account of why", async () => {
-  answer(Response.json({ runs: [{ ...startedRuns[0], seed: -1 }] }, { status: 202 }));
-  const started = startRuns({ taskId: "task_past-order", profileIds: ["prof_ada"], seeds: [1] });
-  await expect(started).rejects.toThrow(/^io sent something that is not a list of started runs:\n/);
+test("a 202 that is not a started race rejects with zod's account of why", async () => {
+  const request = { taskId: "task_past-order", profileIds: ["prof_ada"], seeds: [1] };
+  answer(
+    Response.json({ raceId: "race_1", runs: [{ ...startedRuns[0], seed: -1 }] }, { status: 202 }),
+  );
+  const started = startRuns(request);
+  await expect(started).rejects.toThrow(/^io sent something that is not a started race:\n/);
   await expect(started).rejects.toThrow("→ at runs[0].seed");
+  // io before races answered the runs alone: no race to reopen, so no answer the arena can use.
+  answer(Response.json({ runs: startedRuns }, { status: 202 }));
+  await expect(startRuns(request)).rejects.toThrow("→ at raceId");
 });

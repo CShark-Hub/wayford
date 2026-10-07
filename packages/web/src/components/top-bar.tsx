@@ -7,14 +7,17 @@ import { Link } from "@tanstack/react-router";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { createPortal } from "react-dom";
 import { DEMO_GOAL } from "../arena/panel-state.js";
+import { useShownRace } from "../arena/shown-race.js";
 import { ThemeToggle } from "./theme-toggle.js";
 import { buttonVariants } from "./ui/button.js";
 
 /**
  * The story's screens, numbered in the order the demo walks them. A screen joins once its route
  * exists. Report opens the hard goal's report, the one the demo walks. Boundary stays current on
- * `/boundary/$sweepId` and under a search, as a link is current wherever its path leads. Runs sits
- * apart, and Events, the m0-07 debug screen, keeps its route but has no entry.
+ * `/boundary/$sweepId` and under a search, as a link is current wherever its path leads, and Race
+ * on `/race/$raceId` the same way. Race leads back to the race last opened, once there is one
+ * (`arena/shown-race.ts`). Runs sits apart, and Events, the m0-07 debug screen, keeps its route but
+ * has no entry.
  */
 export const STORY_NAV = [
   { number: "01", label: "Cast", to: "/cast" },
@@ -70,6 +73,7 @@ function Wordmark() {
 /** The bar. Its slot element is registered with the provider through its ref. */
 export function TopBar() {
   const { setElement } = useContext(SlotContext);
+  const shownRace = useShownRace();
   return (
     <header className="grid h-(--header-h) grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-(--space-6) border-b border-line bg-paper px-(--space-6)">
       <Wordmark />
@@ -77,9 +81,9 @@ export function TopBar() {
           focus outlines inside the scroll box. */}
       <nav aria-label="Story" className="min-w-0 overflow-x-auto p-1">
         <ul className="mx-auto flex w-max items-center gap-1">
-          {STORY_NAV.map(({ number, label, ...target }) => (
-            <li key={target.to}>
-              <Link {...target} className={NAV_LINK}>
+          {STORY_NAV.map(({ number, label, ...target }) => {
+            const name = (
+              <>
                 {/* The list gives the order, so the link's name is the screen's name alone. */}
                 <span
                   aria-hidden="true"
@@ -88,9 +92,22 @@ export function TopBar() {
                   {number}
                 </span>
                 {label}
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={target.to}>
+                {target.to === "/race" && shownRace !== undefined ? (
+                  <Link to="/race/$raceId" params={{ raceId: shownRace }} className={NAV_LINK}>
+                    {name}
+                  </Link>
+                ) : (
+                  <Link {...target} className={NAV_LINK}>
+                    {name}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </nav>
       <div className="flex items-center gap-2">

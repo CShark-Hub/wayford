@@ -1,5 +1,5 @@
 import { createRoute, createRouter, type RouterHistory, redirect } from "@tanstack/react-router";
-import { arenaRoute } from "./screens/arena.js";
+import { arenaRoutes } from "./screens/arena.js";
 import { boundaryRoute, boundarySweepRoute } from "./screens/boundary.js";
 import { eventsRoute } from "./screens/events.js";
 import { lensRoute } from "./screens/lens.js";
@@ -21,7 +21,7 @@ const indexRoute = createRoute({
 // Each screen file exports its own route. A later screen adds its route file and one entry here.
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  arenaRoute,
+  arenaRoutes,
   boundaryRoute,
   boundarySweepRoute,
   eventsRoute,

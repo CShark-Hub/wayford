@@ -64,7 +64,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 |---|---|---|---|---|---|
 | `/cast` | Cast | Personas | Who crosses: a lineup over a capability matrix | `screens/cast.html` | `s3-14` (optional) |
 | `/lens` | Lens | Preview | The hero: the page as the persona's filter leaves it. Demo beats 1–3 | `screens/lens.html` | `s3-11` |
-| `/race` | Race | Arena | Three to five personas live on one goal. Beat 4 | `screens/race.html` | `s3-12` |
+| `/race` | Race | Arena | Three to five personas live on one goal. Beat 4. Each race keeps its URL, `/race/$raceId`, and the History under the start panel lists them all (issue #194) | `screens/race.html` | `s3-12` |
 | `/report/$taskId` | Report | — | Ten seeds, two numbers, findings by certainty. Beat 5 | `screens/report.html` | `s3-08` |
 | `/runs/$runId` | Run detail | Run detail | One run step by step: screenshot beside what the model read | `screens/run-detail.html` | `s3-12` |
 | `/boundary` | Boundary | Sweep | The first threshold where fewer than half of a persona's runs get through. Beat 6 | `screens/boundary.html` | `s3-09` |

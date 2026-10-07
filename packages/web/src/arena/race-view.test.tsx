@@ -3,6 +3,7 @@ import {
   RunEvent,
   type RunLimit,
   runResultFromEvents,
+  type StartedRun,
   type Task,
   type TaskId,
 } from "@wayford/core";
@@ -10,7 +11,7 @@ import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import type { StreamStatus } from "../api/run-events.js";
-import { type StartedRun, screenshotUrl } from "../api/runs.js";
+import { screenshotUrl } from "../api/runs.js";
 import { attributesOf, classesOf, lineOf, styleOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import { STUCK_STEPS } from "./avatar-state.js";
@@ -27,7 +28,15 @@ import {
   stuckRun,
   tileOf,
 } from "./fixture-race.js";
-import { type RaceSnapshot, runView } from "./race.js";
+import {
+  type LaneFold,
+  liveLane,
+  type RaceSnapshot,
+  raceOver,
+  runView,
+  storedLane,
+  UNSTORED_LANE,
+} from "./race.js";
 import { RaceView } from "./race-view.js";
 
 /** Vera's fixture run, as io's `POST /runs` would have handed it back. */
@@ -71,9 +80,11 @@ function renderRace(
       <RaceView
         task={raceTask}
         label="Hard goal"
-        seed={runs[0]?.seed ?? 1}
+        seeds={[runs[0]?.seed ?? 1]}
         runs={runs}
-        snapshot={snapshot}
+        foldOf={(run) => liveLane(snapshot, run.id)}
+        source="live"
+        over={raceOver(runs, snapshot)}
         profiles={profileFixtures}
         reportTask={reportTask}
         onNewRace={() => {}}
@@ -519,27 +530,26 @@ describe("around the lanes", () => {
     return attributesOf(tag);
   }
 
-  test("New race waits until every run has ended or lost its stream, and says why while it waits", () => {
+  test("New race is open while the race runs, and says the runs go on and a new race queues", () => {
     const running = render(upTo(8));
-    const waiting = newRace(running);
-    expect(waiting).toHaveProperty("disabled");
-    expect(waiting["data-variant"]).toBe("outline");
+    const open = newRace(running);
+    // Several races can run at once (issue #194): the button never waits.
+    expect(open).not.toHaveProperty("disabled");
+    expect(open["data-variant"]).toBe("outline");
     expect(running).toMatch(
       new RegExp(
-        `id="${waiting["aria-describedby"]}"[^>]*>New race opens once every run has ended: io keeps running them, and a new race would queue behind them\\.<`,
+        `id="${open["aria-describedby"]}"[^>]*>io keeps running this race, and the Race tab brings you back to it\\. A new race queues its runs behind these\\.<`,
       ),
     );
-    // What the race says never names the button's state.
-    expect(lineOf(running).toLowerCase()).not.toContain("disabled");
 
     for (const [what, html] of [
       ["ended", render(runEventFixtures, "ended")],
       ["lost", render(upTo(8), "failed")],
     ] as const) {
-      const open = newRace(html);
-      expect(open, what).not.toHaveProperty("disabled");
-      expect(open, what).not.toHaveProperty("aria-describedby");
-      expect(lineOf(html), what).not.toContain("New race opens once");
+      const over = newRace(html);
+      expect(over, what).not.toHaveProperty("disabled");
+      expect(over, what).not.toHaveProperty("aria-describedby");
+      expect(lineOf(html), what).not.toContain("io keeps running this race");
     }
   });
 
@@ -683,5 +693,71 @@ describe("around the lanes", () => {
     expect(tileOf(html, ada)).toMatch(/>1st</);
     expect(trackLabelOf(html, ada)).toMatch(/; got through, 1st$/);
     expect(tileOf(html, vera)).not.toMatch(/>1st</);
+  });
+});
+
+describe("a race drawn from its runs' records", () => {
+  /**
+   * The race of `runs` on `seeds`, each lane as `foldOf` folds it, drawn from records, inside the
+   * app's router, with the hard goal's stored report to lead to.
+   */
+  function renderStored(
+    runs: readonly StartedRun[],
+    foldOf: (run: StartedRun) => LaneFold,
+    seeds: readonly number[] = [vera.seed],
+  ): string {
+    const router = createAppRouter({ history: createMemoryHistory({ initialEntries: ["/race"] }) });
+    return renderToStaticMarkup(
+      <RouterContextProvider router={router}>
+        <RaceView
+          task={raceTask}
+          label="Hard goal"
+          seeds={seeds}
+          runs={runs}
+          foldOf={foldOf}
+          source="stored"
+          over
+          profiles={profileFixtures}
+          reportTask={hardTask.id}
+          onNewRace={() => {}}
+        />
+      </RouterContextProvider>,
+    );
+  }
+
+  test("a stored run's lane reads as its live lane did at its end", () => {
+    const stored = renderStored([vera], () => storedLane(runResultFromEvents(runEventFixtures)));
+    const live = render(runEventFixtures, "ended");
+    expect(standingOf(stored)).toBe(standingOf(live));
+    expect(narrationOf(stored)).toBe(narrationOf(live));
+    expect(avatarStateOf(stored, vera)).toBe(avatarStateOf(live, vera));
+    expect(finishLines(stored)).toStrictEqual(finishLines(live));
+    // io holds the record it was drawn from, so the lane links to the run, as the ended live lane.
+    expect(runLinkOf(stored)).toStrictEqual(runLinkOf(live));
+    expect(runLinkOf(stored)?.href).toBe(`/runs/${vera.id}`);
+    // Over, so the strip leads on to the goal's stored report as the live race's did at its end.
+    expect(stripLinkOf(stored, "See the report")).toStrictEqual(
+      stripLinkOf(live, "See the report"),
+    );
+  });
+
+  test("a run io kept no record of: Stream lost, and the note says why, in fault", () => {
+    const html = renderStored([vera], () => UNSTORED_LANE);
+    expect(standingOf(html)).toBe("Stream lost | — | no steps stored");
+    expect(detailOf(html)?.text).toBe(
+      "No record: the run never started, or io stopped or failed to store it",
+    );
+    expect(detailOf(html)?.classes).toContain("text-fault");
+    expect(finishLines(html)).toStrictEqual(["– Vera Stream lost"]);
+    // No record, so no run detail to link to.
+    expect(runLinkOf(html)).toBeUndefined();
+  });
+
+  test("on several seeds, the strip names every seed and each lane its persona's seed", () => {
+    const second: StartedRun = { ...vera, id: "run_vera-hard-2", seed: 7 };
+    const html = renderStored([vera, second], () => UNSTORED_LANE, [vera.seed, second.seed]);
+    expect(html).toMatch(/<span class="text-ink-3">seeds<\/span>424242, 7<\/span>/);
+    expect(html).toMatch(/<h3 id="race-run_vera-hard-1"[^>]*>Vera, seed 424242<\/h3>/);
+    expect(html).toMatch(/<h3 id="race-run_vera-hard-2"[^>]*>Vera, seed 7<\/h3>/);
   });
 });

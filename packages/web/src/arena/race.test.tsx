@@ -6,6 +6,7 @@ import {
   type RunLimit,
   type RunOutcome,
   runResultFromEvents,
+  type StartedRun,
 } from "@wayford/core";
 import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -14,7 +15,6 @@ import type { OutcomeKind } from "#components/outcome";
 import type { Pip } from "#components/race-lane";
 import { FakeEventSource } from "../api/fake-event-source.js";
 import type { StreamStatus } from "../api/run-events.js";
-import type { StartedRun } from "../api/runs.js";
 import { attributesOf, lineOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import { demoRace } from "./demo-race.js";
@@ -36,6 +36,7 @@ import {
   finishOrder,
   followRace,
   laneOutcome,
+  liveLane,
   type RaceSnapshot,
   type RunView,
   raceOver,
@@ -43,7 +44,9 @@ import {
   runView,
   stepPips,
   stepsText,
+  storedLane,
   throughPlaces,
+  UNSTORED_LANE,
 } from "./race.js";
 import { RaceView } from "./race-view.js";
 
@@ -151,9 +154,11 @@ function render(snapshot: RaceSnapshot): string {
       <RaceView
         task={hardTask}
         label="Hard goal"
-        seed={SEED}
+        seeds={[SEED]}
         runs={runs}
-        snapshot={snapshot}
+        foldOf={(run) => liveLane(snapshot, run.id)}
+        source="live"
+        over={raceOver(runs, snapshot)}
         profiles={profileFixtures}
         reportTask={hardTask.id}
         onNewRace={() => {}}
@@ -711,5 +716,56 @@ describe("laneOutcome", () => {
       "lost",
       "lost",
     ]);
+  });
+});
+
+describe("storedLane: a finished run's lane from its stored record", () => {
+  /**
+   * Every way a run ends: through, crashed mid-run, gave up after wasted steps, over budget as
+   * recorded before #196, and out of time. A step-cap end needs as many steps as the fixture's cap
+   * of 20, so the clock stands for a budget run out that names its limit.
+   */
+  const ENDINGS: [string, readonly RunEvent[]][] = [
+    ...RACE.map(({ run, events }): [string, readonly RunEvent[]] => [run.id, events]),
+    ["over budget", overBudget],
+    ["out of time", cutOffBy("clock")],
+  ];
+
+  test("draws what the live lane drew at the run's end: pips, steps, clock, state, narration, screenshot, outcome word", () => {
+    for (const [name, events] of ENDINGS) {
+      const id = events[0]?.runId ?? "";
+      const live = liveLane({ events: new Map([[id, events]]), streams: new Map() }, id);
+      const stored = storedLane(runResultFromEvents(events));
+      expect(stored.pips, name).toStrictEqual(live.pips);
+      expect(stored.steps, name).toBe(live.steps);
+      expect(stored.lost, name).toBe(false);
+      expect(stored.stored, name).toBe(live.stored);
+      expect(laneOutcome(stored.view, stored.lost), name).toBe(laneOutcome(live.view, live.lost));
+      // The record keeps the outcome and its limit: no end time and no error text.
+      const { ended, ...view } = live.view;
+      const limit = ended?.limit === undefined ? {} : { limit: ended.limit };
+      expect(stored.view, name).toStrictEqual({
+        ...view,
+        ended: { outcome: ended?.outcome, ...limit },
+      });
+    }
+  });
+
+  test("a crash's lane keeps its Error, but not the message the stream carried", () => {
+    const kaiCrash = RACE[1]?.events ?? [];
+    expect(runView(kaiCrash).ended?.error).toBe("Target page, context or browser has been closed");
+    const stored = storedLane(runResultFromEvents(kaiCrash));
+    expect(laneOutcome(stored.view, stored.lost)).toBe("error");
+    expect(stored.view.ended).toStrictEqual({ outcome: "error" });
+  });
+
+  test("a run io kept no record of is a lost lane that says why, with no step", () => {
+    expect(UNSTORED_LANE.lost).toBe(true);
+    expect(laneOutcome(UNSTORED_LANE.view, UNSTORED_LANE.lost)).toBe("lost");
+    expect(UNSTORED_LANE.pips).toStrictEqual([]);
+    expect(UNSTORED_LANE.steps).toBe("no steps stored");
+    expect(UNSTORED_LANE.note).toBe(
+      "No record: the run never started, or io stopped or failed to store it",
+    );
   });
 });

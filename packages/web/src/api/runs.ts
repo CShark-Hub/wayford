@@ -14,10 +14,12 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
   type HttpUrl,
-  ProfileId,
-  RunId,
+  type ProfileId,
+  RaceId,
+  type RunId,
   RunResult,
-  Seed,
+  type Seed,
+  StartedRun,
   type SuccessCondition,
   Task,
   type TaskId,
@@ -130,25 +132,23 @@ export async function extractTask(request: TaskRequest): Promise<Extraction> {
   throw await refusal(response);
 }
 
-/** One run as io's `POST /runs` hands it back (`StartedRun` in `packages/io/src/runner.ts`). */
-export const StartedRun = z.object({ id: RunId, profileId: ProfileId, seed: Seed }).strict();
-export type StartedRun = z.infer<typeof StartedRun>;
-
-/** io's 202 body: one started run per seed × persona, seed-major. */
-const StartedRuns = z.object({ runs: StartedRun.array() }).strict();
+/**
+ * io's 202 body: the race the runs make, which `api/races.ts` reads back by its id, and one started
+ * run per seed × persona, seed-major.
+ */
+const StartedRace = z.object({ raceId: RaceId, runs: StartedRun.array() }).strict();
+export type StartedRace = z.infer<typeof StartedRace>;
 
 /**
- * `POST /api/runs` with `{ taskId, profileIds, seeds }`. io's 202 parses `{ runs: StartedRun[] }`;
- * a non-OK answer rejects with io's `error` text (a 404 names the unknown task or profile).
+ * `POST /api/runs` with `{ taskId, profileIds, seeds }`. io's 202 parses `{ raceId, runs }`; a
+ * non-OK answer rejects with io's `error` text (a 404 names the unknown task or profile).
  */
 export async function startRuns(request: {
   taskId: TaskId;
   profileIds: ProfileId[];
   seeds: Seed[];
-}): Promise<StartedRun[]> {
-  return (
-    await parseResponse(await postJson("/api/runs", request), StartedRuns, "a list of started runs")
-  ).runs;
+}): Promise<StartedRace> {
+  return parseResponse(await postJson("/api/runs", request), StartedRace, "a started race");
 }
 
 /**

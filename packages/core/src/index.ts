@@ -10,6 +10,7 @@ export * from "./measurement.js";
 export * from "./observation.js";
 export * from "./primitives.js";
 export * from "./profile.js";
+export * from "./race.js";
 export * from "./random.js";
 export * from "./report.js";
 export * from "./run.js";
