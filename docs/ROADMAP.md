@@ -13,7 +13,7 @@ Milestones are weekly. Exit criteria are commands or clicks, never sentences.
 - A human grabs a task by writing their name into `tasks/BOARD.md`, runs their agent on it, reviews the result, opens the PR.
 - One reviewer for every PR, someone who did not work on the task. Until week 4, changes to the filter contract (`packages/core/src/observation.ts`, `measurement.ts`, and `docs/RULES.md`) took two approvals; from week 4 they take one, like everything else (decided 2026-10-04).
 - One 30 minute sync per week. Everything else asynchronous, status in `tasks/BOARD.md`.
-- Anything not merged by Friday of week 4, 2026-10-16, does not exist for the demo.
+- Anything not merged by Tuesday 2026-10-13 does not exist for the demo or the finals, both on Wednesday 2026-10-14.
 
 ## Kickoff — before week 1 starts
 
@@ -107,7 +107,14 @@ Exit criteria:
 
 ## Week 4 — M4 report and sweep, M5 demo
 
-Monday 2026-10-05 to Friday 2026-10-16. Week 3 finished a week early, so week 4 has two calendar weeks, about 16 task slots, for 13 tasks and the demo work. Tasks: `tasks/BOARD.md`, week 4.
+Monday 2026-10-05 to Tuesday 2026-10-13, the merge cutoff; the demo and the finals are on Wednesday 2026-10-14. Week 3 finished a week early, so week 4 has seven working days: about eleven task slots at the plan's rate of eight a week. Tasks: `tasks/BOARD.md`, week 4.
+
+Capacity, recounted on 2026-10-07:
+
+- **Left:** five working days, about eight slots.
+- **The demo:** every build task is done or in review. What it still needs is those reviews, `demo-1` and `demo-2`: about three slots.
+- **Any target:** the table needs about eight slots, and its floor about five (`s2-13`, `s1-07`, `s4-09`, `s3-15`, `s3-16`).
+- **So both fit only with more than 4 h per person.** The team plans for that (Tomasz, 2026-10-06). If it does not happen, the any-target table is what gets cut, from `demo-3` down to its floor: the Lens, the Race and a report on our own pick.
 
 Meeting point two: frontend on real analysis.
 
@@ -123,9 +130,12 @@ Scope, agreed 2026-10-04 (`docs/PLAN.md`, "Hackathon scope"): what `docs/DEMO.md
   - the Report (`s3-08`) and Boundary (`s3-09`) screens built on it;
   - Cast and Runs last and optional (`s3-14`): the demo shows neither.
 - `seed:demo` (`s4-07`), with a `--fake` mode that fills every screen with no key.
-- The demo: the script agreed by Friday 2026-10-09, two rehearsals and the backup video by Friday 2026-10-16.
+- Any target, for the finals (`docs/adr/0003-any-target.md`, added 2026-10-06): runs, the Lens, Scout and the report on a site entered on a new Target screen, and a sweep on it prepared with the CLI. Our pick goes through the API first, then a rehearsal through the UI. Taken after the demo tasks and before the optional ones; the 90-second demo does not wait on it.
+- The demo: the script agreed by Friday 2026-10-09, two rehearsals and the backup video by Tuesday 2026-10-13.
 
-Optional, once every must task is taken: `s3-14` (Cast and Runs redesigned), `s3-06` (illustration view), `s4-08` (public-site run), and the behaviour rules `s2-07` (B2), `s2-08` (B4) and `s2-09` (a simulated clock), in that order.
+Any target, for the finals, once every must task is taken: `s2-13`, then `s1-07` (our pick through the API), `s4-09`, `s4-10`, `s3-15` and `s3-16`, then the rehearsal `s4-08` and the drill `demo-3`. `s2-14` only if a run hits a new tab (`tasks/BOARD.md`).
+
+Optional, once every must task and every any-target task is taken: `s3-14` (Cast and Runs redesigned), `s3-06` (illustration view), and the behaviour rules `s2-07` (B2), `s2-08` (B4) and `s2-09` (a simulated clock), in that order.
 
 Exit criteria:
 
@@ -169,7 +179,16 @@ flowchart LR
   demo2["demo-2 Two rehearsals,<br/>backup video"]
 
   s3_06["s3-06 Illustration view"]
-  s4_08["s4-08 Public-site run"]
+
+  s2_13["s2-13 Runs on any site"]
+  s2_14["s2-14 Follow a new tab"]
+  s4_09["s4-09 io on any URL"]
+  s4_10["s4-10 Scout, sweep<br/>on any task"]
+  s3_15["s3-15 Target screen"]
+  s3_16["s3-16 Lens, Race<br/>take a target"]
+  s4_08["s4-08 Rehearsal<br/>on our site"]
+  s1_07["s1-07 Our pick<br/>through the API"]
+  demo3["demo-3 Drill on an<br/>unseen site"]
 
   s1_06 --> s4_04
   s1_06 --> s4_05
@@ -194,12 +213,28 @@ flowchart LR
   s3_10 --> demo2
   s4_06 --> demo2
   s3_07 --> s3_06
+  s2_13 --> s4_09
+  s2_13 --> s4_10
+  s4_09 -. report box .-> s4_10
+  s3_13 --> s3_15
+  s4_10 -. Scout .-> s3_15
+  s3_11 --> s3_16
+  s3_12 --> s3_16
+  s4_09 --> s3_16
+  s2_13 --> s1_07
+  s1_07 -. a new tab .-> s2_14
+  s1_07 --> s4_08
+  s4_09 --> s4_08
+  s4_10 --> s4_08
+  s3_15 --> s4_08
+  s3_16 --> s4_08
+  s4_08 --> demo3
 
-  class s3_07,s3_13,s1_06,s4_06,s2_12,s3_10,demo1 ready
-  class s3_06,s4_08,s3_14 optional
+  class s3_07,s3_13,s1_06,s4_06,s2_12,s3_10,demo1,s2_13,s3_15 ready
+  class s3_06,s3_14,s2_14 optional
 ```
 
-Thick border: can start Monday 2026-10-05, `s3-13` from Tuesday 2026-10-06. Dashed border: optional. `s2-07` to `s2-09` are optional too and wait on nothing open; they are left off the map.
+Thick border: can start Monday 2026-10-05, `s3-13` from Tuesday 2026-10-06, `s2-13` and `s3-15` from Wednesday 2026-10-07. Dashed border: optional, or `s2-14`, taken only if a run hits a new tab. The any-target tasks, `s2-13` to `demo-3`, are for the finals: the 90-second demo waits on none of them. `s2-07` to `s2-09` are optional too and wait on nothing open; they are left off the map.
 
 ## Cut order if time runs out
 
@@ -216,8 +251,8 @@ Cut from the bottom, never from the top.
 9. Jev: io on Jev and its decisions in run detail (`s2-12`, `s3-10`). Without them `seed:demo` and the sweeps run on the LLM, slower and dearer.
 10. axe-core sidecar (`s4-06`). Without it, beat 3 cites the filter's own measurement from `s1-04`.
 11. Sweep on `maxElements`.
-12. Lens illustration view (`s3-06`).
-13. Real public site run (`s4-08`).
+12. Any target, for the finals (`docs/adr/0003-any-target.md`): the drill (`demo-3`) first, then the sweep on a foreign goal. The Lens, the Race and a report on our own pick are its floor.
+13. Lens illustration view (`s3-06`).
 14. Behaviour beyond B1 (`s2-07`, `s2-08`, `s2-09`).
 15. Cast and Runs redesigned (`s3-14`). Without it both keep their week 3 layouts under the new tokens.
 

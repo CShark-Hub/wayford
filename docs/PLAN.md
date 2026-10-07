@@ -12,7 +12,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A2 | Jury / audience is mixed: technical depth and show both count. Hero screen is the live preview, credibility comes from the boundary sweep. | default |
 | A3 | Code should be clean enough to continue after the hackathon, without over-engineering. | default |
 | A4 | Planning docs and an empty repo skeleton may exist before the hackathon starts. Frameworks and libraries are allowed. | default, verify rules |
-| A5 | Demo target is our own small target app with tunable CSS variables. One real public site is used for a single credibility run. | default |
+| A5 | The 90-second demo runs on our own small target app with tunable CSS variables. In the finals, Wayford runs on a site someone hands us: our own rehearsed pick, and the app the judges give, entered through a form (`docs/adr/0003-any-target.md`). | default; Tomasz, 2026-10-06 |
 | A6 | Preview runs the real filter code on the live target app, with a stored-snapshot fallback. | default |
 | A7 | Ring shows 3 to 5 personas, each with the event stream and per-step screenshots. No live video: cut to keep the hackathon scope small. | m0-08 |
 | A8 | Boundary sweep covers two axes: contrast on Vera and the attention cap `maxElements` on Kai. The axis selector offers those two. | default, 2026-10-01 |
@@ -66,15 +66,16 @@ Agreed 2026-10-04, for week 4. What we ship is what `docs/DEMO.md` shows: every 
 - **F11 Demo data:** on Jev, with a `--fake` mode that needs no key.
 - **Look:** one design system (`docs/DESIGN.md`, approved 2026-10-06 in `docs/adr/0002-daylight-instrument-redesign.md`) over the demo screens: Lens, Race, run detail, Report, Boundary. Wayford's own screens pass its own measurement at Vera's floors: 16 px text, 32 px targets.
 - **Jev:** run detail shows each step's options, probabilities and draw.
+- **Any target, for the finals:** the Lens, the Race, the Report and the Boundary on a site entered on the Target screen, with what only the target app has (its parameters, jargon list and route table) handed only to runs on it. A sweep on such a site is prepared with the CLI. Decided in `docs/adr/0003-any-target.md`; the tasks are in `tasks/BOARD.md`, "Any target, for the finals".
 
 Cut for the hackathon, so nobody builds them:
 
 - F1 AC1, the profile builder. The personas are the five fixtures; the preview's sliders change thresholds.
 - Jev in the arena: no backend toggle, no Jev tiles.
-- The collector gaps (#124 to #127, #146, #149) and #64 beyond the sweep fields, unless a demo beat hits one.
-- A route table for the easy goal, and tasks that need typing.
+- The collector gaps (#124 to #127, #146, #149) and #64 beyond the sweep fields, unless a demo beat or the rehearsal on our site (`s4-08`) hits one.
+- A route table for the easy goal, and target-app tasks that need typing. A goal on another site may need typing: it runs on the LLM, which can type (`docs/adr/0003-any-target.md` D9).
 
-Optional, once every must task is taken: the illustration view (`s3-06`), the public-site run (`s4-08`), and B2, B4 and the simulated clock (`s2-07` to `s2-09`).
+Optional, once every must task and every any-target task is taken: the illustration view (`s3-06`), and B2, B4 and the simulated clock (`s2-07` to `s2-09`). The public-site run (`s4-08`) became the rehearsal for the finals.
 
 ## Functional requirements
 

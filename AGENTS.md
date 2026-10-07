@@ -7,7 +7,7 @@ The product description lives in `KONCEPCJA.md`. **This file holds what that one
 
 ## Current state
 
-Weeks 1 to 3 done, week 4 running from 2026-10-05; merge cutoff for the demo Friday 2026-10-16. Four people, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
+Weeks 1 to 3 done, week 4 running from 2026-10-05; merge cutoff Tuesday 2026-10-13, for the demo and the finals on 2026-10-14. Four people, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
 
 What exists: the seven contracts in `packages/core`; the perception filter with knowledge, vocabulary and attention stages (`packages/filter`); the Actor loop on an LLM or Jev, Scout and the calibration run (`packages/agent`); the runs API and database (`packages/io`); the personas, preview, arena, runs and run detail screens (`packages/web`); the target app with three routes to its hard goal (`packages/target-app`).
 

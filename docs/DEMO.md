@@ -103,7 +103,28 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 - **"Why not prompt 'you have poor eyesight'?"** That is impersonation. The prompt's instructions are identical for every persona, and a test fails if they are not (F5 AC6). Only the observation, the history the persona keeps and the dice differ.
 - **"What does it cost?"** From `seed:demo` (`s4-07`): [N] runs for [X] USD in [M] minutes on Jev; the calibration run (`s2-11`) has the LLM's figures beside it.
 - **"Why a second model?"** Speed and run-level variance. Jev reads exactly the filtered page the LLM reads, the action is drawn from its probabilities with the run seed, so a stored run replays down to the action. Its confidence is the model's, never the persona's.
-- **"Does it work on real sites?"** The credibility run (week 4), with the collector's known gaps (#124 to #127).
+- **"Does it work on real sites?"** On sites with no login, no cookie wall in an iframe and no bot check, yes: "Finals: any target" below. Say what is weaker there: no route-open number and no K2 off the target app, and the seed replays the decisions, not the site.
+
+## Finals: any target
+
+Not part of the 90 seconds. If we reach the finals, on 2026-10-14, Wayford runs on a site someone hands us (`docs/adr/0003-any-target.md`):
+
+- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its two goals, the results per persona and the gaps it hit go here as those tasks finish.
+- **The judges' app.** It should work more or less. If it does not, we say why in one line (a login, a cookie banner in an iframe, a bot check) and switch to our pick.
+
+The flow, from the Target screen:
+
+1. Type the start URL, the goal in one sentence and how success is checked. "Check the goal" strips any path out of it.
+2. Open the Lens on the start URL: Ada, then Vera, then Kai.
+3. Race Ada, Kai and Vera on the goal, on the LLM.
+4. Scout, then a run set with its report, on the LLM: Jev runs on our own app only (`docs/adr/0003-any-target.md` D9). On our pick, open the ten-seed report prepared before. On the judges' app, three seeds: nine runs, five at a time.
+5. The Boundary, on our pick only: a sweep prepared in advance with the CLI.
+
+What to say off the target app:
+
+- "There is no route-open number here. That needs a route table, which we wrote for our own app only."
+- "Kai's vocabulary rule is off: this site has no jargon list."
+- "The seed replays every perception decision and every roll on the page we measured. It cannot replay the site, which may change, and a page that was still moving when we measured it may measure differently next time."
 
 ## The week 3 rehearsal
 
