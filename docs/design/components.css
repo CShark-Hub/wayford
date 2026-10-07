@@ -247,6 +247,20 @@ button.wf-avatar:hover, a.wf-avatar:hover { transform: translateY(-2px); }
 .wf-evchip:hover { background: var(--paper-sunken); }
 .wf-evchip::after { content: "→"; color: var(--ink-3); font-family: var(--font-sans); }
 
+/* The evidence under a finding, last in the card and lighter than the rest: one link per run, three at
+   most, then a toggle ("Show 7 more", "Show fewer") for the others. The chip above is a single citation. */
+.wf-evidence { display: grid; grid-template-columns: auto 1fr; column-gap: var(--space-2); align-items: start; margin: 0; }
+.wf-evidence__label { font: 400 16px/24px var(--font-mono); color: var(--ink-3); padding: 4px 0; }
+.wf-evidence__list { display: flex; flex-wrap: wrap; column-gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.wf-evlink, .wf-evmore {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0; border: 0; background: none;
+  font: 400 16px/24px var(--font-sans); color: var(--ink-2); text-decoration: none; transition: color 160ms ease-out;
+}
+.wf-evlink:hover, .wf-evmore:hover { color: var(--ink); }
+.wf-evlink > span, .wf-evmore { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.wf-evlink::after { content: "→"; color: var(--ink-3); }
+.wf-evmore { cursor: pointer; }
+
 /* ---------- Race lane ---------- */
 .wf-lane {
   display: grid; grid-template-columns: 236px 1fr 168px 128px; align-items: center; gap: var(--space-2) var(--space-5);

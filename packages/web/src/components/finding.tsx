@@ -1,17 +1,31 @@
 /**
  * One finding of the report (`docs/DESIGN.md`, "Finding"), as `.wf-finding` draws it: its tags,
- * the claim, the evidence chips, the detail, and what to change. Its border is its certainty
- * (Principle 3): a hairline for a measurement or a filter decision, dashed for a hypothesis, dotted
- * for anything resting on a `folk` or `llm` threshold. Soft keeps the finding's group; it only
- * marks it (`docs/PLAN.md` F8 AC5).
+ * the claim, the detail, what to change, and last, in lighter type, the runs behind it. Its border
+ * is its certainty (Principle 3): a hairline for a measurement or a filter decision, dashed for a
+ * hypothesis, dotted for anything resting on a `folk` or `llm` threshold. Soft keeps the finding's
+ * group; it only marks it (`docs/PLAN.md` F8 AC5).
  *
- * Every evidence chip opens its run at its step (`AGENTS.md`, "Every verdict clickable through to
- * evidence") and says how that run ended, so a failed run can be picked by its word.
+ * Every finding links to the runs behind it (`AGENTS.md`, "Every verdict clickable through to
+ * evidence"): one link per run, however many of its steps the finding cites, landing on the
+ * earliest of them. The link says whose run it was, its seed and how it ended, so a failed run can
+ * be picked by its word. Three show and the rest wait behind "Show N more", so a finding backed by
+ * every seed does not make its card, and its column, far taller than the others. With a persona
+ * picked, its runs come first, so its own evidence stays in view. The run's replay is where the
+ * steps belong.
  */
 import { Link } from "@tanstack/react-router";
-import { type Finding, isUnsourced, type RunId, type RunOutcome } from "@wayford/core";
+import {
+  type EvidenceRef,
+  type Finding,
+  isUnsourced,
+  type ProfileId,
+  type RunId,
+  type RunOutcome,
+  type Seed,
+} from "@wayford/core";
 import { cn } from "cn";
-import { PersonaName } from "../runs/task-results.js";
+import { useEffect, useRef, useState } from "react";
+import { PersonaName, personaLabel } from "../runs/task-results.js";
 import type { CertaintyLine } from "./certainty.js";
 import { OUTCOME_WORDS } from "./outcome-words.js";
 import { ProvenanceTag, Tag } from "./tag.js";
@@ -35,18 +49,107 @@ const BORDER: Record<CertaintyLine, string> = {
   soft: "border-2 border-dotted border-line-strong",
 };
 
-const EVIDENCE_CHIP =
-  "inline-flex min-h-8 items-center gap-1.5 rounded-sm border border-line-strong bg-paper px-2.5 mono text-ink transition-colors hover:bg-paper-sunken";
+/** What the report knows of a run it read: whose it was, its seed and how it ended. */
+export type CitedRun = { profileId: ProfileId; seed: Seed; outcome: RunOutcome };
+
+/** How many evidence links a card shows before "Show N more". */
+const SHOWN = 3;
+
+const EVIDENCE_LINK =
+  "inline-flex min-h-8 items-center gap-1.5 body text-ink-2 transition-colors hover:text-ink";
+const UNDERLINED = "underline decoration-line-strong underline-offset-4";
 
 /**
- * `finding` as a card. `outcomeOf` says how an evidence run ended, from the report's own seeds.
+ * The runs `evidence` cites, in the order it first names them but `persona`'s first, each at the
+ * earliest step it cites in that run.
  */
+function runsCited(
+  evidence: readonly EvidenceRef[],
+  runOf: (runId: RunId) => CitedRun,
+  persona: ProfileId | undefined,
+): EvidenceRef[] {
+  const firstStep = new Map<RunId, number>();
+  for (const { runId, stepIndex } of evidence) {
+    firstStep.set(runId, Math.min(firstStep.get(runId) ?? stepIndex, stepIndex));
+  }
+  const picked = (runId: RunId) => runOf(runId).profileId === persona;
+  return [...firstStep]
+    .map(([runId, stepIndex]) => ({ runId, stepIndex }))
+    .sort((a, b) => Number(picked(b.runId)) - Number(picked(a.runId)));
+}
+
+/** The evidence row: a link per run cited, the first three, and a toggle for the rest. */
+function EvidenceLinks({
+  evidence,
+  runOf,
+  persona,
+}: {
+  evidence: readonly EvidenceRef[];
+  runOf: (runId: RunId) => CitedRun;
+  persona: ProfileId | undefined;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  // The rest open before the toggle, so focus moves to the first of them, not past them.
+  const firstOfRest = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (expanded) firstOfRest.current?.focus();
+  }, [expanded]);
+  const runs = runsCited(evidence, runOf, persona);
+  const rest = runs.length - SHOWN;
+  return (
+    <div className="grid grid-cols-[auto_1fr] items-start gap-x-(--space-2)">
+      <span className="mono py-1 text-ink-3">evidence</span>
+      <ul className="flex flex-wrap items-center gap-x-(--space-4)">
+        {(expanded ? runs : runs.slice(0, SHOWN)).map(({ runId, stepIndex }, i) => {
+          const run = runOf(runId);
+          return (
+            <li key={runId}>
+              <Link
+                ref={i === SHOWN ? firstOfRest : undefined}
+                to="/runs/$runId"
+                params={{ runId }}
+                search={{ step: stepIndex }}
+                className={EVIDENCE_LINK}
+              >
+                <span className={UNDERLINED}>
+                  {`${personaLabel(run.profileId)}, seed `}
+                  <span className="mono">{run.seed}</span>
+                  {` · ${OUTCOME_WORDS[run.outcome]}`}
+                </span>
+                {/* A span, not CSS content: a pseudo-element's text joins the link's accessible name. */}
+                <span aria-hidden="true" className="font-sans text-ink-3">
+                  →
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+        {rest > 0 ? (
+          <li>
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+              className={cn(EVIDENCE_LINK, UNDERLINED, "cursor-pointer")}
+            >
+              {expanded ? "Show fewer" : `Show ${rest} more`}
+            </button>
+          </li>
+        ) : null}
+      </ul>
+    </div>
+  );
+}
+
+/** `finding` as a card. `persona` is the one picked on the report, if any. */
 export function FindingCard({
   finding,
-  outcomeOf,
+  runOf,
+  persona,
 }: {
   finding: Finding;
-  outcomeOf: (runId: RunId) => RunOutcome;
+  runOf: (runId: RunId) => CitedRun;
+  persona?: ProfileId | undefined;
 }) {
   const line = findingLine(finding);
   return (
@@ -70,31 +173,12 @@ export function FindingCard({
         </div>
       </div>
       <h3 className="title text-balance text-ink">{finding.title}</h3>
-      <div className="grid justify-items-start gap-1.5">
-        {finding.evidence.map((ref) => {
-          const word = OUTCOME_WORDS[outcomeOf(ref.runId)];
-          return (
-            <Link
-              key={`${ref.runId}-${ref.stepIndex}`}
-              to="/runs/$runId"
-              params={{ runId: ref.runId }}
-              search={{ step: ref.stepIndex }}
-              className={EVIDENCE_CHIP}
-            >
-              {`${ref.runId} · step ${ref.stepIndex} · ${word}`}
-              {/* A span, not CSS content: a pseudo-element's text joins the link's accessible name. */}
-              <span aria-hidden="true" className="font-sans text-ink-3">
-                →
-              </span>
-            </Link>
-          );
-        })}
-      </div>
       <p className="body max-w-[68ch] text-pretty text-ink-2">{finding.detail}</p>
       <p className="grid grid-cols-[auto_1fr] items-start gap-2 border-t border-line pt-(--space-3) body text-ink">
         <span className="mono text-ink-3">change →</span>
         <span>{finding.recommendation}</span>
       </p>
+      <EvidenceLinks evidence={finding.evidence} runOf={runOf} persona={persona} />
     </article>
   );
 }

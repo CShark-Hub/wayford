@@ -283,19 +283,40 @@ describe("the findings", () => {
   });
 
   test.each([
-    ["the hard goal", HARD],
-    ["the easy goal", EASY],
-  ])("on %s, every evidence chip links to /runs/<runId>?step=<n>", async (_, report) => {
-    const html = await render(`/report/${report.taskId}`, report);
-    const expected = report.findings
-      .flatMap((f) => f.evidence.map((ref) => `/runs/${ref.runId}?step=${ref.stepIndex}`))
-      .sort();
-    const chips = linksOf(html)
-      .map((a) => a.href ?? "")
-      .filter((href) => href.includes("?step="))
-      .sort();
-    expect(chips).toEqual(expected);
-  });
+    [
+      "the hard goal",
+      HARD,
+      // Column by column. The hypothesis cites its run at steps 1 and 4, and links it once.
+      [
+        ["/runs/run_ada-past-order-1?step=1", "Ada, seed 1 · Got through"],
+        ["/runs/run_kai-past-order-1?step=1", "Kai, seed 1 · Gave up"],
+        ["/runs/run_kai-past-order-3?step=1", "Kai, seed 3 · Over budget"],
+        ["/runs/run_vera-past-order-2?step=1", "Vera, seed 2 · Gave up"],
+        ["/runs/run_vera-past-order-3?step=1", "Vera, seed 3 · Over budget"],
+        ["/runs/run_vera-past-order-1?step=1", "Vera, seed 1 · Gave up"],
+      ],
+    ],
+    [
+      "the easy goal",
+      EASY,
+      [
+        ["/runs/run_kai-next-parcel-1?step=1", "Kai, seed 1 · Got through"],
+        ["/runs/run_kai-next-parcel-2?step=1", "Kai, seed 2 · Gave up"],
+      ],
+    ],
+  ])(
+    "on %s, each finding links its runs by persona and seed, once each",
+    async (_, report, links) => {
+      const html = await render(`/report/${report.taskId}`, report);
+      const evidence = [...html.matchAll(/<a(\s[^>]*)>(.*?)<\/a>/gs)]
+        .map((a) => [
+          attributesOf(a[1] ?? "").href ?? "",
+          lineOf((a[2] ?? "").replace(/<span aria-hidden="true"[^>]*>.*?<\/span>/gs, "")),
+        ])
+        .filter(([href]) => href?.includes("?step="));
+      expect(evidence).toEqual(links);
+    },
+  );
 });
 
 describe("a persona picked", () => {
@@ -307,6 +328,29 @@ describe("a persona picked", () => {
     expect(titles.some((t) => t.includes("measures 2.005:1"))).toBe(true);
     expect(titles.some((t) => t.includes("for Vera"))).toBe(false);
     expect(titles.some((t) => t.includes("masked name"))).toBe(false);
+  });
+
+  test("puts Kai's runs first in the evidence of a measurement that cites every run", async () => {
+    const runs = HARD.personas.flatMap((result) => result.seeds.map((seed) => seed.runId));
+    const everyRun = Report.parse({
+      ...HARD,
+      findings: HARD.findings.map((f) =>
+        f.type === "measurement"
+          ? { ...f, evidence: runs.map((runId) => ({ runId, stepIndex: 1 })) }
+          : f,
+      ),
+    });
+    const measurement = groupOf(await render(PATH, everyRun), "measurement").body;
+    const links = [...measurement.matchAll(/<a(\s[^>]*)>(.*?)<\/a>/gs)].map((a) =>
+      lineOf((a[2] ?? "").replace(/<span aria-hidden="true"[^>]*>.*?<\/span>/gs, "")),
+    );
+    expect(links).toEqual([
+      "Kai, seed 1 · Gave up",
+      "Kai, seed 2 · Got through",
+      "Kai, seed 3 · Over budget",
+    ]);
+    // The other six runs of the nine are still there, behind the toggle.
+    expect(buttonsOf(measurement)).toEqual(["Show 6 more"]);
   });
 
   test("says so above the findings, with Show all", async () => {

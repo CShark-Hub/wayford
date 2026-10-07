@@ -45,7 +45,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 4. **Every number opens its evidence.**
    - Numbers are k/n in `mono`, never a bare percentage.
    - Route open and got through are always two numbers, never one score, and no sentence turns one into the other. The boundary is a got-through number, so it is never "where the route closes".
-   - A seed cell, a readout and an evidence chip each link to the run and step behind them.
+   - A seed cell, a readout and an evidence link each link to the run behind them; an evidence link lands on the earliest step the finding cites in that run.
    - No evidence, no finding.
 5. **Wayford passes its own cast.** The floors come from Vera's fixture thresholds:
    - no text under 16 px;
@@ -200,7 +200,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | JevDraw | Options laid end to end on 0–1, the rolled needle in signal, the drawn segment filled | `s3-10` |
 | SeedStrip | One 32 px cell per seed: border = route open (solid) or closed (dashed), fill = got through, slash = error | `s3-08` |
 | Readout | The two numbers, k/n in `readout`; got through with a dashed underline; the gap bar | `s3-08` |
-| Finding | Title, detail, `change →`, basis tags, persona chips, evidence chips; dashed for hypothesis, dotted for soft | `s3-08` |
+| Finding | Persona chips and basis tags, title, detail, `change →`, then the evidence, lighter: one link per run, `Kai, seed 1 · Gave up`, the picked persona's first, three before "Show N more"; dashed for hypothesis, dotted for soft | `s3-08` |
 | EmptyState | A label, a sentence, a line, an action | `s3-08` |
 | SweepChart | Plain SVG, see "Charts" | `s3-09` |
 | CastCard | One persona's spec sheet, where a persona is shown alone | `s3-14` |

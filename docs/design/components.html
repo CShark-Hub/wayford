@@ -82,19 +82,19 @@
   <span class="wf-el wf-el--capped" style="padding:2px 6px"><span class="wf-cut wf-cut--quiet">A1 · 12th of 11</span><span>Help centre</span></span>
 </div>
 </section>
-<section class="ref"><h2 class="ref__name">Finding</h2><p class="ref__note">One finding of the Analyst's report: title, detail, the change to make, its basis, its personas and the evidence steps it rests on.</p>
+<section class="ref"><h2 class="ref__name">Finding</h2><p class="ref__note">One finding of the Analyst's report: title, detail, the change to make, its basis, its personas and the runs it rests on, as one link per run, the picked persona's first: three show, the rest wait behind “Show N more”.</p>
 <div class="wf-pad" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start">
 <article class="wf-finding">
-  <div class="wf-row"><span class="wf-cert wf-cert--deterministic">deterministic</span><span class="wf-tag wf-tag--rule" style="margin-left:auto">P1</span><span class="wf-tag">wcag22</span></div>
+  <div class="wf-row"><span class="wf-pchip wf-p-cobalt">Vera</span><span class="wf-cert wf-cert--deterministic">deterministic</span><span class="wf-tag wf-tag--rule" style="margin-left:auto">P1</span><span class="wf-tag">wcag22</span></div>
   <h3 class="wf-finding__title">"Order archive" on /deliveries is cut by P1 for Vera in 2 of 3 seeds</h3>
   <p class="wf-finding__change"><b>change →</b><span>Raise the link's text to at least 4.5:1 against its background.</span></p>
-  <div class="wf-row"><span class="wf-pchip wf-p-cobalt">Vera</span><a class="wf-evchip" href="#">run_vera-past-order-2 · step 1</a></div>
+  <div class="wf-evidence"><span class="wf-evidence__label">evidence</span><ul class="wf-evidence__list"><li><a class="wf-evlink" href="#"><span>Vera, seed <span class="wf-mono">2</span> · Gave up</span></a></li><li><a class="wf-evlink" href="#"><span>Vera, seed <span class="wf-mono">3</span> · Over budget</span></a></li></ul></div>
 </article>
 <article class="wf-finding wf-finding--soft">
-  <div class="wf-row"><span class="wf-cert wf-cert--soft">deterministic · soft</span><span class="wf-tag wf-tag--rule" style="margin-left:auto">A1</span><span class="wf-tag wf-tag--soft">folk · no source</span></div>
-  <h3 class="wf-finding__title">"Order archive" is cut by A1 for Kai in 3 of 3 seeds</h3>
+  <div class="wf-row"><span class="wf-pchip wf-p-raspberry">Kai</span><span class="wf-cert wf-cert--soft">deterministic · soft</span><span class="wf-tag wf-tag--rule" style="margin-left:auto">A1</span><span class="wf-tag wf-tag--soft">folk · no source</span></div>
+  <h3 class="wf-finding__title">"Order archive" is cut by A1 for Kai in 10 of 10 seeds</h3>
   <p class="wf-finding__change"><b>change →</b><span>Move the archive link up beside the list and give it the size of the page's other links.</span></p>
-  <div class="wf-row"><span class="wf-pchip wf-p-raspberry">Kai</span><a class="wf-evchip" href="#">run_kai-past-order-1 · step 1</a></div>
+  <div class="wf-evidence"><span class="wf-evidence__label">evidence</span><ul class="wf-evidence__list"><li><a class="wf-evlink" href="#"><span>Kai, seed <span class="wf-mono">1</span> · Gave up</span></a></li><li><a class="wf-evlink" href="#"><span>Kai, seed <span class="wf-mono">2</span> · Got through</span></a></li><li><a class="wf-evlink" href="#"><span>Kai, seed <span class="wf-mono">3</span> · Over budget</span></a></li><li><button class="wf-evmore" type="button" aria-expanded="false">Show 7 more</button></li></ul></div>
 </article>
 </div>
 </section>

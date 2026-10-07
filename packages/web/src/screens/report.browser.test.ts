@@ -4,8 +4,10 @@
  * `page.route` per path and a 404 for anything else, the run's screenshot, video and trace files
  * included.
  *
- * - Beat 5's click path: Kai's row, then the evidence of his failed run, opens run detail at that
- *   step.
+ * - Beat 5's click path: Kai's row, then the evidence link of his failed run, opens run detail at
+ *   the step his finding cites.
+ * - A finding backed by ten runs shows three evidence links and "Show 7 more", which shows the
+ *   rest with focus on the first of them, and folds them again.
  * - "Analyse again" shows it running while io's `POST` is held, posts the report's own backend, and
  *   draws the new report once io answers; a refusal shows the fault, and Try again posts the same.
  * - The top bar says `stored`, with the report's backend, which a static render cannot show: its
@@ -165,9 +167,48 @@ test("Kai's row, then his failed run's evidence, opens run detail at that step",
   await page.getByText("Kai's findings and the page's measurements.").waitFor();
 
   // His run that gave up, at the step his finding cites.
-  await page.getByRole("link", { name: "run_kai-past-order-1 · step 1 · Gave up" }).click();
+  await page.getByRole("link", { name: "Kai, seed 1 · Gave up" }).click();
   await page.waitForURL(`${origin}/runs/run_kai-past-order-1?step=1`);
   await page.getByRole("heading", { name: "Step 1", exact: true }).waitFor();
+});
+
+test("a finding backed by ten runs shows three evidence links, and Show 7 more shows the rest", async () => {
+  const report = tenSeedReport();
+  const a1 = report.findings.find((finding) => finding.id === "fnd_kai-order-archive-a1");
+  if (a1 === undefined) throw new Error("the hard goal's report has no A1 finding for Kai");
+  const evidence = Array.from({ length: 10 }, (_, i) => ({
+    runId: `run_kai-past-order-${i + 1}`,
+    stepIndex: 1,
+  }));
+  const backed = Report.parse({
+    ...report,
+    findings: report.findings.map((finding) => (finding === a1 ? { ...a1, evidence } : finding)),
+  });
+  const page = await servedPage((request, pathname) => get(request, pathname, REPORT_PATH, backed));
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+
+  const card = page.locator("article", { hasText: a1.title });
+  const links = card.getByRole("link");
+  expect(await links.count()).toBe(3);
+
+  // By keyboard: the new links open before the toggle, so focus moves to the first of them.
+  const more = card.getByRole("button", { name: "Show 7 more" });
+  expect(await more.getAttribute("aria-expanded")).toBe("false");
+  await more.focus();
+  await page.keyboard.press("Enter");
+  expect(await links.count()).toBe(10);
+  expect(await links.first().getAttribute("href")).toBe("/runs/run_kai-past-order-1?step=1");
+  expect(await links.last().getAttribute("href")).toBe("/runs/run_kai-past-order-10?step=1");
+  expect(await page.evaluate(() => document.activeElement?.getAttribute("href"))).toBe(
+    "/runs/run_kai-past-order-4?step=1",
+  );
+  const fewer = card.getByRole("button", { name: "Show fewer" });
+  expect(await fewer.getAttribute("aria-expanded")).toBe("true");
+
+  await fewer.click();
+  expect(await links.count()).toBe(3);
+  await more.waitFor();
 });
 
 test("Analyse again shows it running, posts the report's backend, then shows the new report; Try again posts the same body", async () => {

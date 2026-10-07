@@ -1,6 +1,6 @@
 /**
  * How a run ended, in the fixed words of `docs/DESIGN.md`, "Copy". Every screen that names an
- * outcome reads it from here: the seed strip, the evidence chips, and Outcome (`outcome.tsx`).
+ * outcome reads it from here: the seed strip, the evidence links, and Outcome (`outcome.tsx`).
  * `count` is the one way the report's screen and components say how many.
  */
 import type { RunOutcome } from "@wayford/core";

@@ -1,11 +1,11 @@
 import { createMemoryHistory, RouterContextProvider } from "@tanstack/react-router";
-import { type Finding, PROVENANCE_IDS, type RunId, type RunOutcome } from "@wayford/core";
-import { reportFixture, reportFixtures } from "@wayford/core/fixtures";
+import { type Finding, PROVENANCE_IDS } from "@wayford/core";
+import { reportFixture } from "@wayford/core/fixtures";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { attributesOf, lineOf } from "../preview/rendered-markup.js";
-import { outcomesOf } from "../report/findings.js";
+import { runsOf } from "../report/findings.js";
 import { createAppRouter } from "../router.js";
 import type { CertaintyLine } from "./certainty.js";
 import { FindingCard, findingLine } from "./finding.js";
@@ -30,12 +30,6 @@ const P1 = finding("fnd_vera-order-archive-p1");
 const AXE = finding("fnd_order-archive-contrast-ratio");
 const GUESS = finding("fnd_vera-passes-over-masked-archive-link");
 
-/** How each run of `report` ended, read off its seeds, as the report screen reads it. */
-/** The fixture report on `taskId`'s outcome lookup, the one the screen uses. */
-function outcomesOfTask(taskId: string): (runId: RunId) => RunOutcome {
-  return outcomesOf(reportFixture(taskId));
-}
-
 /** The card's start tag's attributes. */
 function cardOf(html: string): Record<string, string> {
   const tag = html.match(/^<article(\s[^>]*)>/)?.[1];
@@ -51,8 +45,18 @@ function linksOf(html: string): { href: string | undefined; text: string }[] {
   }));
 }
 
-test("an evidence chip's arrow is drawn but hidden from its accessible name", () => {
-  const html = render(<FindingCard finding={P1} outcomeOf={() => "gave_up"} />);
+/** Each button's text in `html`. */
+function buttonsOf(html: string): string[] {
+  return [...html.matchAll(/<button(?:\s[^>]*)?>(.*?)<\/button>/gs)].map((m) => lineOf(m[1] ?? ""));
+}
+
+test("an evidence link's arrow is drawn but hidden from its accessible name", () => {
+  const html = render(
+    <FindingCard
+      finding={P1}
+      runOf={() => ({ profileId: "prof_vera", seed: 2, outcome: "gave_up" })}
+    />,
+  );
   expect(html).toMatch(/<span aria-hidden="true"[^>]*>→<\/span><\/a>/);
 });
 
@@ -92,10 +96,11 @@ describe("findingLine", () => {
 });
 
 describe("FindingCard", () => {
-  const outcomeOf = outcomesOfTask("task_past-order");
+  // The hard goal's run lookup, the one the screen uses.
+  const runOf = runsOf(HARD);
 
   test("a soft finding is dotted, tagged soft, and shows its rule and its source", () => {
-    const html = render(<FindingCard finding={A1} outcomeOf={outcomeOf} />);
+    const html = render(<FindingCard finding={A1} runOf={runOf} />);
     const card = cardOf(html);
     expect(card["data-line"]).toBe("soft");
     expect(card.class).toContain("border-dotted");
@@ -105,7 +110,7 @@ describe("FindingCard", () => {
   });
 
   test("a sourced deterministic finding is a hairline, with no soft tag", () => {
-    const html = render(<FindingCard finding={P1} outcomeOf={outcomeOf} />);
+    const html = render(<FindingCard finding={P1} runOf={runOf} />);
     const card = cardOf(html);
     expect(card["data-line"]).toBe("deterministic");
     expect(card.class).not.toMatch(/border-(dashed|dotted)/);
@@ -113,7 +118,7 @@ describe("FindingCard", () => {
   });
 
   test("a measurement names its axe rule and is a hairline", () => {
-    const html = render(<FindingCard finding={AXE} outcomeOf={outcomeOf} />);
+    const html = render(<FindingCard finding={AXE} runOf={runOf} />);
     const card = cardOf(html);
     expect(card["data-line"]).toBe("measured");
     expect(card.class).not.toMatch(/border-(dashed|dotted)/);
@@ -121,53 +126,58 @@ describe("FindingCard", () => {
   });
 
   test("a hypothesis is dashed, never drawn like a measurement", () => {
-    const html = render(<FindingCard finding={GUESS} outcomeOf={outcomeOf} />);
+    const html = render(<FindingCard finding={GUESS} runOf={runOf} />);
     const card = cardOf(html);
     expect(card["data-line"]).toBe("hypothesis");
     expect(card.class).toContain("border-dashed");
-    const measured = cardOf(render(<FindingCard finding={AXE} outcomeOf={outcomeOf} />));
+    const measured = cardOf(render(<FindingCard finding={AXE} runOf={runOf} />));
     expect(card.class).not.toBe(measured.class);
   });
 
-  test("the card reads tags, title, evidence, detail, then the change", () => {
-    const html = render(<FindingCard finding={P1} outcomeOf={outcomeOf} />);
+  test("the card reads tags, title, detail, the change, then the evidence last", () => {
+    const html = render(<FindingCard finding={P1} runOf={runOf} />);
     expect(lineOf(html.match(/<h3(?:\s[^>]*)?>(.*?)<\/h3>/s)?.[1] ?? "")).toBe(P1.title);
     const text = lineOf(html);
     const order = [
       "Vera",
       "P1",
       P1.title,
-      "run_vera-past-order-2 · step 1 · Gave up",
       P1.detail,
       `change → ${P1.recommendation}`,
+      "evidence Vera, seed 2 · Gave up",
     ].map((part) => text.indexOf(part));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
-  test.each(
-    reportFixtures.flatMap((report) =>
-      report.findings.map((f) => [f.id, report.taskId, f] as const),
-    ),
-  )(
-    "%s: each evidence chip opens its run at its step, named by how the run ended",
-    (_, taskId, f) => {
-      const links = linksOf(render(<FindingCard finding={f} outcomeOf={outcomesOfTask(taskId)} />));
-      const words = {
-        success: "Got through",
-        gave_up: "Gave up",
-        budget_exceeded: "Over budget",
-        error: "Error",
-      };
-      expect(links).toEqual(
-        f.evidence.map((ref) => {
-          const outcome = outcomesOfTask(taskId)(ref.runId);
-          return {
-            href: `/runs/${ref.runId}?step=${ref.stepIndex}`,
-            text: `${ref.runId} · step ${ref.stepIndex} · ${words[outcome]}`,
-          };
-        }),
-      );
-    },
-  );
+  test("several steps of one run are one link, at the earliest step cited, in whatever order", () => {
+    // The hypothesis cites run_vera-past-order-1 at steps 1 and 4.
+    const expected = [
+      { href: "/runs/run_vera-past-order-1?step=1", text: "Vera, seed 1 · Gave up" },
+    ];
+    for (const evidence of [GUESS.evidence, [...GUESS.evidence].reverse()]) {
+      const html = render(<FindingCard finding={{ ...GUESS, evidence }} runOf={runOf} />);
+      expect(linksOf(html)).toEqual(expected);
+    }
+  });
+
+  test.each([
+    [3, []],
+    [4, ["Show 1 more"]],
+    [10, ["Show 7 more"]],
+  ])("a finding backed by %i runs shows three links and the buttons %j", (runs, toggle) => {
+    const evidence = Array.from({ length: runs }, (_, i) => ({
+      runId: `run_kai-past-order-${i + 1}`,
+      stepIndex: 1,
+    }));
+    const html = render(
+      <FindingCard
+        finding={{ ...A1, evidence }}
+        runOf={() => ({ profileId: "prof_kai", seed: 1, outcome: "gave_up" })}
+      />,
+    );
+    expect(linksOf(html)).toHaveLength(3);
+    expect(buttonsOf(html)).toEqual(toggle);
+    if (toggle.length > 0) expect(html).toMatch(/<button [^>]*aria-expanded="false"/);
+  });
 });

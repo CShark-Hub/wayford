@@ -70,7 +70,6 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
 .fhead .d{margin-left:auto;font:400 16px/20px var(--font-sans);color:var(--ink-3)}
 .ftags{gap:var(--space-2);flex-wrap:nowrap}
 .ftags .sp{flex:1}
-.evs{display:grid;gap:6px;justify-items:start}
 .leftout{margin-top:var(--space-6);padding-top:var(--space-3);border-top:var(--stroke-hair) solid var(--line);color:var(--ink-3)}
 </style>
 </head>
@@ -145,9 +144,9 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
   <article class="wf-finding">
   <div class="wf-row ftags"><span class="wf-tag">axe · color-contrast</span></div>
   <h3 class="wf-finding__title">The link “Order archive” on /deliveries measures 2.005:1, below the WCAG&nbsp;2.2 minimum for text</h3>
-  <div class="evs"><a class="wf-evchip" href="#">run_ada-past-order-1 · step 1</a></div>
   <p class="wf-finding__detail">The link's 16&nbsp;px text measures 2.005:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at that size, and axe reports it as color-contrast.</p>
   <p class="wf-finding__change"><b>change →</b><span>Raise the link's text to at least 4.5:1 against its background.</span></p>
+  <div class="wf-evidence"><span class="wf-evidence__label">evidence</span><ul class="wf-evidence__list"><li><a class="wf-evlink" href="#"><span>Ada, seed <span class="wf-mono">1</span> · Got through</span></a></li></ul></div>
 </article>
 </div>
 <div class="fcol">
@@ -155,16 +154,16 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
   <article class="wf-finding wf-finding--soft">
   <div class="wf-row ftags"><span class="wf-pchip wf-p-raspberry">Kai</span><span class="sp"></span><span class="wf-tag wf-tag--rule">A1</span><span class="wf-tag wf-tag--soft">soft · folk</span></div>
   <h3 class="wf-finding__title">The link “Order archive” on /deliveries is cut by A1 for Kai in 10 of 10 seeds</h3>
-  <div class="evs"><a class="wf-evchip" href="#">run_kai-past-order-1 · step 1</a><a class="wf-evchip" href="#">run_kai-past-order-3 · step 1</a></div>
   <p class="wf-finding__detail">Route A closes at this step. A1: Kai's attention cap of 11 elements cuts the link, so it does not reach the model.</p>
   <p class="wf-finding__change"><b>change →</b><span>Move the archive link up beside the list on /deliveries and give it the size and contrast of the page's other links, so it is not the least prominent element there.</span></p>
+  <div class="wf-evidence"><span class="wf-evidence__label">evidence</span><ul class="wf-evidence__list"><li><a class="wf-evlink" href="#"><span>Kai, seed <span class="wf-mono">1</span> · Gave up</span></a></li><li><a class="wf-evlink" href="#"><span>Kai, seed <span class="wf-mono">2</span> · Got through</span></a></li><li><a class="wf-evlink" href="#"><span>Kai, seed <span class="wf-mono">3</span> · Over budget</span></a></li><li><button class="wf-evmore" type="button" aria-expanded="false">Show 7 more</button></li></ul></div>
 </article>
 <article class="wf-finding">
   <div class="wf-row ftags"><span class="wf-pchip wf-p-cobalt">Vera</span><span class="sp"></span><span class="wf-tag wf-tag--rule">P1</span><span class="wf-tag">wcag22</span></div>
   <h3 class="wf-finding__title">The link “Order archive” on /deliveries is cut by P1 for Vera in 7 of 10 seeds</h3>
-  <div class="evs"><a class="wf-evchip" href="#">run_vera-past-order-2 · step 1</a><a class="wf-evchip" href="#">run_vera-past-order-3 · step 1</a></div>
   <p class="wf-finding__detail">Route A closes at this step. P1: contrast 2.005:1, below Vera's threshold of 3:1. Vera's cut has a band from 1.5:1 to 3:1, inside which the seed's roll decides between degraded and cut. In those 7 seeds the link does not reach the model.</p>
   <p class="wf-finding__change"><b>change →</b><span>Raise the link's text to at least 4.5:1 against its background, which clears 3:1 with room to spare and meets WCAG 2.2 for text of its size.</span></p>
+  <div class="wf-evidence"><span class="wf-evidence__label">evidence</span><ul class="wf-evidence__list"><li><a class="wf-evlink" href="#"><span>Vera, seed <span class="wf-mono">2</span> · Gave up</span></a></li><li><a class="wf-evlink" href="#"><span>Vera, seed <span class="wf-mono">3</span> · Over budget</span></a></li><li><a class="wf-evlink" href="#"><span>Vera, seed <span class="wf-mono">4</span> · Gave up</span></a></li><li><button class="wf-evmore" type="button" aria-expanded="false">Show 4 more</button></li></ul></div>
 </article>
 </div>
 <div class="fcol">
@@ -172,9 +171,9 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
   <article class="wf-finding wf-finding--hypothesis">
   <div class="wf-row ftags"><span class="wf-pchip wf-p-cobalt">Vera</span><span class="sp"></span><span class="wf-tag wf-tag--rule">P1</span><span class="wf-tag">wcag22</span></div>
   <h3 class="wf-finding__title">Where the archive link reached the model degraded, its masked name may not read as the way to past orders</h3>
-  <div class="evs"><a class="wf-evchip" href="#">run_vera-past-order-1 · step 1</a><a class="wf-evchip" href="#">run_vera-past-order-1 · step 4</a></div>
   <p class="wf-finding__detail">Seed 1 is one of the 3 seeds where P1 left route A open for Vera: the link reached the model degraded, under a masked name. The run stood on /deliveries at steps 1 and 4, scrolled, went home and came back, and gave up at step 4 without acting on the link. These are Jev runs with no narration, so this reads the actions of one run alone; it is not a measurement.</p>
   <p class="wf-finding__change"><b>change →</b><span>Raise the archive link's contrast so its name is read whole, and add a line above the list on /deliveries saying that past orders are in the archive.</span></p>
+  <div class="wf-evidence"><span class="wf-evidence__label">evidence</span><ul class="wf-evidence__list"><li><a class="wf-evlink" href="#"><span>Vera, seed <span class="wf-mono">1</span> · Gave up</span></a></li></ul></div>
 </article>
 </div>
   </section>

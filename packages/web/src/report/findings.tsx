@@ -7,11 +7,11 @@
  *
  * With a persona picked, a group keeps that persona's findings and every measurement, since a
  * measurement holds for whoever is looking, and its count reads "N of M", so nothing left out is
- * hidden.
+ * hidden. A finding's evidence leads with that persona's runs.
  */
-import type { Finding, FindingType, ProfileId, Report, RunId, RunOutcome } from "@wayford/core";
+import type { Finding, FindingType, ProfileId, Report, RunId } from "@wayford/core";
 import { CertaintyGlyph, type CertaintyLine } from "../components/certainty.js";
-import { FindingCard } from "../components/finding.js";
+import { type CitedRun, FindingCard } from "../components/finding.js";
 import { personaLabel } from "../runs/task-results.js";
 
 /** Each group's glyph, name and what it is, in the order the columns run. */
@@ -41,7 +41,7 @@ function Group({
   findings,
   total,
   persona,
-  outcomeOf,
+  runOf,
 }: {
   line: CertaintyLine;
   name: string;
@@ -51,7 +51,7 @@ function Group({
   /** How many the group holds unfiltered. */
   total: number;
   persona: ProfileId | undefined;
-  outcomeOf: (runId: RunId) => RunOutcome;
+  runOf: (runId: RunId) => CitedRun;
 }) {
   const id = `findings-${line}`;
   const count = persona === undefined ? `${total}` : `${findings.length} of ${total}`;
@@ -74,7 +74,7 @@ function Group({
         </p>
       ) : (
         findings.map((finding) => (
-          <FindingCard key={finding.id} finding={finding} outcomeOf={outcomeOf} />
+          <FindingCard key={finding.id} finding={finding} runOf={runOf} persona={persona} />
         ))
       )}
     </section>
@@ -82,27 +82,30 @@ function Group({
 }
 
 /**
- * `report`'s findings in their three groups, narrowed to `persona`'s when one is picked. Each
- * evidence chip names how its run ended, read off the report's own seeds.
+ * Whose each of `report`'s runs was, its seed and how it ended, from the report's own seeds.
+ * `Report` holds every evidence run among them, so a run it does not name is a broken report, and
+ * throws.
  */
-/**
- * How each of `report`'s runs ended, from its own seeds. `Report` holds every evidence run among
- * them, so a run it does not name is a broken report, and throws.
- */
-export function outcomesOf(report: Report): (runId: RunId) => RunOutcome {
-  const outcomes = new Map(
-    report.personas.flatMap((result) => result.seeds.map((seed) => [seed.runId, seed.outcome])),
+export function runsOf(report: Report): (runId: RunId) => CitedRun {
+  const runs = new Map(
+    report.personas.flatMap((result) =>
+      result.seeds.map((seed): [RunId, CitedRun] => [
+        seed.runId,
+        { profileId: result.profileId, seed: seed.seed, outcome: seed.outcome },
+      ]),
+    ),
   );
   return (runId) => {
-    const outcome = outcomes.get(runId);
-    if (outcome === undefined)
+    const run = runs.get(runId);
+    if (run === undefined)
       throw new Error(`${runId} is not a run of the report on ${report.taskId}`);
-    return outcome;
+    return run;
   };
 }
 
+/** `report`'s findings in their three groups, narrowed to `persona`'s when one is picked. */
 export function Findings({ report, persona }: { report: Report; persona: ProfileId | undefined }) {
-  const outcomeOf = outcomesOf(report);
+  const runOf = runsOf(report);
   return (
     <div className="grid gap-(--space-4) lg:grid-cols-3">
       {GROUPS.map(({ type, line, name, what }) => {
@@ -116,7 +119,7 @@ export function Findings({ report, persona }: { report: Report; persona: Profile
             findings={group.filter((finding) => kept(finding, persona))}
             total={group.length}
             persona={persona}
-            outcomeOf={outcomeOf}
+            runOf={runOf}
           />
         );
       })}
