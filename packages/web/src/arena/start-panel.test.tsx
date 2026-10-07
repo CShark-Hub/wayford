@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { type Extraction, extractTask } from "../api/runs.js";
 import { bundledProfiles, bundledTasks } from "../bundled-fixtures.js";
-import { attributesOf, lineOf } from "../preview/rendered-markup.js";
+import { attributesOf, decode, lineOf } from "../preview/rendered-markup.js";
 import { dispatched, forOf, sixProfiles, withPersonas } from "./fixture-race.js";
 import {
   GOAL_PRESETS,
@@ -45,6 +45,63 @@ function input(html: string, id: string): string {
   return found[0];
 }
 
+/** What the sentence's `<textarea>` holds. */
+function sentenceOf(html: string): string {
+  const found = html.match(/<textarea[^>]*\sid="arena-sentence"[^>]*>(.*?)<\/textarea>/s);
+  if (found?.[1] === undefined) throw new Error("no sentence textarea");
+  return decode(found[1]);
+}
+
+/** Every `<button>` in order: its start tag's attributes and its inner markup. */
+function buttons(html: string): { attributes: Record<string, string>; inner: string }[] {
+  return [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/gs)].map(([, tag, inner]) => ({
+    attributes: attributesOf(tag ?? ""),
+    inner: inner ?? "",
+  }));
+}
+
+/**
+ * The name a button's text gives it: its text with every `aria-hidden` wrapper left out, as a
+ * screen reader reads it. A wrapper holds an avatar, whose drawing holds no `<span>`, so it ends at
+ * its first `</span>`.
+ */
+function nameOf(inner: string): string {
+  return lineOf(inner.replace(/<span aria-hidden="true"[^>]*>.*?<\/span>/gs, ""));
+}
+
+/** The attributes of the goal choice's item named `label`. */
+function goalItem(html: string, label: string): Record<string, string> {
+  const item = buttons(html).find(({ inner }) => nameOf(inner) === label);
+  if (item === undefined) throw new Error(`no goal item reads ${label}`);
+  return item.attributes;
+}
+
+/**
+ * A persona's toggle, found by its id: its attributes, the class of its avatar's tile (the `<div>`
+ * right before the drawing) and the class of the name under it (its last `<span>`).
+ */
+function toggle(html: string, profile: Profile) {
+  const found = buttons(html).find(
+    ({ attributes }) => attributes.id === `arena-persona-${profile.id}`,
+  );
+  if (found === undefined) throw new Error(`no toggle for ${profile.id}`);
+  const tile = attributesOf(found.inner.match(/<div[^>]*>(?=<svg)/)?.[0] ?? "");
+  const name = [...found.inner.matchAll(/<span([^>]*)>([^<]*)<\/span>/g)].at(-1);
+  return {
+    attributes: found.attributes,
+    tileClasses: (tile.class ?? "").split(" "),
+    nameClasses: (attributesOf(name?.[1] ?? "").class ?? "").split(" "),
+    name: nameOf(found.inner),
+  };
+}
+
+/** The text of the element whose id is `id`. */
+function textById(html: string, id: string): string {
+  const found = html.match(new RegExp(`<([a-z0-9]+)[^>]*\\sid="${id}"[^>]*>(.*?)</\\1>`, "s"));
+  if (found?.[2] === undefined) throw new Error(`no element with id ${id}`);
+  return lineOf(found[2]);
+}
+
 /** Make the next `fetch` answer with `response`, and hand back the stub to inspect calls. */
 function answer(response: Response) {
   const fetch = vi.fn(async (_url: string, _init?: RequestInit) => response);
@@ -66,25 +123,40 @@ afterEach(() => {
 /** A path-laden sentence for the hard goal: a screen name and an arrow. */
 const PATH_LADEN = "Click Deliveries → Order archive to see what I ordered three months ago";
 
-test("at five personas the sixth box is unavailable and the limit line says why", () => {
+test("at five personas the sixth toggle is unavailable, drawn faded, and the limit line says why", () => {
   const five = withPersonas(initialPanel(), sixProfiles.slice(0, 5));
   const html = render(five, sixProfiles);
   for (const profile of sixProfiles.slice(0, 5)) {
-    const box = input(html, `arena-persona-${profile.id}`);
-    expect(box, profile.label).toMatch(/\schecked=""/);
-    expect(attributesOf(box), profile.label).not.toHaveProperty("disabled");
+    const chosen = toggle(html, profile);
+    expect(chosen.attributes["aria-pressed"], profile.label).toBe("true");
+    expect(chosen.attributes, profile.label).not.toHaveProperty("disabled");
+    // Pressed: a paper gap, then a ring in the persona's slot, around the avatar.
+    expect(chosen.tileClasses, profile.label).toEqual(
+      expect.arrayContaining(["ring-2", "ring-(--p)", "ring-offset-2", "ring-offset-paper"]),
+    );
+    expect(chosen.tileClasses, profile.label).not.toContain("opacity-50");
   }
-  const sixth = input(html, "arena-persona-prof_p6");
-  expect(sixth).not.toMatch(/\schecked=""/);
-  expect(attributesOf(sixth)).toHaveProperty("disabled");
+  const [, , , , , fay] = sixProfiles;
+  if (fay === undefined) throw new Error("sixProfiles holds six");
+  const sixth = toggle(html, fay);
+  expect(sixth.attributes["aria-pressed"]).toBe("false");
+  expect(sixth.attributes).toHaveProperty("disabled");
+  expect(sixth.tileClasses).not.toContain("ring-(--p)");
+  // The avatar fades and the name turns ink-3, which holds 4.5:1; the button itself does not fade,
+  // so its name is measured as it is drawn.
+  expect(sixth.tileClasses).toContain("opacity-50");
+  expect(sixth.nameClasses).toContain("text-ink-3");
+  expect(sixth.attributes.class ?? "").not.toMatch(/opacity/);
   expect(lineOf(html)).toContain(
     "At most 5 personas: each run holds one of the browser's connections to io",
   );
-  // Below five, every box is available.
+  // Below five, every toggle is available.
   const four = render(withPersonas(initialPanel(), sixProfiles.slice(0, 4)), sixProfiles);
   for (const profile of sixProfiles) {
-    const box = attributesOf(input(four, `arena-persona-${profile.id}`));
-    expect(box, profile.label).not.toHaveProperty("disabled");
+    const offered = toggle(four, profile);
+    expect(offered.attributes, profile.label).not.toHaveProperty("disabled");
+    expect(offered.tileClasses, profile.label).not.toContain("opacity-50");
+    expect(offered.nameClasses, profile.label).toContain("text-ink");
   }
 });
 
@@ -108,8 +180,8 @@ test.each(GOAL_PRESETS)(
       { type: "presetChosen", presetId: preset.id },
       { type: "sentenceEdited", sentence: "I want to find something on this shop" },
     );
-    // The radio shows the preset chosen.
-    expect(input(render(state), `arena-goal-${preset.id}`)).toMatch(/\schecked=""/);
+    // The goal choice shows the preset chosen.
+    expect(goalItem(render(state), preset.label)["aria-checked"]).toBe("true");
     const task = bundledTasks.find((candidate) => candidate.id === preset.id);
     const fetch = answer(
       Response.json(
@@ -232,13 +304,41 @@ test("Start is described by the reason it cannot start, and a failed start is an
   );
 });
 
-test("each goal shows its sentence and its success condition", () => {
-  const text = lineOf(render(initialPanel()));
-  for (const preset of GOAL_PRESETS) {
-    expect(text).toContain(`${preset.label} ${preset.sentence}`);
-  }
-  expect(text).toContain("URL matches **/deliveries/archive");
-  expect(text).toContain("URL matches **/account/address");
+test("Start the race is the one primary button, and Check the goal is outlined", () => {
+  const html = render(withPersonas(initialPanel(), sixProfiles.slice(0, 3)), sixProfiles);
+  const primary = buttons(html).filter(
+    ({ attributes }) => attributes["data-variant"] === "default",
+  );
+  expect(primary.map(({ inner }) => nameOf(inner))).toStrictEqual(["Start the race"]);
+  expect(attributesOf(button(html, "Check the goal"))["data-variant"]).toBe("outline");
+});
+
+test.each(GOAL_PRESETS)(
+  "the $label choice draws its own sentence and its success condition, and not the other's",
+  (preset) => {
+    const other = preset === easy ? hard : easy;
+    const html = render(dispatched(initialPanel(), { type: "presetChosen", presetId: preset.id }));
+    expect(goalItem(html, preset.label)["aria-checked"]).toBe("true");
+    expect(goalItem(html, other.label)["aria-checked"]).toBe("false");
+    expect(sentenceOf(html)).toBe(preset.sentence);
+    const success = html.match(/<p[^>]*\sid="arena-success"[^>]*>(.*?)<\/p>/s);
+    expect(lineOf(success?.[1] ?? "")).toBe(`success · ${successText(preset.success)}`);
+    const text = lineOf(html);
+    expect(text).not.toContain(other.sentence);
+    expect(text).not.toContain(successText(other.success));
+  },
+);
+
+test("the sentence is a two-row field, described by its success", () => {
+  const html = render(initialPanel());
+  const tag = attributesOf(html.match(/<textarea[^>]*>/)?.[0] ?? "");
+  expect(tag.rows).toBe("2");
+  expect(tag["aria-describedby"]).toBe("arena-success");
+});
+
+test("the success conditions in words", () => {
+  expect(successText(hard.success)).toBe("URL matches **/deliveries/archive");
+  expect(successText(easy.success)).toBe("URL matches **/account/address");
   expect(successText({ type: "selectorPresent", selector: "#archive" })).toBe(
     "Element present: #archive",
   );
@@ -247,7 +347,16 @@ test("each goal shows its sentence and its success condition", () => {
   );
 });
 
-test("every control has an accessible name, and the panel never says disabled", () => {
+test("the labels are lowercase instrument labels, and the heading is for screen readers only", () => {
+  const html = render(initialPanel());
+  expect(html).toMatch(/<h2 [^>]*class="sr-only"[^>]*>Start a race<\/h2>/);
+  const labels = [...html.matchAll(/<(span|label|legend)([^>]*)>([^<]*)<\/\1>/g)]
+    .filter(([, , tag]) => (attributesOf(tag ?? "").class ?? "").split(" ").includes("mono-label"))
+    .map(([, , , text]) => text);
+  expect(labels).toStrictEqual(["goal", "sentence", "cast", "seed"]);
+});
+
+test("every control is drawn, named and described, and the panel never says disabled", () => {
   const states = [
     initialPanel(),
     dispatched(initialPanel(), { type: "checkStarted" }),
@@ -255,13 +364,33 @@ test("every control has an accessible name, and the panel never says disabled", 
   ];
   for (const state of states) {
     const html = render(state, sixProfiles);
+    // No visually hidden radio or checkbox stands in for a drawn control: the self-check measures
+    // only what a sighted person sees. The two fields are named by their labels.
+    expect(html).not.toMatch(/<input[^>]*type="(?:radio|checkbox)"/);
     const ids = [...html.matchAll(/<(?:input|textarea)[^>]*\sid="([^"]+)"/g)].map((m) => m[1]);
-    // Two goals, the sentence, six personas and the seed.
-    expect(ids).toHaveLength(10);
+    expect(ids).toStrictEqual(["arena-sentence", "arena-seed"]);
     for (const id of ids) expect(html, id).toContain(`for="${id}"`);
-    for (const [, text] of html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)) {
-      expect(text?.trim()).not.toBe("");
+    // Every button is named by its text: two goals, the check, six personas and Start. A
+    // persona's avatar is hidden, so its toggle's name is the persona's name alone.
+    expect(buttons(html).map(({ inner }) => nameOf(inner))).toStrictEqual([
+      easy.label,
+      hard.label,
+      "Check the goal",
+      ...sixProfiles.map((profile) => profile.label),
+      "Start the race",
+    ]);
+    for (const profile of sixProfiles) {
+      expect(toggle(html, profile).attributes.type, profile.label).toBe("button");
     }
+    // The goal choice and the cast are groups their labels name; the cast is described by its line.
+    expect(html).toMatch(/<div[^>]*role="radiogroup"[^>]*aria-label="goal"/);
+    const cast = html.match(/<fieldset([^>]*)><legend[^>]*>(.*?)<\/legend>/s);
+    expect(cast?.[2]).toBe("cast");
+    const line = textById(html, attributesOf(cast?.[1] ?? "")["aria-describedby"] ?? "");
+    expect(line).toMatch(/personas/);
+    // The seed keeps its hint.
+    const seed = attributesOf(input(html, "arena-seed"));
+    expect(textById(html, seed["aria-describedby"] ?? "")).toBe("One seed for every persona");
     // What a person or a screen reader gets, as `router.test.tsx` collects it.
     const said = [
       ...[...html.matchAll(/>([^<]+)</g)].map((m) => m[1] ?? ""),

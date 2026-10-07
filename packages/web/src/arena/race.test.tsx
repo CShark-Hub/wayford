@@ -1,20 +1,43 @@
-import { RunEvent, type RunId, type RunOutcome, runResultFromEvents } from "@wayford/core";
+import {
+  type Action,
+  RunEvent,
+  type RunId,
+  type RunOutcome,
+  runResultFromEvents,
+} from "@wayford/core";
 import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { OutcomeKind } from "#components/outcome";
+import type { Pip } from "#components/race-lane";
 import { FakeEventSource } from "../api/fake-event-source.js";
 import type { StreamStatus } from "../api/run-events.js";
 import type { StartedRun } from "../api/runs.js";
 import { attributesOf, lineOf } from "../preview/rendered-markup.js";
-import { avatarStateOf, finished, GOAL, shifted, stuckRun, tileOf } from "./fixture-race.js";
+import { demoRace } from "./demo-race.js";
 import {
+  atStep,
+  avatarStateOf,
+  finished,
+  fixtureEvent,
+  hardTask,
+  shifted,
+  stuckRun,
+  tileOf,
+} from "./fixture-race.js";
+import {
+  clockText,
   EMPTY_SNAPSHOT,
   finishOrder,
   followRace,
+  laneOutcome,
   type RaceSnapshot,
   type RunView,
   raceOver,
   runView,
+  stepPips,
+  stepsText,
+  throughPlaces,
 } from "./race.js";
 import { RaceView } from "./race-view.js";
 
@@ -118,7 +141,8 @@ function deliver({ run, event, index }: Delivery) {
 function render(snapshot: RaceSnapshot): string {
   return renderToStaticMarkup(
     <RaceView
-      goal={GOAL}
+      task={hardTask}
+      label="Hard goal"
       seed={SEED}
       runs={runs}
       snapshot={snapshot}
@@ -230,13 +254,17 @@ test("replays the fixture events as three runs through a stubbed EventSource: th
   ]);
 
   // The finish order follows each run's elapsed time, from its own timestamps, whatever order the
-  // terminal events arrived in.
-  expect(finishLines(at(ada, 13))).toStrictEqual(["1. Ada Done 9.5 s"]);
-  expect(finishLines(at(vera, 21))).toStrictEqual(["1. Ada Done 9.5 s", "2. Vera Gave up 18.5 s"]);
+  // terminal events arrived in. Only a run that got through is numbered, as its post is; the others
+  // follow it with no number.
+  expect(finishLines(at(ada, 13))).toStrictEqual(["1. Ada Got through 0:09.5"]);
+  expect(finishLines(at(vera, 21))).toStrictEqual([
+    "1. Ada Got through 0:09.5",
+    "– Vera Gave up 0:18.5",
+  ]);
   expect(finishLines(end)).toStrictEqual([
-    "1. Kai Error 4.5 s",
-    "2. Ada Done 9.5 s",
-    "3. Vera Gave up 18.5 s",
+    "1. Ada Got through 0:09.5",
+    "– Kai Error 0:04.5",
+    "– Vera Gave up 0:18.5",
   ]);
 
   // Every stream closed on its run's last event.
@@ -259,7 +287,7 @@ test("a snapshot once handed out never changes: each event and each status makes
   expect(new Set(handedOut.map(({ snapshot }) => snapshot)).size).toBe(handedOut.length);
 });
 
-test("a stream lost mid-run: its tile says what was last seen, its avatar has no state, and it is listed after the ranked runs", () => {
+test("a stream lost mid-run: its tile says what was last seen, its avatar has no state, and it is listed after the runs that ended", () => {
   const snapshots: RaceSnapshot[] = [];
   followRace(runs, (snapshot) => snapshots.push(snapshot));
   for (const run of runs) sourceOf(run).emit("open");
@@ -286,12 +314,12 @@ test("a stream lost mid-run: its tile says what was last seen, its avatar has no
   const avatarTile = attributesOf(tile.match(/<div[^>]*>(?=<svg)/)?.[0] ?? "");
   expect(avatarTile.class).toContain("opacity-50");
   expect(tile).not.toContain('data-part="state"');
-  // The others carry on to their ends, ranked; the lost run comes after them, with no place.
+  // The others carry on to their ends, listed; the lost run comes after them, with no place.
   expect(avatarStateOf(html, ada)).toBe("done");
   expect(avatarStateOf(html, vera)).toBe("gaveUp");
   expect(finishLines(html)).toStrictEqual([
-    "1. Ada Done 9.5 s",
-    "2. Vera Gave up 18.5 s",
+    "1. Ada Got through 0:09.5",
+    "– Vera Gave up 0:18.5",
     "– Kai Stream lost",
   ]);
   // Nothing more will come from any stream, so the race is over.
@@ -425,5 +453,232 @@ describe("raceOver", () => {
     expect(raceOver(runs, snapshotOf([], [[kai, "failed"]]))).toBe(true);
     // One lost stream does not end the others' runs.
     expect(raceOver(runs, snapshotOf([ada, kai], [[kai, "failed"]]))).toBe(false);
+  });
+});
+
+/** The pips Vera's fixture steps make once each has landed or been wasted. */
+const CLICK: Pip = { kind: "act", word: "click" };
+const SCROLL: Pip = { kind: "scroll", word: "scroll" };
+const DOUBLE_CLICK: Pip = { kind: "act", word: "doubleClick" };
+const WASTED: Pip = { kind: "wasted", word: "wasted" };
+/** The step under way: observed, neither landed nor wasted, in a run that has not ended. */
+const NOW: Pip = { kind: "now", word: "under way" };
+
+/** `events` cut after each of them: the first none, the first one, and so on to all. */
+function prefixes(events: readonly RunEvent[]): RunEvent[][] {
+  return Array.from({ length: events.length + 1 }, (_, n) => events.slice(0, n));
+}
+
+/** Steps 0 and 1 of the fixture, then the budget runs out at 7.5 s, once step 2 is observed. */
+const overBudget = [
+  ...runEventFixtures.slice(0, 10),
+  RunEvent.parse({
+    ...finished,
+    stepIndex: 2,
+    timestamp: "2026-09-22T10:00:07.500Z",
+    outcome: "budget_exceeded",
+    durationMs: 7500,
+  }),
+];
+
+/** `demoRace`'s events for `run`. */
+function demoEventsOf(run: StartedRun): readonly RunEvent[] {
+  const events = demoRace.events.get(run.id);
+  if (events === undefined) throw new Error(`demoRace has no events for ${run.id}`);
+  return events;
+}
+
+describe("stepPips", () => {
+  test("Vera's run, cut after each of its events: one pip per step, in step order", () => {
+    expect(prefixes(runEventFixtures).map((events) => stepPips(events, false))).toStrictEqual([
+      // No event, then runStarted: no step has begun.
+      [],
+      [],
+      // Step 0 observed, narrated and planned: under way until its click lands.
+      [NOW],
+      [NOW],
+      [NOW],
+      [CLICK],
+      // Step 1, a scroll.
+      [CLICK, NOW],
+      [CLICK, NOW],
+      [CLICK, NOW],
+      [CLICK, SCROLL],
+      // Step 2, a click the dice made a double click: the performed action names the pip.
+      [CLICK, SCROLL, NOW],
+      [CLICK, SCROLL, NOW],
+      [CLICK, SCROLL, NOW],
+      [CLICK, SCROLL, DOUBLE_CLICK],
+      // Step 3, observed, then wasted.
+      [CLICK, SCROLL, DOUBLE_CLICK, NOW],
+      [CLICK, SCROLL, DOUBLE_CLICK, WASTED],
+      // Step 4 observed, narrated, the give-up planned; once the give-up lands, it makes no pip.
+      [CLICK, SCROLL, DOUBLE_CLICK, WASTED, NOW],
+      [CLICK, SCROLL, DOUBLE_CLICK, WASTED, NOW],
+      [CLICK, SCROLL, DOUBLE_CLICK, WASTED, NOW],
+      [CLICK, SCROLL, DOUBLE_CLICK, WASTED],
+      // runFinished.
+      [CLICK, SCROLL, DOUBLE_CLICK, WASTED],
+    ]);
+  });
+
+  test("Kai's run, cut once step 4 is observed, ends on the step under way", () => {
+    const [, kaiRun] = demoRace.runs;
+    if (kaiRun === undefined) throw new Error("demoRace has no second run");
+    expect(stepPips(demoEventsOf(kaiRun), false)).toStrictEqual([
+      CLICK,
+      SCROLL,
+      DOUBLE_CLICK,
+      WASTED,
+      NOW,
+    ]);
+  });
+
+  test("once the run has ended, a step observed but never landed makes no pip", () => {
+    // Step 1 is observed, then the run crashes; until the crash, step 1 is under way.
+    expect(stepPips(crashes.slice(0, -1), false)).toStrictEqual([CLICK, NOW]);
+    expect(stepPips(crashes, false)).toStrictEqual([CLICK]);
+    // Step 2 is observed, then the budget runs out.
+    expect(stepPips(overBudget.slice(0, -1), false)).toStrictEqual([CLICK, SCROLL, NOW]);
+    expect(stepPips(overBudget, false)).toStrictEqual([CLICK, SCROLL]);
+  });
+
+  test("the performed action names the pip: click, double click and type act; scroll and wait scroll; back goes back; a give-up makes none", () => {
+    const cases: [Action, Pip[]][] = [
+      [{ type: "click", ref: "e3" }, [{ kind: "act", word: "click" }]],
+      [{ type: "doubleClick", ref: "e3" }, [{ kind: "act", word: "doubleClick" }]],
+      [{ type: "type", ref: "e3", text: "order" }, [{ kind: "act", word: "type" }]],
+      [{ type: "scroll", direction: "up" }, [{ kind: "scroll", word: "scroll" }]],
+      [{ type: "wait", ms: 500 }, [{ kind: "scroll", word: "wait" }]],
+      [{ type: "back" }, [{ kind: "back", word: "back" }]],
+      [{ type: "giveUp" }, []],
+    ];
+    /** The fixture's steps 0 and 1, step 1's scroll replaced by `action`, landed. */
+    const withStep1 = (action: Action) => [
+      ...runEventFixtures.slice(0, 7),
+      atStep(fixtureEvent(7), 1, { proposedAction: action, performedAction: action }),
+      fixtureEvent(8),
+    ];
+    expect(cases.map(([action]) => stepPips(withStep1(action), false))).toStrictEqual(
+      cases.map(([, step1]) => [CLICK, ...step1]),
+    );
+  });
+});
+
+describe("throughPlaces", () => {
+  const milo: StartedRun = { id: "run_milo-race-1", profileId: "prof_milo", seed: SEED };
+  const zoya: StartedRun = { id: "run_zoya-race-1", profileId: "prof_zoya", seed: SEED };
+  /** Vera's fixture run with the goal reached where she gave up, at 15.5 s. */
+  const reachesItLate = [
+    ...runEventFixtures.slice(0, -1),
+    RunEvent.parse({ ...finished, outcome: "success" }),
+  ];
+
+  test("ranks the runs that got through among themselves: equal times share the lower place, and the next counts both", () => {
+    // Kai crashes after 4.5 s and Vera runs over budget after 7.5 s, before anyone gets through:
+    // neither counts. Ada and Milo get through in 9.5 s each, Zoya in 15.5 s.
+    const views = viewsOf(
+      new Map([
+        [kai.id, rewritten(crashes, kai, 0)],
+        [ada.id, rewritten(reachesTheGoal, ada, 0)],
+        [vera.id, rewritten(overBudget, vera, 0)],
+        [milo.id, rewritten(reachesTheGoal, milo, 1000)],
+        [zoya.id, rewritten(reachesItLate, zoya, 0)],
+      ]),
+    );
+    expect([...throughPlaces([kai, ada, vera, milo, zoya], views)]).toStrictEqual([
+      [ada.id, 1],
+      [milo.id, 1],
+      [zoya.id, 3],
+    ]);
+  });
+
+  test("no run got through: no places", () => {
+    expect(throughPlaces(runs, new Map())).toStrictEqual(new Map());
+    const views = viewsOf(new Map([[kai.id, RACE[1]?.events ?? []]]));
+    expect(finishOrder(runs, views).map(({ state }) => state)).toStrictEqual(["error"]);
+    expect(throughPlaces(runs, views)).toStrictEqual(new Map());
+  });
+});
+
+describe("clockText", () => {
+  test("m:ss.d from the elapsed time rounded to tenths once, or a dash before runStarted", () => {
+    const cases: [number | undefined, string][] = [
+      [undefined, "—"],
+      [0, "0:00.0"],
+      [3000, "0:03.0"],
+      [9449, "0:09.4"],
+      [9450, "0:09.5"],
+      [15_500, "0:15.5"],
+      [75_400, "1:15.4"],
+      // Rounded once, not seconds and tenths apart, so never "0:60.0".
+      [59_960, "1:00.0"],
+      [600_000, "10:00.0"],
+    ];
+    expect(cases.map(([ms]) => clockText(ms))).toStrictEqual(cases.map(([, text]) => text));
+  });
+});
+
+describe("stepsText", () => {
+  test("counts the steps begun, the give-up's included: so far while the run runs", () => {
+    expect(stepsText([], false)).toBe("0 steps so far");
+    expect(stepsText(runEventFixtures.slice(0, 1), false)).toBe("0 steps so far");
+    expect(stepsText(runEventFixtures.slice(0, 2), false)).toBe("1 step so far");
+    expect(stepsText(runEventFixtures.slice(0, 16), false)).toBe("5 steps so far");
+  });
+
+  test("once the run has ended, the count alone, a step observed but never landed included", () => {
+    expect(stepsText(runEventFixtures, true)).toBe("5 steps");
+    expect(stepsText(crashes, true)).toBe("2 steps");
+    const crashOnStep0 = RunEvent.parse({
+      ...crashes.at(-1),
+      stepIndex: 0,
+      timestamp: "2026-09-22T10:00:01.500Z",
+      durationMs: 1500,
+    });
+    expect(stepsText([...runEventFixtures.slice(0, 2), crashOnStep0], true)).toBe("1 step");
+  });
+
+  test("a step observed twice is one step", () => {
+    expect(stepsText([...runEventFixtures.slice(0, 2), fixtureEvent(1)], false)).toBe(
+      "1 step so far",
+    );
+  });
+});
+
+describe("laneOutcome", () => {
+  const idle = runView(runEventFixtures.slice(0, 2));
+  const moving = runView(runEventFixtures.slice(0, 6));
+  // Step 5 observed: steps 3 and 4 both left /settings as it was.
+  const stuck = runView(stuckRun.slice(0, 18));
+
+  test("a run still running: its live state", () => {
+    expect(
+      [idle, moving, stuck].map((view) => [view.state, laneOutcome(view, false)]),
+    ).toStrictEqual([
+      ["idle", "waiting"],
+      ["moving", "moving"],
+      ["stuck", "stuck"],
+    ]);
+  });
+
+  test("a run that ended: its stored outcome, Over budget told from Gave up", () => {
+    const ended: [readonly RunEvent[], OutcomeKind][] = [
+      [reachesTheGoal, "through"],
+      [runEventFixtures, "gaveUp"],
+      [overBudget, "overBudget"],
+      [crashes, "error"],
+    ];
+    expect(ended.map(([events]) => laneOutcome(runView(events), false))).toStrictEqual(
+      ended.map(([, kind]) => kind),
+    );
+  });
+
+  test("a lost stream: Stream lost, never a live state", () => {
+    expect([idle, moving, stuck].map((view) => laneOutcome(view, true))).toStrictEqual([
+      "lost",
+      "lost",
+      "lost",
+    ]);
   });
 });

@@ -1,117 +1,229 @@
 /**
  * One stored run, replayed step by step with its evidence, video and trace (`docs/PLAN.md` F7 AC3,
- * AC4, F12 AC2). The header names the run as `persona | seed | run id`, its only number; the step
- * replayed is `?step=N`, a `stepIndex` (`src/runs/replay.ts`), so a replay position is a link.
+ * AC4, F12 AC2), as `docs/design/screens/run-detail.html` draws it. The header names the run as
+ * `persona | seed | run id`, its only number, with the facts under it and the two downloads beside
+ * the facts. The steps strip holds the StepTimeline, which ← and → move along, and what the step
+ * did. The step replayed is `?step=N`, a `stepIndex` (`src/runs/replay.ts`), so a replay position
+ * is a link. Under the replay sits the recording.
  *
  * The run comes from io, parsed with core's schema (`src/api/runs.ts`); the screenshots, the video
- * and the trace are files the browser fetches from io itself. Output register: monochrome, dense,
- * monospace for ids, seeds and measurements, and the persona colour, set once as `--persona` on
- * the screen's root, the only accent (`docs/PLAN.md` "UI").
+ * and the trace are files the browser fetches from io itself. The top bar says the run is stored,
+ * and names the backend its Actor ran on. The persona's slot is set once on the screen's root, so
+ * the avatar, the Jev draw and the marks take its colour, and nothing else does.
  */
 import { useQuery } from "@tanstack/react-query";
-import { createLink, createRoute, Link } from "@tanstack/react-router";
+import { createRoute } from "@tanstack/react-router";
 import type { RunResult, RunStep } from "@wayford/core";
-import type { ComponentPropsWithRef, ReactNode } from "react";
-import { runQuery, tasksQuery, traceUrl, videoUrl } from "../api/runs.js";
-import { profileColour } from "../avatar/slots.js";
-import { Detail, Details } from "../runs/details.js";
+import { cn } from "cn";
+import { Download } from "lucide-react";
+import type { ReactNode } from "react";
+import { runQuery, traceUrl, videoUrl } from "../api/runs.js";
+import { slotOf, slotStyle } from "../avatar/slots.js";
+import { bundledProfiles } from "../bundled-fixtures.js";
+import { Banner } from "../components/banner.js";
+import { Outcome, outcomeKind } from "../components/outcome.js";
+import { PersonaAvatar } from "../components/persona-avatar.js";
+import { Skeleton } from "../components/skeleton.js";
+import { SourceBadge } from "../components/source-badge.js";
+import { StepTimeline } from "../components/step-timeline.js";
+import { Tag } from "../components/tag.js";
+import { TopBarSlot } from "../components/top-bar.js";
+import { Button } from "../components/ui/button.js";
+import { Detail, Details, FACTS, Fact } from "../runs/details.js";
 import { describeAction, RunDetailSearch } from "../runs/replay.js";
-import { costLine, StepReplay } from "../runs/step-replay.js";
+import {
+  backendOf,
+  CROP_HEIGHT,
+  costLine,
+  REPLAY_COLUMNS,
+  StepReplay,
+  targetOf,
+} from "../runs/step-replay.js";
 import { formatSeconds, personaLabel } from "../runs/task-results.js";
 import { rootRoute } from "../shell.js";
 
-/** The id of the step list's heading. */
-const STEPS_HEADING = "run-steps";
 /** The id of the replayed step's heading. */
 const STEP_HEADING = "run-step";
+/** The id of the recording's heading. */
+const RECORDING_HEADING = "run-recording";
 
-const LINK = "underline underline-offset-4 hover:text-foreground";
+/** The page column (`docs/DESIGN.md`, "Space, shape and layout"): `content-max`, `space-6` gutters. */
+const PAGE =
+  "mx-auto grid w-full max-w-(--content-max) content-start gap-(--space-3) px-(--space-6) pt-(--space-3) pb-(--space-7)";
 
-/**
- * What the step list says a step did: the action performed, `wasted` when no action ran, and for a
- * step the run stopped in, `stopped`, or the action planned and that it never landed.
- */
-function stepSummary(step: RunStep): string {
-  if ("wasted" in step) return "wasted";
-  if (step.performedAction === undefined) return "stopped";
-  const action = describeAction(step.performedAction);
-  return "incomplete" in step ? `${action}, never landed` : action;
-}
-
-/**
- * The anchor of a step list entry. TanStack marks a link `aria-current="page"` when the URL's own
- * search matches it, which says nothing when the URL names no step and step 0 is shown. The list
- * marks its current entry itself, as `aria-current="step"`, so it is the one mark a screen reader
- * hears. Every entry stays a link, so the current one is the replay's permalink. TanStack hands a
- * host other than its own `a` a `disabled` flag, which an anchor has no use for, so it is dropped.
- */
-function StepAnchor({
-  current,
-  disabled: _,
-  ...props
-}: ComponentPropsWithRef<"a"> & { current: boolean; disabled?: boolean }) {
-  return <a {...props} aria-current={current ? "step" : undefined} />;
-}
-
-const StepLink = createLink(StepAnchor);
-
-/**
- * The Actor backend a run ran on, as its record shows it: `jev` when a step carries the decision
- * Jev drew, `llm` otherwise. Web does not know which model id is Jev's, so it cannot match
- * `modelIds.actor` first, as io's `backendOf` does. So any Jev run that stopped before its first
- * planned action reads `llm`, where io's gap is only such a run on an earlier Jev version. Its
- * model id, printed beside it, still names Jev.
- */
-function backendOf(run: RunResult): "jev" | "llm" {
-  return run.steps.some((step) => "decision" in step && step.decision !== undefined)
-    ? "jev"
-    : "llm";
+/** `/deliveries`: the path of a page the run was on. A URL that is not http(s) reads as it is. */
+function pathOf(url: string): string {
+  const parsed = new URL(url);
+  return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.pathname : url;
 }
 
 /** The screen before a run is shown: its id as the heading, and what stands in for the run. */
 function Placeholder({ runId, children }: { runId: string; children: ReactNode }) {
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-4 p-6">
-      <h1 className="font-mono text-xl font-semibold">{runId}</h1>
+    <div className={PAGE}>
+      <h1 className="readout wrap-anywhere text-ink">{runId}</h1>
       {children}
     </div>
   );
 }
 
-/** The run's video, with a download link, or a line saying none was recorded. */
+/** The run loading: a skeleton in the shape of the header, the steps strip and the two columns. */
+function Loading({ runId }: { runId: string }) {
+  return (
+    <div className={PAGE}>
+      <div className="flex items-center gap-4">
+        <Skeleton className="size-12 shrink-0 rounded-lg" />
+        <h1 className="readout wrap-anywhere text-ink">{runId}</h1>
+      </div>
+      <p role="status" className="sr-only">
+        Loading run
+      </p>
+      <Skeleton className="h-6 w-full max-w-200" />
+      <Skeleton className="h-14 w-full" />
+      <div className={cn("grid gap-(--space-5)", REPLAY_COLUMNS)}>
+        {/* The screenshot's crop, as the replay draws it. */}
+        <Skeleton className={cn(CROP_HEIGHT, "w-full")} />
+        <Skeleton className="h-100 w-full" />
+      </div>
+    </div>
+  );
+}
+
+/** A file of the run to save, as an outlined button with the download icon. */
+function DownloadLink({ href, children }: { href: string; children: string }) {
+  return (
+    <Button asChild variant="outline">
+      <a href={href} download>
+        <Download className="size-5 text-ink-2" strokeWidth={1.75} aria-hidden="true" />
+        {children}
+      </a>
+    </Button>
+  );
+}
+
+/**
+ * The run's header, in two rows. First the avatar beside `persona | seed | run id` in `readout`,
+ * the pipes and the id in the meta ink: the two never wrap apart, so a ULID run id wraps inside
+ * the `<h1>`, never under the avatar. Then the facts in mono, and to their right the downloads of
+ * the files the run recorded. The reference puts the downloads in the first row, but only its short
+ * fixture id leaves them room there at 1280. A persona that is not bundled has no avatar to draw.
+ */
+function Header({ run }: { run: RunResult }) {
+  const profile = bundledProfiles.find((bundled) => bundled.id === run.profileId);
+  return (
+    <header className="grid gap-2">
+      <div className="flex items-center gap-4">
+        {profile === undefined ? null : (
+          <PersonaAvatar profile={profile} className="size-12 shrink-0" />
+        )}
+        <h1 className="min-w-0 flex-1 readout wrap-anywhere text-ink">
+          {personaLabel(run.profileId)}
+          <span className="text-ink-3"> | </span>
+          {String(run.seed)}
+          <span className="text-ink-3">{` | ${run.id}`}</span>
+        </h1>
+      </div>
+      <div className="flex items-center gap-4">
+        <dl className={cn(FACTS, "min-w-0 flex-1")}>
+          <Fact term="outcome">
+            <Outcome kind={outcomeKind(run.outcome)} />
+          </Fact>
+          <Fact term="duration">{formatSeconds(run.durationMs)}</Fact>
+          <Fact term="steps">{run.steps.length}</Fact>
+          <Fact term="cost">{costLine(run.cost)}</Fact>
+          <Fact term="actor">{run.modelIds.actor}</Fact>
+          <Fact term="task">{run.taskId}</Fact>
+          <Fact term="start">
+            <span className="break-all">{run.startUrl}</span>
+          </Fact>
+        </dl>
+        {run.videoPath === undefined && run.tracePath === undefined ? null : (
+          <div className="flex shrink-0 gap-2">
+            {run.videoPath === undefined ? null : (
+              <DownloadLink href={videoUrl(run.id)}>Download video</DownloadLink>
+            )}
+            {run.tracePath === undefined ? null : (
+              <DownloadLink href={traceUrl(run.id)}>Download trace</DownloadLink>
+            )}
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+/**
+ * What a step did, after its page: the action, naming its target by the role and the real name the
+ * observation holds (`click e3 link "Deliveries"`), and where it landed; `wasted: no action ran`;
+ * the action a cut-short run planned and that it never landed; or that it planned none.
+ */
+function StepDid({ step }: { step: RunStep }) {
+  if ("wasted" in step) return "wasted: no action ran";
+  const action = step.performedAction;
+  if (action === undefined) return "stopped before an action was planned";
+  const target = targetOf(step.fullObservation, action);
+  return (
+    <>
+      <code className="mono text-ink">{describeAction(action)}</code>
+      {target === undefined ? null : ` ${target.role} "${target.name}"`}
+      {"incomplete" in step ? (
+        ", never landed"
+      ) : (
+        <>
+          <span className="text-ink-3">{" → "}</span>
+          <code className="mono text-ink">{pathOf(step.urlAfter)}</code>
+        </>
+      )}
+    </>
+  );
+}
+
+/** The step replayed, in words: `step 1 on /deliveries · scroll down → /deliveries`. */
+function StepCaption({ step }: { step: RunStep }) {
+  return (
+    <p data-step-caption="" className="min-w-0 body text-ink-2">
+      <span className="mono-label text-ink">{`step ${step.stepIndex}`}</span>
+      {" on "}
+      <code className="mono text-ink">{pathOf(step.fullObservation.url)}</code>
+      <span className="text-ink-3">{" · "}</span>
+      <StepDid step={step} />
+    </p>
+  );
+}
+
+/**
+ * The run's video, under the replay at the left column's width, and where its files are stored,
+ * or a line saying one was not recorded. The downloads are in the header.
+ */
 function Recording({ run }: { run: RunResult }) {
   return (
-    <section aria-labelledby="run-recording" className="flex flex-col gap-3">
-      <h2 id="run-recording" className="font-medium">
+    <section aria-labelledby={RECORDING_HEADING} className="grid gap-3 pt-(--space-4)">
+      <h2 id={RECORDING_HEADING} className="title text-ink">
         Recording
       </h2>
+      {run.videoPath === undefined ? null : (
+        // Playwright records no sound, so the video has nothing to caption.
+        <video
+          controls
+          muted
+          preload="metadata"
+          src={videoUrl(run.id)}
+          className="w-160 max-w-full rounded-md border border-line bg-paper-sunken"
+        />
+      )}
       <Details>
         <Detail term="Video">
           {run.videoPath === undefined ? (
-            <span className="text-muted-foreground">not recorded</span>
+            <span className="text-ink-3">not recorded</span>
           ) : (
-            <span className="flex flex-col items-start gap-2">
-              {/* Playwright records no sound, so the video has nothing to caption. */}
-              <video
-                controls
-                muted
-                preload="metadata"
-                src={videoUrl(run.id)}
-                className="w-full max-w-3xl rounded-md border"
-              />
-              <a href={videoUrl(run.id)} download className={LINK}>
-                Download video
-              </a>
-            </span>
+            <span className="mono break-all">{run.videoPath}</span>
           )}
         </Detail>
         <Detail term="Trace">
           {run.tracePath === undefined ? (
-            <span className="text-muted-foreground">not recorded</span>
+            <span className="text-ink-3">not recorded</span>
           ) : (
-            <a href={traceUrl(run.id)} download className={LINK}>
-              Download trace
-            </a>
+            <span className="mono break-all">{run.tracePath}</span>
           )}
         </Detail>
       </Details>
@@ -120,88 +232,14 @@ function Recording({ run }: { run: RunResult }) {
 }
 
 /**
- * Every step, in `stepIndex` order, each a link to its replay, and links to the steps before and
- * after the current one. A `?step` no step holds gets a notice above the list and no current entry.
+ * A stored run: the header, the steps strip, the step replayed and the recording. A `?step` no step
+ * holds gets a notice in the strip, no current step and no replay.
  */
-function StepList({
-  runId,
-  steps,
-  requested,
-  position,
-}: {
-  runId: string;
-  steps: readonly RunStep[];
-  requested: number | undefined;
-  position: number;
-}) {
-  // Only read when a step is shown, so `position` is at least 0 here.
-  const before = steps[position - 1];
-  const after = steps[position + 1];
-  return (
-    <nav aria-labelledby={STEPS_HEADING} className="flex flex-col gap-3 lg:sticky lg:top-6">
-      <h2 id={STEPS_HEADING} className="font-medium">
-        Steps
-      </h2>
-      {position < 0 && requested !== undefined ? (
-        <p role="status" className="text-sm">{`This run has no step ${requested}`}</p>
-      ) : null}
-      {steps.length === 0 ? (
-        <p className="text-sm text-muted-foreground">This run stored no step.</p>
-      ) : (
-        <ol className="flex flex-col gap-0.5 text-sm">
-          {steps.map((step, index) => (
-            <li key={step.stepIndex}>
-              <StepLink
-                to="/runs/$runId"
-                params={{ runId }}
-                search={{ step: step.stepIndex }}
-                current={index === position}
-                className="grid grid-cols-[2rem_minmax(0,1fr)] gap-2 rounded-md border-l-2 border-transparent px-2 py-1 text-muted-foreground hover:text-foreground aria-[current=step]:border-(--persona) aria-[current=step]:bg-muted/50 aria-[current=step]:text-foreground"
-              >
-                <span className="font-mono tabular-nums">{step.stepIndex}</span>
-                <span className="truncate font-mono">{stepSummary(step)}</span>
-              </StepLink>
-            </li>
-          ))}
-        </ol>
-      )}
-      {position < 0 ? null : (
-        <div className="flex justify-between gap-4 text-sm">
-          <Neighbour runId={runId} step={before} label="Previous step" />
-          <Neighbour runId={runId} step={after} label="Next step" />
-        </div>
-      )}
-    </nav>
-  );
-}
-
-/** A link to the step beside the current one, or its label greyed out at either end. */
-function Neighbour({
-  runId,
-  step,
-  label,
-}: {
-  runId: string;
-  step: RunStep | undefined;
-  label: string;
-}) {
-  if (step === undefined) return <span className="text-muted-foreground/60">{label}</span>;
-  return (
-    <Link to="/runs/$runId" params={{ runId }} search={{ step: step.stepIndex }} className={LINK}>
-      {label}
-    </Link>
-  );
-}
-
-/** A stored run: the header, the recording, the step list and the step replayed. */
 function RunDetail({
   run,
-  goal,
   requested,
 }: {
   run: RunResult;
-  /** The task's goal, once `GET /tasks` has it. */
-  goal: string | undefined;
   /** The `?step` of the URL, if any. */
   requested: number | undefined;
 }) {
@@ -210,57 +248,32 @@ function RunDetail({
   const position = steps.findIndex((step) => step.stepIndex === shown);
   const current = steps[position];
   return (
-    <div
-      className="mx-auto flex max-w-[1400px] flex-col gap-6 p-6"
-      // A persona that is not bundled has no slot of its own: its accent is the fallback's grey.
-      style={{ "--persona": profileColour(run.profileId) }}
-    >
-      <header className="flex flex-col gap-3 border-l-4 border-(--persona) ps-4">
-        <h1 className="font-mono text-xl font-semibold">
-          {`${personaLabel(run.profileId)} | ${run.seed} | ${run.id}`}
-        </h1>
-        <Details>
-          <Detail term="Outcome">
-            <span className="font-mono">{run.outcome}</span>
-          </Detail>
-          <Detail term="Duration">
-            <span className="font-mono">{formatSeconds(run.durationMs)}</span>
-          </Detail>
-          <Detail term="Cost">
-            <span className="font-mono">{costLine(run.cost)}</span>
-          </Detail>
-          <Detail term="Task">
-            {goal === undefined ? (
-              <span className="font-mono">{run.taskId}</span>
-            ) : (
-              <>
-                {goal} <span className="font-mono text-muted-foreground">{run.taskId}</span>
-              </>
-            )}
-          </Detail>
-          <Detail term="Actor backend">
-            <span className="font-mono">{backendOf(run)}</span>
-          </Detail>
-          <Detail term="Actor model">
-            <span className="font-mono">{run.modelIds.actor}</span>
-          </Detail>
-          <Detail term="Start URL">
-            <span className="font-mono break-all">{run.startUrl}</span>
-          </Detail>
-        </Details>
-      </header>
-      <Recording run={run} />
-      <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
-        <StepList runId={run.id} steps={steps} requested={requested} position={position} />
-        {current === undefined ? null : (
-          <section aria-labelledby={STEP_HEADING} className="flex min-w-0 flex-col gap-4">
-            <h2 id={STEP_HEADING} className="font-medium">
-              {`Step ${current.stepIndex}`}
-            </h2>
-            <StepReplay run={run} step={current} />
-          </section>
+    <div className={PAGE} style={slotStyle(slotOf(run.profileId))}>
+      <TopBarSlot>
+        <SourceBadge source="stored" />
+        <Tag variant="plain">{backendOf(run)}</Tag>
+      </TopBarSlot>
+      <Header run={run} />
+      <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-y border-line py-2">
+        {steps.length === 0 ? (
+          <p className="body text-ink-3">This run stored no step.</p>
+        ) : (
+          <StepTimeline runId={run.id} steps={steps} position={position} outcome={run.outcome} />
         )}
+        {current === undefined ? null : <StepCaption step={current} />}
+        {position < 0 && requested !== undefined ? (
+          <p role="status" className="body text-ink">{`This run has no step ${requested}`}</p>
+        ) : null}
       </div>
+      {current === undefined ? null : (
+        <section aria-labelledby={STEP_HEADING} className="min-w-0 pt-(--space-1)">
+          <h2 id={STEP_HEADING} className="sr-only">
+            {`Step ${current.stepIndex}`}
+          </h2>
+          <StepReplay run={run} step={current} />
+        </section>
+      )}
+      <Recording run={run} />
     </div>
   );
 }
@@ -269,38 +282,34 @@ export function RunDetailScreen() {
   const { runId } = runDetailRoute.useParams();
   const { step } = runDetailRoute.useSearch();
   const run = useQuery(runQuery(runId));
-  // Goal labels only: while the tasks load, or when io fails them, the header shows the task id.
-  const tasks = useQuery(tasksQuery());
   const stored = run.data;
   // Before a not-found too: io failing after a 404 says nothing about whether the run is stored.
   if (run.isError && !stored) {
     return (
       <Placeholder runId={runId}>
-        <div role="alert" className="flex flex-col gap-2 text-sm">
-          <p>This run could not be read from io.</p>
-          <pre className="font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-            {run.error.message}
-          </pre>
-        </div>
+        <Banner
+          kind="fault"
+          action={
+            <Button variant="outline" onClick={() => void run.refetch()}>
+              Try again
+            </Button>
+          }
+        >
+          This run could not be read from io.{" "}
+          <span className="block mono whitespace-pre-wrap">{run.error.message}</span>
+        </Banner>
       </Placeholder>
     );
   }
-  if (stored === undefined) {
-    return (
-      <Placeholder runId={runId}>
-        <p className="text-sm text-muted-foreground">Loading run…</p>
-      </Placeholder>
-    );
-  }
+  if (stored === undefined) return <Loading runId={runId} />;
   if (stored === null) {
     return (
       <Placeholder runId={runId}>
-        <p className="text-sm">{`No run ${runId} is stored. A run is stored when it ends.`}</p>
+        <p className="body text-ink-2">{`No run ${runId} is stored. A run is stored when it ends.`}</p>
       </Placeholder>
     );
   }
-  const goal = tasks.data?.find((task) => task.id === stored.taskId)?.goal;
-  return <RunDetail run={stored} goal={goal} requested={step} />;
+  return <RunDetail run={stored} requested={step} />;
 }
 
 export const runDetailRoute = createRoute({

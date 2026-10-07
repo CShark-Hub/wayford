@@ -1,53 +1,60 @@
 /**
- * One stored step, replayed in five sections, in this order: the two screenshots, the Actor's view,
- * the evidence, the action and the narration (`docs/PLAN.md` F7 AC3). A step Jev chose has a sixth,
- * its decision, before the action (`decision-panel.tsx`). Nothing is worked out here
- * that the record does not hold: the Actor's view is the stored text, what the Actor read of each
- * element is core's `toActorObservation`, and every decision prints the rule its data names.
+ * One stored step, replayed in two columns as `docs/design/screens/run-detail.html` draws it
+ * (`docs/PLAN.md` F7 AC3). On the left, the screenshot of the page the step observed, with the
+ * click point, and under it three tabs: what the filter took out, the dice, and on a step Jev chose,
+ * its draw (`decision-panel.tsx`). On the right, what the model read, line by line, and the
+ * narration. Nothing is worked out here that the record does not hold: the model's text is the
+ * stored text, what the Actor read of each element is core's `toActorObservation`, and every
+ * decision prints the rule its data names.
  *
  * The narration is the model's account of its own answer, written as it answered, and so
- * interpretation, never measurement (`AGENTS.md`, "Traps"). It has a section of its own, the last,
- * and no other section prints it: a wasted step's refused answers are listed in the Action section
- * by what they did, and their narrations go under Narration with the rest.
+ * interpretation, never measurement (`AGENTS.md`, "Traps"). It has a section of its own, labelled
+ * `narration · after the fact`, and no other section prints it: a wasted step's refused answers
+ * are listed under Dice by what they did, and their narrations go under narration with the rest.
  *
- * The Actor's view and the evidence describe the page the step observed. A step's own screenshot is
- * taken after its action landed, so that page is the one the "Observed" screenshot shows, which
- * `observedFrom` finds; the step's own is the "After" one.
+ * The screenshot, the click point, the filtered elements and the model's text describe the page the
+ * step observed. A step's own screenshot is taken after its action landed, so that page is the one
+ * the "Observed" screenshot shows, which `observedFrom` finds; the step's own is the "After" one.
  */
 import {
   type Action,
+  type Bbox,
   type Cost,
   type DiceRoll,
   type ElementDecision,
   type FullObservation,
   METRIC_NAMES,
   type Metrics,
+  type ObservedElement,
   type RunResult,
   type RunStep,
   toActorObservation,
   type Viewport,
 } from "@wayford/core";
-import type { ReactNode } from "react";
+import { cn } from "cn";
+import { Tabs } from "radix-ui";
+import { Fragment, type ReactNode, useState } from "react";
 import { screenshotUrl } from "../api/runs.js";
-import { DecisionPanel } from "./decision-panel.js";
-import { Detail, Details, NOTE, TABLE, TD, TH } from "./details.js";
+import { SIGNAL_FLAG } from "../components/filter-states.js";
+import { percent } from "../components/jev-draw.js";
+import { SEGMENT_GROUP, SegmentedControl, segmentItem } from "../components/segmented-control.js";
+import { ConfidenceNote, DecisionPanel } from "./decision-panel.js";
+import { Detail, Details, FACTS, Fact, Mark, NOTE, TABLE, TD, TH } from "./details.js";
 import { describeAction, observedFrom } from "./replay.js";
+import { personaLabel } from "./task-results.js";
 
 /**
  * The id of each section's `<h3>`. One replay is drawn per page, so fixed ids are unique, and the
  * markup depends on the step alone.
  */
 const HEADING = {
-  screenshots: "step-screenshots",
-  actorView: "step-actor-view",
-  evidence: "step-evidence",
-  decision: "step-decision",
-  action: "step-action",
+  screenshot: "step-screenshot",
+  filtered: "step-filtered",
+  dice: "step-dice",
+  jev: "step-jev",
+  modelRead: "step-model-read",
   narration: "step-narration",
 } as const;
-
-const SECTION = "flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground";
-const H3 = "text-sm font-semibold";
 
 /**
  * One decision as a line of the evidence: `P1 contrast 2.1 < 3, rolled 0.42: degraded`,
@@ -73,13 +80,25 @@ export function decisionLine(decision: ElementDecision): string {
   }
 }
 
-/** The measured metrics, in the filter's metric order: `contrast 2.1, fontPx 16, targetPx 36`. */
-function metricsLine(metrics: Metrics): string {
+/**
+ * The measured metrics, in the filter's metric order: `contrast 2.1, fontPx 16, targetPx 36`. A
+ * narrow column breaks the line between two metrics, never inside one.
+ */
+function MetricsText({ metrics }: { metrics: Metrics }) {
   const measured = METRIC_NAMES.flatMap((name) => {
     const value = metrics[name];
     return value === undefined ? [] : [`${name} ${value}`];
   });
-  return measured.length > 0 ? measured.join(", ") : "none";
+  if (measured.length === 0) return "none";
+  // The space between two metrics sits outside both, so the line may break there.
+  return measured.map((metric, index) => (
+    <Fragment key={metric}>
+      {index === 0 ? null : " "}
+      <span className="whitespace-nowrap">
+        {index < measured.length - 1 ? `${metric},` : metric}
+      </span>
+    </Fragment>
+  ));
 }
 
 /**
@@ -96,59 +115,223 @@ export function costLine(cost: Cost): string {
   return `${usd(cost)}, ${cost.tokensIn} tokens in, ${cost.tokensOut} out`;
 }
 
-/** One section of the replay, labelled by its own `<h3>`. */
-function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return (
-    <section aria-labelledby={id} className={SECTION}>
-      <h3 id={id} className={H3}>
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
+/** The element of `observation` that `action` names by its ref, when the observation holds it. */
+export function targetOf(
+  observation: FullObservation,
+  action: Action,
+): ObservedElement | undefined {
+  if (!("ref" in action)) return undefined;
+  return observation.elements.find((element) => element.ref === action.ref);
+}
+
+/**
+ * The action a step landed and the element it named: only for a step whose action landed and names
+ * a ref the observation holds. A wasted step ran nothing, and an incomplete one's action never
+ * landed, so neither has one. The click point and the marked line both follow it, so the two
+ * never disagree.
+ */
+function landing(step: RunStep): { action: Action; element: ObservedElement } | undefined {
+  if ("wasted" in step || "incomplete" in step) return undefined;
+  const element = targetOf(step.fullObservation, step.performedAction);
+  return element === undefined ? undefined : { action: step.performedAction, element };
+}
+
+/** Whether Jev chose this step's action: the step carries the decision it drew. */
+function choseByJev(step: RunStep): boolean {
+  return "decision" in step && step.decision !== undefined;
+}
+
+/**
+ * Whether Jev drew the element the step's action landed on, `landed`. Jev drew the proposed action,
+ * which core holds to the option the decision draws, and the dice may move it: a B4 misclick lands
+ * on a neighbour's ref, an element Jev did not draw. So the landed element is Jev's only when its
+ * ref is the proposed action's, as it still is after a B1 double click.
+ */
+function drewLanded(step: RunStep, landed: ObservedElement): boolean {
+  if (!choseByJev(step) || !("proposedAction" in step)) return false;
+  const proposed = step.proposedAction;
+  return proposed !== undefined && "ref" in proposed && proposed.ref === landed.ref;
+}
+
+/**
+ * The Actor backend a run ran on, as its record shows it: `jev` when a step carries the decision
+ * Jev drew, `llm` otherwise. Web does not know which model id is Jev's, so it cannot match
+ * `modelIds.actor` first, as io's `backendOf` does. So any Jev run that stopped before its first
+ * planned action reads `llm`, where io's gap is only such a run on an earlier Jev version. Its
+ * model id, in the run detail's facts, still names Jev.
+ */
+export function backendOf(run: RunResult): "jev" | "llm" {
+  return run.steps.some(choseByJev) ? "jev" : "llm";
 }
 
 // ---------------------------------------------------------------------------
-// Screenshots
+// The screenshot
 // ---------------------------------------------------------------------------
 
 /** A stored screenshot: the file route of the step whose action it was taken after. */
 type Shot = { stepIndex: number; src: string };
 
+/** Which of the two screenshots is shown. */
+type ShotKind = "observed" | "after";
+
+const SHOT_OPTIONS = [
+  { value: "observed", label: "Observed" },
+  { value: "after", label: "After" },
+] as const satisfies readonly { value: ShotKind; label: string }[];
+
 /**
- * One screenshot, or the reason there is none. The box keeps the viewport's shape either way, so
- * the two figures stay side by side at the same size.
+ * The screenshot crop's height, 180 px as `run-detail.html`'s `.shot` is, held in `--crop`, which
+ * the frame's offset reads. The run detail's skeleton takes it too.
+ */
+export const CROP_HEIGHT = "h-(--crop) [--crop:--spacing(45)]";
+
+// The four corner ticks of `.target` in run-detail.html: 9 px, 2 px strokes, 3 px outside the box.
+const CORNERS = [
+  "-top-0.75 -left-0.75 border-t-(length:--stroke-rule) border-l-(length:--stroke-rule)",
+  "-top-0.75 -right-0.75 border-t-(length:--stroke-rule) border-r-(length:--stroke-rule)",
+  "-bottom-0.75 -left-0.75 border-b-(length:--stroke-rule) border-l-(length:--stroke-rule)",
+  "-right-0.75 -bottom-0.75 border-b-(length:--stroke-rule) border-r-(length:--stroke-rule)",
+];
+
+/**
+ * Where the action landed, as `run-detail.html` draws it: four `signal` corner ticks around the
+ * element's box, a `signal` crosshair at its centre, and a flag naming the action. The box is the
+ * element's `bbox` over the `viewport`, in percent: the observation stores boxes in viewport
+ * coordinates, the screenshot's own frame (#119). The flag hangs under the box, or over it near the
+ * page's bottom, where the crop ends with the page, and toward the middle near either side, so it
+ * stays inside the crop. It is for the eye alone: the image's alt, or the placeholder's label,
+ * names the click.
+ */
+function ClickPoint({
+  action,
+  bbox,
+  viewport,
+}: {
+  action: Action;
+  bbox: Bbox;
+  viewport: Viewport;
+}) {
+  const centre = (bbox.x + bbox.width / 2) / viewport.width;
+  const low = (bbox.y + bbox.height) / viewport.height > 0.85;
+  return (
+    <div
+      aria-hidden="true"
+      data-click=""
+      className="pointer-events-none absolute"
+      style={{
+        left: percent(bbox.x, viewport.width),
+        top: percent(bbox.y, viewport.height),
+        width: percent(bbox.width, viewport.width),
+        height: percent(bbox.height, viewport.height),
+      }}
+    >
+      {CORNERS.map((corner) => (
+        <span key={corner} className={cn("absolute size-2.25 border-signal", corner)} />
+      ))}
+      <svg
+        viewBox="0 0 20 20"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        className="absolute top-1/2 left-1/2 size-5 -translate-x-1/2 -translate-y-1/2 text-signal"
+      >
+        <path d="M10 1v7M10 12v7M1 10h7M12 10h7" />
+      </svg>
+      <span
+        className={cn(
+          "absolute",
+          SIGNAL_FLAG,
+          low ? "bottom-full mb-3" : "top-full mt-3",
+          centre < 0.25 ? "left-0" : centre > 0.75 ? "right-0" : "left-1/2 -translate-x-1/2",
+        )}
+      >
+        {describeAction(action)}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * How far the frame moves up inside the crop, as a `translate`: enough to put the click point's
+ * centre mid-crop, but never past the page's top or bottom. The percentages are the frame's own
+ * height. `--crop` is the crop's height with its 1 px border, top and bottom, and the frame sits
+ * inside that border, so the height it moves in is `--crop` less 2 px. A page shorter than the crop
+ * keeps its top.
+ */
+function frameOffset(bbox: Bbox, viewport: Viewport): string {
+  const centre = percent(bbox.y + bbox.height / 2, viewport.height);
+  const inside = "(var(--crop) - 2px)";
+  return `0 min(max(calc(${inside} - 100%), calc(${inside} / 2 - ${centre})), 0px)`;
+}
+
+/**
+ * One screenshot, or the reason there is none, cropped to 180 px as `run-detail.html`'s `.shot`
+ * is, so the tabs under it stay in a 1280 × 720 view. Inside the crop a frame of the viewport's
+ * shape holds the picture and the click point, so the point sits where it landed either way, and
+ * the frame moves up to bring the point into the crop. With no point the crop shows the page's top.
+ * `picked` is false for the one the control does not show, which stays in the page, hidden. The
+ * crop carries `data-crop` and the frame `data-frame`, so a browser test can measure the point
+ * against the crop.
  */
 function ShotFigure({
-  label,
+  kind,
+  picked,
   shot,
   caption,
   viewport,
+  click,
 }: {
-  label: string;
+  kind: ShotKind;
+  picked: boolean;
   shot: Shot | undefined;
   caption: string;
   viewport: Viewport;
+  click: { action: Action; bbox: Bbox } | undefined;
 }) {
   const { width, height } = viewport;
+  const marked = click === undefined ? "" : `, with ${describeAction(click.action)} marked`;
+  // The placeholder says nothing until a click point is drawn on it: then it is that picture.
+  const placeholder =
+    click === undefined
+      ? { "aria-hidden": true }
+      : {
+          role: "img",
+          "aria-label": `${describeAction(click.action)} marked, with no screenshot behind it`,
+        };
   return (
-    <figure className="flex min-w-0 flex-col gap-2">
-      <h4 className="text-xs font-medium">{label}</h4>
-      {shot === undefined ? (
+    <figure data-shot={kind} hidden={!picked} className="grid min-w-0 gap-2">
+      <div
+        data-crop=""
+        className={cn(
+          // `frameOffset` takes this 1 px border, top and bottom, off `--crop`.
+          "relative overflow-hidden rounded-sm border border-line-strong",
+          CROP_HEIGHT,
+          shot === undefined ? "border-dashed bg-paper-sunken" : "bg-surface",
+        )}
+        {...(shot === undefined ? placeholder : {})}
+      >
         <div
-          aria-hidden="true"
-          className="w-full rounded-md border border-dashed"
-          style={{ aspectRatio: `${width} / ${height}` }}
-        />
-      ) : (
-        <img
-          src={shot.src}
-          alt={`Screenshot after step ${shot.stepIndex}'s action`}
-          width={width}
-          height={height}
-          className="h-auto w-full rounded-md border"
-        />
-      )}
+          data-frame=""
+          className="absolute inset-x-0 top-0"
+          style={{
+            aspectRatio: `${width} / ${height}`,
+            ...(click === undefined ? {} : { translate: frameOffset(click.bbox, viewport) }),
+          }}
+        >
+          {shot === undefined ? null : (
+            <img
+              src={shot.src}
+              alt={`Screenshot after step ${shot.stepIndex}'s action${marked}`}
+              width={width}
+              height={height}
+              className="block size-full object-cover object-top"
+            />
+          )}
+          {click === undefined ? null : <ClickPoint {...click} viewport={viewport} />}
+        </div>
+      </div>
       <figcaption className={NOTE}>{caption}</figcaption>
     </figure>
   );
@@ -161,7 +344,12 @@ function noAfterCaption(step: RunStep): string {
   return "No screenshot was kept after this step's action";
 }
 
+/**
+ * The head, the observed URL and the Observed and After control, over the two figures. The control
+ * is local: it keeps its choice from step to step, and starts on Observed.
+ */
 function Screenshots({ run, step }: { run: RunResult; step: RunStep }) {
+  const [shown, setShown] = useState<ShotKind>("observed");
   const shotOf = (stepIndex: number): Shot => ({
     stepIndex,
     src: screenshotUrl(run.id, stepIndex),
@@ -169,137 +357,184 @@ function Screenshots({ run, step }: { run: RunResult; step: RunStep }) {
   const from = observedFrom(run.steps, step.stepIndex);
   const observed = from?.screenshotPath === undefined ? undefined : from.stepIndex;
   const after = step.screenshotPath === undefined ? undefined : shotOf(step.stepIndex);
-  const { viewport } = step.fullObservation;
+  const { viewport, url } = step.fullObservation;
+  const landed = landing(step);
   return (
-    <Section id={HEADING.screenshots} title="Screenshots">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <ShotFigure
-          label="Observed"
-          shot={observed === undefined ? undefined : shotOf(observed)}
-          caption={
-            observed !== undefined
-              ? `The page this step observed, as step ${observed}'s action left it`
-              : from !== undefined
-                ? "No screenshot was kept of the page this step observed"
-                : "No screenshot of the start page"
-          }
-          viewport={viewport}
-        />
-        <ShotFigure
-          label="After"
-          shot={after}
-          caption={after === undefined ? noAfterCaption(step) : "After this step's action"}
-          viewport={viewport}
-        />
+    <section aria-labelledby={HEADING.screenshot} className="grid min-w-0 gap-2">
+      <div className="flex min-h-10 min-w-0 items-center gap-3">
+        <h3 id={HEADING.screenshot} className="title text-ink">
+          Screenshot
+        </h3>
+        <span className="min-w-0 truncate mono text-ink-3" title={url}>
+          {url.replace(/^https?:\/\//, "")}
+        </span>
+        <div className="ml-auto shrink-0">
+          <SegmentedControl
+            label="Screenshot"
+            options={SHOT_OPTIONS}
+            value={shown}
+            onValueChange={setShown}
+          />
+        </div>
       </div>
-    </Section>
+      <ShotFigure
+        kind="observed"
+        picked={shown === "observed"}
+        shot={observed === undefined ? undefined : shotOf(observed)}
+        caption={
+          observed !== undefined
+            ? `The page this step observed, as step ${observed}'s action left it`
+            : from !== undefined
+              ? "No screenshot was kept of the page this step observed"
+              : "No screenshot of the start page"
+        }
+        viewport={viewport}
+        click={
+          landed === undefined ? undefined : { action: landed.action, bbox: landed.element.bbox }
+        }
+      />
+      <ShotFigure
+        kind="after"
+        picked={shown === "after"}
+        shot={after}
+        caption={after === undefined ? noAfterCaption(step) : "After this step's action"}
+        viewport={viewport}
+        click={undefined}
+      />
+    </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// The Actor's view and the evidence
+// The tabs: Filtered out, Dice, Jev
 // ---------------------------------------------------------------------------
 
-function ActorView({ text }: { text: string }) {
+/** Each tab, by its Radix value. */
+type Tab = "filtered" | "dice" | "jev";
+
+// Every panel stays in the page, so a static render holds them all; the inactive ones are hidden.
+const PANEL = "min-w-0 data-[state=inactive]:hidden";
+
+/** A tab's name and, in mono, the count of what it holds: `Dice (1)`. */
+function TabName({ name, count }: { name: string; count: number }) {
   return (
-    <Section id={HEADING.actorView} title="Actor's view">
-      <p className={NOTE}>
-        The page part of the Actor's prompt at this step, exactly as stored. The goal, the history,
-        the instructions and any retry sent with it are not stored on the step.
-      </p>
-      <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-xs leading-relaxed">
-        {text}
-      </pre>
-    </Section>
+    <>
+      {`${name} `}
+      <span className="mono text-ink-3">{`(${count})`}</span>
+    </>
   );
 }
 
-function Evidence({ observation }: { observation: FullObservation }) {
+/** One tab's panel: a section labelled by its own `<h3>`, which the tab already shows. */
+function Panel({
+  value,
+  id,
+  title,
+  children,
+}: {
+  value: Tab;
+  id: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tabs.Content value={value} forceMount className={PANEL}>
+      <section aria-labelledby={id} className="grid min-w-0 gap-3">
+        <h3 id={id} className="sr-only">
+          {title}
+        </h3>
+        {children}
+      </section>
+    </Tabs.Content>
+  );
+}
+
+/** The elements of `observation` some rule touched: removed, degraded or renamed. */
+function filteredOut(observation: FullObservation): ObservedElement[] {
+  return observation.elements.filter((element) => element.decisions.length > 0);
+}
+
+/**
+ * What the filter did to the observed page: the counts the model's text closes with, as facts,
+ * then every element a rule touched, in stored order, with each rule. The rest of the page is in
+ * the model's text, line for line.
+ */
+function FilteredOut({ observation }: { observation: FullObservation }) {
   // What the Actor read, by ref: core's own projection, so no masked or renamed name is worked out
   // twice.
   const read = new Map(toActorObservation(observation).elements.map((e) => [e.ref, e.name]));
+  const elements = filteredOut(observation);
   return (
-    <Section id={HEADING.evidence} title="Evidence">
-      <Details>
-        <Detail term="URL">
-          <span className="font-mono text-xs break-all">{observation.url}</span>
-        </Detail>
-        <Detail term="Title">{observation.title}</Detail>
-        <Detail term="Hidden (A1, A3)">
-          <span className="font-mono">{observation.hiddenCount}</span>
-        </Detail>
-        <Detail term="Below the fold (V2)">
-          <span className="font-mono">{observation.belowFoldCount}</span>
-        </Detail>
-      </Details>
-      <div className="overflow-x-auto">
-        <table className={TABLE}>
-          <caption className="pb-2 text-left text-xs text-muted-foreground">
-            Every element the filter looked at on the observed page, in stored order, with each rule
-            it failed.
-          </caption>
-          <thead>
-            <tr>
-              {["Ref", "Role", "Name", "State", "Actor read", "Metrics", "Decisions"].map((h) => (
-                <th key={h} scope="col" className={TH}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {observation.elements.map((element, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: the stored order is fixed, so its index is the element's identity
-              <tr key={index}>
-                <td className={`${TD} font-mono`}>
-                  {element.ref ?? <span className="text-muted-foreground">none</span>}
-                </td>
-                <td className={TD}>{element.role}</td>
-                <td className={TD}>{element.name}</td>
-                <td className={TD}>{element.state}</td>
-                <td className={TD}>
-                  {element.ref === undefined ? (
-                    <span className="text-muted-foreground">not shown</span>
-                  ) : (
-                    read.get(element.ref)
-                  )}
-                </td>
-                <td className={`${TD} font-mono`}>{metricsLine(element.metrics)}</td>
-                <td className={`${TD} font-mono`}>
-                  {element.decisions.length === 0 ? (
-                    <span className="text-muted-foreground">none</span>
-                  ) : (
+    <>
+      <dl className={FACTS}>
+        <Fact term="Hidden (A1, A3)">{observation.hiddenCount}</Fact>
+        <Fact term="Below the fold (V2)">{observation.belowFoldCount}</Fact>
+      </dl>
+      {elements.length === 0 ? (
+        <p className={NOTE}>No rule filtered an element of this page.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className={TABLE}>
+            <caption className="sr-only">
+              Every element a rule touched on the observed page, in stored order, with each rule.
+            </caption>
+            <thead>
+              <tr>
+                {["Ref", "Role", "Name", "State", "Actor read", "Metrics", "Decisions"].map((h) => (
+                  <th key={h} scope="col" className={TH}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {elements.map((element, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: the stored order is fixed, so its index is the element's identity
+                <tr key={index}>
+                  <td className={cn(TD, "mono")}>
+                    {element.ref ?? <span className="text-ink-3">none</span>}
+                  </td>
+                  <td className={cn(TD, "whitespace-nowrap")}>{element.role}</td>
+                  <td className={TD}>{element.name}</td>
+                  <td className={cn(TD, "whitespace-nowrap")}>{element.state}</td>
+                  <td className={TD}>
+                    {element.ref === undefined ? (
+                      <span className="text-ink-3">not shown</span>
+                    ) : (
+                      read.get(element.ref)
+                    )}
+                  </td>
+                  <td className={cn(TD, "mono")}>
+                    <MetricsText metrics={element.metrics} />
+                  </td>
+                  <td className={cn(TD, "mono")}>
                     <ul>
                       {element.decisions.map((decision) => (
                         <li key={decision.rule}>{decisionLine(decision)}</li>
                       ))}
                     </ul>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Section>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
 
-// ---------------------------------------------------------------------------
-// The action
-// ---------------------------------------------------------------------------
-
 /** An action as one monospace line. */
 function ActionText({ action }: { action: Action }) {
-  return <span className="font-mono">{describeAction(action)}</span>;
+  return <span className="mono">{describeAction(action)}</span>;
 }
 
 /** Every behaviour roll, in the order rolled, or a line saying there was none. */
-function Dice({ dice }: { dice: readonly DiceRoll[] }) {
+function Rolls({ dice }: { dice: readonly DiceRoll[] }) {
   if (dice.length === 0) return <p className={NOTE}>No dice rolled</p>;
   return (
     <table className={TABLE}>
-      <caption className="pb-2 text-left text-xs text-muted-foreground">
+      <caption className="pb-2 text-left body text-ink-3">
         Behaviour dice, in the order rolled. A roll fires when it is below p.
       </caption>
       <thead>
@@ -311,7 +546,7 @@ function Dice({ dice }: { dice: readonly DiceRoll[] }) {
           ))}
         </tr>
       </thead>
-      <tbody className="font-mono">
+      <tbody className="mono">
         {dice.map((roll) => (
           <tr key={roll.rule}>
             <td className={TD}>{roll.rule}</td>
@@ -325,22 +560,17 @@ function Dice({ dice }: { dice: readonly DiceRoll[] }) {
   );
 }
 
-/** What the step did: the action proposed and performed with its dice, or why none ran. */
-function ActionSection({ step }: { step: RunStep }) {
-  return (
-    <Section id={HEADING.action} title="Action">
-      <ActionBody step={step} />
-    </Section>
-  );
-}
-
-function ActionBody({ step }: { step: RunStep }) {
+/**
+ * The step's actions: on a wasted step the refused answers, else the action proposed and the one
+ * the dice made of it, or a line saying none was planned.
+ */
+function Actions({ step }: { step: RunStep }) {
   if ("wasted" in step) {
     return (
       <>
-        <h4 className="text-xs font-medium">Refs the Actor was not shown</h4>
+        <h4 className="label text-ink">Refs the Actor was not shown</h4>
         <p className={NOTE}>No action ran: each answer named a ref the Actor was not shown.</p>
-        <ol className="flex list-decimal flex-col gap-1 ps-5 text-sm">
+        <ol className="flex list-decimal flex-col gap-1 ps-5 body">
           {step.rejected.map((answer, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: the answers keep the order given, so the index is the answer's identity
             <li key={index}>
@@ -350,21 +580,22 @@ function ActionBody({ step }: { step: RunStep }) {
         </ol>
         <Details>
           <Detail term="Cost">
-            <span className="font-mono">{costLine(step.cost)}</span>
+            <span className="mono">{costLine(step.cost)}</span>
           </Detail>
         </Details>
       </>
     );
   }
-  const { proposedAction, performedAction, dice, cost } = step;
-  if (proposedAction === undefined || performedAction === undefined || dice === undefined) {
-    return <p className="text-sm">The run stopped before an action was planned</p>;
+  // Core stores the two actions and the dice together or not at all.
+  const { proposedAction, performedAction, cost } = step;
+  if (proposedAction === undefined || performedAction === undefined) {
+    return <p className="body">The run stopped before an action was planned</p>;
   }
   const landed = !("incomplete" in step);
   return (
     <>
       {landed ? null : (
-        <p className="text-sm">The run stopped after this action was planned: it never landed.</p>
+        <p className="body">The run stopped after this action was planned: it never landed.</p>
       )}
       <Details>
         <Detail term="Proposed">
@@ -376,52 +607,190 @@ function ActionBody({ step }: { step: RunStep }) {
         </Detail>
         {cost === undefined ? null : (
           <Detail term="Cost">
-            <span className="font-mono">{costLine(cost)}</span>
+            <span className="mono">{costLine(cost)}</span>
           </Detail>
         )}
       </Details>
-      <Dice dice={dice} />
     </>
   );
 }
 
-// ---------------------------------------------------------------------------
-// The narration
-// ---------------------------------------------------------------------------
-
-/** One narration, or a line saying there is none (a Jev Actor writes none). */
-function NarrationText({ text }: { text: string }) {
-  return text === "" ? (
-    <p className={NOTE}>No narration</p>
-  ) : (
-    <p className="text-sm whitespace-pre-line">{text}</p>
+/**
+ * The tabs under the screenshot, styled as `.wf-seg`: Filtered out, Dice, and Jev on a step Jev
+ * chose, beside its confidence. Jev opens first on such a step, Filtered out on any other. A tab
+ * picked keeps from step to step while the step has it; Jev falls back to the default on a step
+ * Jev did not choose.
+ */
+function Evidence({ run, step }: { run: RunResult; step: RunStep }) {
+  const [picked, setPicked] = useState<Tab | undefined>(undefined);
+  const decision = "decision" in step ? step.decision : undefined;
+  const fallback: Tab = decision === undefined ? "filtered" : "jev";
+  const tab =
+    picked === undefined || (picked === "jev" && decision === undefined) ? fallback : picked;
+  // A wasted step ran no action, so it rolled no die; nor did a step cut short before planning.
+  const dice = "wasted" in step ? [] : (step.dice ?? []);
+  return (
+    <Tabs.Root
+      value={tab}
+      // The values are the triggers' own, so a change is always a `Tab`.
+      onValueChange={(next) => setPicked(next as Tab)}
+      className="grid min-w-0 gap-3"
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Tabs.List aria-label="Step evidence" className={SEGMENT_GROUP}>
+          <Tabs.Trigger value="filtered" className={segmentItem()}>
+            <TabName name="Filtered out" count={filteredOut(step.fullObservation).length} />
+          </Tabs.Trigger>
+          <Tabs.Trigger value="dice" className={segmentItem()}>
+            <TabName name="Dice" count={dice.length} />
+          </Tabs.Trigger>
+          {decision === undefined ? null : (
+            <Tabs.Trigger value="jev" className={segmentItem()}>
+              Jev
+            </Tabs.Trigger>
+          )}
+        </Tabs.List>
+        {decision === undefined ? null : (
+          <div className="ml-auto">
+            <ConfidenceNote
+              confidence={decision.confidence}
+              persona={personaLabel(run.profileId)}
+            />
+          </div>
+        )}
+      </div>
+      <Panel value="filtered" id={HEADING.filtered} title="Filtered out">
+        <FilteredOut observation={step.fullObservation} />
+      </Panel>
+      <Panel value="dice" id={HEADING.dice} title="Dice">
+        <Actions step={step} />
+        {/* The rolls the tab counts, or a line saying none was rolled, so the two always agree. */}
+        <Rolls dice={dice} />
+      </Panel>
+      {decision === undefined ? null : (
+        <Panel value="jev" id={HEADING.jev} title="Jev">
+          <DecisionPanel decision={decision} />
+        </Panel>
+      )}
+    </Tabs.Root>
   );
 }
 
-function Narration({ step }: { step: RunStep }) {
+// ---------------------------------------------------------------------------
+// What the model read, and the narration
+// ---------------------------------------------------------------------------
+
+/**
+ * The meta over the model's text, in the text's own terms: the elements shown, then
+ * `hiddenCount` and `belowFoldCount` only when above 0, as the text prints its own lines for them.
+ * `5 shown · 2 more below`.
+ */
+export function modelReadMeta(
+  shown: number,
+  observation: Pick<FullObservation, "hiddenCount" | "belowFoldCount">,
+): string {
+  const { hiddenCount, belowFoldCount } = observation;
+  return [
+    `${shown} shown`,
+    ...(hiddenCount > 0 ? [`${hiddenCount} more not shown`] : []),
+    ...(belowFoldCount > 0 ? [`${belowFoldCount} more below`] : []),
+  ].join(" · ");
+}
+
+/**
+ * The page part of the Actor's prompt at this step, exactly as stored, one numbered line per line
+ * of the text: joined with line breaks, the lines are the stored text, byte for byte. The meta
+ * counts in the text's own terms, so the two never disagree. What perception removed is counted
+ * nowhere the model reads (#118), so not here either: Filtered out holds it.
+ *
+ * The line of the element the step's action landed on carries a mark, found as the click point is:
+ * "drawn" when Jev drew that element, the performed action's type otherwise, so a click a B4
+ * misclick moved to a neighbour reads "click".
+ */
+function ModelRead({ step }: { step: RunStep }) {
+  const { fullObservation: observation, actorObservationText: text } = step;
+  const shown = observation.elements.filter((element) => element.ref !== undefined).length;
+  const landed = landing(step);
+  const mark =
+    landed === undefined
+      ? undefined
+      : drewLanded(step, landed.element)
+        ? "drawn"
+        : landed.action.type;
+  const opening = landed === undefined ? undefined : `[${landed.element.ref}]`;
   return (
-    <Section id={HEADING.narration} title="Narration">
-      <p className={NOTE}>
-        The model's own account, written as it answered: interpretation, not measurement.
-      </p>
-      <div className="rounded-md border border-dashed p-3">
-        {"wasted" in step ? (
-          <ol className="flex flex-col gap-3">
-            {step.rejected.map((answer, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: the answers keep the order given, so the index is the answer's identity
-              <li key={index} className="flex flex-col gap-1">
-                <p className="font-mono text-xs text-muted-foreground">
-                  {`Answer ${index + 1}, not shown: ${describeAction(answer.action)}`}
-                </p>
-                <NarrationText text={answer.narration} />
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <NarrationText text={step.narration} />
-        )}
+    <section
+      aria-labelledby={HEADING.modelRead}
+      className="min-w-0 overflow-hidden rounded-md border border-line bg-surface"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2">
+        <h3 id={HEADING.modelRead} className="title text-ink">
+          What the model read
+        </h3>
+        <p className="ml-auto mono text-ink-3">{modelReadMeta(shown, observation)}</p>
       </div>
-    </Section>
+      <ol className="bg-paper-sunken py-2 mono">
+        {text.split("\n").map((line, index) => {
+          const marked = opening !== undefined && line.startsWith(opening);
+          return (
+            <li
+              // biome-ignore lint/suspicious/noArrayIndexKey: the stored text is fixed, so a line's index is its identity
+              key={index}
+              data-marked={marked ? "" : undefined}
+              className={cn(
+                "grid grid-cols-[--spacing(8)_minmax(0,1fr)_auto] gap-x-3 border-y pr-3",
+                marked ? "border-line bg-surface" : "border-transparent",
+              )}
+            >
+              <span className="text-right text-ink-3">{index + 1}</span>
+              <code className="whitespace-pre-wrap wrap-anywhere text-ink">{line}</code>
+              {marked ? <Mark>{mark}</Mark> : null}
+            </li>
+          );
+        })}
+      </ol>
+      <p className="border-t border-line px-4 py-2 body text-ink-3">
+        The page part of the prompt, as stored.
+      </p>
+    </section>
+  );
+}
+
+/** One narration, or a line saying there is none: a Jev Actor writes none. */
+function NarrationText({ text, jev }: { text: string; jev: boolean }) {
+  if (text === "")
+    return <p className={NOTE}>{jev ? "Jev writes no narration" : "No narration"}</p>;
+  return <p className="body whitespace-pre-line text-ink-2">{text}</p>;
+}
+
+/**
+ * The step's narration, or each refused answer's on a wasted step. Whether Jev wrote it is the
+ * run's backend, as the top bar names it, so a Jev run's step that was cut short before Jev was
+ * asked still says Jev writes none.
+ */
+function Narration({ run, step }: { run: RunResult; step: RunStep }) {
+  const jev = backendOf(run) === "jev";
+  return (
+    <section aria-labelledby={HEADING.narration} className="grid min-w-0 gap-2">
+      <h3 id={HEADING.narration} className="mono-label text-ink-3">
+        narration · after the fact
+      </h3>
+      {"wasted" in step ? (
+        <ol className="flex flex-col gap-3">
+          {step.rejected.map((answer, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the answers keep the order given, so the index is the answer's identity
+            <li key={index} className="flex flex-col gap-1">
+              <p className="mono text-ink-3">
+                {`Answer ${index + 1}, not shown: ${describeAction(answer.action)}`}
+              </p>
+              <NarrationText text={answer.narration} jev={jev} />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <NarrationText text={step.narration} jev={jev} />
+      )}
+    </section>
   );
 }
 
@@ -429,26 +798,24 @@ function Narration({ step }: { step: RunStep }) {
 // The step
 // ---------------------------------------------------------------------------
 
+/** The replay's two columns, 640 px and the rest. The run detail's skeleton takes them too. */
+export const REPLAY_COLUMNS = "grid-cols-[--spacing(160)_minmax(0,1fr)]";
+
 /**
- * One step of `run` in its five sections, six on a step Jev chose. `run` supplies the screenshot
- * routes and earlier steps.
+ * One step of `run` in `REPLAY_COLUMNS`: the screenshot and its tabs on the left, what the model
+ * read and the narration on the right. `run` supplies the screenshot routes, the earlier steps and
+ * the persona the confidence is not.
  */
 export function StepReplay({ run, step }: { run: RunResult; step: RunStep }) {
   return (
-    <div className="flex flex-col gap-4">
-      <Screenshots run={run} step={step} />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <ActorView text={step.actorObservationText} />
-        <Evidence observation={step.fullObservation} />
+    <div className={cn("grid items-start gap-(--space-5)", REPLAY_COLUMNS)}>
+      <div className="grid min-w-0 content-start gap-(--space-3)">
+        <Screenshots run={run} step={step} />
+        <Evidence run={run} step={step} />
       </div>
-      {"decision" in step && step.decision !== undefined ? (
-        <Section id={HEADING.decision} title="Decision">
-          <DecisionPanel decision={step.decision} />
-        </Section>
-      ) : null}
-      <div className="grid gap-4 xl:grid-cols-2">
-        <ActionSection step={step} />
-        <Narration step={step} />
+      <div className="grid min-w-0 content-start gap-(--space-4)">
+        <ModelRead step={step} />
+        <Narration run={run} step={step} />
       </div>
     </div>
   );

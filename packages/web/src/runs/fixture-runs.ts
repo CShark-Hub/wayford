@@ -68,19 +68,30 @@ function variant([id, profileId, taskId, seed, outcome, durationMs]: Row): RunRe
 export const fixtureRuns: RunResult[] = [runResultFixture, ...ROWS.map(variant)];
 
 /**
+ * A step as Jev would have stored it: with no narration, since Jev writes none, on the step or on
+ * any answer a wasted step refused.
+ */
+function silent(step: RunStep): RunStep {
+  if ("wasted" in step) {
+    return { ...step, rejected: step.rejected.map((answer) => ({ ...answer, narration: "" })) };
+  }
+  return { ...step, narration: "" };
+}
+
+/**
  * The fixture run as Jev would have run it: step 0, whose proposed click on `e3` is the option
- * `decisionRecordFixture` draws, carries that record. Jev's model plays the Actor, and the run has
- * no `actorSampling`, which a Jev run never sends. Outside `fixtureRuns`, so the stats stay as
- * they are.
+ * `decisionRecordFixture` draws, carries that record. Jev's model plays the Actor, so no step and
+ * no refused answer carries a narration, and the run has no `actorSampling`, which a Jev run never
+ * sends. Outside `fixtureRuns`, so the stats stay as they are.
  */
 export const fixtureJevRun: RunResult = RunResult.parse({
   ...runResultFixture,
   id: "run_vera-hard-jev",
   modelIds: { actor: "typesafe/jev-1.13" },
   actorSampling: undefined,
-  steps: runResultFixture.steps.map((step) =>
-    step.stepIndex === 0 ? { ...step, decision: decisionRecordFixture } : step,
-  ),
+  steps: runResultFixture.steps
+    .map(silent)
+    .map((step) => (step.stepIndex === 0 ? { ...step, decision: decisionRecordFixture } : step)),
 });
 
 /** The fixture run's step with this `stepIndex`. */

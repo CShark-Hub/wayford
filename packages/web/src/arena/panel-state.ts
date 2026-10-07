@@ -99,7 +99,7 @@ export type PanelAction =
   | { type: "startFailed"; message: string };
 
 /** The preset under `id`, or `undefined` when none holds it. */
-function presetOf(id: TaskId): GoalPreset | undefined {
+export function presetOf(id: TaskId): GoalPreset | undefined {
   return GOAL_PRESETS.find((preset) => preset.id === id);
 }
 

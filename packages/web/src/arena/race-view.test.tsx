@@ -4,8 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import type { StreamStatus } from "../api/run-events.js";
 import { type StartedRun, screenshotUrl } from "../api/runs.js";
-import { attributesOf, detailsOf, lineOf, styleOf } from "../preview/rendered-markup.js";
+import { attributesOf, classesOf, lineOf, styleOf } from "../preview/rendered-markup.js";
 import { STUCK_STEPS } from "./avatar-state.js";
+import { demoRace, eventsOf } from "./demo-race.js";
 import {
   avatarStateOf,
   beforeEnd,
@@ -13,6 +14,8 @@ import {
   finished,
   fixtureEvent,
   GOAL,
+  hardTask,
+  shifted,
   stuckRun,
   tileOf,
 } from "./fixture-race.js";
@@ -39,22 +42,27 @@ function endedBy(outcome: string): RunEvent[] {
   return [...beforeEnd, RunEvent.parse({ ...finished, outcome })];
 }
 
-/** Vera's race of one, after `events`, her stream at `stream`. */
-function render(events: readonly RunEvent[], stream: StreamStatus = "open"): string {
-  const snapshot: RaceSnapshot = {
-    events: new Map([[vera.id, events]]),
-    streams: new Map([[vera.id, stream]]),
-  };
+/** The race of `runs` after `snapshot`, on the hard goal. */
+function renderRace(runs: readonly StartedRun[], snapshot: RaceSnapshot): string {
   return renderToStaticMarkup(
     <RaceView
-      goal={GOAL}
-      seed={vera.seed}
-      runs={[vera]}
+      task={hardTask}
+      label="Hard goal"
+      seed={runs[0]?.seed ?? 1}
+      runs={runs}
       snapshot={snapshot}
       profiles={profileFixtures}
       onNewRace={() => {}}
     />,
   );
+}
+
+/** Vera's race of one, after `events`, her stream at `stream`. */
+function render(events: readonly RunEvent[], stream: StreamStatus = "open"): string {
+  return renderRace([vera], {
+    events: new Map([[vera.id, events]]),
+    streams: new Map([[vera.id, stream]]),
+  });
 }
 
 /** The finish order list's entries, each on one line. */
@@ -63,34 +71,61 @@ function finishLines(html: string): string[] {
   return [...list.matchAll(/<li(?:\s[^>]*)?>(.*?)<\/li>/gs)].map(([, item]) => lineOf(item ?? ""));
 }
 
-/** The attributes of the `<svg>` in Vera's tile: her avatar. */
+/** The attributes of the `<svg>` in Vera's lane: her avatar, which comes first. */
 function avatarOf(html: string): Record<string, string> {
   return attributesOf(tileOf(html, vera).match(/<svg[^>]*>/)?.[0] ?? "");
 }
 
 /** The attributes of the `<div>` around Vera's avatar: its squircle tile. */
-function avatarTileOf(html: string): Record<string, string> {
-  return attributesOf(tileOf(html, vera).match(/<div[^>]*>(?=<svg)/)?.[0] ?? "");
+function avatarTileOf(html: string, run: StartedRun = vera): Record<string, string> {
+  return attributesOf(tileOf(html, run).match(/<div[^>]*>(?=<svg)/)?.[0] ?? "");
 }
 
-/** What Vera's tile says, on one line. */
+/** What Vera's lane says, on one line. */
 function tileText(html: string): string {
   return lineOf(tileOf(html, vera));
 }
 
-/** Vera's tile's narration line, which must be there even when it is empty. */
-function narrationOf(html: string): string {
-  const details = detailsOf(tileOf(html, vera));
-  expect(details).toHaveProperty("Narration");
-  return details.Narration ?? "";
+/** The text after a lane's narration label, which must be there even when no narration is. */
+function narrationOf(html: string, run: StartedRun = vera): string {
+  const found = tileOf(html, run).match(
+    /<span[^>]*>narration · after the fact<\/span>((?:(?!<\/p>).)*)<\/p>/s,
+  );
+  if (found === null) throw new Error(`no narration label in ${run.id}`);
+  return lineOf(found[1] ?? "");
 }
 
-/** `text` in the quotes the tile sets a narration line in. */
-function quoted(text: string): string {
-  return `“${text}”`;
+/** A lane's detail line: its text and its classes, or undefined when it has none. */
+function detailOf(html: string, run: StartedRun = vera) {
+  const found = tileOf(html, run).match(/<p(\s[^>]*\bdata-detail=""[^>]*)>(.*?)<\/p>/s);
+  if (found === null) return undefined;
+  return {
+    text: lineOf(found[2] ?? ""),
+    classes: classesOf(attributesOf(found[1] ?? "")),
+  };
 }
 
-describe("runView folds a run's events so far into what its tile shows", () => {
+/**
+ * A lane's right column, the `<div>` around its `readout` clock, as "outcome | clock | steps": each
+ * of its three spans on one line. The outcome's span holds its glyph, which has no text.
+ */
+function standingOf(html: string, run: StartedRun = vera): string {
+  const tile = tileOf(html, run);
+  const clock = tile.search(/<span class="readout[\s"]/);
+  if (clock === -1) throw new Error(`no clock in ${run.id}`);
+  const column = tile.slice(tile.lastIndexOf("<div", clock), tile.indexOf("</div>", clock));
+  return [...column.matchAll(/<span[^>]*>(.*?)<\/span>/gs)]
+    .map(([, inner]) => lineOf(inner ?? ""))
+    .join(" | ");
+}
+
+/** The track's label: every step in words. */
+function trackLabelOf(html: string, run: StartedRun = vera): string {
+  const tag = tileOf(html, run).match(/<div[^>]*role="img"[^>]*>/)?.[0] ?? "";
+  return attributesOf(tag)["aria-label"] ?? "";
+}
+
+describe("runView folds a run's events so far into what its lane shows", () => {
   test("before runStarted: idle, with no time, narration or screenshot", () => {
     expect(runView([])).toStrictEqual({
       state: "idle",
@@ -164,21 +199,21 @@ describe("runView folds a run's events so far into what its tile shows", () => {
   });
 });
 
-describe("a tile's narration line follows the latest narration event of its run", () => {
+describe("a lane's narration follows the latest narration event of its run", () => {
   test("Vera's line: empty, then the first narration after event 2, the second after 6, the last after 16", () => {
     // At every prefix: the line holds the latest narration so far, and nothing before the first.
     // Each narration shows from its own event on: 2, 6, 10 and 16.
     const lines = runEventFixtures.map((_, i) => narrationOf(render(upTo(i))));
     expect(lines).toStrictEqual([
       ...Array(2).fill(""),
-      ...Array(4).fill(quoted(narrationAt(2))),
-      ...Array(4).fill(quoted(narrationAt(6))),
-      ...Array(6).fill(quoted(narrationAt(10))),
-      ...Array(4).fill(quoted(narrationAt(16))),
+      ...Array(4).fill(narrationAt(2)),
+      ...Array(4).fill(narrationAt(6)),
+      ...Array(6).fill(narrationAt(10)),
+      ...Array(4).fill(narrationAt(16)),
     ]);
   });
 
-  test("a run with no narration event, as a Jev run: the label and an empty line", () => {
+  test("a run with no narration event, as a Jev run: the label and nothing after it", () => {
     const jevRun = RunEvent.array().parse(
       runEventFixtures.filter((event) => event.type !== "narration"),
     );
@@ -186,17 +221,19 @@ describe("a tile's narration line follows the latest narration event of its run"
     expect(runResultFromEvents(jevRun).steps.every((step) => step.narration === "")).toBe(true);
     const html = render(jevRun);
     expect(narrationOf(html)).toBe("");
-    expect(tileOf(html, vera)).toMatch(/<dt[^>]*>Narration<\/dt>\s*<dd[^>]*><\/dd>/);
     expect(runView(jevRun).narration).toBeUndefined();
   });
 });
 
 describe("the state in words, with what grounds it", () => {
   test("idle is waiting, an action makes it moving", () => {
+    // Before runStarted the clock is a dash.
+    expect(standingOf(render([]))).toBe("Waiting | — | 0 steps so far");
     expect(avatarStateOf(render(upTo(3)), vera)).toBe("idle");
-    expect(tileText(render(upTo(3)))).toContain("Waiting");
+    expect(standingOf(render(upTo(3)))).toBe("Waiting | 0:02.5 | 1 step so far");
     expect(avatarStateOf(render(upTo(4)), vera)).toBe("moving");
-    expect(tileText(render(upTo(4)))).toContain("Moving");
+    expect(standingOf(render(upTo(4)))).toBe("Moving | 0:03.0 | 1 step so far");
+    expect(detailOf(render(upTo(4)))).toBeUndefined();
   });
 
   test("stuck names what the rule counted: the last 2 steps and the page they left as it was", () => {
@@ -206,39 +243,63 @@ describe("the state in words, with what grounds it", () => {
     expect(runView(stuck).stuckOn).toBe("/settings");
     const html = render(stuck);
     expect(avatarStateOf(html, vera)).toBe("stuck");
-    expect(tileText(html)).toContain("Stuck: the last 2 steps left /settings as it was");
-    expect(tileOf(html, vera)).toContain('<span class="font-mono">/settings</span>');
+    expect(standingOf(html)).toMatch(/^Stuck \| /);
+    const detail = detailOf(html);
+    expect(detail?.text).toBe("Stuck: the last 2 steps left /settings as it was");
+    expect(detail?.classes).toContain("text-ink-2");
+    expect(detail?.classes).not.toContain("text-fault");
+    expect(tileOf(html, vera)).toContain('<span class="mono">/settings</span>');
   });
 
-  test("an ended run: done, gave up with its stored outcome, error with its message", () => {
-    const done = render(endedBy("success"));
-    expect(avatarStateOf(done, vera)).toBe("done");
-    expect(tileText(done)).toContain("Done");
+  test("an ended run: its outcome word, the clock held at its end, and every step counted", () => {
+    const through = render(endedBy("success"));
+    expect(avatarStateOf(through, vera)).toBe("done");
+    expect(standingOf(through)).toBe("Got through | 0:15.5 | 5 steps");
 
     const gaveUp = render(runEventFixtures);
     expect(avatarStateOf(gaveUp, vera)).toBe("gaveUp");
-    expect(tileText(gaveUp)).toContain("Gave up: gave_up");
-    expect(tileOf(gaveUp, vera)).toContain('<span class="font-mono">gave_up</span>');
-    expect(tileText(render(endedBy("budget_exceeded")))).toContain("Gave up: budget_exceeded");
+    expect(standingOf(gaveUp)).toBe("Gave up | 0:15.5 | 5 steps");
+    // The word alone: the stored code is not printed after it.
+    expect(tileText(gaveUp)).not.toContain("gave_up");
+    expect(detailOf(gaveUp)).toBeUndefined();
+    // The track ends on the give-up, which it counts.
+    expect(trackLabelOf(gaveUp)).toBe("5 steps: click, scroll, doubleClick, wasted, gave up");
 
+    // A budget run out has its own word, not Gave up's.
+    const overBudget = render(endedBy("budget_exceeded"));
+    expect(standingOf(overBudget)).toBe("Over budget | 0:15.5 | 5 steps");
+    expect(tileText(overBudget)).not.toContain("Gave up");
+    expect(tileText(overBudget)).not.toContain("budget_exceeded");
+
+    // A crash is the tool failing: its message, in fault.
     const error = render([...beforeEnd, failed]);
     expect(avatarStateOf(error, vera)).toBe("error");
-    expect(tileText(error)).toContain("Error: Target page, context or browser has been closed");
+    expect(standingOf(error)).toBe("Error | 0:15.5 | 5 steps");
+    expect(detailOf(error)).toStrictEqual({
+      text: "Target page, context or browser has been closed",
+      classes: expect.arrayContaining(["text-fault"]),
+    });
     expect(tileText(error)).not.toContain("Gave up");
   });
 
-  test("a stream lost mid-run: what was last seen, the avatar plain and dimmed, listed with no place", () => {
+  test("a stream lost mid-run: what was last seen, in fault, the avatar plain and dimmed, listed with no place", () => {
     for (const [index, seen] of [
       [3, "waiting"],
       [8, "moving"],
     ] as const) {
       const html = render(upTo(index), "failed");
-      expect(tileText(html), `after event ${index}`).toContain(`Stream lost: last seen ${seen}`);
+      expect(standingOf(html), `after event ${index}`).toMatch(/^Stream lost \| /);
+      expect(detailOf(html), `after event ${index}`).toStrictEqual({
+        text: `Stream lost: last seen ${seen}`,
+        classes: expect.arrayContaining(["text-fault"]),
+      });
       // No live state: no `data-state`, no badge, no state in the avatar's title.
       expect(avatarOf(html)).not.toHaveProperty("data-state");
       expect(avatarTileOf(html).class).toContain("opacity-50");
       expect(tileOf(html, vera)).not.toContain('data-part="state"');
       expect(tileText(html)).not.toContain("Run state");
+      // A lost run never ended: its track has no end mark and its post is not reached.
+      expect(tileOf(html, vera)).not.toContain("data-end=");
       expect(finishLines(html)).toStrictEqual(["– Vera Stream lost"]);
     }
     // The same events on an open stream: live, and nothing lost.
@@ -249,35 +310,43 @@ describe("the state in words, with what grounds it", () => {
     expect(finishLines(open)).toStrictEqual([]);
   });
 
-  test("a stream that failed after the run's end still shows the end, ranked", () => {
+  test("a stream lost mid-run draws no step under way: its track holds only the steps that ran", () => {
+    for (const [index, label] of [
+      [1, "1 step so far"],
+      [3, "1 step so far"],
+      [15, "5 steps so far: click, scroll, doubleClick, wasted"],
+    ] as const) {
+      const lost = render(upTo(index), "failed");
+      expect(tileOf(lost, vera), `after event ${index}`).not.toContain('data-pip="now"');
+      expect(trackLabelOf(lost), `after event ${index}`).toBe(label);
+      // The same events on an open stream: the step under way is drawn.
+      expect(tileOf(render(upTo(index)), vera), `after event ${index}`).toContain('data-pip="now"');
+    }
+  });
+
+  test("a stream that failed after the run's end still shows the end, listed", () => {
     for (const stream of ["failed", "ended"] as const) {
       const html = render(runEventFixtures, stream);
       expect(avatarStateOf(html, vera), stream).toBe("gaveUp");
-      expect(tileText(html), stream).toContain("Gave up: gave_up");
+      expect(standingOf(html), stream).toMatch(/^Gave up \| /);
       expect(lineOf(html), stream).not.toContain("Stream lost");
-      expect(finishLines(html), stream).toStrictEqual(["1. Vera Gave up 15.5 s"]);
+      expect(finishLines(html), stream).toStrictEqual(["– Vera Gave up 0:15.5"]);
     }
   });
 });
 
-describe("the tile", () => {
-  test("is an article its heading names, the persona's colour on top and her avatar inside", () => {
+describe("the lane", () => {
+  test("is an article its heading names, in the persona's slot, her 64 px avatar inside", () => {
     const html = render(upTo(4));
-    const start = html.match(/<article [^>]*>/)?.[0] ?? "";
-    const attributes = attributesOf(start);
+    const attributes = attributesOf(html.match(/<article [^>]*>/)?.[0] ?? "");
     expect(attributes["aria-labelledby"]).toBe("race-run_vera-hard-1");
     expect(html).toMatch(/<h3 [^>]*id="race-run_vera-hard-1"[^>]*>Vera<\/h3>/);
-    expect(styleOf(attributes)["border-top-color"]).toBe("var(--persona-cobalt)");
-    expect(tileOf(html, vera)).toContain("<svg");
+    expect(styleOf(attributes)["--p"]).toBe("var(--persona-cobalt)");
+    expect(avatarOf(html)["data-state"]).toBe("moving");
+    expect(classesOf(avatarTileOf(html))).toContain("size-16");
   });
 
-  test("elapsed time from the timestamps, a dash before runStarted", () => {
-    expect(detailsOf(tileOf(render([]), vera)).Elapsed).toBe("—");
-    expect(detailsOf(tileOf(render(upTo(4)), vera)).Elapsed).toBe("3 s");
-    expect(detailsOf(tileOf(render(runEventFixtures), vera)).Elapsed).toBe("15.5 s");
-  });
-
-  test("the latest step's screenshot, served by io, or a line that there is none yet", () => {
+  test("the latest step's screenshot, served by io, or a box that there is none yet", () => {
     const before = tileOf(render(upTo(3)), vera);
     expect(before).not.toContain("<img");
     expect(lineOf(before)).toContain("No screenshot yet");
@@ -294,7 +363,54 @@ describe("the tile", () => {
   });
 });
 
-describe("around the tiles", () => {
+describe("the race in progress, as demoRace holds it", () => {
+  const [ada, kai, veraRace] = demoRace.runs;
+  if (ada === undefined || kai === undefined || veraRace === undefined) {
+    throw new Error("demoRace holds three runs");
+  }
+  const html = renderRace(demoRace.runs, { events: demoRace.events, streams: new Map() });
+
+  test("one lane per run, in the runs' order, in a list", () => {
+    const lanes = html.match(/<ol class="[^"]*">(.*?)<\/ol>/s)?.[1] ?? "";
+    const names = [...lanes.matchAll(/<li[^>]*><article[^>]*>.*?<h3[^>]*>(.*?)<\/h3>/gs)].map(
+      ([, name]) => name,
+    );
+    expect(names).toStrictEqual(["Ada", "Kai", "Vera"]);
+  });
+
+  test("Ada reached the post first, Kai moves on, Vera gave up", () => {
+    expect(standingOf(html, ada)).toBe("Got through | 0:06.5 | 2 steps");
+    expect(trackLabelOf(html, ada)).toBe("2 steps: click, scroll; got through, 1st");
+    expect(tileOf(html, ada)).toMatch(/>1st</);
+
+    expect(standingOf(html, kai)).toBe("Moving | 0:13.0 | 5 steps so far");
+    expect(trackLabelOf(html, kai)).toBe(
+      "5 steps so far: click, scroll, doubleClick, wasted, under way",
+    );
+    expect(tileOf(html, kai)).toContain('data-pip="now"');
+
+    expect(standingOf(html, veraRace)).toBe("Gave up | 0:15.5 | 5 steps");
+    expect(tileOf(html, veraRace)).toContain('data-end="gaveUp"');
+    expect(tileOf(html, veraRace)).not.toMatch(/>1st</);
+  });
+
+  test("each lane's latest screenshot", () => {
+    const shots = demoRace.runs.map((run) =>
+      attributesOf(tileOf(html, run).match(/<img [^>]*>/)?.[0] ?? ""),
+    );
+    expect(shots.map(({ src, alt }) => [src, alt])).toStrictEqual([
+      [screenshotUrl(ada.id, 1), "Ada, after step 1"],
+      [screenshotUrl(kai.id, 2), "Kai, after step 2"],
+      [screenshotUrl(veraRace.id, 4), "Vera, after step 4"],
+    ]);
+  });
+
+  test("the finish order lists the two runs that ended, in words and the clock, the one through numbered", () => {
+    expect(finishLines(html)).toStrictEqual(["1. Ada Got through 0:06.5", "– Vera Gave up 0:15.5"]);
+  });
+});
+
+describe("around the lanes", () => {
   /** The "New race" button's start tag. */
   function newRace(html: string): Record<string, string> {
     const tag = html.match(/<button[^>]*>New race<\/button>/)?.[0];
@@ -306,6 +422,7 @@ describe("around the tiles", () => {
     const running = render(upTo(8));
     const waiting = newRace(running);
     expect(waiting).toHaveProperty("disabled");
+    expect(waiting["data-variant"]).toBe("outline");
     expect(running).toMatch(
       new RegExp(
         `id="${waiting["aria-describedby"]}"[^>]*>New race opens once every run has ended: io keeps running them, and a new race would queue behind them\\.<`,
@@ -325,22 +442,63 @@ describe("around the tiles", () => {
     }
   });
 
-  test("a heading with the goal, and the seed in monospace", () => {
+  test("the goal strip: the preset's tag and the task id, the goal in quotes, its success in mono, and the seed", () => {
     const html = render([]);
-    expect(html).toMatch(new RegExp(`<h2 [^>]*>${GOAL}</h2>`));
-    expect(html).toContain('<span class="font-mono">424242</span>');
+    expect(hardTask.goal).toBe(GOAL);
+    expect(html).toMatch(new RegExp(`<h2 [^>]*id="race-goal"[^>]*><q>${GOAL}</q></h2>`));
+    const strip = html.slice(0, html.indexOf("<ol"));
+    expect(lineOf(strip)).toMatch(/^Hard goal task_past-order /);
+    expect(strip).toMatch(
+      /<p class="[^"]*\bmono\b[^"]*">success · URL matches \*\*\/deliveries\/archive<\/p>/,
+    );
+    // The seed in a mono box, its word in ink-3.
+    expect(strip).toMatch(
+      /<span class="[^"]*\bmono\b[^"]*"><span class="text-ink-3">seed<\/span>424242<\/span>/,
+    );
   });
 
-  test("the finish order is the one live region, and lists a run once it ends", () => {
+  test("the finish order is the one live region, hidden from sight, and lists a run once it ends", () => {
     const running = render(upTo(18));
     expect(running.match(/aria-live=/g)).toHaveLength(1);
     expect(running).toMatch(/<ol [^>]*aria-live="polite"[^>]*><\/ol>/);
     expect(lineOf(running)).toContain("No run has ended yet");
+    // The lanes show the places on their posts; the list is for screen readers.
+    expect(running).toMatch(
+      /<section [^>]*aria-labelledby="race-finish-order"[^>]*class="sr-only"[^>]*>\s*<h3 [^>]*id="race-finish-order"[^>]*>Finish order<\/h3>/,
+    );
 
     const ended = render(runEventFixtures);
     expect(ended.match(/aria-live=/g)).toHaveLength(1);
-    const list = ended.match(/<ol [^>]*aria-live="polite"[^>]*>(.*?)<\/ol>/s)?.[1] ?? "";
-    expect(lineOf(list)).toBe("1. Vera Gave up 15.5 s");
+    expect(finishLines(ended)).toStrictEqual(["– Vera Gave up 0:15.5"]);
     expect(lineOf(ended)).not.toContain("No run has ended yet");
+  });
+
+  test("the finish order numbers only the runs that got through, as their posts do: a give-up before them follows with no number", () => {
+    // Vera gives up at 0:15.5, then Ada gets through at 0:20.0: her run is the fixture's, its end a
+    // success 4.5 s later. Ada's post reads 1st, so the list must too, though Vera ended first.
+    const ada: StartedRun = { id: "run_ada-hard-1", profileId: "prof_ada", seed: vera.seed };
+    const adaEvents = eventsOf(ada, runEventFixtures, (event) =>
+      event.type === "runFinished"
+        ? {
+            outcome: "success",
+            timestamp: shifted(event.timestamp, 4500),
+            durationMs: event.durationMs + 4500,
+          }
+        : {},
+    );
+    const html = renderRace([ada, vera], {
+      events: new Map([
+        [ada.id, adaEvents],
+        [vera.id, runEventFixtures],
+      ]),
+      streams: new Map(),
+    });
+    expect(standingOf(html, ada)).toBe("Got through | 0:20.0 | 5 steps");
+    expect(standingOf(html)).toBe("Gave up | 0:15.5 | 5 steps");
+
+    expect(finishLines(html)).toStrictEqual(["1. Ada Got through 0:20.0", "– Vera Gave up 0:15.5"]);
+    expect(tileOf(html, ada)).toMatch(/>1st</);
+    expect(trackLabelOf(html, ada)).toMatch(/; got through, 1st$/);
+    expect(tileOf(html, vera)).not.toMatch(/>1st</);
   });
 });

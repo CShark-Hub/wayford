@@ -6,8 +6,14 @@
  * One `EventSource` per run: io streams each run on its own `GET /runs/:id/events`, and every open
  * stream holds one of the few HTTP/1.1 connections a browser opens per origin. That caps a race at
  * `MAX_PERSONAS` runs; the comment on it in `panel-state.ts` gives the count.
+ *
+ * The lane folds, below `followRace`, turn one run's events and view into what its `RaceLane`
+ * draws: the pips, the place among the runs that got through, the clock, the steps line and the
+ * outcome. Each is pure, and formats only what it is given.
  */
-import type { RunEvent, RunId, RunOutcome } from "@wayford/core";
+import type { Action, RunEvent, RunId, RunOutcome } from "@wayford/core";
+import { type OutcomeKind, outcomeKind } from "#components/outcome";
+import type { Pip } from "#components/race-lane";
 import { type StreamStatus, subscribeToRunEvents } from "../api/run-events.js";
 import type { StartedRun } from "../api/runs.js";
 import type { AvatarState } from "../avatar/state.js";
@@ -186,4 +192,141 @@ export function followRace(
   return () => {
     for (const unsubscribe of unsubscribes) unsubscribe();
   };
+}
+
+/**
+ * The pip a landed step makes, named by its performed action, the one that ran after the dice: a
+ * click the dice made a double click is a double click. A give-up makes none: the track's end mark
+ * stands for it.
+ */
+function pipOf(action: Action): Pip | undefined {
+  switch (action.type) {
+    case "click":
+    case "doubleClick":
+    case "type":
+      return { kind: "act", word: action.type };
+    case "scroll":
+      return { kind: "scroll", word: "scroll" };
+    case "wait":
+      return { kind: "scroll", word: "wait" };
+    case "back":
+      return { kind: "back", word: "back" };
+    case "giveUp":
+      return undefined;
+  }
+}
+
+/**
+ * A lane's track, one pip per step begun (every `stepObserved`), in step order. A step whose action
+ * landed is named by `pipOf`; a wasted step is `wasted`. The step observed last, neither landed nor
+ * wasted, is `now` while the run has not ended and its stream is not `lost`. Once the run has
+ * ended, such a step, which the run stopped in, makes no pip: nothing ran in it. On a lost stream
+ * it makes none either: a broken stream says nothing about now, as `laneOutcome` holds. Pure.
+ */
+export function stepPips(events: readonly RunEvent[], lost: boolean): Pip[] {
+  const observed = new Set<number>();
+  const performed = new Map<number, Action>();
+  const landed = new Set<number>();
+  const wasted = new Set<number>();
+  let latest: number | undefined;
+  let ended = false;
+  for (const event of events) {
+    switch (event.type) {
+      case "stepObserved":
+        observed.add(event.stepIndex);
+        latest = event.stepIndex;
+        break;
+      case "actionPlanned":
+        performed.set(event.stepIndex, event.performedAction);
+        break;
+      case "actionPerformed":
+        landed.add(event.stepIndex);
+        break;
+      case "stepWasted":
+        wasted.add(event.stepIndex);
+        break;
+      case "runFinished":
+      case "runFailed":
+        ended = true;
+        break;
+    }
+  }
+  return [...observed]
+    .sort((a, b) => a - b)
+    .flatMap((step): Pip[] => {
+      if (landed.has(step)) {
+        // io plans every action before it lands, so a landed step always has its action.
+        const action = performed.get(step);
+        const pip = action === undefined ? undefined : pipOf(action);
+        return pip === undefined ? [] : [pip];
+      }
+      if (wasted.has(step)) return [{ kind: "wasted", word: "wasted" }];
+      if (step === latest && !ended && !lost) return [{ kind: "now", word: "under way" }];
+      return [];
+    });
+}
+
+/**
+ * The place of each of `runs` that got through, among those runs alone, by run id: the place its
+ * lane's goal post carries. `finishOrder` ranks them, so equal times share the lower place (1, 1,
+ * 3) and a run with no time comes last. A run that ended any other way, or has not ended, has no
+ * place here.
+ */
+export function throughPlaces(
+  runs: readonly StartedRun[],
+  views: ReadonlyMap<RunId, RunView>,
+): ReadonlyMap<RunId, number> {
+  const through = runs.filter((run) => views.get(run.id)?.state === "done");
+  return new Map(finishOrder(through, views).map(({ run, place }) => [run.id, place]));
+}
+
+/**
+ * A lane's clock: `ms` as m:ss.d, such as "0:15.5", or a dash before `runStarted`. The time is
+ * rounded to tenths once, before it is split, so 59.96 s reads "1:00.0", never "0:60.0".
+ */
+export function clockText(ms: number | undefined): string {
+  if (ms === undefined) return "—";
+  const tenths = Math.round(ms / 100);
+  const minutes = Math.floor(tenths / 600);
+  const seconds = Math.floor((tenths % 600) / 10);
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths % 10}`;
+}
+
+/**
+ * A lane's steps line: the steps begun, each `stepObserved` step once, the give-up's included, as
+ * the track's label counts them. "5 steps" once the run has `ended`, "5 steps so far" while it
+ * runs.
+ */
+export function stepsText(events: readonly RunEvent[], ended: boolean): string {
+  const begun = new Set(
+    events.flatMap((event) => (event.type === "stepObserved" ? [event.stepIndex] : [])),
+  ).size;
+  const count = `${begun} ${begun === 1 ? "step" : "steps"}`;
+  return ended ? count : `${count} so far`;
+}
+
+/**
+ * How a lane stands. A `lost` stream is Stream lost, never a live state: a broken stream says
+ * nothing about now. A run that ended is its stored outcome, so Over budget is told from Gave up.
+ * A run still going is its live state. Pure.
+ */
+export function laneOutcome(view: RunView, lost: boolean): OutcomeKind {
+  if (lost) return "lost";
+  if (view.ended !== undefined) return outcomeKind(view.ended.outcome);
+  switch (view.state) {
+    case "idle":
+      return "waiting";
+    case "moving":
+      return "moving";
+    case "stuck":
+      return "stuck";
+    // `runView` gives these three states only with `ended`, whose outcome decides above. Were one
+    // to come without it, the state is the nearest word: Gave up stands for Over budget too.
+    case "done":
+      return "through";
+    case "gaveUp":
+      return "gaveUp";
+    case "error":
+      return "error";
+  }
 }

@@ -3,7 +3,12 @@
  * in Night, and every element under Vera's floors (`docs/DESIGN.md`, "Checked by"). A Node module,
  * never bundled: it is the one place in web that imports the filter's main entry (`docs/STACK.md`,
  * "Package import rules").
+ *
+ * The screens are served core's fixtures, `demoRace` and the Jev run. `check:self` runs this file
+ * under plain `tsx`, not Vite, so nothing it imports may reach Vite's `import.meta.glob`: that is
+ * why `demoRace` has a module of its own, apart from the arena's other test data.
  */
+import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -11,13 +16,26 @@ import {
   METRIC_NAMES,
   type MetricName,
   type PageMeasurement,
+  type RunEvent,
+  type RunId,
+  type RunResult,
   WayfordError,
 } from "@wayford/core";
-import { axeScanFixture, measurementFixture, reportFixture } from "@wayford/core/fixtures";
+import {
+  axeScanFixture,
+  measurementFixture,
+  profileFixture,
+  reportFixture,
+  runResultFixture,
+  taskFixture,
+} from "@wayford/core/fixtures";
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
 import { createServer } from "vite";
+import { demoRace } from "../src/arena/demo-race.js";
+import { runView } from "../src/arena/race.js";
 import { fixtureSweep } from "../src/boundary/fixture-sweeps.js";
+import { fixtureJevRun } from "../src/runs/fixture-runs.js";
 import { THEME_NAMES, type Theme } from "../src/theme.js";
 
 /**
@@ -36,6 +54,48 @@ export const SELF_CHECK_THEMES: readonly Theme[] = ["light", "dark"];
 /** The projector's size: every screen is measured at it. */
 export const SELF_CHECK_VIEWPORT = { width: 1280, height: 720 } as const;
 
+/**
+ * An io answer that is not a 200 JSON body: a status of its own, an event stream, an image. A
+ * screen lists it in `responses` like any body, and the check sends it as it is.
+ */
+export class SelfCheckAnswer {
+  constructor(
+    readonly status: number,
+    readonly contentType: string,
+    readonly body: string | Buffer,
+  ) {}
+}
+
+/** `body` as JSON under `status`, such as the 201 io answers a checked goal with. */
+function jsonAnswer(body: unknown, status: number): SelfCheckAnswer {
+  return new SelfCheckAnswer(status, "application/json", JSON.stringify(body));
+}
+
+/**
+ * `events` as io streams a run (`packages/io/src/routes/runs.ts`): each a message with its index as
+ * `id:`, its type as `event:` and itself as JSON in `data:`. A one-hour `retry:` leads them, so a
+ * stream with no terminal event is not replayed by a reconnect while the screen is measured.
+ */
+export function eventStreamAnswer(events: readonly RunEvent[]): SelfCheckAnswer {
+  const messages = events.map(
+    (event, index) => `id: ${index}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
+  );
+  return new SelfCheckAnswer(200, "text/event-stream", `retry: 3600000\n\n${messages.join("")}`);
+}
+
+/**
+ * A transparent 1 × 1 PNG, for a screenshot route. The check measures text and controls, never
+ * pictures, so any image does.
+ */
+export const PNG_ANSWER = new SelfCheckAnswer(
+  200,
+  "image/png",
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=",
+    "base64",
+  ),
+);
+
 /** A screen that must pass, and the io responses it is served, keyed by path under /api. */
 export interface SelfCheckScreen {
   name: string;
@@ -44,8 +104,9 @@ export interface SelfCheckScreen {
   /** Shown once the screen has its data; the check measures after it is visible. */
   ready: string;
   /**
-   * Each keyed by its path under `/api`, such as `/runs`: a JSON body, or the bytes of a PNG, as
-   * io's `/illustration` answers.
+   * Each keyed by its path under `/api`, such as `/runs`: a plain value is a 200 JSON body, and a
+   * `SelfCheckAnswer` is sent as it says, such as the bytes of a PNG, as io's `/illustration`
+   * answers.
    */
   responses: Record<string, unknown>;
   /**
@@ -53,6 +114,102 @@ export interface SelfCheckScreen {
    * not held to the floors.
    */
   exclude?: string;
+  /** Clicks that bring the screen to the state measured, run after it opens and before `ready`. */
+  act?: (page: Page) => Promise<void>;
+}
+
+/** The race lane of the persona called `name`: an `<article>` its heading names. */
+function laneOf(page: Page, name: string) {
+  return page.getByRole("article", { name, exact: true });
+}
+
+/**
+ * The Race with `demoRace`'s three runs started, each streaming its `events`. `act` checks the hard
+ * goal, picks Ada, Kai and Vera, starts the race and waits for each lane's `waits`. io answers the
+ * goal accepted as it stands (201), the three runs started (202), each run's events as its stream,
+ * and every screenshot up to the latest of each, read off `runView`. A lane shows only the latest
+ * once its stream has delivered, but a stream that arrived in two chunks would draw an earlier one
+ * first, and an unlisted request fails the check.
+ */
+export function raceScreen({
+  name,
+  events,
+  waits,
+  ready,
+}: {
+  name: string;
+  /** Each of `demoRace`'s runs' events, by run id. */
+  events: ReadonlyMap<RunId, readonly RunEvent[]>;
+  /**
+   * What each lane shows once its stream has delivered, by persona: a string is an element's whole
+   * text, a RegExp a pattern its text matches. One `ready` locator cannot prove that three streams
+   * have.
+   */
+  waits: Readonly<Record<string, string | RegExp>>;
+  ready: string;
+}): SelfCheckScreen {
+  const streams = [...events];
+  return {
+    name,
+    path: "/race",
+    ready,
+    responses: {
+      "/tasks": jsonAnswer({ task: taskFixture("task_past-order"), rewritten: false }, 201),
+      "/runs": jsonAnswer({ runs: demoRace.runs }, 202),
+      ...Object.fromEntries(
+        streams.map(([runId, runEvents]) => [
+          `/runs/${runId}/events`,
+          eventStreamAnswer(runEvents),
+        ]),
+      ),
+      ...Object.fromEntries(
+        streams.flatMap(([runId, runEvents]) =>
+          Array.from({ length: (runView(runEvents).screenshotStep ?? -1) + 1 }, (_, step) => [
+            `/runs/${runId}/steps/${step}/screenshot`,
+            PNG_ANSWER,
+          ]),
+        ),
+      ),
+    },
+    act: async (page) => {
+      await page.getByRole("button", { name: "Check the goal", exact: true }).click();
+      for (const persona of ["Ada", "Kai", "Vera"]) {
+        await page.getByRole("button", { name: persona, exact: true }).click();
+      }
+      await page.getByRole("button", { name: "Start the race", exact: true }).click();
+      for (const [persona, text] of Object.entries(waits)) {
+        await laneOf(page, persona).getByText(text, { exact: true }).waitFor();
+      }
+    },
+  };
+}
+
+/**
+ * Run detail's `<h1>` once `run` has drawn, such as `Vera | 424242 | run_vera-hard-1`. The loading
+ * screen's `<h1>` names the run id alone, so it does not stand for the run.
+ */
+export function runHeading(run: RunResult): string {
+  const persona = profileFixture(run.profileId).label;
+  return `role=heading[level=1][name="${persona} | ${run.seed} | ${run.id}"s]`;
+}
+
+/**
+ * The answers a stored run's detail asks for at one step: the run, the screenshots of `steps`,
+ * which are the step's own (After) and the one its page was observed in (Observed), and an empty
+ * recording. The player asks for its video as it loads, and an empty one leaves it on its error
+ * frame, which `collect` never measures: a `<video>` has no role it knows.
+ */
+export function runDetailResponses(
+  run: RunResult,
+  steps: readonly number[],
+): Record<string, unknown> {
+  return {
+    [`/runs/${run.id}`]: run,
+    ...Object.fromEntries(
+      steps.map((step) => [`/runs/${run.id}/steps/${step}/screenshot`, PNG_ANSWER]),
+    ),
+    [`/runs/${run.id}/video`]: new SelfCheckAnswer(200, "video/webm", ""),
+  };
 }
 
 /**
@@ -102,11 +259,27 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     responses: {
       "/measure": measurementFixture,
       "/axe": axeScanFixture("/deliveries"),
-      "/illustration": readFileSync(
-        new URL("../public/illustration/desktop-blurredVision.png", import.meta.url),
+      "/illustration": new SelfCheckAnswer(
+        200,
+        "image/png",
+        readFileSync(new URL("../public/illustration/desktop-blurredVision.png", import.meta.url)),
       ),
     },
   },
+  {
+    name: "race",
+    path: "/race",
+    ready: 'role=button[name="Start the race"s]',
+    // The setup strip: the goals and the personas come bundled with the app.
+    responses: {},
+  },
+  raceScreen({
+    name: "race-live",
+    events: demoRace.events,
+    // Each lane's last event: Ada's place, Kai's step under way and Vera's last step.
+    waits: { Ada: "1st", Kai: "5 steps so far", Vera: "5 steps" },
+    ready: 'role=article[name="Vera"s] >> text="Gave up"',
+  }),
   {
     name: "report",
     path: "/report/task_past-order",
@@ -126,6 +299,20 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     path: "/boundary/swp_kai-max-elements",
     ready: BOUNDARY_READY,
     responses: { "/sweeps/swp_kai-max-elements": fixtureSweep("swp_kai-max-elements") },
+  },
+  {
+    name: "run-detail",
+    // Step 1 was observed on the page step 0's action left, so both screenshots are drawn.
+    path: `/runs/${runResultFixture.id}?step=1`,
+    ready: runHeading(runResultFixture),
+    responses: runDetailResponses(runResultFixture, [0, 1]),
+  },
+  {
+    name: "run-detail-jev",
+    // Step 0, the one Jev drew: the start page has no screenshot, so only its own is asked for.
+    path: `/runs/${fixtureJevRun.id}`,
+    ready: runHeading(fixtureJevRun),
+    responses: runDetailResponses(fixtureJevRun, [0]),
   },
 ];
 
@@ -182,9 +369,9 @@ export interface ScreenCheck {
 
 /**
  * Open `screen` on `origin` in `page` at the projector's size, with its io requests answered from
- * `responses`, and measure it once it is ready. A request to an `/api` path the screen does not
- * list throws a `WayfordError` with code `self_check_unanswered`, so a screen is never measured
- * empty.
+ * `responses`, run its `act`, and measure it once it is ready. A request to an `/api` path the
+ * screen does not list throws a `WayfordError` with code `self_check_unanswered`, so a screen is
+ * never measured empty.
  *
  * Given a theme, the page's system preference is set to it before the screen loads, so the boot
  * script in `index.html` opens the screen in it. A screen that opens in any other theme throws a
@@ -217,17 +404,25 @@ export async function checkScreen(
   await page.route(/^https?:\/\/[^/]+\/api\//, (route) => {
     const path = new URL(route.request().url()).pathname.slice("/api".length);
     if (Object.hasOwn(screen.responses, path)) {
-      const response = screen.responses[path];
-      return response instanceof Uint8Array
-        ? route.fulfill({ body: Buffer.from(response), contentType: "image/png" })
-        : route.fulfill({ json: response });
+      const answer = screen.responses[path];
+      if (answer instanceof SelfCheckAnswer) {
+        const { status, contentType, body } = answer;
+        return route.fulfill({ status, contentType, body });
+      }
+      return route.fulfill({ json: answer });
     }
     unlisted ??= notListed(screen, path);
     reject(unlisted);
     return route.fulfill({ status: 404, json: { error: "not listed for the self-check" } });
   });
   await page.goto(`${origin}${screen.path}`);
-  await Promise.race([page.locator(screen.ready).waitFor(), firstUnlisted]);
+  // `act` races the first unlisted request too: a click can start a request the screen does not
+  // list, and the check fails on it at once rather than waiting out `ready`.
+  const opened = async () => {
+    await screen.act?.(page);
+    await page.locator(screen.ready).waitFor();
+  };
+  await Promise.race([opened(), firstUnlisted]);
   // So Geist is measured, not the fallback the page drew while it loaded.
   await page.evaluate(async () => {
     await document.fonts.ready;

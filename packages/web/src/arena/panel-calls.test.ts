@@ -115,7 +115,9 @@ test("startRace: io's 202 starts the race, and the panel can start again after i
     seeds: [1],
   });
   expect(screen.actions.map(({ type }) => type)).toStrictEqual(["startStarted", "startSucceeded"]);
-  expect(race).toStrictEqual({ goal: acceptedTask.goal, seed: 1, runs: started });
+  // The task the check accepted, so the race shows its id, goal and success condition, and the
+  // chosen preset's label.
+  expect(race).toStrictEqual({ task: acceptedTask, label: "Hard goal", seed: 1, runs: started });
   // "New race" comes back to a panel that can start again.
   expect(screen.state().starting).toBe(false);
   expect(startBlocker(screen.state())).toBeUndefined();

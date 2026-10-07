@@ -1,95 +1,89 @@
 /**
- * How Jev chose a step's action (`docs/adr/0001-jev-actor-backend.md`, decisions 3, 4 and 6): the
- * options in offer order, the probability it gave each, and where the run's seeded roll landed.
- * The drawn option is core's `drawOption`, the draw the run made, never worked out again here.
+ * The Jev tab of a step replay (`docs/adr/0001-jev-actor-backend.md`, decisions 3, 4 and 6): the
+ * draw, then every option in offer order with the probability Jev gave it. The drawn option is
+ * core's `drawOption` through `drawScale`, the draw the run made, never worked out again here.
  *
- * Jev rounds each probability, so they need not sum to 1: a bar and a range are the option's
- * share of the total, the scale `drawOption` draws on, and the number printed is as stored.
+ * Jev rounds each probability, so they need not sum to 1: a bar is the option's share of the
+ * total, the scale `drawOption` draws on, and the number printed is as stored. An option's range
+ * on that scale is its segment's width in the draw, and is printed in that segment's title.
  */
-import { type DecisionRecord, drawOption } from "@wayford/core";
-import { Detail, Details, NOTE, TABLE, TD, TH } from "./details.js";
+import type { DecisionRecord } from "@wayford/core";
+import { cn } from "cn";
+import { drawScale, JevDraw } from "../components/jev-draw.js";
+import { Mark } from "./details.js";
+import { describeAction } from "./replay.js";
 
-/** Each option's range on the cumulative scale from 0 to 1, and the index of the drawn one. */
-export function drawScale(decision: DecisionRecord): {
-  ranges: { from: number; to: number }[];
-  drawn: number;
-} {
-  const { probabilities, rolled } = decision;
-  const total = probabilities.reduce((sum, p) => sum + p, 0);
-  let running = 0;
-  const ranges = probabilities.map((p) => {
-    const from = running / total;
-    running += p;
-    return { from, to: running / total };
-  });
-  return { ranges, drawn: drawOption(probabilities, rolled) };
+/**
+ * How sure Jev was, labelled as the model's and not the persona's (`docs/DESIGN.md`, Principle 6):
+ * `confidence 0.71 · the model's, not Vera's`, the value in mono. It sits beside the step's tabs.
+ */
+export function ConfidenceNote({ confidence, persona }: { confidence: number; persona: string }) {
+  return (
+    <p className="body whitespace-nowrap text-ink-3">
+      confidence <span className="mono text-ink">{confidence}</span>
+      {` · the model's, not ${persona}'s`}
+    </p>
+  );
 }
 
-/** A point on the scale, to three places: `0.071`. */
-function point(value: number): string {
-  return String(Number(value.toFixed(3)));
-}
-
+/**
+ * The decision of a step Jev chose: the draw, then every option offered, in that order, in two
+ * columns read down. Each option gives its action, its description, a bar of its share and its
+ * probability as stored. The drawn one says "drawn" in words, besides its colour.
+ */
 export function DecisionPanel({ decision }: { decision: DecisionRecord }) {
   const { ranges, drawn } = drawScale(decision);
+  const { options, probabilities } = decision;
   return (
-    <>
-      <p className={NOTE}>
+    <div className="grid gap-3">
+      <JevDraw decision={decision} />
+      <ol
+        aria-label="Options, in the order offered"
+        className="grid grid-flow-col grid-cols-2 gap-x-6 gap-y-2"
+        style={{ gridTemplateRows: `repeat(${Math.ceil(options.length / 2)}, auto)` }}
+      >
+        {options.map(({ action, description }, i) => {
+          const { from = 0, to = 0 } = ranges[i] ?? {};
+          const isDrawn = i === drawn;
+          return (
+            <li
+              // biome-ignore lint/suspicious/noArrayIndexKey: the options keep the order offered, so the index is the option's identity
+              key={i}
+              data-drawn={isDrawn ? "" : undefined}
+              className={cn(
+                "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2",
+                isDrawn ? "text-ink" : "text-ink-2",
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className={cn("truncate mono", isDrawn ? "text-ink" : "text-ink-3")}>
+                  {describeAction(action)}
+                </span>
+                {isDrawn ? <Mark>drawn</Mark> : null}
+              </span>
+              <span
+                aria-hidden="true"
+                className="block h-1.5 w-12 overflow-hidden rounded-xs bg-paper-sunken inset-ring inset-ring-line"
+              >
+                <span
+                  data-bar=""
+                  className={cn("block h-full", isDrawn ? "bg-(--p)" : "bg-ink-3")}
+                  style={{ width: `${((to - from) * 100).toFixed(1)}%` }}
+                />
+              </span>
+              {/* Jev sends two places, so the column is one width down a list. */}
+              <span className="min-w-10 mono text-right text-ink">{probabilities[i]}</span>
+              <span className="col-span-3 truncate body" title={description}>
+                {description}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="body text-ink-3">
         Jev gave each option it was offered a probability. The action was drawn from them by the
         run's seed, not taken as the top pick.
       </p>
-      <Details>
-        <Detail term="Confidence">
-          <span className="font-mono">{decision.confidence}</span> the model's: how sure Jev was,
-          lower on a more ambiguous page, not how the persona felt
-        </Detail>
-        <Detail term="Rolled">
-          <span className="font-mono">{decision.rolled}</span> on the cumulative scale from 0 to 1,
-          which lands on option {drawn + 1}
-        </Detail>
-      </Details>
-      <div className="overflow-x-auto">
-        <table className={TABLE}>
-          <caption className="pb-2 text-left text-xs text-muted-foreground">
-            Every option offered, in the order offered. A bar is the option's share of the draw.
-          </caption>
-          <thead>
-            <tr>
-              {["Option", "p", "Share", "Range", "Drawn"].map((h) => (
-                <th key={h} scope="col" className={TH}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {decision.options.map(({ description }, i) => {
-              const { from = 0, to = 0 } = ranges[i] ?? {};
-              const isDrawn = i === drawn;
-              return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: the options keep the order offered, so the index is the option's identity
-                <tr key={i} className={isDrawn ? "bg-muted/50 font-medium" : undefined}>
-                  <td className={TD}>{description}</td>
-                  <td className={`${TD} font-mono`}>{decision.probabilities[i]}</td>
-                  <td className={`${TD} w-1/4`}>
-                    <span
-                      data-bar=""
-                      aria-hidden="true"
-                      className={`block h-2 rounded-sm ${isDrawn ? "bg-(--persona)" : "bg-muted-foreground/40"}`}
-                      style={{ width: `${((to - from) * 100).toFixed(1)}%` }}
-                    />
-                  </td>
-                  <td className={`${TD} font-mono whitespace-nowrap`}>
-                    {`${point(from)} to ${point(to)}`}
-                  </td>
-                  {/* The roll is printed once, above: a stored one can run to 17 digits. */}
-                  <td className={TD}>{isDrawn ? "drawn: the roll lands here" : ""}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </>
+    </div>
   );
 }

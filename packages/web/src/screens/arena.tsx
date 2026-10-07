@@ -1,6 +1,6 @@
 /**
- * The arena (`docs/PLAN.md` F6): a goal in one sentence and three to five personas in, then the
- * runs side by side, live, so the demo shows who gets across and who does not.
+ * The Race (`docs/PLAN.md` F6): a goal in one sentence and three to five personas in, then one
+ * lane per run, stacked and live, so the demo shows who gets across and who does not.
  *
  * This file holds the state and starts the calls to io; the rest is pure or plain. The start panel's
  * rules live in `arena/panel-state.ts`, its calls to io in `arena/panel-calls.ts` and its view in
@@ -29,7 +29,8 @@ function LiveRace({ race, onNewRace }: { race: Race; onNewRace: () => void }) {
   useEffect(() => followRace(race.runs, setSnapshot), [race.runs]);
   return (
     <RaceView
-      goal={race.goal}
+      task={race.task}
+      label={race.label}
       seed={race.seed}
       runs={race.runs}
       snapshot={snapshot}
@@ -44,8 +45,10 @@ export function ArenaScreen() {
   const [race, setRace] = useState<Race | undefined>();
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-6">
-      <h1 className="text-xl font-semibold">Race</h1>
+    // The page column (`docs/DESIGN.md`, "Space, shape and layout"). The reference draws no title
+    // row, so the page's one h1 is for a screen reader alone.
+    <div className="mx-auto flex w-full max-w-(--content-max) flex-col px-(--space-6)">
+      <h1 className="sr-only">Race</h1>
       {race === undefined ? (
         <StartPanel
           state={panel}

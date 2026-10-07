@@ -1,11 +1,16 @@
 /**
  * Test data, Node only: this file imports `@wayford/core/fixtures`, which reads its files with
  * `node:fs`, so no screen may import it. The arena's tests share it: synthetic personas and the
- * panel's actions for the start panel's tests, Vera's fixture run, its ends and a variant where she
- * gets stuck for the race's, and how a race test finds a run's tile in the markup.
+ * panel's actions for the start panel's tests, the hard goal's task, Vera's fixture run, its ends
+ * and a variant where she gets stuck for the race's, and how a race test finds a run's lane in the
+ * markup.
+ *
+ * It loads only through Vite, as vitest does: `./panel-state.js` reads the bundled fixtures with
+ * Vite's `import.meta.glob`, so plain `tsx`, which runs `check:self`, cannot import this file. The
+ * race the self-check serves lives in `./demo-race.js` for that reason.
  */
-import { Profile, RunEvent } from "@wayford/core";
-import { profileFixture, runEventFixtures } from "@wayford/core/fixtures";
+import { Profile, RunEvent, type Task } from "@wayford/core";
+import { profileFixture, runEventFixtures, taskFixture } from "@wayford/core/fixtures";
 import type { StartedRun } from "../api/runs.js";
 import { type PanelAction, type PanelState, panelReducer } from "./panel-state.js";
 
@@ -35,6 +40,9 @@ export function forOf(state: PanelState) {
 
 /** The hard goal, as the personas get it. */
 export const GOAL = "you want to see what you ordered three months ago";
+
+/** The hard goal's task, as io's check accepts it unchanged: the race's goal strip reads it. */
+export const hardTask: Task = taskFixture("task_past-order");
 
 /** The fixture's event at `index`: Vera's run on the hard goal, which she gives up on. */
 export function fixtureEvent(index: number): RunEvent {
@@ -110,18 +118,18 @@ export const stuckRun: RunEvent[] = [
   later(19, 5, { durationMs: finished.durationMs + STUCK_SHIFT_MS }),
 ];
 
-/** The markup inside the tile its heading names `run`, found through its `aria-labelledby`. */
+/** The markup inside the lane its heading names `run`, found through its `aria-labelledby`. */
 export function tileOf(html: string, run: StartedRun): string {
   const tile = html.match(
     new RegExp(`<article [^>]*aria-labelledby="race-${run.id}"[^>]*>(.*?)</article>`, "s"),
   );
-  if (tile?.[1] === undefined) throw new Error(`no tile for ${run.id}`);
+  if (tile?.[1] === undefined) throw new Error(`no lane for ${run.id}`);
   return tile[1];
 }
 
-/** The `data-state` of `run`'s avatar, read inside its tile. */
+/** The `data-state` of `run`'s avatar, read inside its lane. */
 export function avatarStateOf(html: string, run: StartedRun): string {
   const state = tileOf(html, run).match(/<svg[^>]*\sdata-state="([^"]*)"/)?.[1];
-  if (state === undefined) throw new Error(`no avatar state in ${run.id}'s tile`);
+  if (state === undefined) throw new Error(`no avatar state in ${run.id}'s lane`);
   return state;
 }

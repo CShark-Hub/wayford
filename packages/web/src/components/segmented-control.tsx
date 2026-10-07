@@ -10,17 +10,21 @@ export function pickedValue<T extends string>(current: T, next: string): T {
   return next === "" ? current : (next as T);
 }
 
-/** `.wf-seg`'s well. Exported with `segmentItem` so a row of links can wear the same look. */
+/**
+ * `.wf-seg`'s well. Exported with `segmentItem` so a row of links, or a tab list, can wear the
+ * same look.
+ */
 export const SEGMENT_GROUP =
   "inline-flex gap-0.5 rounded-sm border border-line bg-paper-sunken p-0.75";
 
 /**
- * A segment's look. Radix marks the picked item `data-state="on"`; a link to the page that is
- * shown is marked `aria-current="page"`, and is drawn picked the same way.
+ * A segment's look. Radix marks the picked item `data-state="on"` and the open tab
+ * `aria-selected="true"`; a link to the page that is shown is marked `aria-current="page"`. Each is
+ * drawn picked the same way, as `.wf-seg`'s picked segment.
  */
 export function segmentItem(mono?: boolean): string {
   return cn(
-    "inline-flex min-h-8.5 items-center gap-2 rounded-xs px-3.5 text-ink-2 transition-colors hover:text-ink data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:ring-1 data-[state=on]:ring-line-strong aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=page]:ring-1 aria-[current=page]:ring-line-strong",
+    "inline-flex min-h-8.5 items-center gap-2 rounded-xs px-3.5 text-ink-2 transition-colors hover:text-ink data-[state=on]:bg-surface data-[state=on]:text-ink data-[state=on]:ring-1 data-[state=on]:ring-line-strong aria-selected:bg-surface aria-selected:text-ink aria-selected:ring-1 aria-selected:ring-line-strong aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=page]:ring-1 aria-[current=page]:ring-line-strong",
     // Mono items take `mono-label`, the mono face with tabular figures, at regular weight.
     mono ? "mono-label font-normal" : "label",
   );

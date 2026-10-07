@@ -1,22 +1,26 @@
-import { DecisionRecord } from "@wayford/core";
+import type { DecisionRecord } from "@wayford/core";
 import { decisionRecordFixture } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import { attributesOf, detailsOf, rowsOf, styleOf } from "../preview/rendered-markup.js";
-import { DecisionPanel, drawScale } from "./decision-panel.js";
+import { attributesOf, lineOf, styleOf } from "../preview/rendered-markup.js";
+import { ConfidenceNote, DecisionPanel } from "./decision-panel.js";
 
 function panel(decision: DecisionRecord = decisionRecordFixture): string {
   return renderToStaticMarkup(<DecisionPanel decision={decision} />);
 }
 
-/** Each option row as its cells, keyed by the table's header. */
-function optionRows(html: string): Record<string, string>[] {
-  const [header, ...rows] = rowsOf(html);
-  if (header === undefined) return [];
-  return rows.map((cells) => Object.fromEntries(header.map((name, i) => [name, cells[i] ?? ""])));
+/** The options list: its start tag's attributes, and each `<li>` as its attributes and markup. */
+function optionList(html: string) {
+  const list = html.match(/<ol([^>]*)>(.*?)<\/ol>/s);
+  if (list === null) throw new Error("No <ol> in the panel");
+  const items = [...(list[2] ?? "").matchAll(/<li([^>]*)>(.*?)<\/li>/gs)].map((item) => ({
+    attributes: attributesOf(item[1] ?? ""),
+    inner: item[2] ?? "",
+  }));
+  return { attributes: attributesOf(list[1] ?? ""), items };
 }
 
-/** Each bar's width, in the order drawn. */
+/** Each option bar's width, in the order drawn. */
 function barWidths(html: string): string[] {
   return [...html.matchAll(/<span [^>]*data-bar=""[^>]*>/g)].map(
     (bar) => styleOf(attributesOf(bar[0])).width ?? "",
@@ -25,43 +29,69 @@ function barWidths(html: string): string[] {
 
 describe("on the decision record fixture", () => {
   const html = panel();
-  const rows = optionRows(html);
+  const { attributes, items } = optionList(html);
 
-  test("ten bars in offer order, each with its probability as stored, and e3 alone drawn", () => {
-    expect(barWidths(html)).toHaveLength(10);
-    expect(rows.map((row) => row.Option)).toEqual(
-      decisionRecordFixture.options.map((option) => option.description),
-    );
-    expect(rows.map((row) => Number(row.p))).toEqual(decisionRecordFixture.probabilities);
-    expect(rows.filter((row) => row.Drawn !== "").map((row) => [row.Option, row.Drawn])).toEqual([
-      ['Click [e3], the link "Deliveries"', "drawn: the roll lands here"],
+  test("the draw comes first, before the options", () => {
+    const bar = html.indexOf('role="img"');
+    expect(bar).toBeGreaterThan(-1);
+    expect(bar).toBeLessThan(html.indexOf("<ol"));
+  });
+
+  test("every option in offer order: its action, its description and its probability as stored", () => {
+    expect(items.map((item) => lineOf(item.inner))).toEqual([
+      'click e1 0.02 Click [e1], the link "Home"',
+      'click e2 0.05 Click [e2], the link "Account"',
+      'click e3 drawn 0.62 Click [e3], the link "Deliveries"',
+      'click e4 0.03 Click [e4], the link "Settings"',
+      'click e5 0.01 Click [e5], the heading "Your deliveries"',
+      'click e6 0.12 Click [e6], the link "Ar▒▒ive"',
+      "scroll down 0.08 Scroll the page down",
+      "scroll up 0.01 Scroll the page up",
+      "back 0.03 Go back to the page before",
+      "giveUp 0.02 Stop, because you think you cannot get it done here",
     ]);
   });
 
-  test("a bar and a range are the option's share of the total, which Jev's rounding leaves at 0.99", () => {
-    expect(barWidths(html)[2]).toBe(`${((0.62 / 0.99) * 100).toFixed(1)}%`);
-    expect(rows[2]?.Range).toBe("0.071 to 0.697");
-    expect(rows.at(-1)?.Range).toBe("0.98 to 1");
+  test("e3 alone is drawn, said in words and not by colour alone", () => {
+    const drawn = items.filter((item) => "data-drawn" in item.attributes);
+    expect(drawn).toHaveLength(1);
+    expect(lineOf(drawn[0]?.inner ?? "")).toContain("click e3 drawn");
+    expect(items.filter((item) => lineOf(item.inner).includes("drawn"))).toEqual(drawn);
   });
 
-  test("the confidence is the model's, and the roll is placed on the cumulative scale", () => {
-    const details = detailsOf(html);
-    expect(details.Confidence).toBe(
-      "0.71 the model's: how sure Jev was, lower on a more ambiguous page, not how the persona felt",
+  test("the list is named, and holds half the options in each column: five rows for ten", () => {
+    expect(styleOf(attributes)["grid-template-rows"]).toBe("repeat(5, auto)");
+    expect(attributes["aria-label"]).toBe("Options, in the order offered");
+  });
+
+  test("a bar is the option's share of the total, which Jev's rounding leaves at 0.99", () => {
+    const widths = barWidths(html);
+    expect(widths).toHaveLength(10);
+    expect(widths[2]).toBe(`${((0.62 / 0.99) * 100).toFixed(1)}%`);
+  });
+
+  test("the note says the action was drawn by the seed, not taken as the top pick", () => {
+    expect(lineOf(html)).toContain(
+      "Jev gave each option it was offered a probability. The action was drawn from them by the run's seed, not taken as the top pick.",
     );
-    expect(details.Rolled).toBe("0.4 on the cumulative scale from 0 to 1, which lands on option 3");
   });
 });
 
-test("the drawn option is core's draw, not the top pick: an option of probability 0 is skipped", () => {
-  const record = DecisionRecord.parse({
-    ...decisionRecordFixture,
-    options: decisionRecordFixture.options.slice(0, 3),
-    probabilities: [0.5, 0, 0.5],
-    rolled: 0.5,
+// The fixture's roll of 0.4 draws e3, which is also its top pick, so only another roll shows that
+// the list marks the option the roll drew and not the most probable one.
+test("a roll of 0.9 on the fixture marks scroll down drawn, not the top pick, e3", () => {
+  const { items } = optionList(panel({ ...decisionRecordFixture, rolled: 0.9 }));
+  expect(items.map((item) => "data-drawn" in item.attributes)).toEqual(
+    items.map((_, i) => i === 6),
+  );
+  expect(lineOf(items[6]?.inner ?? "")).toBe("scroll down drawn 0.08 Scroll the page down");
+  expect(lineOf(items[2]?.inner ?? "")).not.toContain("drawn");
+});
+
+describe("the confidence note", () => {
+  const html = renderToStaticMarkup(<ConfidenceNote confidence={0.71} persona="Vera" />);
+
+  test("labels the confidence as the model's, not the persona's", () => {
+    expect(lineOf(html)).toBe("confidence 0.71 · the model's, not Vera's");
   });
-  const { ranges, drawn } = drawScale(record);
-  expect(drawn).toBe(2);
-  expect(ranges[1]).toEqual({ from: 0.5, to: 0.5 });
-  expect(optionRows(panel(record))[2]?.Drawn).toBe("drawn: the roll lands here");
 });

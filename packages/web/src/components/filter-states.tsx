@@ -47,6 +47,15 @@ export const FILTER_STATE_CLASS: Record<FilterState, string> = {
   cut: "rounded-xs outline-2 outline-line-strong outline-dashed outline-offset-2",
 };
 
+/** A flag's shape: a mono label on a small pad, on one line. */
+const FLAG = "whitespace-nowrap rounded-xs px-1.5 py-px mono-label";
+
+/**
+ * A flag in `signal`, which marks a measurement line: a cut flag a perception rule set, the click
+ * point's flag on a replayed step, and the needle's on Jev's draw. Each adds where it sits.
+ */
+export const SIGNAL_FLAG = `${FLAG} bg-signal text-on-signal`;
+
 /** Where a cut flag sits: beside its element, or inside its outline. */
 export type FlagSide = "left" | "right" | "inside";
 
@@ -85,15 +94,15 @@ export function CutFlag({
   return (
     <span
       className={cn(
-        "absolute z-1 flex flex-col whitespace-nowrap rounded-xs px-1.5 py-px mono-label",
+        "absolute z-1 flex flex-col",
         side === "inside"
           ? "top-0 left-2 before:hidden"
           : "top-1/2 -translate-y-1/2 before:absolute before:top-1/2 before:h-0.5 before:w-2.5 before:-translate-y-1/2",
         side === "right" && "left-full ml-3.5 before:right-full",
         side === "left" && "right-full mr-3.5 before:left-full",
         quiet
-          ? "bg-surface text-ink-2 ring-1 ring-line-strong ring-inset before:bg-line-strong"
-          : "bg-signal text-on-signal before:bg-signal",
+          ? `${FLAG} bg-surface text-ink-2 ring-1 ring-line-strong ring-inset before:bg-line-strong`
+          : `${SIGNAL_FLAG} before:bg-signal`,
         className,
       )}
     >
