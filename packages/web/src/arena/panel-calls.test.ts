@@ -2,9 +2,10 @@ import type { Task } from "@wayford/core";
 import { afterEach, expect, test, vi } from "vitest";
 import type { StartedRun } from "../api/runs.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
-import { dispatched, forOf, withPersonas } from "./fixture-race.js";
+import { dispatched, withPersonas } from "./fixture-race.js";
 import { checkGoal, startRace } from "./panel-calls.js";
 import {
+  checkedFor,
   GOAL_PRESETS,
   initialPanel,
   MIN_PERSONAS,
@@ -56,7 +57,7 @@ function ready(): PanelState {
   const chosen = withPersonas(initialPanel(), bundledProfiles.slice(0, MIN_PERSONAS));
   return dispatched(chosen, {
     type: "checkAnswered",
-    for: forOf(chosen),
+    for: checkedFor(chosen),
     extraction: { ok: true, task: acceptedTask, rewritten: false },
   });
 }
@@ -87,7 +88,7 @@ test("checkGoal: a sentence edited while io checks the old one drops the late an
     { type: "sentenceEdited", sentence: "find my last order" },
     {
       type: "checkAnswered",
-      for: { presetId: asked.presetId, sentence: asked.sentence },
+      for: { presetId: asked.presetId, sentence: asked.sentence, success: asked.success },
       extraction: { ok: true, task: acceptedTask, rewritten: false },
     },
   ]);
@@ -140,10 +141,40 @@ test("startRace: a goal that is not the preset's sentence word for word names no
   ]) {
     answer(Response.json({ runs: started }, { status: 202 }));
     const chosen = withPersonas(initialPanel(), bundledProfiles.slice(0, MIN_PERSONAS));
-    const state = dispatched(chosen, { type: "checkAnswered", for: forOf(chosen), extraction });
+    const state = dispatched(chosen, {
+      type: "checkAnswered",
+      for: checkedFor(chosen),
+      extraction,
+    });
     const race = await startRace(state, bundledProfiles, panel(state).dispatch);
     expect(race?.presetTask, `rewritten: ${extraction.rewritten}`).toBeUndefined();
   }
+});
+
+test("startRace: the preset's sentence with a success of the person's own names no preset task", async () => {
+  answer(
+    Response.json(
+      { runs: [{ id: "run_race-1", profileId: "prof_ada", seed: 1 }] },
+      { status: 202 },
+    ),
+  );
+  // The preset's report counts arriving at the preset's page, so it is on another goal.
+  const typed = dispatched(withPersonas(initialPanel(), bundledProfiles.slice(0, MIN_PERSONAS)), {
+    type: "successEdited",
+    success: "**/account/address",
+  });
+  const task: Task = {
+    ...acceptedTask,
+    success: { type: "urlMatches", pattern: "**/account/address" },
+  };
+  const state = dispatched(typed, {
+    type: "checkAnswered",
+    for: checkedFor(typed),
+    extraction: { ok: true, task, rewritten: false },
+  });
+  const race = await startRace(state, bundledProfiles, panel(state).dispatch);
+  expect(race?.task.goal).toBe(hard.sentence);
+  expect(race?.presetTask).toBeUndefined();
 });
 
 test("startRace: io's refusal is the panel's alert, and no race starts", async () => {

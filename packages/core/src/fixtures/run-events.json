@@ -11,7 +11,8 @@
     "modelIds": {
       "actor": "gpt-4o-mini"
     },
-    "actorSampling": { "temperature": 0.7, "providerSeed": 1660033557 }
+    "actorSampling": { "temperature": 0.7, "providerSeed": 1660033557 },
+    "maxSteps": 20
   },
   {
     "type": "stepObserved",

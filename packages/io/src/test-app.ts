@@ -207,7 +207,8 @@ const FIXTURE_ORIGIN = "http://localhost:5174";
 /**
  * The runner's options on `store`, with nothing real behind them: `fakeRun()`, `fakeBackends` with
  * `llm` the default, the target app on the core task fixtures' origin with its defaults and jargon
- * list, and `quiet`. A test that serves the app on a free port passes its origin.
+ * list, `groundTruthDir(store)` and `quiet`. A test that serves the app on a free port passes its
+ * origin.
  */
 export function runnerDefaults(store: TempStore): RunnerOptions {
   return {
@@ -219,25 +220,33 @@ export function runnerDefaults(store: TempStore): RunnerOptions {
     params: TARGET_APP_DEFAULTS,
     jargon: targetAppJargon,
     runsDir: store.runsDir,
+    groundTruthDir: groundTruthDir(store),
     logger: quiet,
   };
 }
 
 /**
  * The Analyst's options on `store`, with nothing behind them: no route table for any task,
- * `<dir>/ground-truth` as the ground-truth folder (absent, so no ground truth),
- * `FAKE_JEV_MODEL` as Jev's model, the one `fakeBackends.jev` names, and the target app on the
- * origin `runnerDefaults` has, the one the core task fixtures start on.
+ * `groundTruthDir(store)`, `FAKE_JEV_MODEL` as Jev's model, the one `fakeBackends.jev` names, and
+ * the target app on the origin `runnerDefaults` has, the one the core task fixtures start on.
  */
 export function analystDefaults(
   store: TempStore,
 ): Pick<AppOptions, "routes" | "groundTruthDir" | "jevModel" | "targetAppOrigin"> {
   return {
     routes: async () => undefined,
-    groundTruthDir: join(store.dir, "ground-truth"),
+    groundTruthDir: groundTruthDir(store),
     jevModel: FAKE_JEV_MODEL,
     targetAppOrigin: FIXTURE_ORIGIN,
   };
+}
+
+/**
+ * `<dir>/ground-truth`, the ground-truth folder of the runner and the Analyst on `store`. Absent
+ * until a test writes into it, so no task has a ground truth: no step cap and no Scout line.
+ */
+function groundTruthDir(store: TempStore): string {
+  return join(store.dir, "ground-truth");
 }
 
 /** What `testApp` puts in place of its defaults, by key: any option but the store's. */

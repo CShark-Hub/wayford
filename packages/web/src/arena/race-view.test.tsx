@@ -1,5 +1,11 @@
 import { createMemoryHistory, RouterContextProvider } from "@tanstack/react-router";
-import { RunEvent, runResultFromEvents, type Task, type TaskId } from "@wayford/core";
+import {
+  RunEvent,
+  type RunLimit,
+  runResultFromEvents,
+  type Task,
+  type TaskId,
+} from "@wayford/core";
 import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
@@ -39,9 +45,10 @@ function narrationAt(index: number): string {
   return event.text;
 }
 
-/** Vera's run ended by `outcome` in place of her give-up. */
-function endedBy(outcome: string): RunEvent[] {
-  return [...beforeEnd, RunEvent.parse({ ...finished, outcome })];
+/** Vera's run ended by `outcome` in place of her give-up, and a budget run out by `limit` if given. */
+function endedBy(outcome: string, limit?: RunLimit): RunEvent[] {
+  const end = RunEvent.parse({ ...finished, outcome, ...(limit === undefined ? {} : { limit }) });
+  return [...beforeEnd, end];
 }
 
 /** The hard goal as the check hands it back for a race: the same goal, on a task minted for it. */
@@ -238,6 +245,18 @@ describe("runView folds a run's events so far into what its lane shows", () => {
     });
   });
 
+  test("a budget run out keeps the limit that cut it off, and a run recorded before it none", () => {
+    expect(runView(endedBy("budget_exceeded", "steps")).ended).toStrictEqual({
+      outcome: "budget_exceeded",
+      limit: "steps",
+      at: "2026-09-22T10:00:15.500Z",
+    });
+    expect(runView(endedBy("budget_exceeded")).ended).toStrictEqual({
+      outcome: "budget_exceeded",
+      at: "2026-09-22T10:00:15.500Z",
+    });
+  });
+
   test("a crash ends as error, with runFailed's message", () => {
     expect(runView([...beforeEnd, failed])).toStrictEqual({
       state: "error",
@@ -320,11 +339,23 @@ describe("the state in words, with what grounds it", () => {
     // The track ends on the give-up, which it counts.
     expect(trackLabelOf(gaveUp)).toBe("5 steps: click, scroll, doubleClick, wasted, gave up");
 
-    // A budget run out has its own word, not Gave up's.
-    const overBudget = render(endedBy("budget_exceeded"));
-    expect(standingOf(overBudget)).toBe("Over budget | 0:15.5 | 5 steps");
-    expect(tileText(overBudget)).not.toContain("Gave up");
-    expect(tileText(overBudget)).not.toContain("budget_exceeded");
+    // A budget run out has its own word, not Gave up's: the limit that cut it off, or Over budget
+    // when its runFinished names none, as one recorded before #196. The track and the finish
+    // order say the same word.
+    for (const [limit, word] of [
+      ["steps", "Hit the step cap"],
+      ["clock", "Out of time"],
+      [undefined, "Over budget"],
+    ] as const) {
+      const html = render(endedBy("budget_exceeded", limit));
+      expect(standingOf(html), word).toBe(`${word} | 0:15.5 | 5 steps`);
+      expect(trackLabelOf(html), word).toBe(
+        `5 steps: click, scroll, doubleClick, wasted, ${word.toLowerCase()}`,
+      );
+      expect(finishLines(html), word).toStrictEqual([`– Vera ${word} 0:15.5`]);
+      expect(tileText(html), word).not.toContain("Gave up");
+      expect(tileText(html), word).not.toContain("budget_exceeded");
+    }
 
     // A crash is the tool failing: its message, in fault.
     const error = render([...beforeEnd, failed]);

@@ -176,10 +176,22 @@ describe("the header", () => {
     });
   });
 
-  test("an ending short of the goal by its own word: Over budget", async () => {
-    const html = await render(`/runs/${RUN_ID}`, cutShort(true));
-    expect(detailsOf(headerOf(html)).outcome).toBe("Over budget");
-  });
+  test.each<[string, string, Partial<RunResult>, string]>([
+    ["the step cap", "Hit the step cap", { limit: "steps", maxSteps: 5 }, "stepCap"],
+    ["the clock", "Out of time", { limit: "clock" }, "outOfTime"],
+    ["a limit not recorded, as before #196,", "Over budget", {}, "overBudget"],
+  ])(
+    "a budget run out by %s reads %s, and its last step is marked the same",
+    async (_by, word, limit, kind) => {
+      const html = await render(
+        `/runs/${RUN_ID}`,
+        RunResult.parse({ ...cutShort(true), ...limit }),
+      );
+      expect(detailsOf(headerOf(html)).outcome).toBe(word);
+      const steps = elementOf(html, "fieldset", 'aria-label="Steps"');
+      expect([...steps.matchAll(/data-outcome="([^"]*)"/g)].map((m) => m[1])).toEqual([kind]);
+    },
+  );
 
   test("names the Jev model as the actor of a Jev run", async () => {
     const html = await render(`/runs/${fixtureJevRun.id}`, fixtureJevRun, { id: fixtureJevRun.id });

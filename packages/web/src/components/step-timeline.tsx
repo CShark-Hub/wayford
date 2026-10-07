@@ -1,5 +1,5 @@
 import { createLink, useNavigate } from "@tanstack/react-router";
-import type { RunId, RunOutcome, RunStep } from "@wayford/core";
+import type { RunId, RunLimit, RunOutcome, RunStep } from "@wayford/core";
 import { cn } from "cn";
 import { type ComponentPropsWithRef, useEffect, useEffectEvent } from "react";
 import { describeAction } from "../runs/replay.js";
@@ -111,24 +111,31 @@ function useStepKeys(runId: RunId, steps: readonly RunStep[], position: number):
 /**
  * A run's steps in a row, drawn as `.wf-step`: one 40 px link per step to its `?step`, numbered
  * by its `stepIndex`. The current step is filled with ink, a wasted one hatched, and the last one
- * ringed with a 2 px ink border, carrying the outcome's glyph when the run ended Gave up, Over
- * budget or Error. ← and → move between the steps (`useStepKeys`); two hints after the row say so.
- * `steps` are sorted by `stepIndex`, `position` is the current one's index into them, -1 for none.
+ * ringed with a 2 px ink border, carrying the ending's glyph when the run ended short of the goal:
+ * Gave up, Out of time, Hit the step cap, Over budget or Error. ← and → move between the steps
+ * (`useStepKeys`); two hints after the row say so. `steps` are sorted by `stepIndex`, `position`
+ * is the current one's index into them, -1 for none.
  */
 export function StepTimeline({
   runId,
   steps,
   position,
   outcome,
+  limit,
 }: {
   runId: RunId;
   steps: readonly RunStep[];
   position: number;
   /** How the run ended, for the last step's glyph. */
   outcome: RunOutcome;
+  /**
+   * The limit that cut a budget run out off, as its record has it: undefined on any other run, and
+   * on one recorded before the limit was. Required, so no screen forgets to pass it.
+   */
+  limit: RunLimit | undefined;
 }) {
   useStepKeys(runId, steps, position);
-  const end = outcomeKind(outcome);
+  const end = outcomeKind(outcome, limit);
   const glyph = markedEnding(end) ? end : undefined;
   return (
     <div className="flex min-w-0 items-center gap-4">

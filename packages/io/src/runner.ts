@@ -12,9 +12,19 @@
  * back until the save has been tried, so a client that sees a stream end finds the run in
  * `GET /runs`, unless the save failed, which is logged.
  *
+ * Every run of a set runs on one step cap, read from its task's ground truth when the set starts
+ * (core's `stepCapOf`, issue #196), and every set of a sweep on the cap its first set read. The
+ * Actor gets a number on its options, never Scout's path (`AGENTS.md`, "Scout is mandatory"). A
+ * task with no file of its own, such as a Race's, reads the file of the fixture task with its start
+ * URL and success condition. With no file, or a goal Scout did not reach, a run gets no cap and
+ * `runActor`'s default stands; a file that is no ground truth is a warning, and the set runs on the
+ * default.
+ *
  * Agent is imported as types only, so loading the runner loads neither agent's runtime nor
- * Playwright (spec, decision log, "The barrel").
+ * Playwright (spec, decision log, "The barrel"). `analyst.ts`, whose `readGroundTruth` reads the
+ * file, keeps to the same rule.
  */
+import { isDeepStrictEqual } from "node:util";
 import type {
   ActorBackendFactory,
   ActorBackendName,
@@ -32,10 +42,13 @@ import {
   type RunSweep,
   runResultFromEvents,
   type Seed,
+  stepCapOf,
   type Task,
   WayfordError,
 } from "@wayford/core";
+import { taskFixtures } from "@wayford/core/fixtures";
 import type { Logger } from "pino";
+import { readGroundTruth } from "./analyst.js";
 import type { Db } from "./db/database.js";
 import { saveRun } from "./db/runs.js";
 
@@ -71,6 +84,13 @@ export interface RunnerOptions {
   jargon: readonly string[];
   /** Absolute. Each run's files go under `<runsDir>/<runId>/`. */
   runsDir: string;
+  /**
+   * Absolute. Where Scout writes each task's ground truth, `<task id>.json`. Every run of a set gets
+   * the step cap core's `stepCapOf` gives its task's file; a task with no file, or one Scout did
+   * not reach, runs on `runActor`'s default. The Analyst reads the same file for a report's Scout
+   * line, and a missing one is a report with no ground truth.
+   */
+  groundTruthDir: string;
   logger: Logger;
 }
 
@@ -107,9 +127,10 @@ export interface RunSetOptions {
 
 export interface Runner {
   /**
-   * Mints one id per seed × persona, in seed-major order, and queues the runs, all on `options`.
-   * Returns at once. Throws `jev_off_target_app`, minting nothing, for Jev off the target app
-   * (`refuseJevOffTargetApp`).
+   * Mints one id per seed × persona, in seed-major order, and queues the runs, all on `options` and
+   * on one step cap, read from the task's ground truth as the set starts. Returns at once, before
+   * the read: each run waits for it in its slot. Throws `jev_off_target_app`, minting nothing, for
+   * Jev off the target app (`refuseJevOffTargetApp`).
    */
   start(
     task: Task,
@@ -161,11 +182,20 @@ export function refuseJevOffTargetApp(
  * kept for the runner's life.
  */
 export function createRunner(options: RunnerOptions): Runner {
-  const { db, run, backends, defaultBackend, params, jargon, runsDir, logger } = options;
+  const { db, run, backends, defaultBackend, params, jargon, runsDir, groundTruthDir, logger } =
+    options;
   // Parsed now, so a bad origin fails when the runner is built.
   const targetApp = new URL(options.targetAppOrigin).origin;
   const lives = new Map<string, LiveRun>();
   const slots = slotQueue(MAX_CONCURRENT_RUNS);
+  // The sets' step-cap reads, one after another in start order, so runs call `run` in the order
+  // they took their slots however long each read takes. A read that rejects fails its own set
+  // only, so the chain goes on past it.
+  let reads: Promise<unknown> = Promise.resolve();
+  // Each sweep's cap, read as its first value starts, so every value runs on one cap and the
+  // boundary moves with the swept axis alone, even when Scout rewrites the file mid-sweep. Kept for
+  // the runner's life, as live runs are.
+  const sweepCaps = new Map<string, Promise<number | undefined>>();
 
   /**
    * One run, from its slot to its stored record and the end of its stream. Never rejects: what
@@ -182,6 +212,7 @@ export function createRunner(options: RunnerOptions): Runner {
       params?: TargetAppParams;
       jargon?: readonly string[];
     },
+    stepCap: Promise<number | undefined>,
     slot: Promise<void>,
     live: LiveWriter,
   ): Promise<void> {
@@ -196,7 +227,12 @@ export function createRunner(options: RunnerOptions): Runner {
       await slot;
       let settled: Settled;
       try {
-        await run({ ...inputs, runsDir, logger, runId, onEvent });
+        // The set's one read, which rejects only on an error no file explains, failing the run
+        // unstarted. Without a cap the key is left out, not set to undefined, and `runActor`'s
+        // default stands.
+        const maxSteps = await stepCap;
+        const capped = maxSteps === undefined ? {} : { maxSteps };
+        await run({ ...inputs, ...capped, runsDir, logger, runId, onEvent });
         settled = { ok: true };
       } catch (error) {
         settled = { ok: false, error };
@@ -228,6 +264,12 @@ export function createRunner(options: RunnerOptions): Runner {
         const origin = new URL(task.startUrl).origin;
         logger.info({ taskId: task.id, origin, targetApp }, "the set runs off the target app");
       }
+      // Read once for the whole set, or the whole sweep, as soon as the sets started before it have
+      // theirs, so its runs share one cap even when Scout rewrites the file mid-set.
+      const swept = sweep === undefined ? undefined : sweepCaps.get(sweep.sweepId);
+      const stepCap = reads.then(() => swept ?? stepCapFor(groundTruthDir, task, logger));
+      reads = stepCap.catch(() => undefined);
+      if (sweep !== undefined && swept === undefined) sweepCaps.set(sweep.sweepId, stepCap);
       const started: StartedRun[] = [];
       // Seed-major: a set cut short still has whole seeds, comparable across personas (A20).
       for (const seed of seeds) {
@@ -237,7 +279,8 @@ export function createRunner(options: RunnerOptions): Runner {
           // Stored as a `LiveRun`, so a reader gets no way to publish.
           lives.set(id, live);
           // The slot is asked for now, in call order, so the queue is FIFO across `start` calls.
-          void job(id, { task, profile, seed, backend, ...inSweep, ...site }, slots.take(), live);
+          const inputs = { task, profile, seed, backend, ...inSweep, ...site };
+          void job(id, inputs, stepCap, slots.take(), live);
           started.push({ id, profileId: profile.id, seed });
         }
       }
@@ -245,6 +288,49 @@ export function createRunner(options: RunnerOptions): Runner {
     },
     live: (id) => lives.get(id),
   };
+}
+
+/**
+ * The step cap of every run of a set on `task`: core's `stepCapOf` over the task's ground truth in
+ * `dir`, so `undefined`, and `runActor`'s default, with no file or a goal Scout did not reach. The
+ * sweep CLI prices a sweep by it too. A file that is no ground truth (`invalid_ground_truth`) is
+ * one warning, and no cap; any other error, such as a file it may not read, rejects.
+ *
+ * A task with no file of its own takes the ground truth of the core fixture task with the same
+ * start URL and success condition, when there is one. Scout writes files under the fixture ids,
+ * and every Race check stores its goal under a new id (`extractor.ts`), so without this a Race
+ * would never run on Scout's cap. The same start and the same condition are the same route to
+ * find, whatever words the goal is in.
+ */
+export async function stepCapFor(
+  dir: string,
+  task: Task,
+  logger: Logger,
+): Promise<number | undefined> {
+  const taskId = task.id;
+  try {
+    const own = await readGroundTruth(dir, taskId);
+    if (own !== undefined) return stepCapOf(own);
+    const twin = taskFixtures.find(
+      (fixture) =>
+        fixture.id !== taskId &&
+        fixture.startUrl === task.startUrl &&
+        isDeepStrictEqual(fixture.success, task.success),
+    );
+    return twin === undefined ? undefined : stepCapOf(await readGroundTruth(dir, twin.id));
+  } catch (error) {
+    // One of the two deliberate exceptions to "never swallow an error into a log line"
+    // (`docs/CONVENTIONS.md`, "Errors"): `start` has returned by now, and the cap is an engine
+    // guard, so a file Scout left broken, or is still writing, must not cost the set its runs. They
+    // run on the cap a task with no ground truth runs on, and the report still refuses the file
+    // (`readGroundTruth`).
+    if (!(error instanceof WayfordError && error.code === "invalid_ground_truth")) throw error;
+    logger.warn(
+      { taskId, err: error },
+      "the task's ground truth could not be read, so the set runs on the default step cap",
+    );
+    return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -369,7 +455,7 @@ async function closeOut(close: {
   try {
     await saveRun(db, runResultFromEvents([...events, terminal]), started.timestamp);
   } catch (error) {
-    // The one deliberate exception to "never swallow an error into a log line"
+    // One of the two deliberate exceptions to "never swallow an error into a log line"
     // (`docs/CONVENTIONS.md`, "Errors"): a run is a background job, and the request that started
     // it was answered 202 long ago, so there is no caller to rethrow to. The stream still ends,
     // and the run is missing from the list.

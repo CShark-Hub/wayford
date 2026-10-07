@@ -35,6 +35,7 @@ import {
   type Profile,
   RunEvent,
   type RunId,
+  type RunLimit,
   type RunResult,
   type RunSweep,
   rng,
@@ -69,8 +70,9 @@ import { checkSuccessCondition, type SuccessWatch, watchSuccess } from "./succes
 
 /**
  * The step cap when the caller sets none: an engine guard, like core's `MAX_WAIT_MS`, about ten
- * times either goal's route on the target app. It is no persona threshold, and the record has no
- * field for it, so it is not read from the environment either.
+ * times either goal's route on the target app. It is no persona threshold. io sets a task's own
+ * cap from Scout's shortest path when it has one (core's `stepCapOf`), and every run records the
+ * cap it ran on (`maxSteps` on `runStarted`), so it is never read from the environment.
  */
 export const DEFAULT_MAX_STEPS = 20;
 
@@ -219,6 +221,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
     modelIds: { actor: backend.modelId },
     ...(backend.sampling === undefined ? {} : { actorSampling: backend.sampling }),
     ...(options.sweep === undefined ? {} : { sweep: options.sweep }),
+    maxSteps,
   });
   if (!started.success) {
     const message = `Invalid run input:\n${z.prettifyError(started.error)}`;
@@ -284,7 +287,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
         return answer;
       },
     };
-    ending = { outcome: await walk(loop) };
+    ending = await walk(loop);
   } catch (error) {
     // What a failed call already billed is billed all the same.
     if (error instanceof LlmError) cost = addCost(cost, error.cost);
@@ -326,7 +329,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   };
   const terminal = RunEvent.parse(
     "outcome" in ending
-      ? { type: "runFinished", outcome: ending.outcome, ...end }
+      ? { type: "runFinished", ...ending, ...end }
       : {
           type: "runFailed",
           error: failureText(ending.error, recordingLostToo ? RECORDING_LOST_TOO : ""),
@@ -381,7 +384,7 @@ interface Loop {
  * Steps from 0 until one ends the run, and how it ended. Anything thrown ends the run as a
  * failure, in `runActor`.
  */
-async function walk(loop: Loop): Promise<FinishedOutcome> {
+async function walk(loop: Loop): Promise<Finish> {
   const { run } = loop;
   const history: HistoryStep[] = [];
   for (let k = 0; ; k++) {
@@ -411,21 +414,21 @@ async function walk(loop: Loop): Promise<FinishedOutcome> {
         ...(answer.decision === undefined ? {} : { decision: answer.decision }),
       });
       // B3 before acting, so no late success is recorded: the step stays planned.
-      if (overBudget(loop)) return ranOut(loop, k, "budget");
+      if (overBudget(loop)) return ranOut(loop, k, "clock");
       // 4. Act.
       const arrival = await performAction(run, performed, shown);
       const met = await land(loop, k, arrival);
       // The proposed action, not the performed one: the history tells what the Actor chose.
       history.push({ observation: shown, proposed });
       // 5. The end checks, success first, so the last step the cap allows can still succeed.
-      if (met) return "success";
+      if (met) return { outcome: "success" };
       // The performed one: a giveUp B2 turned into a scroll does not end the run.
-      if (performed.type === "giveUp") return "gave_up";
+      if (performed.type === "giveUp") return { outcome: "gave_up" };
     }
     // 6. The cap, wasted steps included, so the same seed and answers end a capped run the same.
     if (k + 1 >= loop.maxSteps) return ranOut(loop, k, "steps");
     // B3 again, so a run of wasted steps ends on it too and no call is billed past it.
-    if (overBudget(loop)) return ranOut(loop, k, "budget");
+    if (overBudget(loop)) return ranOut(loop, k, "clock");
   }
 }
 
@@ -435,14 +438,13 @@ function overBudget(loop: Loop): boolean {
 }
 
 /**
- * Ends the run `budget_exceeded` at step `k`. The record tells the cap from the clock only by
- * its step count and last step against `durationMs` (`calibration.ts`'s `endOf`), so the log
- * names the limit.
+ * Ends the run `budget_exceeded` at step `k`, with the limit that cut it off, which `runFinished`
+ * and the record keep (issue #196).
  */
-function ranOut(loop: Loop, k: number, limit: "steps" | "budget"): "budget_exceeded" {
+function ranOut(loop: Loop, k: number, limit: RunLimit): Finish {
   const elapsedMs = loop.now() - loop.t0;
   loop.logger.info({ step: k, elapsedMs, limit }, "the run reached its limit");
-  return "budget_exceeded";
+  return { outcome: "budget_exceeded", limit };
 }
 
 /**
@@ -583,7 +585,10 @@ function lastObservedStep(events: readonly RunEvent[]): number {
 // Endings
 // ---------------------------------------------------------------------------
 
-type Ending = { outcome: FinishedOutcome } | { error: unknown };
+/** How the steps ended a run: an outcome, with the limit that cut it off when one did. */
+type Finish = { outcome: FinishedOutcome; limit?: RunLimit };
+
+type Ending = Finish | { error: unknown };
 
 /** `runFailed.error` is one line of at most this many characters. The log keeps the rest. */
 const ERROR_TEXT_LIMIT = 500;

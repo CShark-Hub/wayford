@@ -681,15 +681,20 @@ describe("the step cap (F5 AC5)", () => {
       });
     const [first, second] = await Promise.all([wander(), wander()]);
 
-    for (const { result, calls } of [first, second]) {
+    for (const { result, calls, events } of [first, second]) {
       expect(result.outcome).toBe("budget_exceeded");
+      // The record says the cap ended it, and which cap it ran on (issue #196).
+      expect(result.limit).toBe("steps");
+      expect(result.maxSteps).toBe(3);
+      expect(events.at(-1)).toMatchObject({ type: "runFinished", limit: "steps" });
+      expect(events[0]).toMatchObject({ type: "runStarted", maxSteps: 3 });
       expect(kinds(result)).toStrictEqual(["complete", "complete", "complete"]);
       expect(calls).toHaveLength(3);
     }
     expect(texts(second.result)).toStrictEqual(texts(first.result));
   });
 
-  test("the goal reached on the cap-th step ends success", async () => {
+  test("the goal reached on the cap-th step ends success, with no limit", async () => {
     const { result } = await walk({
       profile: profileFixture("prof_ada"),
       task: taskOf("task_next-parcel"),
@@ -698,6 +703,8 @@ describe("the step cap (F5 AC5)", () => {
     });
 
     expect(result.outcome).toBe("success");
+    expect(result).not.toHaveProperty("limit");
+    expect(result.maxSteps).toBe(2);
     expect(kinds(result)).toStrictEqual(["complete", "complete"]);
   });
 
@@ -717,6 +724,7 @@ describe("the step cap (F5 AC5)", () => {
     });
 
     expect(result.outcome).toBe("budget_exceeded");
+    expect(result.limit).toBe("steps");
     expect(kinds(result)).toStrictEqual(["wasted", "wasted", "wasted"]);
     // One retry per step, and no more.
     expect(calls).toHaveLength(6);
@@ -752,6 +760,8 @@ describe("the budget ends a run on its clock (B3)", () => {
     });
 
     expect(result.outcome).toBe("budget_exceeded");
+    // The clock, not the cap of 20, ended it (issue #196).
+    expect(result.limit).toBe("clock");
     expect(calls).toHaveLength(4);
     // Answered at 40 s, 80 s and exactly 120 s, still within it, so performed; answered at 160 s,
     // past it, so planned and no more.
@@ -777,6 +787,7 @@ describe("the budget ends a run on its clock (B3)", () => {
 
     // Two answers a step, 80 s: step 0 ends at 80 s, step 1 at 160 s, past the budget.
     expect(result.outcome).toBe("budget_exceeded");
+    expect(result.limit).toBe("clock");
     expect(kinds(result)).toStrictEqual(["wasted", "wasted"]);
     expect(calls).toHaveLength(4);
     expect(result.durationMs).toBe(160_000);

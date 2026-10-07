@@ -1,5 +1,5 @@
 import { createMemoryHistory, RouterContextProvider } from "@tanstack/react-router";
-import { type RunOutcome, RunStep } from "@wayford/core";
+import { type RunLimit, type RunOutcome, RunStep } from "@wayford/core";
 import { runResultFixture } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
@@ -14,14 +14,15 @@ const STEPS = runResultFixture.steps.toSorted((a, b) => a.stepIndex - b.stepInde
 /**
  * The timeline, rendered statically inside the app's own router, so its links resolve their
  * hrefs. A static render runs no effect, so no key listener is added. The run ended as the
- * fixture's did, in Vera's give-up, unless `outcome` says otherwise.
+ * fixture's did, in Vera's give-up, unless `outcome` and `limit` say otherwise.
  */
 async function render(
   position: number,
   {
     steps = STEPS,
     outcome = runResultFixture.outcome,
-  }: { steps?: readonly RunStep[]; outcome?: RunOutcome } = {},
+    limit,
+  }: { steps?: readonly RunStep[]; outcome?: RunOutcome; limit?: RunLimit | undefined } = {},
 ): Promise<string> {
   const router = createAppRouter({
     history: createMemoryHistory({ initialEntries: [`/runs/${RUN_ID}`] }),
@@ -29,7 +30,13 @@ async function render(
   await router.load();
   return renderToStaticMarkup(
     <RouterContextProvider router={router}>
-      <StepTimeline runId={RUN_ID} steps={steps} position={position} outcome={outcome} />
+      <StepTimeline
+        runId={RUN_ID}
+        steps={steps}
+        position={position}
+        outcome={outcome}
+        limit={limit}
+      />
     </RouterContextProvider>,
   );
 }
@@ -144,14 +151,17 @@ describe("the steps", () => {
     expect(entries[3]?.classes).toEqual(expect.arrayContaining(["hatch", "bg-ink", "text-paper"]));
   });
 
-  test.each([
-    ["gave_up", "gaveUp"],
-    ["budget_exceeded", "overBudget"],
-    ["error", "error"],
-  ] as const)(
-    "a run that ended %s draws the %s glyph after the last step's number",
-    async (outcome, kind) => {
-      const entries = entriesOf(await render(0, { outcome }));
+  test.each<[RunOutcome, RunLimit | undefined, string]>([
+    ["gave_up", undefined, "gaveUp"],
+    ["budget_exceeded", "steps", "stepCap"],
+    ["budget_exceeded", "clock", "outOfTime"],
+    // A run stored before the limit was recorded.
+    ["budget_exceeded", undefined, "overBudget"],
+    ["error", undefined, "error"],
+  ])(
+    "a run that ended %s, cut off by %s, draws the %s glyph after the last step's number",
+    async (outcome, limit, kind) => {
+      const entries = entriesOf(await render(0, { outcome, limit }));
       expect(entries[4]?.inner).toMatch(
         new RegExp(`^4<svg[^>]*aria-hidden="true"[^>]*data-outcome="${kind}"`),
       );

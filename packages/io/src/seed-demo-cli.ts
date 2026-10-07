@@ -211,6 +211,8 @@ async function main(args: Arguments): Promise<number> {
         params: TARGET_APP_DEFAULTS,
         jargon: targetAppJargon,
         runsDir: RUNS_DIR,
+        // The one the reports read, so a set's step cap and its report's Scout line agree.
+        groundTruthDir,
         logger,
       });
       let summary: DemoSummary;

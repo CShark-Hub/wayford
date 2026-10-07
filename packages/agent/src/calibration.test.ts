@@ -193,6 +193,15 @@ describe("endOf tells the step cap from the clock", () => {
     expect(endOf(cut, MAX_STEPS)).toBe("clock");
     expect(endOf(run({ outcome: "budget_exceeded", steps: wander(4) }), MAX_STEPS)).toBe("clock");
   });
+
+  test("a recorded limit is read as it stands, whatever the steps suggest (issue #196)", () => {
+    // Four steps on a cap of four is the step cap by the record's own word.
+    const capped = run({ outcome: "budget_exceeded", steps: wander(4) });
+    expect(endOf({ ...capped, maxSteps: 4, limit: "steps" }, MAX_STEPS)).toBe("step_cap");
+    // At MAX_STEPS complete steps, which reads as the cap, the record says the clock.
+    const timed = run({ outcome: "budget_exceeded", steps: wander(MAX_STEPS) });
+    expect(endOf({ ...timed, limit: "clock" }, MAX_STEPS)).toBe("clock");
+  });
 });
 
 /** A row of the set, by label. */

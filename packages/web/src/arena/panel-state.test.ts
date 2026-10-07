@@ -2,17 +2,24 @@ import type { Task } from "@wayford/core";
 import { expect, test } from "vitest";
 import type { Extraction } from "../api/runs.js";
 import { bundledProfiles, bundledTasks } from "../bundled-fixtures.js";
-import { dispatched, forOf, sixProfiles, withPersonas } from "./fixture-race.js";
+import { dispatched, sixProfiles, withPersonas } from "./fixture-race.js";
 import {
+  checkedFor,
   GOAL_PRESETS,
   initialPanel,
   MAX_PERSONAS,
   MIN_PERSONAS,
+  NO_SUCCESS,
   type PanelState,
   panelReducer,
   runsRequestOf,
   seedOf,
   startBlocker,
+  successBlocker,
+  successOf,
+  taskRequestOf,
+  UNMATCHABLE_SUCCESS,
+  usesPresetSuccess,
 } from "./panel-state.js";
 
 const [easy, hard] = GOAL_PRESETS;
@@ -40,7 +47,11 @@ const refused: Extraction = {
 /** The hard goal checked and accepted, three personas chosen, seed 1: Start can start. */
 function ready(): PanelState {
   const chosen = withPersonas(initialPanel(), bundledProfiles.slice(0, MIN_PERSONAS));
-  return dispatched(chosen, { type: "checkAnswered", for: forOf(chosen), extraction: accepted });
+  return dispatched(chosen, {
+    type: "checkAnswered",
+    for: checkedFor(chosen),
+    extraction: accepted,
+  });
 }
 
 test("the presets are tasks.json's goals in file order, labelled by task id: easy then hard", () => {
@@ -65,11 +76,12 @@ test("every goal has a label of its own, so a renamed task id in tasks.json fail
   expect(new Set(labels).size).toBe(labels.length);
 });
 
-test("the panel starts on the hard goal's sentence, with no persona, seed 1 and no check", () => {
+test("the panel starts on the hard goal's sentence and success, with no persona, seed 1 and no check", () => {
   expect(GOAL_PRESETS.find(({ id }) => id === initialPanel().presetId)?.label).toBe("Hard goal");
   expect(initialPanel()).toStrictEqual({
     presetId: hard.id,
     sentence: hard.sentence,
+    success: "**/deliveries/archive",
     profileIds: [],
     seed: "1",
     check: { status: "unchecked" },
@@ -77,11 +89,24 @@ test("the panel starts on the hard goal's sentence, with no persona, seed 1 and 
   });
 });
 
-test("choosing a preset takes its sentence and drops the check", () => {
-  const edited = dispatched(ready(), { type: "sentenceEdited", sentence: "something else" });
+test("every preset's success is one the panel can type and check: a URL pattern a page can match", () => {
+  for (const preset of GOAL_PRESETS) {
+    const state = dispatched(initialPanel(), { type: "presetChosen", presetId: preset.id });
+    expect(successOf(state.success), preset.id).toStrictEqual(preset.success);
+    expect(successBlocker(state.success), preset.id).toBeUndefined();
+  }
+});
+
+test("choosing a preset takes its sentence and its success, and drops the check", () => {
+  const edited = dispatched(
+    ready(),
+    { type: "sentenceEdited", sentence: "something else" },
+    { type: "successEdited", success: "**/something" },
+  );
   const state = dispatched(edited, { type: "presetChosen", presetId: easy.id });
   expect(state.presetId).toBe(easy.id);
   expect(state.sentence).toBe(easy.sentence);
+  expect(state.success).toBe("**/account/address");
   expect(state.check).toStrictEqual({ status: "unchecked" });
   // An accepted check goes too, even when the preset is the one already chosen.
   expect(dispatched(ready(), { type: "presetChosen", presetId: hard.id }).check).toStrictEqual({
@@ -94,6 +119,85 @@ test("editing the sentence keeps it and drops the check", () => {
   expect(state.sentence).toBe("find my last order");
   expect(state.presetId).toBe(hard.id);
   expect(state.check).toStrictEqual({ status: "unchecked" });
+});
+
+test("editing the sentence away from the preset's empties the preset's success", () => {
+  const state = dispatched(initialPanel(), {
+    type: "sentenceEdited",
+    sentence: "you want to verify your delivery address",
+  });
+  expect(state.success).toBe("");
+  expect(usesPresetSuccess(state)).toBe(false);
+  // Every keystroke is an edit: the next one leaves the emptied field as it is.
+  expect(
+    dispatched(state, { type: "sentenceEdited", sentence: "you want to verify your address" })
+      .success,
+  ).toBe("");
+});
+
+test("editing the sentence back to the preset's refills an empty success from the preset", () => {
+  const away = dispatched(initialPanel(), { type: "sentenceEdited", sentence: "you want to se" });
+  expect(away.success).toBe("");
+  const back = dispatched(away, { type: "sentenceEdited", sentence: hard.sentence });
+  expect(back.success).toBe(initialPanel().success);
+  expect(usesPresetSuccess(back)).toBe(true);
+  // A field of blanks is as empty as an empty one.
+  const blanks = dispatched(
+    away,
+    { type: "successEdited", success: "  " },
+    { type: "sentenceEdited", sentence: hard.sentence },
+  );
+  expect(blanks.success).toBe(initialPanel().success);
+});
+
+test("a success the person typed survives every sentence edit, back to the preset's sentence too", () => {
+  const typed = "**/account/address";
+  const state = dispatched(
+    initialPanel(),
+    { type: "successEdited", success: typed },
+    { type: "sentenceEdited", sentence: "you want to verify your delivery address" },
+    { type: "sentenceEdited", sentence: "you want to check your delivery address" },
+  );
+  expect(state.success).toBe(typed);
+  expect(dispatched(state, { type: "sentenceEdited", sentence: hard.sentence }).success).toBe(
+    typed,
+  );
+  // A pattern typed while the sentence is edited stays too.
+  const away = dispatched(
+    initialPanel(),
+    { type: "sentenceEdited", sentence: "you want to verify your delivery address" },
+    { type: "successEdited", success: "**/account/**" },
+    { type: "sentenceEdited", sentence: "you want to verify where parcels go" },
+  );
+  expect(away.success).toBe("**/account/**");
+});
+
+test("Use the preset's sets the preset's success, and a later sentence edit keeps it", () => {
+  const edited = dispatched(initialPanel(), {
+    type: "sentenceEdited",
+    sentence: "you want to find an order from the spring",
+  });
+  const used = dispatched(edited, { type: "presetSuccessUsed" });
+  expect(used.success).toBe(initialPanel().success);
+  expect(usesPresetSuccess(used)).toBe(true);
+  // The person chose it for this sentence: editing the sentence further never empties it again.
+  expect(
+    dispatched(used, { type: "sentenceEdited", sentence: "you want to find a spring order" })
+      .success,
+  ).toBe(initialPanel().success);
+  // It drops the check, as an accepted task was stored with the success before it.
+  const typed = dispatched(ready(), { type: "successEdited", success: "**/archive" });
+  expect(dispatched(typed, { type: "presetSuccessUsed" }).check).toStrictEqual({
+    status: "unchecked",
+  });
+});
+
+test("editing the success keeps its pattern as typed and drops the check", () => {
+  const text = dispatched(ready(), { type: "successEdited", success: "**/deliveries/archive " });
+  expect(text.success).toBe("**/deliveries/archive ");
+  expect(text.check).toStrictEqual({ status: "unchecked" });
+  expect(usesPresetSuccess(text)).toBe(false);
+  expect(text.sentence).toBe(hard.sentence);
 });
 
 test("a persona toggles on and off, in the order clicked", () => {
@@ -130,11 +234,11 @@ test("a check goes checking, then takes io's answer for the current preset and s
   const checking = dispatched(initialPanel(), { type: "checkStarted" });
   expect(checking.check).toStrictEqual({ status: "checking" });
   expect(
-    dispatched(checking, { type: "checkAnswered", for: forOf(checking), extraction: accepted })
+    dispatched(checking, { type: "checkAnswered", for: checkedFor(checking), extraction: accepted })
       .check,
   ).toStrictEqual({ status: "accepted", task: acceptedTask, rewritten: false });
   expect(
-    dispatched(checking, { type: "checkAnswered", for: forOf(checking), extraction: refused })
+    dispatched(checking, { type: "checkAnswered", for: checkedFor(checking), extraction: refused })
       .check,
   ).toStrictEqual({
     status: "refused",
@@ -143,14 +247,17 @@ test("a check goes checking, then takes io's answer for the current preset and s
     error: refused.error,
   });
   expect(
-    dispatched(checking, { type: "checkFailed", for: forOf(checking), message: "io answered 502" })
-      .check,
+    dispatched(checking, {
+      type: "checkFailed",
+      for: checkedFor(checking),
+      message: "io answered 502",
+    }).check,
   ).toStrictEqual({ status: "failed", message: "io answered 502" });
 });
 
 test("an answer for an older sentence or another preset is dropped: the same state comes back", () => {
   const asked = dispatched(initialPanel(), { type: "checkStarted" });
-  const askedFor = forOf(asked);
+  const askedFor = checkedFor(asked);
   const edited = dispatched(asked, { type: "sentenceEdited", sentence: "find my last order" });
   expect(panelReducer(edited, { type: "checkAnswered", for: askedFor, extraction: accepted })).toBe(
     edited,
@@ -162,6 +269,83 @@ test("an answer for an older sentence or another preset is dropped: the same sta
   expect(
     panelReducer(otherPreset, { type: "checkAnswered", for: askedFor, extraction: accepted }),
   ).toBe(otherPreset);
+});
+
+test("an answer asked with another success is dropped: the same state comes back", () => {
+  const asked = dispatched(initialPanel(), { type: "checkStarted" });
+  const askedFor = checkedFor(asked);
+  expect(askedFor).toStrictEqual({
+    presetId: hard.id,
+    sentence: hard.sentence,
+    success: "**/deliveries/archive",
+  });
+  const edited = dispatched(asked, { type: "successEdited", success: "**/deliveries" });
+  expect(panelReducer(edited, { type: "checkAnswered", for: askedFor, extraction: accepted })).toBe(
+    edited,
+  );
+  expect(panelReducer(edited, { type: "checkFailed", for: askedFor, message: "late" })).toBe(
+    edited,
+  );
+});
+
+test("taskRequestOf sends the sentence, the preset's start URL and the panel's success, trimmed", () => {
+  // Issue #196: an address goal on the hard preset, which opens on the archive's condition.
+  const state = dispatched(
+    initialPanel(),
+    { type: "sentenceEdited", sentence: "you want to verify your delivery address" },
+    { type: "successEdited", success: " **/account/address " },
+  );
+  expect(taskRequestOf(state)).toStrictEqual({
+    story: "you want to verify your delivery address",
+    startUrl: hard.startUrl,
+    success: { type: "urlMatches", pattern: "**/account/address" },
+  });
+  // The sentence untouched, the request is the preset's goal as it stands.
+  expect(taskRequestOf(initialPanel())).toStrictEqual({
+    story: hard.sentence,
+    startUrl: hard.startUrl,
+    success: hard.success,
+  });
+});
+
+test("taskRequestOf without a success a page can match is a bug, and throws: Check the goal is unavailable then", () => {
+  const empty = dispatched(initialPanel(), { type: "successEdited", success: "   " });
+  expect(successOf(empty.success)).toBeUndefined();
+  expect(() => taskRequestOf(empty)).toThrow(Error);
+  const relative = dispatched(initialPanel(), {
+    type: "successEdited",
+    success: "/account/address",
+  });
+  expect(() => taskRequestOf(relative)).toThrow(Error);
+});
+
+test("an empty success blocks Start first, before the check, and says what to do", () => {
+  const empty = dispatched(ready(), { type: "successEdited", success: " " });
+  expect(NO_SUCCESS).toBe("Say what counts as arriving: a URL pattern");
+  expect(successBlocker(empty.success)).toBe(NO_SUCCESS);
+  expect(startBlocker(empty)).toBe(NO_SUCCESS);
+  // An edited sentence empties the preset's success, so it is the first thing to do there too.
+  const edited = dispatched(ready(), { type: "sentenceEdited", sentence: "find my address" });
+  expect(startBlocker(edited)).toBe(NO_SUCCESS);
+  // Typed, the check is next.
+  expect(
+    startBlocker(dispatched(edited, { type: "successEdited", success: "**/account/address" })),
+  ).toMatch(/^Check the goal first/);
+});
+
+test("a pattern no page's URL could match blocks Start before the check, saying how to start it", () => {
+  // The Actor loop refuses each before its first step, so every lane would end in an error.
+  expect(UNMATCHABLE_SUCCESS).toBe(
+    "Start the URL pattern with **/ to match on any site, or with http:// or https://",
+  );
+  // Which patterns can match is core's `matchableUrlPattern`, tested there; this is the panel's use.
+  const relative = dispatched(ready(), { type: "successEdited", success: "/account/address" });
+  expect(successBlocker(relative.success)).toBe(UNMATCHABLE_SUCCESS);
+  expect(startBlocker(relative)).toBe(UNMATCHABLE_SUCCESS);
+  // Written from the start of a whole URL, the check is next. Blanks around one are trimmed.
+  const whole = dispatched(ready(), { type: "successEdited", success: " **/account/address " });
+  expect(successBlocker(whole.success)).toBeUndefined();
+  expect(startBlocker(whole)).toMatch(/^Check the goal first/);
 });
 
 test("a start goes starting, then clears it on success and keeps io's reason on failure", () => {
@@ -197,15 +381,24 @@ test("seedOf reads digits only, within a 32-bit seed", () => {
 test("startBlocker gives a reason for each thing missing, and none when the panel is ready", () => {
   expect(startBlocker(ready())).toBeUndefined();
   const reasons: [string, PanelState][] = [
-    ["no check", dispatched(ready(), { type: "sentenceEdited", sentence: "find my order" })],
+    ["no check", dispatched(ready(), { type: "presetChosen", presetId: hard.id })],
+    ["no success", dispatched(ready(), { type: "successEdited", success: "" })],
+    [
+      "a relative pattern",
+      dispatched(ready(), { type: "successEdited", success: "/account/address" }),
+    ],
     ["a check under way", dispatched(ready(), { type: "checkStarted" })],
     [
       "a refused check",
-      dispatched(ready(), { type: "checkAnswered", for: forOf(ready()), extraction: refused }),
+      dispatched(ready(), { type: "checkAnswered", for: checkedFor(ready()), extraction: refused }),
     ],
     [
       "a failed check",
-      dispatched(ready(), { type: "checkFailed", for: forOf(ready()), message: "io answered 502" }),
+      dispatched(ready(), {
+        type: "checkFailed",
+        for: checkedFor(ready()),
+        message: "io answered 502",
+      }),
     ],
     ["two personas", { ...ready(), profileIds: ready().profileIds.slice(0, 2) }],
     ["a blank seed", dispatched(ready(), { type: "seedEdited", seed: "" })],
@@ -229,7 +422,7 @@ test("runsRequestOf sends the checked task, the personas in the list's order and
   const clicked = withPersonas(initialPanel(), [vera, ada, milo, kai]);
   const state = dispatched(
     clicked,
-    { type: "checkAnswered", for: forOf(clicked), extraction: accepted },
+    { type: "checkAnswered", for: checkedFor(clicked), extraction: accepted },
     { type: "seedEdited", seed: "7" },
   );
   expect(runsRequestOf(state, bundledProfiles)).toStrictEqual({

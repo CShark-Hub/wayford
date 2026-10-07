@@ -102,11 +102,13 @@ export function routeOf(result: RunResult): RouteId | "?" | undefined {
 export type End = "success" | "gave_up" | "step_cap" | "clock" | "error";
 
 /**
- * The run's end. Under `budget_exceeded`, the step cap is `maxSteps` steps with a last step that
- * is complete or wasted; anything else ran out of time (s2-10's clock), mid-step or not.
+ * The run's end. Under `budget_exceeded`, a run recorded since issue #196 names its limit. One
+ * recorded before it is read from its steps: the step cap is `maxSteps` steps with a last step
+ * that is complete or wasted; anything else ran out of time (s2-10's clock), mid-step or not.
  */
 export function endOf(result: RunResult, maxSteps: number): End {
   if (result.outcome !== "budget_exceeded") return result.outcome;
+  if (result.limit !== undefined) return result.limit === "steps" ? "step_cap" : "clock";
   const last = result.steps.at(-1);
   const capped = result.steps.length === maxSteps && last !== undefined && !("incomplete" in last);
   return capped ? "step_cap" : "clock";

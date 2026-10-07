@@ -18,7 +18,8 @@ import type { RunResult, Sweep, SweepValue } from "@wayford/core";
 import { useId } from "react";
 import { runQuery } from "../api/runs.js";
 import { Banner } from "../components/banner.js";
-import { count, OUTCOME_WORDS } from "../components/outcome-words.js";
+import { OUTCOME_WORDS, outcomeKind } from "../components/outcome.js";
+import { count } from "../components/outcome-words.js";
 import { type RouteState, SeedCell, SeedLegend } from "../components/seed-strip.js";
 import { Skeleton } from "../components/skeleton.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
@@ -60,11 +61,14 @@ function routeOn(row: SweepValue, seed: number): RouteState {
   return row.routeOpenSeeds.includes(seed) ? "open" : "closed";
 }
 
-/** The cell's label: the seed, what happened, route open, and the run it opens. */
+/**
+ * The cell's label: the seed, what happened, route open, and the run it opens. A run read says how
+ * it ended as run detail does, a budget run out by the limit its record names.
+ */
 function cellLabel(seed: number, runId: string, route: RouteState, state: RunState): string {
   const outcome =
     state.kind === "read"
-      ? OUTCOME_WORDS[state.run.outcome].toLowerCase()
+      ? OUTCOME_WORDS[outcomeKind(state.run.outcome, state.run.limit)].toLowerCase()
       : UNREAD_WORDS[state.kind];
   return `seed ${seed}: ${outcome}, ${ROUTE_WORDS[route]}. Opens ${runId}`;
 }

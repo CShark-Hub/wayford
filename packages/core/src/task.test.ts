@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { taskFixture, taskFixtures } from "./fixtures/index.js";
 import {
   Goal,
+  matchableUrlPattern,
   PATH_WORDS,
   pathWordsIn,
   SuccessCondition,
@@ -138,6 +139,35 @@ describe("SuccessCondition", () => {
         SuccessCondition.safeParse({ type: "requestObserved", method: "GET", urlPattern: blank })
           .success,
       ).toBe(false);
+    }
+  });
+});
+
+describe("matchableUrlPattern", () => {
+  test("a pattern starting with a star, http:// or https:// can match a page's whole URL", () => {
+    for (const pattern of [
+      "**/account/address",
+      "*://shop.example.test/**",
+      "http://localhost:5174/account/address",
+      "https://shop.example.test/**",
+    ]) {
+      expect(matchableUrlPattern(pattern), pattern).toBe(true);
+    }
+  });
+
+  test("a relative pattern, a brace first or a scheme in capitals cannot, and the schema still takes each", () => {
+    for (const pattern of [
+      "/account/address",
+      "account/address",
+      "{**/account,**/address}",
+      "HTTP://localhost:5174/account/address",
+      "ftp://shop.example.test/**",
+    ]) {
+      expect(matchableUrlPattern(pattern), pattern).toBe(false);
+      // Not a refinement: a task stored with one keeps parsing, and the loop refuses it instead.
+      expect(SuccessCondition.safeParse({ type: "urlMatches", pattern }).success, pattern).toBe(
+        true,
+      );
     }
   });
 });

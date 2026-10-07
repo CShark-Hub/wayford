@@ -194,7 +194,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | Skeleton | Loading in the shape of the content | `s3-13` |
 | ThresholdGauge | A ruler: persona fill to the value, signal post at the threshold, softness band below it, provenance tag. A native range input over the drawing | `s3-11` |
 | FilterStates | Visible, degraded (hatch), removed (dashed signal outline and cut flag `P1 · 2.0 < 4.5`), renamed (`[unfamiliar term]`), cut by attention (quiet flag) | `s3-11` |
-| Outcome | Glyph and word: Got through, Gave up, Over budget, Error | `s3-12` |
+| Outcome | Glyph and word: Got through, Gave up, Out of time, Hit the step cap, Over budget, Error. The three budget endings share one hourglass | `s3-12` |
 | RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail | `s3-12` |
 | StepTimeline | 40 px step buttons, ← → moves; wasted hatched, last ringed | `s3-12` |
 | JevDraw | Options laid end to end on 0–1, the rolled needle in signal, the drawn segment filled | `s3-10` |
@@ -261,7 +261,9 @@ The gap bar and the seed strip are HTML, not charts. Recharts stays only for the
 - Plain, specific English in sentence case. Buttons start with a verb: "Start the race", "Try again", "Download trace".
 - No exclamation marks, no "Oops".
 - Errors say what happened and what still works.
-- Outcomes are fixed words: **Got through**, **Gave up**, **Over budget** (`budget_exceeded`: the clock or the step cap), **Error**.
+- Outcomes are fixed words: **Got through**, **Gave up**, **Out of time** (`budget_exceeded` on the clock), **Hit the step cap** (`budget_exceeded` on the step cap), **Over budget**, **Error**.
+  - **Over budget** is `budget_exceeded` where the limit is not at hand: a run recorded before the limit was, and a view that holds only the outcome, such as the Report's seeds or a count of outcomes.
+  - A screen that holds a run's record or its `runFinished` names the limit: run detail, the Race, the Boundary's runs. The Report's seeds hold only the outcome, so a run read there as Over budget opens as Out of time or Hit the step cap.
 - The two numbers are **route open** (the filter) and **got through** (the agent).
 - Rule ids, seeds, run ids, thresholds, URLs and costs are set in `mono` exactly as the code spells them.
 - The list under "Words we do not use" in `docs/DEMO.md` stays off every screen.

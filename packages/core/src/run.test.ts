@@ -21,6 +21,7 @@ import {
   RUN_EVENT_TYPES,
   RUN_OUTCOMES,
   RunEvent,
+  type RunLimit,
   type RunOutcome,
   RunResult,
   RunStep,
@@ -1379,5 +1380,56 @@ describe("DecisionRecord", () => {
     // The drawn option must still be the proposed action.
     const other = { ...cut, proposedAction: click("e2"), performedAction: click("e2") };
     expect(IncompleteRunStep.safeParse(other).success).toBe(false);
+  });
+});
+
+describe("the limit and the step cap (issue #196)", () => {
+  const started = runEventFixtures[0];
+  if (started?.type !== "runStarted")
+    throw new Error("the fixture stream must open with runStarted");
+  const finished = runEventFixtures.at(-1);
+  if (finished?.type !== "runFinished") throw new Error("the fixture stream must end finished");
+  const middle = runEventFixtures.slice(1, -1);
+  /** The fixture's five steps on a cap of `maxSteps`, ended `budget_exceeded` by `limit`. */
+  const ranOut = (maxSteps: number | undefined, limit: RunLimit | undefined): RunEvent[] => {
+    const { maxSteps: _cap, ...bare } = started;
+    return [
+      maxSteps === undefined ? bare : { ...bare, maxSteps },
+      ...middle,
+      { ...finished, outcome: "budget_exceeded", ...(limit === undefined ? {} : { limit }) },
+    ];
+  };
+
+  test("the record carries the cap from runStarted and the limit from runFinished", () => {
+    const result = runResultFromEvents(ranOut(5, "steps"));
+    expect(result.maxSteps).toBe(5);
+    expect(result.limit).toBe("steps");
+    expect(runResultFromEvents(ranOut(20, "clock")).limit).toBe("clock");
+  });
+
+  test("a run recorded before either field still folds, with neither key", () => {
+    const result = runResultFromEvents(ranOut(undefined, undefined));
+    expect(result.outcome).toBe("budget_exceeded");
+    expect(result).not.toHaveProperty("maxSteps");
+    expect(result).not.toHaveProperty("limit");
+  });
+
+  test.each(["success", "gave_up"] as const)("runFinished refuses a limit beside %s", (outcome) => {
+    expect(RunEvent.safeParse({ ...finished, outcome, limit: "clock" }).success).toBe(false);
+    expect(RunEvent.safeParse({ ...finished, outcome }).success).toBe(true);
+  });
+
+  test("the record refuses a limit on an outcome no limit gives", () => {
+    // The fixture gave up within its cap, so only the limit is wrong; "steps" would also break
+    // the cap's own rule, and pass without this one.
+    expect(RunResult.safeParse({ ...runResultFixture, limit: "clock" }).success).toBe(false);
+  });
+
+  test("no run has more steps than its cap, and one the cap ended has exactly that many", () => {
+    // Five steps on a cap of four: a step ran past the cap.
+    expect(() => runResultFromEvents(ranOut(4, "clock"))).toThrow(/more than its cap of 4/);
+    // The cap of six never came, so the clock ended the run, not the cap.
+    expect(() => runResultFromEvents(ranOut(6, "steps"))).toThrow(/not its cap of 6/);
+    expect(runResultFromEvents(ranOut(6, "clock")).limit).toBe("clock");
   });
 });

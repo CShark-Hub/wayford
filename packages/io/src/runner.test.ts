@@ -1,13 +1,22 @@
 /**
  * The runner on the fake run (`docs/specs/2026-10-02-s4-03-runs-api.md`, "runner.ts"): seed-major
- * starts, five slots with one FIFO across `start` calls, live events, and the close-out that stores
- * each run as the fold of what it published before its stream sees the end, and ends the stream
- * when the save fails.
+ * starts, each set's step cap from its task's ground truth (issue #196), five slots with one FIFO
+ * across `start` calls, live events, and the close-out that stores each run as the fold of what it
+ * published before its stream sees the end, and ends the stream when the save fails.
  */
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { TARGET_APP_DEFAULTS } from "@wayford/agent";
-import { type Profile, type RunEvent, runResultFromEvents, type Seed } from "@wayford/core";
 import {
+  GroundTruth,
+  type Profile,
+  type RunEvent,
+  runResultFromEvents,
+  type Seed,
+} from "@wayford/core";
+import {
+  groundTruthFixture,
   profileFixture,
   runResultFixture,
   targetAppJargon,
@@ -28,6 +37,7 @@ import {
   type StartedRun,
 } from "./runner.js";
 import {
+  capture,
   FAKE_STEP_COST,
   fakeBackends,
   fakeRun,
@@ -42,6 +52,21 @@ const ada = profileFixture("prof_ada");
 const vera = profileFixture("prof_vera");
 const zoya = profileFixture("prof_zoya");
 const task = taskFixture("task_next-parcel");
+/** The task of core's ground-truth fixture, which Scout reached in 2 steps. */
+const pastOrder = taskFixture("task_past-order");
+
+/** The fixture's task as Scout writes it when no attempt reached the goal. */
+const notReached = GroundTruth.parse({
+  taskId: pastOrder.id,
+  modelId: groundTruthFixture.modelId,
+  startUrl: groundTruthFixture.startUrl,
+  recordedAt: groundTruthFixture.recordedAt,
+  reached: false,
+  attempts: [
+    { runId: "run_scout-past-1", outcome: "gave_up" },
+    { runId: "run_scout-past-2", outcome: "budget_exceeded" },
+  ],
+});
 
 let store: TempStore;
 beforeEach(async () => {
@@ -68,6 +93,13 @@ async function drain(live: LiveRun | undefined): Promise<readonly RunEvent[]> {
   if (live === undefined) throw new Error("the runner has no such run");
   while (!live.ended) await live.changed();
   return live.events;
+}
+
+/** Writes `text` as the ground truth of the task `taskId`, where `runnerDefaults` has Scout write. */
+async function writeTruth(taskId: string, text: string): Promise<void> {
+  const dir = runnerDefaults(store).groundTruthDir;
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `${taskId}.json`), text);
 }
 
 /** Whether the run's row is in the database now, read synchronously. */
@@ -185,6 +217,184 @@ test("a set started with a sweep hands it to every run and each stored run carri
     expect(callOf(id)).not.toHaveProperty("sweep");
     expect(await loadRun(store.db, id)).not.toHaveProperty("sweep");
   }
+});
+
+test("every run of a set on a task Scout reached in 2 steps gets the cap 3 × 2 + 4 = 10", async () => {
+  expect(groundTruthFixture.shortest?.path.steps).toHaveLength(2);
+  await writeTruth(pastOrder.id, JSON.stringify(groundTruthFixture));
+  const run = fakeRun();
+  const runner = runnerOn(run);
+  const started = runner.start(pastOrder, [ada, vera], [1, 2]);
+
+  for (const { id } of started) await drain(runner.live(id));
+  expect(run.calls).toHaveLength(4);
+  for (const call of run.calls) expect(call.maxSteps).toBe(10);
+});
+
+test("a Race's task, stored under a new id, takes the cap of the fixture task with its start URL and success", async () => {
+  await writeTruth(pastOrder.id, JSON.stringify(groundTruthFixture));
+  const run = fakeRun();
+  const runner = runnerOn(run);
+  // The Hard preset checked as is: another id and sentence, the preset's start and condition, a
+  // copy of it, as io reads a stored task back: equal to the fixture's, never the same object.
+  const race = {
+    ...pastOrder,
+    id: "task_race-hard",
+    goal: "you want to find an old order",
+    success: { ...pastOrder.success },
+  };
+  // The same start, another condition: the easy goal's, which has no file.
+  const elsewhere = { ...race, id: "task_race-address", success: task.success };
+  const started = [race, elsewhere].flatMap((each) => runner.start(each, [ada], [1]));
+
+  for (const { id } of started) await drain(runner.live(id));
+  const capOf = (id: string) => run.calls.find((call) => call.task.id === id)?.maxSteps;
+  expect(capOf(race.id)).toBe(10);
+  expect(capOf(elsewhere.id)).toBeUndefined();
+});
+
+test("a task's own ground truth comes before its fixture twin's", async () => {
+  await writeTruth(pastOrder.id, JSON.stringify(groundTruthFixture));
+  const race = { ...pastOrder, id: "task_race-hard" };
+  await writeTruth(race.id, JSON.stringify({ ...notReached, taskId: race.id }));
+  const run = fakeRun();
+  const runner = runnerOn(run);
+
+  for (const { id } of runner.start(race, [ada], [1])) await drain(runner.live(id));
+  // Its own file says Scout did not reach the goal, so no cap, though the twin's would give 10.
+  expect(run.calls[0]).not.toHaveProperty("maxSteps");
+});
+
+test("a set with no ground truth, or one Scout did not reach, passes no cap, so runActor's default stands, and logs nothing", async () => {
+  await writeTruth(pastOrder.id, JSON.stringify(notReached));
+  const { lines, logger } = capture();
+  const run = fakeRun();
+  const runner = runnerOn(run, { logger });
+  // `task` has no file at all.
+  const started = [task, pastOrder].flatMap((each) => runner.start(each, [ada], [1, 2]));
+
+  for (const { id } of started) await drain(runner.live(id));
+  expect(run.calls.map((call) => call.task.id).sort()).toStrictEqual(
+    [task.id, task.id, pastOrder.id, pastOrder.id].sort(),
+  );
+  // Left out, not set to undefined, which `exactOptionalPropertyTypes` would refuse.
+  for (const call of run.calls) expect(call).not.toHaveProperty("maxSteps");
+  expect(lines).toStrictEqual([]);
+});
+
+test("a file that is no ground truth costs the set its cap, never its runs: one warning per set, and its runs run on the default and are stored", async () => {
+  const broken = [
+    "{ not json",
+    // Fails the schema: it says not reached over attempts that succeeded.
+    JSON.stringify({ ...groundTruthFixture, reached: false }),
+    // Another task's ground truth under this task's name.
+    JSON.stringify({ ...groundTruthFixture, taskId: task.id }),
+  ];
+  const { lines, logger } = capture();
+  const run = fakeRun();
+  const runner = runnerOn(run, { logger });
+
+  for (const text of broken) {
+    await writeTruth(pastOrder.id, text);
+    const started = runner.start(pastOrder, [ada, vera], [1]);
+    // Every run of the set ends before the file is rewritten for the next.
+    for (const { id } of started) {
+      await drain(runner.live(id));
+      expect(await loadRun(store.db, id), text).toMatchObject({ id, outcome: "success" });
+    }
+  }
+  expect(run.calls).toHaveLength(2 * broken.length);
+  for (const call of run.calls) expect(call).not.toHaveProperty("maxSteps");
+  expect(lines).toMatchObject(
+    broken.map(() => ({
+      level: 40,
+      taskId: pastOrder.id,
+      err: { code: "invalid_ground_truth" },
+      msg: "the task's ground truth could not be read, so the set runs on the default step cap",
+    })),
+  );
+});
+
+test("a read that fails for a reason no file explains fails its set's runs unstored, and the next set still gets its cap", async () => {
+  // A folder where the file goes: the read fails, and not on a file Scout wrote wrong.
+  await mkdir(join(runnerDefaults(store).groundTruthDir, `${pastOrder.id}.json`), {
+    recursive: true,
+  });
+  await writeTruth(task.id, JSON.stringify({ ...groundTruthFixture, taskId: task.id }));
+  const { lines, logger } = capture();
+  const run = fakeRun();
+  const runner = runnerOn(run, { logger });
+  const failed = runner.start(pastOrder, [ada, vera], [1]);
+  const next = runner.start(task, [ada], [1]);
+
+  for (const { id } of failed) {
+    expect((await drain(runner.live(id))).at(-1)).toMatchObject({ type: "runFailed" });
+    expect(storedNow(id)).toBe(false);
+  }
+  for (const { id } of next) await drain(runner.live(id));
+  expect(run.calls.map((call) => [call.task.id, call.maxSteps])).toStrictEqual([[task.id, 10]]);
+  expect(lines).toMatchObject(
+    failed.map(() => ({
+      level: 50,
+      err: { code: "EISDIR" },
+      msg: "the run never started, so nothing is stored",
+    })),
+  );
+});
+
+test("every set of a sweep runs on the cap its first set read, though Scout rewrites the file between values", async () => {
+  await writeTruth(pastOrder.id, JSON.stringify(groundTruthFixture));
+  const run = fakeRun();
+  const runner = runnerOn(run);
+  const contrast = (sweepId: string, value: number) =>
+    ({ sweep: { sweepId, axis: "contrast", value } }) as const;
+
+  // As `runSweep` starts each value once the one before has ended.
+  for (const { id } of runner.start(pastOrder, [vera], [1], contrast("swp_one", 3))) {
+    await drain(runner.live(id));
+  }
+  await writeTruth(pastOrder.id, JSON.stringify(notReached));
+  for (const each of [contrast("swp_one", 4), contrast("swp_two", 3)]) {
+    for (const { id } of runner.start(pastOrder, [vera], [1], each)) await drain(runner.live(id));
+  }
+  // The second value of swp_one keeps its cap; swp_two reads the rewritten file, which has none.
+  expect(run.calls.map(({ maxSteps }) => maxSteps)).toStrictEqual([10, 10, undefined]);
+});
+
+test("the cap is read once per set, at start: a file Scout rewrites mid-set changes only the sets started after", async () => {
+  await writeTruth(pastOrder.id, JSON.stringify(groundTruthFixture));
+  const { hold, open } = gates();
+  const run = fakeRun((options) => ({ gate: hold(options.runId) }));
+  const runner = runnerOn(run);
+  // Six runs: five take the slots, the sixth waits for one.
+  const first = runner.start(pastOrder, [ada, vera, zoya], [1, 2]);
+  const called = () => run.calls.map(({ runId }) => runId);
+  await vi.waitFor(() => expect(called()).toHaveLength(5));
+
+  await writeTruth(pastOrder.id, JSON.stringify(notReached));
+  const second = runner.start(pastOrder, [ada], [3]);
+  for (const { id } of [...first, ...second]) {
+    await vi.waitFor(() => expect(called()).toContain(id));
+    open(id);
+    await drain(runner.live(id));
+  }
+
+  const capOf = (id: string) => run.calls.find(({ runId }) => runId === id)?.maxSteps;
+  // The sixth run was called after the rewrite, on its set's cap all the same.
+  expect(first.map(({ id }) => capOf(id))).toStrictEqual(first.map(() => 10));
+  expect(second.map(({ id }) => capOf(id))).toStrictEqual([undefined]);
+});
+
+test("runs are called in the order they took their slots, however long each set's read takes", async () => {
+  // Padded to megabytes, so its set's read ends well after the next set's finds no file.
+  await writeTruth(pastOrder.id, JSON.stringify(groundTruthFixture) + " ".repeat(4_000_000));
+  const run = fakeRun();
+  const runner = runnerOn(run);
+  const started = [...runner.start(pastOrder, [ada, vera], [1]), ...runner.start(task, [ada], [1])];
+
+  for (const { id } of started) await drain(runner.live(id));
+  expect(run.calls.map(({ runId }) => runId)).toStrictEqual(started.map(({ id }) => id));
+  expect(run.calls.map(({ maxSteps }) => maxSteps)).toStrictEqual([10, 10, undefined]);
 });
 
 test("five runs at once; the rest start in queue order across two start calls, as slots free", async () => {

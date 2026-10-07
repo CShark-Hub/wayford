@@ -47,8 +47,6 @@ export type AppOptions = RunnerOptions & {
    * Playwright.
    */
   routes: RouteFacts;
-  /** Where Scout writes `<task id>.json`. A missing file is a report with no ground truth. */
-  groundTruthDir: string;
   /**
    * Scouts one task for `POST /tasks/:id/scout`, writing to `groundTruthDir`. Handed in, like
    * `measure`, since agent's Scout loads its runtime: `server.ts` wires it (`scout-task.ts`).

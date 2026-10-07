@@ -8,16 +8,9 @@
  * against Playwright's own matcher, row for row, so an upgrade that reads a glob otherwise fails
  * there.
  */
-import { type SuccessCondition, WayfordError } from "@wayford/core";
+import { matchableUrlPattern, type SuccessCondition, WayfordError } from "@wayford/core";
 import type { BrowserContext, Page, Request } from "playwright";
 import { globToRegExp } from "./url-glob.js";
-
-/**
- * How a pattern that can match a page's URL starts: with a star, which covers any scheme and
- * origin, or with the scheme of a page the loop can observe. Case counts: the browser reports a
- * scheme in lower case, and url-glob compares as written.
- */
-const MATCHABLE_START = /^(?:\*|https?:\/\/)/;
 
 /**
  * Refuses a success condition no run could meet. The loop calls it before the first step and ends
@@ -25,13 +18,10 @@ const MATCHABLE_START = /^(?:\*|https?:\/\/)/;
  * got there.
  *
  * A `urlMatches` or `requestObserved` pattern is compared with a whole absolute URL, so it must
- * start with `*`, `http://` or `https://`. Playwright resolves a relative pattern such as
- * `/account/address` against the context's `baseURL`; a run's contexts set none, so the pattern
- * would stay as written and never match. A glob that opens with a brace is refused too, even when
- * each of its alternatives starts with a star: the stars can always come first, before the
- * braces. The pattern must also compile. Either failure throws a `WayfordError` with code
- * `invalid_success_condition` naming the pattern, with url-glob's error as its cause when it did
- * not compile.
+ * start with `*`, `http://` or `https://`: core's `matchableUrlPattern`, the rule the Race's start
+ * panel holds its check to, says why. The pattern must also compile. Either failure throws a
+ * `WayfordError` with code `invalid_success_condition` naming the pattern, with url-glob's error as
+ * its cause when it did not compile.
  *
  * A `selectorPresent` condition passes: only a page can tell whether its selector parses, and
  * `met` lets the page's error end the run.
@@ -58,7 +48,7 @@ function checkPattern(pattern: string): void {
       { cause: error },
     );
   }
-  if (!MATCHABLE_START.test(pattern)) {
+  if (!matchableUrlPattern(pattern)) {
     throw new WayfordError(
       "invalid_success_condition",
       `${named} does not start with "*", "http://" or "https://", so it could never match: it is compared with a page's whole URL, and a run has no base URL to resolve it against. Write it as "**/…" to match on any origin.`,

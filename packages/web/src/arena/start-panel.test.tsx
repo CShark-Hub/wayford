@@ -4,13 +4,16 @@ import { afterEach, expect, test, vi } from "vitest";
 import { type Extraction, extractTask } from "../api/runs.js";
 import { bundledProfiles, bundledTasks } from "../bundled-fixtures.js";
 import { attributesOf, decode, lineOf } from "../preview/rendered-markup.js";
-import { dispatched, forOf, sixProfiles, withPersonas } from "./fixture-race.js";
+import { dispatched, sixProfiles, withPersonas } from "./fixture-race.js";
 import {
+  checkedFor,
   GOAL_PRESETS,
   initialPanel,
   MIN_PERSONAS,
+  NO_SUCCESS,
   type PanelState,
   taskRequestOf,
+  UNMATCHABLE_SUCCESS,
 } from "./panel-state.js";
 import { StartPanel, successText } from "./start-panel.js";
 
@@ -69,10 +72,15 @@ function nameOf(inner: string): string {
   return lineOf(inner.replace(/<span aria-hidden="true"[^>]*>.*?<\/span>/gs, ""));
 }
 
+/** The names of every button the panel draws, in order. */
+function buttonNames(html: string): string[] {
+  return buttons(html).map(({ inner }) => nameOf(inner));
+}
+
 /** The attributes of the goal choice's item named `label`. */
-function goalItem(html: string, label: string): Record<string, string> {
+function choiceItem(html: string, label: string): Record<string, string> {
   const item = buttons(html).find(({ inner }) => nameOf(inner) === label);
-  if (item === undefined) throw new Error(`no goal item reads ${label}`);
+  if (item === undefined) throw new Error(`no choice reads ${label}`);
   return item.attributes;
 }
 
@@ -173,36 +181,62 @@ test("below three personas the line says how many more a race needs", () => {
 // other. Both presets start at the target app's home page, so the start URL alone cannot tell
 // them apart; the success condition can.
 test.each(GOAL_PRESETS)(
-  "POST /tasks carries the edited sentence with the $label preset's start URL and success",
+  "POST /tasks carries the $label preset's sentence, start URL and success while the sentence is its own",
   async (preset) => {
-    const state = dispatched(
-      initialPanel(),
-      { type: "presetChosen", presetId: preset.id },
-      { type: "sentenceEdited", sentence: "I want to find something on this shop" },
-    );
+    const state = dispatched(initialPanel(), { type: "presetChosen", presetId: preset.id });
     // The goal choice shows the preset chosen.
-    expect(goalItem(render(state), preset.label)["aria-checked"]).toBe("true");
+    expect(choiceItem(render(state), preset.label)["aria-checked"]).toBe("true");
     const task = bundledTasks.find((candidate) => candidate.id === preset.id);
-    const fetch = answer(
-      Response.json(
-        { task: { ...task, sourceStory: state.sentence }, rewritten: true },
-        { status: 201 },
-      ),
-    );
+    const fetch = answer(Response.json({ task, rewritten: false }, { status: 201 }));
     await extractTask(taskRequestOf(state));
     expect(sentBody(fetch)).toStrictEqual({
-      story: "I want to find something on this shop",
+      story: preset.sentence,
       startUrl: task?.startUrl,
       success: task?.success,
     });
   },
 );
 
-/** The hard goal with the path-laden sentence, three personas and seed 1, not yet checked. */
+test("POST /tasks carries the success typed for an edited sentence, never the preset's", async () => {
+  // Issue #196: the hard preset, a sentence about the address, and the address's condition typed.
+  const state = dispatched(
+    initialPanel(),
+    { type: "sentenceEdited", sentence: "you want to verify your delivery address" },
+    { type: "successEdited", success: "**/account/address" },
+  );
+  const stored: Task = {
+    id: "task_verify-delivery-address",
+    goal: "you want to verify your delivery address",
+    startUrl: hard.startUrl,
+    success: { type: "urlMatches", pattern: "**/account/address" },
+    sourceStory: state.sentence,
+    strippedPaths: [],
+  };
+  const fetch = answer(Response.json({ task: stored, rewritten: false }, { status: 201 }));
+  const extraction = await extractTask(taskRequestOf(state));
+  expect(sentBody(fetch)).toStrictEqual({
+    story: "you want to verify your delivery address",
+    startUrl: hard.startUrl,
+    success: { type: "urlMatches", pattern: "**/account/address" },
+  });
+  // The status says what the task was stored with, so the person sees what counts as arriving.
+  const checked = dispatched(state, { type: "checkAnswered", for: checkedFor(state), extraction });
+  // The field's value is an attribute, so the page's text is the status's alone.
+  const text = lineOf(render(checked));
+  expect(text).toContain("The personas get: you want to verify your delivery address");
+  expect(text).toContain("success · URL matches **/account/address");
+  expect(text).not.toContain("deliveries/archive");
+});
+
+/**
+ * The hard goal with the path-laden sentence, three personas and seed 1, not yet checked. The
+ * sentence asks for the archive in other words, so the preset's success is taken for it again.
+ */
 function pathLadenPanel(): PanelState {
   return dispatched(
     withPersonas(initialPanel(), bundledProfiles.slice(0, MIN_PERSONAS)),
     { type: "sentenceEdited", sentence: PATH_LADEN },
+    { type: "presetSuccessUsed" },
     { type: "seedEdited", seed: "1" },
   );
 }
@@ -225,12 +259,13 @@ test("a path-laden sentence shows the rewrite and what was taken out before Star
   const extraction = await extractTask(taskRequestOf(unchecked));
   const checked = dispatched(unchecked, {
     type: "checkAnswered",
-    for: forOf(unchecked),
+    for: checkedFor(unchecked),
     extraction,
   });
   const html = render(checked);
   const text = lineOf(html);
   expect(text).toContain("The personas get: you want to see what you ordered three months ago");
+  expect(text).toContain("success · URL matches **/deliveries/archive");
   expect(text).toContain("Taken out: Deliveries, Order archive");
   expect(text).toContain("Rewritten from your sentence");
   expect(attributesOf(button(html, "Start the race"))).not.toHaveProperty("disabled");
@@ -247,7 +282,7 @@ test("a goal io refuses keeps Start unavailable and shows the words that survive
   };
   const refused = dispatched(unchecked, {
     type: "checkAnswered",
-    for: forOf(unchecked),
+    for: checkedFor(unchecked),
     extraction,
   });
   const html = render(refused);
@@ -263,7 +298,7 @@ test("an answer for an older sentence is dropped and Start stays unavailable", (
   const asked = pathLadenPanel();
   const extraction: Extraction = { ok: true, task: rewrittenTask, rewritten: true };
   const edited = dispatched(asked, { type: "sentenceEdited", sentence: `${PATH_LADEN}, please` });
-  const late = dispatched(edited, { type: "checkAnswered", for: forOf(asked), extraction });
+  const late = dispatched(edited, { type: "checkAnswered", for: checkedFor(asked), extraction });
   expect(late).toBe(edited);
   const html = render(late);
   expect(lineOf(html)).not.toContain("The personas get:");
@@ -277,7 +312,7 @@ test("a check under way says so, and a failed one is an alert", () => {
   expect(attributesOf(button(html, "Check the goal"))).toHaveProperty("disabled");
   const failed = dispatched(checking, {
     type: "checkFailed",
-    for: forOf(checking),
+    for: checkedFor(checking),
     message: "io answered 502: llm_timeout: no answer",
   });
   expect(render(failed)).toMatch(
@@ -289,6 +324,88 @@ test("a check under way says so, and a failed one is an alert", () => {
 test("Check the goal is unavailable for a blank sentence", () => {
   const blank = dispatched(initialPanel(), { type: "sentenceEdited", sentence: "   " });
   expect(attributesOf(button(render(blank), "Check the goal"))).toHaveProperty("disabled");
+});
+
+/** The sentence edited away from the preset's, which takes the preset's success with it. */
+const edited = dispatched(initialPanel(), {
+  type: "sentenceEdited",
+  sentence: "you want to verify your delivery address",
+});
+
+test.each([
+  ["empty", edited, NO_SUCCESS],
+  // The natural mistake after a sentence edit: the path alone, which the Actor loop refuses.
+  [
+    "the path alone",
+    dispatched(edited, { type: "successEdited", success: "/account/address" }),
+    UNMATCHABLE_SUCCESS,
+  ],
+] as const)(
+  "Check the goal is unavailable while the success is %s, and is described by why",
+  (_, held, why) => {
+    const html = render(held);
+    const check = attributesOf(button(html, "Check the goal"));
+    expect(check).toHaveProperty("disabled");
+    expect(textById(html, check["aria-describedby"] ?? "")).toBe(why);
+    // The field is described by the same line, and Start names the same first thing to do.
+    expect(attributesOf(input(html, "arena-success"))["aria-describedby"]).toBe(
+      check["aria-describedby"],
+    );
+    const start = attributesOf(button(html, "Start the race"));
+    expect(textById(html, start["aria-describedby"] ?? "")).toBe(why);
+    // Written from the start of a whole URL, the check is available and nothing describes it.
+    const typed = render(
+      dispatched(held, { type: "successEdited", success: "**/account/address" }),
+    );
+    const ready = attributesOf(button(typed, "Check the goal"));
+    expect(ready).not.toHaveProperty("disabled");
+    expect(ready).not.toHaveProperty("aria-describedby");
+    expect(attributesOf(input(typed, "arena-success"))).not.toHaveProperty("aria-describedby");
+    expect(lineOf(typed)).not.toContain(why);
+  },
+);
+
+test("Use the preset's shows only while the success is not the preset's, and is not primary", () => {
+  const shown: [string, PanelState][] = [
+    [
+      "an edited sentence's empty success",
+      dispatched(initialPanel(), { type: "sentenceEdited", sentence: "find my address" }),
+    ],
+    [
+      "a typed success",
+      dispatched(initialPanel(), { type: "successEdited", success: "**/account/address" }),
+    ],
+  ];
+  for (const [what, state] of shown) {
+    const html = render(state);
+    expect(buttonNames(html), what).toContain("Use the preset's");
+    const use = buttons(html).find(({ inner }) => nameOf(inner) === "Use the preset's");
+    expect(use?.attributes.type, what).toBe("button");
+    expect(use?.attributes["data-variant"], what).toBe("ghost");
+  }
+  const hidden: [string, PanelState][] = [
+    ["the preset as it opens", initialPanel()],
+    [
+      "the preset's success used for an edited sentence",
+      dispatched(
+        initialPanel(),
+        { type: "sentenceEdited", sentence: "find my order from the spring" },
+        { type: "presetSuccessUsed" },
+      ),
+    ],
+    [
+      "the sentence edited back",
+      dispatched(
+        initialPanel(),
+        { type: "sentenceEdited", sentence: "find my order" },
+        { type: "sentenceEdited", sentence: hard.sentence },
+      ),
+    ],
+    ["the easy preset", dispatched(initialPanel(), { type: "presetChosen", presetId: easy.id })],
+  ];
+  for (const [what, state] of hidden) {
+    expect(buttonNames(render(state)), what).not.toContain("Use the preset's");
+  }
 });
 
 test("Start is described by the reason it cannot start, and a failed start is an alert", () => {
@@ -314,26 +431,49 @@ test("Start the race is the one primary button, and Check the goal is outlined",
 });
 
 test.each(GOAL_PRESETS)(
-  "the $label choice draws its own sentence and its success condition, and not the other's",
+  "the $label choice draws its own sentence and its success's pattern in the field, and not the other's",
   (preset) => {
     const other = preset === easy ? hard : easy;
     const html = render(dispatched(initialPanel(), { type: "presetChosen", presetId: preset.id }));
-    expect(goalItem(html, preset.label)["aria-checked"]).toBe("true");
-    expect(goalItem(html, other.label)["aria-checked"]).toBe("false");
+    expect(choiceItem(html, preset.label)["aria-checked"]).toBe("true");
+    expect(choiceItem(html, other.label)["aria-checked"]).toBe("false");
     expect(sentenceOf(html)).toBe(preset.sentence);
-    const success = html.match(/<p[^>]*\sid="arena-success"[^>]*>(.*?)<\/p>/s);
-    expect(lineOf(success?.[1] ?? "")).toBe(`success · ${successText(preset.success)}`);
-    const text = lineOf(html);
-    expect(text).not.toContain(other.sentence);
-    expect(text).not.toContain(successText(other.success));
+    // Both presets wait for a URL: the field holds the pattern.
+    expect(preset.success.type).toBe("urlMatches");
+    const field = attributesOf(input(html, "arena-success"));
+    expect(field.value).toBe(preset.success.type === "urlMatches" ? preset.success.pattern : "");
+    expect(html).not.toContain(other.sentence);
+    expect(html).not.toContain(other.success.type === "urlMatches" ? other.success.pattern : "");
   },
 );
 
-test("the sentence is a two-row field, described by its success", () => {
+test("the sentence is a two-row field, and the success a URL pattern's mono text field its label names", () => {
   const html = render(initialPanel());
   const tag = attributesOf(html.match(/<textarea[^>]*>/)?.[0] ?? "");
   expect(tag.rows).toBe("2");
-  expect(tag["aria-describedby"]).toBe("arena-success");
+  const field = attributesOf(input(html, "arena-success"));
+  expect(field.type).toBe("text");
+  expect((field.class ?? "").split(" ")).toContain("mono");
+  // The label, then what the field is, fixed and in mono as the check's answer words it, then the
+  // pattern: "success  URL matches  **/deliveries/archive". A URL pattern is the one kind it takes.
+  expect(html).toMatch(
+    /<label [^>]*for="arena-success"[^>]*>success<\/label><span class="mono text-ink-3">URL matches<\/span><input[^>]*\sid="arena-success"/,
+  );
+  expect(html).not.toContain("success kind");
+  expect(html).not.toContain("Element present");
+  // With the preset's success, nothing describes it: there is nothing to do.
+  expect(field).not.toHaveProperty("aria-describedby");
+});
+
+test("an empty success field shows the form a pattern takes", () => {
+  const empty = render(
+    dispatched(initialPanel(), { type: "sentenceEdited", sentence: "find my address" }),
+  );
+  const field = attributesOf(input(empty, "arena-success"));
+  expect(field.value).toBe("");
+  expect(field.placeholder).toBe("**/path/on/the/site");
+  // Drawn in ink-3, which holds 4.5:1 on the field, so the self-check's floor holds for it too.
+  expect((field.class ?? "").split(" ")).toContain("placeholder:text-ink-3");
 });
 
 test("the success conditions in words", () => {
@@ -353,7 +493,7 @@ test("the labels are lowercase instrument labels, and the heading is for screen 
   const labels = [...html.matchAll(/<(span|label|legend)([^>]*)>([^<]*)<\/\1>/g)]
     .filter(([, , tag]) => (attributesOf(tag ?? "").class ?? "").split(" ").includes("mono-label"))
     .map(([, , , text]) => text);
-  expect(labels).toStrictEqual(["goal", "sentence", "cast", "seed"]);
+  expect(labels).toStrictEqual(["goal", "sentence", "success", "cast", "seed"]);
 });
 
 test("every control is drawn, named and described, and the panel never says disabled", () => {
@@ -365,14 +505,14 @@ test("every control is drawn, named and described, and the panel never says disa
   for (const state of states) {
     const html = render(state, sixProfiles);
     // No visually hidden radio or checkbox stands in for a drawn control: the self-check measures
-    // only what a sighted person sees. The two fields are named by their labels.
+    // only what a sighted person sees. The three fields are named by their labels.
     expect(html).not.toMatch(/<input[^>]*type="(?:radio|checkbox)"/);
     const ids = [...html.matchAll(/<(?:input|textarea)[^>]*\sid="([^"]+)"/g)].map((m) => m[1]);
-    expect(ids).toStrictEqual(["arena-sentence", "arena-seed"]);
+    expect(ids).toStrictEqual(["arena-sentence", "arena-success", "arena-seed"]);
     for (const id of ids) expect(html, id).toContain(`for="${id}"`);
-    // Every button is named by its text: two goals, the check, six personas and Start. A
-    // persona's avatar is hidden, so its toggle's name is the persona's name alone.
-    expect(buttons(html).map(({ inner }) => nameOf(inner))).toStrictEqual([
+    // Every button is named by its text: two goals, the check, six personas and Start. A persona's
+    // avatar is hidden, so its toggle's name is the persona's name alone.
+    expect(buttonNames(html)).toStrictEqual([
       easy.label,
       hard.label,
       "Check the goal",
@@ -382,8 +522,10 @@ test("every control is drawn, named and described, and the panel never says disa
     for (const profile of sixProfiles) {
       expect(toggle(html, profile).attributes.type, profile.label).toBe("button");
     }
-    // The goal choice and the cast are groups their labels name; the cast is described by its line.
+    // The goal choice and the cast are groups their labels name, the only two; the cast is
+    // described by its line.
     expect(html).toMatch(/<div[^>]*role="radiogroup"[^>]*aria-label="goal"/);
+    expect([...html.matchAll(/role="radiogroup"/g)]).toHaveLength(1);
     const cast = html.match(/<fieldset([^>]*)><legend[^>]*>(.*?)<\/legend>/s);
     expect(cast?.[2]).toBe("cast");
     const line = textById(html, attributesOf(cast?.[1] ?? "")["aria-describedby"] ?? "");

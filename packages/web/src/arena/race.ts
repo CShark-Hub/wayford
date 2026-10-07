@@ -11,7 +11,7 @@
  * draws: the pips, the place among the runs that got through, the clock, the steps line and the
  * outcome. Each is pure, and formats only what it is given.
  */
-import type { Action, RunEvent, RunId, RunOutcome } from "@wayford/core";
+import type { Action, RunEvent, RunId, RunLimit, RunOutcome } from "@wayford/core";
 import { type OutcomeKind, outcomeKind } from "#components/outcome";
 import type { Pip } from "#components/race-lane";
 import { type StreamStatus, subscribeToRunEvents } from "../api/run-events.js";
@@ -34,8 +34,11 @@ export type RunView = {
   narration: string | undefined;
   /** The step of the latest `actionPerformed` that carries a `screenshotPath`. */
   screenshotStep: number | undefined;
-  /** From the terminal event: the outcome (`error` for `runFailed`), when, and `runFailed`'s error. */
-  ended?: { outcome: RunOutcome; at: string; error?: string };
+  /**
+   * From the terminal event: the outcome (`error` for `runFailed`), when, `runFinished`'s limit if
+   * it names one, and `runFailed`'s error.
+   */
+  ended?: { outcome: RunOutcome; at: string; limit?: RunLimit; error?: string };
 };
 
 /** `events`, one run's events so far in stream order, as its tile shows them. Pure. */
@@ -56,7 +59,12 @@ export function runView(events: readonly RunEvent[]): RunView {
         if (event.screenshotPath !== undefined) screenshotStep = event.stepIndex;
         break;
       case "runFinished":
-        ended = { outcome: event.outcome, at: event.timestamp };
+        // The limit only when named: a run recorded before #196 names none, and reads Over budget.
+        ended = {
+          outcome: event.outcome,
+          at: event.timestamp,
+          ...(event.limit === undefined ? {} : { limit: event.limit }),
+        };
         break;
       case "runFailed":
         ended = { outcome: "error", at: event.timestamp, error: event.error };
@@ -320,12 +328,13 @@ export function stepsText(events: readonly RunEvent[], ended: boolean): string {
 
 /**
  * How a lane stands. A `lost` stream is Stream lost, never a live state: a broken stream says
- * nothing about now. A run that ended is its stored outcome, so Over budget is told from Gave up.
- * A run still going is its live state. Pure.
+ * nothing about now. A run that ended is its stored outcome, so a budget run out is told from Gave
+ * up, and by the limit its `runFinished` names, as run detail tells it. A run still going is its
+ * live state. Pure.
  */
 export function laneOutcome(view: RunView, lost: boolean): OutcomeKind {
   if (lost) return "lost";
-  if (view.ended !== undefined) return outcomeKind(view.ended.outcome);
+  if (view.ended !== undefined) return outcomeKind(view.ended.outcome, view.ended.limit);
   switch (view.state) {
     case "idle":
       return "waiting";
@@ -334,7 +343,7 @@ export function laneOutcome(view: RunView, lost: boolean): OutcomeKind {
     case "stuck":
       return "stuck";
     // `runView` gives these three states only with `ended`, whose outcome decides above. Were one
-    // to come without it, the state is the nearest word: Gave up stands for Over budget too.
+    // to come without it, the state is the nearest word: Gave up stands for a budget run out too.
     case "done":
       return "through";
     case "gaveUp":

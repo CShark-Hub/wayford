@@ -88,7 +88,8 @@ const app = createApp({
     jargon: targetAppJargon,
   }),
   // Where `POST /tasks/:id/scout`, `pnpm --filter @wayford/io scout` and
-  // `pnpm --filter @wayford/agent scout` write each task's ground truth.
+  // `pnpm --filter @wayford/agent scout` write each task's ground truth: each run set's step cap,
+  // and each report's Scout line.
   groundTruthDir: join(RUNS_DIR, "ground-truth"),
   // Scout on a stored task (s4-10), on the `scout` role.
   scout: scoutTask({ run, settings, logger }),

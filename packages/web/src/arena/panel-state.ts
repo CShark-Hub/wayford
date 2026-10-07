@@ -1,13 +1,25 @@
 /**
- * The arena's start panel as data: which goal, the sentence that goes to the Extractor, the
- * personas, the seed, and how far the check and the start have got. Pure, so every rule the panel
- * keeps (three to five personas, Start only after an accepted check of the current sentence, a
- * late answer dropped) is a test of a function, and the view only draws a state.
+ * The arena's start panel as data: which goal, the sentence that goes to the Extractor, what counts
+ * as arriving, the personas, the seed, and how far the check and the start have got. Pure, so every
+ * rule the panel keeps (three to five personas, Start only after an accepted check of the current
+ * sentence and success, a late answer dropped) is a test of a function, and the view only draws a
+ * state.
  *
- * The goal's `startUrl` and `success` come from its preset and nothing else: never from the model
- * and never from the sentence, which stays the user's to edit (`tasks/s3-03-ring.md`).
+ * The goal's `startUrl` comes from its preset and nothing else. Its `success` is the preset's or
+ * the person's, typed in the panel: never the model's, and never read off the sentence, which
+ * stays the person's to edit (`tasks/s3-03-ring.md`). The preset's condition belongs to the
+ * preset's sentence: a goal written in other words may arrive somewhere else, and one stored with
+ * the preset's condition would never count as arriving there (issue #196). So a sentence edited
+ * away from the preset's takes the preset's condition with it, and the person says what counts.
+ *
+ * What counts is a URL pattern, the one kind the panel types: both goals of the target app wait
+ * for a page. A pattern that cannot match by how it starts, such as `/account/address`, is held
+ * back before the check by core's `matchableUrlPattern`, the rule the Actor loop refuses it by
+ * before its first step. One that starts well but does not compile, a brace left open say, passes
+ * the panel, and the loop refuses it before the first step of each run.
  */
 import {
+  matchableUrlPattern,
   type Profile,
   type ProfileId,
   Seed,
@@ -56,6 +68,29 @@ export const MIN_PERSONAS = 3;
  */
 export const MAX_PERSONAS = 5;
 
+/**
+ * `success` as the field draws it: its URL pattern. Only the preset's condition is drawn from a
+ * `SuccessCondition`, and `GOAL_PRESETS` holds none the field cannot type (a test says so), so an
+ * element or a request is a bug, and throws.
+ */
+function draftOf(success: SuccessCondition): string {
+  if (success.type !== "urlMatches") {
+    throw new Error(`the start panel types a URL pattern, not a ${success.type} condition`);
+  }
+  return success.pattern;
+}
+
+/** The condition the field's pattern says, trimmed, or `undefined` while it is blank. */
+export function successOf(draft: string): SuccessCondition | undefined {
+  const pattern = draft.trim();
+  return pattern === "" ? undefined : { type: "urlMatches", pattern };
+}
+
+/** Whether `draft` is `success` as typed: never so for an element or a request. */
+function isSuccess(draft: string, success: SuccessCondition): boolean {
+  return success.type === "urlMatches" && draft === success.pattern;
+}
+
 /** Where the goal's check has got. Only `accepted` lets the race start. */
 export type GoalCheck =
   | { status: "unchecked" }
@@ -68,6 +103,12 @@ export type PanelState = {
   presetId: TaskId;
   /** Editable; starts as the preset's sentence. */
   sentence: string;
+  /**
+   * The success condition's URL pattern, as typed, so an empty or half-typed one is a state the
+   * panel can be in; `successOf` reads the condition it says. Editable; starts as the preset's,
+   * and follows the sentence (`successAfter`).
+   */
+  success: string;
   /** The chosen personas, in the order clicked; `runsRequestOf` sends them in the list's order. */
   profileIds: ProfileId[];
   /** The seed input's text, as typed; `seedOf` reads it. */
@@ -77,21 +118,28 @@ export type PanelState = {
   startError?: string;
 };
 
-/** The preset and sentence a check was asked for, so its answer can be matched to the panel. */
-type CheckedFor = { presetId: TaskId; sentence: string };
+/**
+ * The preset, sentence and success a check was asked for, so its answer can be matched to the
+ * panel: io stores the task with the success it was sent, so an answer to another one is stale.
+ */
+export type CheckedFor = { presetId: TaskId; sentence: string; success: string };
 
 export type PanelAction =
-  /** Resets the sentence to the preset's, and the check. */
+  /** Resets the sentence and the success to the preset's, and the check. */
   | { type: "presetChosen"; presetId: TaskId }
-  /** Resets the check. */
+  /** Resets the check, and may empty or refill the success (`successAfter`). */
   | { type: "sentenceEdited"; sentence: string }
+  /** Its pattern, as typed. Resets the check. */
+  | { type: "successEdited"; success: string }
+  /** "Use the preset's": the preset's condition, by the person's choice. Resets the check. */
+  | { type: "presetSuccessUsed" }
   /** A sixth is refused: the same state comes back. */
   | { type: "personaToggled"; profileId: ProfileId }
   | { type: "seedEdited"; seed: string }
   | { type: "checkStarted" }
-  /** Ignored when `for` is not the current preset and sentence. */
+  /** Ignored when `for` is not the current preset, sentence and success. */
   | { type: "checkAnswered"; for: CheckedFor; extraction: Extraction }
-  /** Ignored when `for` is not the current preset and sentence. */
+  /** Ignored when `for` is not the current preset, sentence and success. */
   | { type: "checkFailed"; for: CheckedFor; message: string }
   | { type: "startStarted" }
   /**
@@ -106,13 +154,27 @@ export function presetOf(id: TaskId): GoalPreset | undefined {
   return GOAL_PRESETS.find((preset) => preset.id === id);
 }
 
-/** `DEMO_GOAL`, or the first preset when it is gone, with no persona, seed 1 and nothing checked. */
+/**
+ * The preset the panel is on. `initialPanel` and the reducer only ever set a preset `GOAL_PRESETS`
+ * holds, so a missing one is a bug, and throws.
+ */
+function presetIn(state: PanelState): GoalPreset {
+  const preset = presetOf(state.presetId);
+  if (preset === undefined) throw new Error(`no goal preset ${state.presetId}`);
+  return preset;
+}
+
+/**
+ * `DEMO_GOAL`, or the first preset when it is gone, with its sentence and success, no persona,
+ * seed 1 and nothing checked.
+ */
 export function initialPanel(): PanelState {
   const preset = presetOf(DEMO_GOAL) ?? GOAL_PRESETS[0];
   if (preset === undefined) throw new Error("the arena needs a goal: tasks.json holds none");
   return {
     presetId: preset.id,
     sentence: preset.sentence,
+    success: draftOf(preset.success),
     profileIds: [],
     seed: "1",
     check: { status: "unchecked" },
@@ -120,9 +182,43 @@ export function initialPanel(): PanelState {
   };
 }
 
-/** Whether an answer was asked for the panel's current preset and sentence. */
+/** Whether the panel's success is its preset's, exactly: "Use the preset's" shows when it is not. */
+export function usesPresetSuccess(state: PanelState): boolean {
+  return isSuccess(state.success, presetIn(state).success);
+}
+
+/**
+ * The success once the sentence goes from `state`'s to `sentence`. The preset's condition belongs
+ * to the preset's sentence:
+ *
+ * - Edited away from the preset's sentence, a success still the preset's empties, so the person
+ *   says what counts as arriving for the goal they wrote. Only on leaving the preset's sentence:
+ *   once away, a success that is the preset's was put there by "Use the preset's" or typed, so it
+ *   is the person's choice, and no later keystroke undoes it.
+ * - Edited back to the preset's sentence, an empty success refills from the preset.
+ * - Otherwise the success is left as the person set it.
+ */
+function successAfter(state: PanelState, sentence: string): string {
+  const preset = presetIn(state);
+  const leaving = state.sentence === preset.sentence && sentence !== preset.sentence;
+  if (leaving && isSuccess(state.success, preset.success)) return "";
+  const back = sentence === preset.sentence;
+  if (back && successOf(state.success) === undefined) return draftOf(preset.success);
+  return state.success;
+}
+
+/** What a check of the panel at `state` is asked for, to tag its answer with. */
+export function checkedFor(state: PanelState): CheckedFor {
+  return { presetId: state.presetId, sentence: state.sentence, success: state.success };
+}
+
+/** Whether an answer was asked for the panel's current preset, sentence and success. */
 function isCurrent(state: PanelState, asked: CheckedFor): boolean {
-  return asked.presetId === state.presetId && asked.sentence === state.sentence;
+  return (
+    asked.presetId === state.presetId &&
+    asked.sentence === state.sentence &&
+    asked.success === state.success
+  );
 }
 
 const UNCHECKED: GoalCheck = { status: "unchecked" };
@@ -148,10 +244,26 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
     case "presetChosen": {
       const preset = presetOf(action.presetId);
       if (preset === undefined) return state;
-      return { ...state, presetId: preset.id, sentence: preset.sentence, check: UNCHECKED };
+      return {
+        ...state,
+        presetId: preset.id,
+        sentence: preset.sentence,
+        success: draftOf(preset.success),
+        check: UNCHECKED,
+      };
     }
     case "sentenceEdited":
-      return { ...state, sentence: action.sentence, check: UNCHECKED };
+      return {
+        ...state,
+        sentence: action.sentence,
+        success: successAfter(state, action.sentence),
+        check: UNCHECKED,
+      };
+    // An accepted task was stored with the success it was checked with, so a new one needs a check.
+    case "successEdited":
+      return { ...state, success: action.success, check: UNCHECKED };
+    case "presetSuccessUsed":
+      return { ...state, success: draftOf(presetIn(state).success), check: UNCHECKED };
     case "personaToggled": {
       if (state.profileIds.includes(action.profileId)) {
         return { ...state, profileIds: state.profileIds.filter((id) => id !== action.profileId) };
@@ -180,11 +292,17 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
   }
 }
 
-/** The `POST /tasks` body: the sentence, with `startUrl` and `success` from the chosen preset only. */
+/**
+ * The `POST /tasks` body: the sentence, the panel's success trimmed, and `startUrl` from the chosen
+ * preset only. Check the goal is unavailable while `successBlocker` has a reason, so a blank
+ * success, or one no page could match, is a bug, and throws.
+ */
 export function taskRequestOf(state: PanelState): TaskRequest {
-  const preset = presetOf(state.presetId);
-  if (preset === undefined) throw new Error(`no goal preset ${state.presetId}`);
-  return { story: state.sentence, startUrl: preset.startUrl, success: preset.success };
+  const success = successOf(state.success);
+  if (success === undefined || successBlocker(state.success) !== undefined) {
+    throw new Error(`taskRequestOf needs a URL pattern a page can match, not "${state.success}"`);
+  }
+  return { story: state.sentence, startUrl: presetIn(state).startUrl, success };
 }
 
 /**
@@ -195,6 +313,31 @@ export function seedOf(text: string): Seed | undefined {
   if (!/^\d+$/.test(text)) return undefined;
   const seed = Seed.safeParse(Number(text));
   return seed.success ? seed.data : undefined;
+}
+
+/**
+ * Why the goal cannot be checked yet: io stores a task with the success it is sent, and a blank
+ * one counts nothing as arriving. Start's first reason too, since the check comes first.
+ */
+export const NO_SUCCESS = "Say what counts as arriving: a URL pattern";
+
+/**
+ * Why a pattern core's `matchableUrlPattern` refuses cannot be checked: it is compared with a
+ * page's whole URL, so `/account/address`, the path alone, never matches, and the Actor loop ends
+ * every run of it in an error before the first step.
+ */
+export const UNMATCHABLE_SUCCESS =
+  "Start the URL pattern with **/ to match on any site, or with http:// or https://";
+
+/**
+ * Why the field's pattern holds the check back, in words, or `undefined` when it can be checked:
+ * blank, or one no page's URL could match, trimmed as `successOf` reads it.
+ */
+export function successBlocker(draft: string): string | undefined {
+  const pattern = draft.trim();
+  if (pattern === "") return NO_SUCCESS;
+  if (!matchableUrlPattern(pattern)) return UNMATCHABLE_SUCCESS;
+  return undefined;
 }
 
 /** Why the check does not let the race start yet, by where it has got. */
@@ -214,10 +357,14 @@ export function tooFewPersonas(chosen: number): string | undefined {
 
 /**
  * Why Start cannot start yet, in words, or `undefined` when it can: the start under way, then the
- * check, then the personas, then the seed, so the reason is the first thing to do.
+ * success, then the check, then the personas, then the seed, so the reason is the first thing to
+ * do. A blank or unmatchable success comes before the check because it keeps the check from being
+ * asked.
  */
 export function startBlocker(state: PanelState): string | undefined {
   if (state.starting) return "The race is starting";
+  const success = successBlocker(state.success);
+  if (success !== undefined) return success;
   if (state.check.status !== "accepted") return CHECK_BLOCKERS[state.check.status];
   const fewer = tooFewPersonas(state.profileIds.length);
   if (fewer !== undefined) return fewer;

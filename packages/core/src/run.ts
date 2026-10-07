@@ -144,6 +144,20 @@ export const FINISHED_OUTCOMES = ["success", "gave_up", "budget_exceeded"] as co
 export const FinishedOutcome = z.enum(FINISHED_OUTCOMES);
 export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
 
+/**
+ * Which limit cut a `budget_exceeded` run off: `steps`, the loop's step cap, or
+ * `clock`, the persona's `budgetSeconds` (B3). Kept apart because "out of
+ * time" and "stopped by the engine's guard" are read differently (issue #196).
+ * Optional on the record: runs stored before it carry none.
+ */
+export const RUN_LIMITS = ["steps", "clock"] as const;
+
+export const RunLimit = z.enum(RUN_LIMITS);
+export type RunLimit = z.infer<typeof RunLimit>;
+
+/** The step cap a run was given: a positive whole number of steps, wasted ones included. */
+export const MaxSteps = z.number().int().positive();
+
 // ---------------------------------------------------------------------------
 // Behaviour dice
 // ---------------------------------------------------------------------------
@@ -350,6 +364,20 @@ function checkPlanned(
   checkDecision(planned, ctx);
 }
 
+/** A limit ends a run `budget_exceeded` and nothing else, on `runFinished` and the record alike. */
+function checkLimit(
+  ended: { outcome: RunOutcome; limit?: RunLimit | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (ended.limit !== undefined && ended.outcome !== "budget_exceeded") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["limit"],
+      message: `a limit ends a run budget_exceeded, but this one ended ${ended.outcome}`,
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Stored per-step record
 // ---------------------------------------------------------------------------
@@ -503,6 +531,9 @@ export type RunStep = z.infer<typeof RunStep>;
  * throw on this schema (`.extend` with new keys still works; overwriting a
  * key needs `.safeExtend`); derive a summary schema some
  * other way.
+ *
+ * `limit` stands only beside `budget_exceeded`. With `maxSteps` recorded, no
+ * run has more steps than its cap, and one the cap ended has exactly that many.
  */
 export const RunResult = z
   .object({
@@ -531,9 +562,30 @@ export const RunResult = z
     actorSampling: Sampling.optional(),
     /** The sweep this run belongs to, from `runStarted`. Absent outside a sweep. */
     sweep: RunSweep.optional(),
+    /** The step cap the run was given, from `runStarted`. Absent on a run stored before issue
+     *  #196, which ran on the loop's fixed default. */
+    maxSteps: MaxSteps.optional(),
+    /** Which limit ended a `budget_exceeded` run, from `runFinished`. Absent on any other
+     *  outcome, and on a run stored before issue #196. */
+    limit: RunLimit.optional(),
   })
   .strict()
   .superRefine((run, ctx) => {
+    checkLimit(run, ctx);
+    if (run.maxSteps !== undefined && run.steps.length > run.maxSteps) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["steps"],
+        message: `the run has ${run.steps.length} steps, more than its cap of ${run.maxSteps}`,
+      });
+    }
+    if (run.limit === "steps" && run.maxSteps !== undefined && run.steps.length !== run.maxSteps) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["limit"],
+        message: `the step cap ended the run, but it has ${run.steps.length} steps, not its cap of ${run.maxSteps}`,
+      });
+    }
     const last = run.steps.length - 1;
     run.steps.forEach((step, i) => {
       if ("wasted" in step) {
@@ -604,7 +656,7 @@ const eventBase = {
 export const RunEvent = z.discriminatedUnion("type", [
   /** The run opens. Carries everything the result is keyed by, and the inputs
    *  fixed before the first step (`seed`, `startUrl`, `actorSampling`,
-   *  `sweep`). */
+   *  `sweep`, `maxSteps`). */
   z
     .object({
       ...eventBase,
@@ -616,6 +668,9 @@ export const RunEvent = z.discriminatedUnion("type", [
       modelIds: ModelIds,
       actorSampling: Sampling.optional(),
       sweep: RunSweep.optional(),
+      /** The step cap, so the same seed and answers end a capped run the same.
+       *  Optional only for runs recorded before issue #196: the loop always sends it. */
+      maxSteps: MaxSteps.optional(),
     })
     .strict(),
   /** The filter has produced a step's observation. Full evidence; the
@@ -685,12 +740,16 @@ export const RunEvent = z.discriminatedUnion("type", [
       ...eventBase,
       type: z.literal("runFinished"),
       outcome: FinishedOutcome,
+      /** Which limit ended a `budget_exceeded` run. Optional only for runs
+       *  recorded before issue #196: the loop always sends it with that outcome. */
+      limit: RunLimit.optional(),
       durationMs: z.number().int().nonnegative(),
       cost: Cost,
       videoPath: z.string().min(1).optional(),
       tracePath: z.string().min(1).optional(),
     })
-    .strict(),
+    .strict()
+    .superRefine(checkLimit),
   /** The run crashed. Distinct from `gave_up`: the outcome is always `error`. */
   z
     .object({
@@ -956,6 +1015,10 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
   if (terminal.tracePath !== undefined) result.tracePath = terminal.tracePath;
   if (start.actorSampling !== undefined) result.actorSampling = start.actorSampling;
   if (start.sweep !== undefined) result.sweep = start.sweep;
+  if (start.maxSteps !== undefined) result.maxSteps = start.maxSteps;
+  if (terminal.type === "runFinished" && terminal.limit !== undefined) {
+    result.limit = terminal.limit;
+  }
 
   // Parse before returning: the fold above builds the shape, this proves it.
   return RunResult.parse(result);

@@ -166,3 +166,22 @@ export function groundTruthOf(attempts: readonly ScoutAttempt[]): Derived {
     ...(last?.key !== undefined && { target: { key: last.key, page: last.url } }),
   };
 }
+
+/** The step cap's ceiling: twice the loop's default of 20, so a long route never runs unbounded. */
+export const STEP_CAP_CEILING = 40;
+
+/**
+ * The step cap for every run of a task Scout reached: three times its shortest path, plus four,
+ * at most `STEP_CAP_CEILING` (issue #196). A persona may wander three times as far as Scout's route
+ * and still try a few things more; a run that has not arrived by then is not going to, and each
+ * step costs seconds of wall clock and a model call. `undefined` when Scout did not reach the goal,
+ * or there is no ground truth: the loop's own default stands.
+ *
+ * An engine guard, not a persona threshold: every persona of a task gets the same cap. The cap is
+ * a number on the record (`maxSteps`), never a word in the Actor's prompt, so the Actor still sees
+ * nothing of Scout's.
+ */
+export function stepCapOf(truth: GroundTruth | undefined): number | undefined {
+  const shortest = truth?.shortest?.path.steps.length;
+  return shortest === undefined ? undefined : Math.min(3 * shortest + 4, STEP_CAP_CEILING);
+}

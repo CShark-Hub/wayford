@@ -24,6 +24,7 @@
  * 1 for a refusal, a failure, a stop for spend, or any errored run, after the table. 2 for a usage
  * error.
  */
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import {
   type ActorBackendName,
@@ -69,7 +70,7 @@ import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
 import { loadTaskOrFixture } from "./db/tasks.js";
-import { createRunner, onTargetApp, refuseJevOffTargetApp } from "./runner.js";
+import { createRunner, onTargetApp, refuseJevOffTargetApp, stepCapFor } from "./runner.js";
 import { exitOnTermination } from "./shutdown.js";
 import { routeOpenFrom, runSweep } from "./sweep.js";
 import { boundaryLine, percent, routeOpenShare, shown, wallTime } from "./sweep-text.js";
@@ -198,19 +199,23 @@ async function main(args: Arguments): Promise<number> {
     const task = await findTask(db, args.task);
     const profile = findPersona(args.persona);
 
+    // Log lines to stderr, without pid or hostname, so stdout is the table alone and can be pasted.
+    const logger = pino({ base: null, level: config.LOG_LEVEL }, pino.destination(2));
+    // Where Scout writes each task's ground truth, as `server.ts` has it: the sweep's step cap.
+    const groundTruthDir = join(RUNS_DIR, "ground-truth");
+
     // Every refusal before anything is served or launched. `runSweep` checks the plan again.
     refuseJevOffTargetApp(task, backend, TARGET_APP_ORIGIN);
     const values = sweepPlan(profile, args.axis, args.from, args.to, args.step);
+    // Priced on the cap its runs get: Scout's can be up to twice the default.
+    const maxSteps = (await stepCapFor(groundTruthDir, task, logger)) ?? DEFAULT_MAX_STEPS;
     const estimate = checkEstimate(
       priceOf(loadModelPrices(), model),
       values.length * args.seeds.length,
-      DEFAULT_MAX_STEPS,
+      maxSteps,
       args.maxUsd,
       "sweep_over_budget",
     );
-
-    // Log lines to stderr, without pid or hostname, so stdout is the table alone and can be pasted.
-    const logger = pino({ base: null, level: config.LOG_LEVEL }, pino.destination(2));
     // Before Chromium launches: Playwright's handlers keep a SIGTERM from ending the process.
     exitOnTermination();
 
@@ -251,6 +256,7 @@ async function main(args: Arguments): Promise<number> {
         params: TARGET_APP_DEFAULTS,
         jargon: targetAppJargon,
         runsDir: RUNS_DIR,
+        groundTruthDir,
         logger,
       });
 

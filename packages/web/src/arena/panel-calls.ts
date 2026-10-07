@@ -7,11 +7,13 @@
 import type { Profile, Seed, Task, TaskId } from "@wayford/core";
 import { type Extraction, extractTask, type StartedRun, startRuns } from "../api/runs.js";
 import {
+  checkedFor,
   type PanelAction,
   type PanelState,
   presetOf,
   runsRequestOf,
   taskRequestOf,
+  usesPresetSuccess,
 } from "./panel-state.js";
 
 /**
@@ -20,10 +22,10 @@ import {
  * goal"); the seed the runs share; and the runs.
  *
  * `presetTask` is the preset's own task, when the goal the personas got is the preset's sentence
- * word for word: the stored report on that task, the one `seed:demo` writes, is on the same goal.
- * Every race is checked anew (`startSucceeded` spends the check) and the check mints a new task, so
- * the race's own task has no report until its runs are analysed. Undefined when the sentence was
- * edited or the check rewrote it.
+ * word for word and its success the preset's: the stored report on that task, the one `seed:demo`
+ * writes, is on the same goal. Every race is checked anew (`startSucceeded` spends the check) and
+ * the check mints a new task, so the race's own task has no report until its runs are analysed.
+ * Undefined when the sentence or the success was edited, or the check rewrote the sentence.
  */
 export type Race = {
   task: Task;
@@ -39,15 +41,15 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Ask io to check `state`'s sentence against its preset. What was asked, the preset and the
- * sentence, is read before the call and tags the answer, so the reducer drops an answer to a
- * sentence edited while io was checking.
+ * Ask io to check `state`'s sentence with its success and its preset's start URL. What was asked,
+ * the preset, the sentence and the success, is read before the call and tags the answer, so the
+ * reducer drops an answer to a sentence or a success edited while io was checking.
  */
 export async function checkGoal(
   state: PanelState,
   dispatch: (action: PanelAction) => void,
 ): Promise<void> {
-  const asked = { presetId: state.presetId, sentence: state.sentence };
+  const asked = checkedFor(state);
   const request = taskRequestOf(state);
   dispatch({ type: "checkStarted" });
   let extraction: Extraction;
@@ -85,6 +87,7 @@ export async function startRace(
     return undefined;
   }
   dispatch({ type: "startSucceeded" });
-  const presetTask = task.goal === preset.sentence ? preset.id : undefined;
+  const presetTask =
+    task.goal === preset.sentence && usesPresetSuccess(state) ? preset.id : undefined;
   return { task, label: preset.label, seed: request.seeds[0], runs, presetTask };
 }

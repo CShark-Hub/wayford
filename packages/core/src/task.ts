@@ -126,6 +126,29 @@ export const SuccessCondition = z.discriminatedUnion("type", [
 ]);
 export type SuccessCondition = z.infer<typeof SuccessCondition>;
 
+/**
+ * How a pattern that can match a page's URL starts: with a star, which covers any scheme and
+ * origin, or with the scheme of a page a run can observe. Case counts: the browser reports a
+ * scheme in lower case, and the glob compares as written.
+ */
+const MATCHABLE_START = /^(?:\*|https?:\/\/)/;
+
+/**
+ * Whether a `urlMatches` pattern, or a `requestObserved` one, could ever match: it is compared with
+ * a whole absolute URL, so it must start with `*`, `http://` or `https://`. Playwright resolves a
+ * relative pattern such as `/account/address` against the context's `baseURL`; a run's contexts
+ * set none, so the pattern would stay as written and never match. A glob that opens with a brace
+ * is refused too, even when each of its alternatives starts with a star: the stars can always come
+ * first, before the braces.
+ *
+ * One rule for the Actor loop, which refuses such a condition before the first step (agent's
+ * `success.ts`), and the Race's start panel, which holds back its check. Not a refinement of
+ * `SuccessCondition`, so a task stored with such a pattern keeps parsing.
+ */
+export function matchableUrlPattern(pattern: string): boolean {
+  return MATCHABLE_START.test(pattern);
+}
+
 // ---------------------------------------------------------------------------
 // Task
 // ---------------------------------------------------------------------------

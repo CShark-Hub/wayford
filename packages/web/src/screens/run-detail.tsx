@@ -126,7 +126,7 @@ function Header({ run }: { run: RunResult }) {
       <div className="flex items-center gap-4">
         <dl className={cn(FACTS, "min-w-0 flex-1")}>
           <Fact term="outcome">
-            <Outcome kind={outcomeKind(run.outcome)} />
+            <Outcome kind={outcomeKind(run.outcome, run.limit)} />
           </Fact>
           <Fact term="duration">{formatSeconds(run.durationMs)}</Fact>
           <Fact term="steps">{run.steps.length}</Fact>
@@ -258,7 +258,13 @@ function RunDetail({
         {steps.length === 0 ? (
           <p className="body text-ink-3">This run stored no step.</p>
         ) : (
-          <StepTimeline runId={run.id} steps={steps} position={position} outcome={run.outcome} />
+          <StepTimeline
+            runId={run.id}
+            steps={steps}
+            position={position}
+            outcome={run.outcome}
+            limit={run.limit}
+          />
         )}
         {current === undefined ? null : <StepCaption step={current} />}
         {position < 0 && requested !== undefined ? (

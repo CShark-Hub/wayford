@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { groundTruthFixture, taskFixtures } from "./fixtures/index.js";
-import { GroundTruth, groundTruthOf, ScoutAttempt } from "./ground-truth.js";
+import {
+  GroundTruth,
+  groundTruthOf,
+  ScoutAttempt,
+  STEP_CAP_CEILING,
+  stepCapOf,
+} from "./ground-truth.js";
 import type { RunOutcome } from "./run.js";
 
 /** A deep copy of the fixture to break one rule on. */
@@ -49,6 +55,34 @@ describe("groundTruthOf", () => {
 
   test("no success: not reached, no shortest, no target", () => {
     expect(groundTruthOf(unreached([]).attempts)).toStrictEqual({ reached: false });
+  });
+});
+
+describe("stepCapOf", () => {
+  /** A ground truth whose only attempt reached the goal in `n` clicks on the fixture's page. */
+  function reachedIn(n: number): GroundTruth {
+    const truth = copy();
+    const step = truth.shortest?.path.steps[0];
+    if (truth.shortest === undefined || step === undefined) throw new Error("fixture reached");
+    const path = { ...truth.shortest.path, steps: Array.from({ length: n }, () => step) };
+    return { ...truth, shortest: { ...truth.shortest, path } };
+  }
+
+  test("three times Scout's shortest path, plus four", () => {
+    // The fixture's route A is two clicks, Deliveries then Order archive.
+    expect(groundTruthFixture.shortest?.path.steps).toHaveLength(2);
+    expect(stepCapOf(groundTruthFixture)).toBe(10);
+    expect(stepCapOf(reachedIn(1))).toBe(7);
+  });
+
+  test("never above the ceiling, however long the route", () => {
+    expect(stepCapOf(reachedIn(12))).toBe(STEP_CAP_CEILING);
+    expect(stepCapOf(reachedIn(20))).toBe(STEP_CAP_CEILING);
+  });
+
+  test("no cap of its own without a reached ground truth: the loop's default stands", () => {
+    expect(stepCapOf(undefined)).toBeUndefined();
+    expect(stepCapOf(unreached([]))).toBeUndefined();
   });
 });
 

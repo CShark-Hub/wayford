@@ -1,16 +1,19 @@
-import type { RunOutcome } from "@wayford/core";
+import type { RunLimit, RunOutcome } from "@wayford/core";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { STATE_WORDS } from "../avatar/state.js";
-import { OUTCOME_WORDS as ENDING_WORDS } from "./outcome-words.js";
+import { OUTCOME_WORDS as ENDING_WORDS, LIMIT_WORDS } from "./outcome-words.js";
 
 /**
- * How a run ended (`through`, `gaveUp`, `overBudget`, `error`), how a race lane stands while its
- * run goes on (`waiting`, `moving`, `stuck`), or a lane whose stream broke before its end (`lost`).
+ * How a run ended (`through`, `gaveUp`, `outOfTime`, `stepCap`, `overBudget`, `error`), how a race
+ * lane stands while its run goes on (`waiting`, `moving`, `stuck`), or a lane whose stream broke
+ * before its end (`lost`).
  */
 export type OutcomeKind =
   | "through"
   | "gaveUp"
+  | "outOfTime"
+  | "stepCap"
   | "overBudget"
   | "error"
   | "waiting"
@@ -19,13 +22,15 @@ export type OutcomeKind =
   | "lost";
 
 /**
- * Each kind in words. The four endings are `docs/DESIGN.md`'s fixed outcome words, read from
+ * Each kind in words. The six endings are `docs/DESIGN.md`'s fixed outcome words, read from
  * `outcome-words.ts`, which every screen naming a stored outcome shares. The live ones are the
  * avatar's `STATE_WORDS`, the one live vocabulary, so a lane never says a state two ways.
  */
 export const OUTCOME_WORDS: Record<OutcomeKind, string> = {
   through: ENDING_WORDS.success,
   gaveUp: ENDING_WORDS.gave_up,
+  outOfTime: LIMIT_WORDS.clock,
+  stepCap: LIMIT_WORDS.steps,
   overBudget: ENDING_WORDS.budget_exceeded,
   error: ENDING_WORDS.error,
   waiting: STATE_WORDS.idle,
@@ -41,13 +46,27 @@ const KIND_OF: Record<RunOutcome, OutcomeKind> = {
   error: "error",
 };
 
-/** The kind a stored outcome is drawn as: `budget_exceeded`, clock or step cap, is Over budget. */
-export function outcomeKind(outcome: RunOutcome): OutcomeKind {
-  return KIND_OF[outcome];
+const LIMIT_KIND_OF: Record<RunLimit, OutcomeKind> = {
+  clock: "outOfTime",
+  steps: "stepCap",
+};
+
+/**
+ * The kind a stored run's ending is drawn as. A budget run out is the `limit` that cut it off, and
+ * Over budget when it has none, as a run recorded before the limit was. Every screen that holds a
+ * run's limit names its ending through this one choice, so a run reads one way on all of them.
+ */
+export function outcomeKind(outcome: RunOutcome, limit?: RunLimit): OutcomeKind {
+  return outcome === "budget_exceeded" && limit !== undefined
+    ? LIMIT_KIND_OF[limit]
+    : KIND_OF[outcome];
 }
 
-/** The four endings, one per stored outcome. */
-const ENDINGS: ReadonlySet<OutcomeKind> = new Set(Object.values(KIND_OF));
+/** The six endings: one per stored outcome, and one per limit a budget run out names. */
+const ENDINGS: ReadonlySet<OutcomeKind> = new Set([
+  ...Object.values(KIND_OF),
+  ...Object.values(LIMIT_KIND_OF),
+]);
 
 /**
  * Whether `kind` is how a run ended. A live state is not, and neither is a lost stream: its run
@@ -65,12 +84,15 @@ export function markedEnding(kind: OutcomeKind): boolean {
   return kind !== "through" && isEnding(kind);
 }
 
-// `.wf-outcome` and its modifiers in docs/design/components.css. Gave up and Over budget are ink-2.
-// Error and Stream lost are fault: both are the tool failing, not the persona. The rest is ink,
-// and a live state's glyph takes the persona's slot, `--p`.
+// `.wf-outcome` and its modifiers in docs/design/components.css. Gave up and Over budget are ink-2,
+// and so are Out of time and Hit the step cap, Over budget told by its limit. Error and Stream
+// lost are fault: both are the tool failing, not the persona. The rest is ink, and a live state's
+// glyph takes the persona's slot, `--p`.
 const TONES: Record<OutcomeKind, { word: string; glyph: string }> = {
   through: { word: "text-ink", glyph: "text-ink" },
   gaveUp: { word: "text-ink-2", glyph: "text-ink-2" },
+  outOfTime: { word: "text-ink-2", glyph: "text-ink-2" },
+  stepCap: { word: "text-ink-2", glyph: "text-ink-2" },
   overBudget: { word: "text-ink-2", glyph: "text-ink-2" },
   error: { word: "text-fault", glyph: "text-fault" },
   lost: { word: "text-fault", glyph: "text-fault" },
@@ -78,6 +100,9 @@ const TONES: Record<OutcomeKind, { word: string; glyph: string }> = {
   moving: { word: "text-ink", glyph: "text-(--p)" },
   stuck: { word: "text-ink", glyph: "text-(--p)" },
 };
+
+// Over budget's hourglass, which Out of time and Hit the step cap share: the word tells the limit.
+const HOURGLASS = <path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" />;
 
 // The endings and Moving are copied from docs/design/components.html. Waiting, Stuck and Stream
 // lost are not drawn there, so they are drawn here to the same stroke: an open circle, a circle
@@ -95,7 +120,9 @@ const GLYPHS: Record<OutcomeKind, ReactNode> = {
       <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
     </>
   ),
-  overBudget: <path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" />,
+  outOfTime: HOURGLASS,
+  stepCap: HOURGLASS,
+  overBudget: HOURGLASS,
   error: (
     <>
       <path d="M8.2 3h7.6L21 8.2v7.6L15.8 21H8.2L3 15.8V8.2z" />

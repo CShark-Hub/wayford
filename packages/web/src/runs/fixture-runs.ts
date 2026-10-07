@@ -13,10 +13,14 @@
  * Milo's runs errored; Vera and Zoya ran without arriving; `prof_guest`, not a bundled persona, has
  * an even count of successes. `stats.test.ts` holds every number.
  *
+ * A budget run out names the limit that cut it off, as the loop records it since #196. Vera's ran
+ * out of time, at her 120 s budget. Zoya's, at 120 s of her 180, hit the step cap, which is set to
+ * the five steps it keeps: core holds a run the cap ended to exactly its cap.
+ *
  * Ids read `run_<persona>-<hard|easy>-<n>`, numbered from 1 within each task and persona, and the
  * seed of a variant is its `n`. `run_vera-hard-1` keeps the fixture's seed, 424242.
  */
-import { type RunOutcome, RunResult, type RunStep } from "@wayford/core";
+import { type RunLimit, type RunOutcome, RunResult, type RunStep } from "@wayford/core";
 import { decisionRecordFixture, runResultFixture } from "@wayford/core/fixtures";
 
 /** The hard goal, the fixture run's own. */
@@ -31,6 +35,8 @@ type Row = [
   seed: number,
   outcome: RunOutcome,
   durationMs: number,
+  /** For a budget run out alone. */
+  limit?: RunLimit,
 ];
 
 const ROWS: readonly Row[] = [
@@ -42,8 +48,8 @@ const ROWS: readonly Row[] = [
   ["run_milo-hard-1", "prof_milo", HARD, 1, "error", 2_000],
   ["run_milo-hard-2", "prof_milo", HARD, 2, "error", 3_000],
   ["run_vera-hard-2", "prof_vera", HARD, 2, "gave_up", 20_000],
-  ["run_vera-hard-3", "prof_vera", HARD, 3, "budget_exceeded", 120_000],
-  ["run_zoya-hard-1", "prof_zoya", HARD, 1, "budget_exceeded", 120_000],
+  ["run_vera-hard-3", "prof_vera", HARD, 3, "budget_exceeded", 120_000, "clock"],
+  ["run_zoya-hard-1", "prof_zoya", HARD, 1, "budget_exceeded", 120_000, "steps"],
   ["run_zoya-hard-2", "prof_zoya", HARD, 2, "error", 5_000],
   ["run_guest-hard-1", "prof_guest", HARD, 1, "success", 18_000],
   ["run_guest-hard-2", "prof_guest", HARD, 2, "success", 12_000],
@@ -59,9 +65,25 @@ const ROWS: readonly Row[] = [
   ["run_guest-easy-1", "prof_guest", EASY, 1, "gave_up", 30_000],
 ];
 
-/** The fixture run with one row's keys, parsed as io would parse a stored run. */
-function variant([id, profileId, taskId, seed, outcome, durationMs]: Row): RunResult {
-  return RunResult.parse({ ...runResultFixture, id, profileId, taskId, seed, outcome, durationMs });
+/**
+ * The fixture run with one row's keys, parsed as io would parse a stored run. A run the step cap
+ * ended has its cap set to its steps.
+ */
+function variant([id, profileId, taskId, seed, outcome, durationMs, limit]: Row): RunResult {
+  const ended =
+    limit === undefined
+      ? {}
+      : { limit, ...(limit === "steps" ? { maxSteps: runResultFixture.steps.length } : {}) };
+  return RunResult.parse({
+    ...runResultFixture,
+    id,
+    profileId,
+    taskId,
+    seed,
+    outcome,
+    durationMs,
+    ...ended,
+  });
 }
 
 /** `runResultFixture`, then one variant per row, in the order above. See the file comment. */

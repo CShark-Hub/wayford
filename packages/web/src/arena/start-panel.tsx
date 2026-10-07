@@ -1,15 +1,15 @@
 /**
  * The race's setup strip (`docs/DESIGN.md`, the Race): the goal, the sentence the Extractor checks
- * in large type with its success condition in mono, the cast of three to five as avatar toggles,
- * the seed, then Start. A view of its props alone: the screen holds the state (`panel-state.ts`)
- * and the calls to io, and hands in what to do on a change, a check and a start. Every id is built
- * from a constant or a fixture id, so the markup depends on the props alone.
+ * in large type with what counts as arriving under it in mono, the cast of three to five as avatar
+ * toggles, the seed, then Start. A view of its props alone: the screen holds the state
+ * (`panel-state.ts`) and the calls to io, and hands in what to do on a change, a check and a start.
+ * Every id is built from a constant or a fixture id, so the markup depends on the props alone.
  *
  * Every control is one a sighted person sees. The self-check measures only what is drawn, so a
  * visually hidden radio or checkbox under a drawn look would escape it: the goal is a segmented
  * control and each persona a pressed or unpressed button.
  */
-import type { Profile, ProfileId, SuccessCondition, TaskId } from "@wayford/core";
+import type { Profile, ProfileId, SuccessCondition } from "@wayford/core";
 import { cn } from "cn";
 import { PersonaAvatar } from "#components/persona-avatar";
 import { SegmentedControl } from "#components/segmented-control";
@@ -20,14 +20,16 @@ import {
   MAX_PERSONAS,
   type PanelAction,
   type PanelState,
-  presetOf,
   startBlocker,
+  successBlocker,
   tooFewPersonas,
+  usesPresetSuccess,
 } from "./panel-state.js";
 
 const HEADING_ID = "arena-start";
 const SENTENCE_ID = "arena-sentence";
 const SUCCESS_ID = "arena-success";
+const SUCCESS_HINT_ID = "arena-success-hint";
 const PERSONAS_LINE_ID = "arena-personas-line";
 const SEED_ID = "arena-seed";
 const SEED_HINT_ID = "arena-seed-hint";
@@ -63,6 +65,8 @@ function CheckOutcome({ check }: { check: GoalCheck }) {
           <p>
             The personas get: <span className="font-medium text-ink">{check.task.goal}</span>
           </p>
+          {/* The condition the task was stored with: what the runner will count as arriving. */}
+          <p className="mono text-ink-3">{`success · ${successText(check.task.success)}`}</p>
           <p>{stripped.length > 0 ? `Taken out: ${stripped.join(", ")}` : "Nothing taken out"}</p>
           {check.rewritten ? <p className="text-ink-3">Rewritten from your sentence</p> : null}
         </div>
@@ -86,26 +90,76 @@ function CheckOutcome({ check }: { check: GoalCheck }) {
 }
 
 /**
+ * What counts as arriving, under the sentence: a URL pattern in mono, after "URL matches" as
+ * `successText` words it, since a pattern is the one kind the field takes. An empty field shows
+ * the form one takes. "Use the preset's" brings back the preset's condition while the field holds
+ * anything else, so taking it is a choice the person makes, never one made for them. While the
+ * pattern is blank, or one no page's URL could match, a line says what to do; it describes the
+ * field, and Check the goal, which it holds back.
+ */
+function SuccessField({
+  success,
+  usesPreset,
+  onAction,
+}: {
+  success: string;
+  usesPreset: boolean;
+  onAction: (action: PanelAction) => void;
+}) {
+  const blocker = successBlocker(success);
+  return (
+    <div className="flex flex-col gap-(--space-2)">
+      <div className="flex flex-wrap items-center gap-(--space-3)">
+        <label htmlFor={SUCCESS_ID} className={LABEL}>
+          success
+        </label>
+        <span className="mono text-ink-3">URL matches</span>
+        <input
+          id={SUCCESS_ID}
+          type="text"
+          spellCheck={false}
+          value={success}
+          placeholder="**/path/on/the/site"
+          onChange={(event) => onAction({ type: "successEdited", success: event.target.value })}
+          aria-describedby={blocker === undefined ? undefined : SUCCESS_HINT_ID}
+          className="h-(--control-h) w-80 min-w-0 rounded-sm border border-line-strong bg-surface px-3 mono text-ink placeholder:text-ink-3"
+        />
+        {usesPreset ? null : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onAction({ type: "presetSuccessUsed" })}
+          >
+            Use the preset's
+          </Button>
+        )}
+      </div>
+      {blocker === undefined ? null : (
+        <p id={SUCCESS_HINT_ID} className="body text-ink-2">
+          {blocker}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * The goal: the presets as one segmented control, then only the chosen one's sentence, editable
- * and set large, with its success condition in mono under it. Then the button that checks the
- * sentence and what the check said. `initialPanel` and the reducer only ever set a preset
- * `GOAL_PRESETS` holds, so a missing one is a bug, and throws.
+ * and set large, with what counts as arriving under it. Then the button that checks the sentence
+ * and its success, and what the check said.
  */
 function GoalBlock({
-  presetId,
-  sentence,
-  check,
+  state,
   onAction,
   onCheck,
 }: {
-  presetId: TaskId;
-  sentence: string;
-  check: GoalCheck;
+  state: PanelState;
   onAction: (action: PanelAction) => void;
   onCheck: () => void;
 }) {
-  const preset = presetOf(presetId);
-  if (preset === undefined) throw new Error(`no goal preset ${presetId}`);
+  const { presetId, sentence, success, check } = state;
+  const successHeld = successBlocker(success) !== undefined;
   return (
     <div className="flex flex-col gap-(--space-2)">
       <div className="flex items-center gap-(--space-3)">
@@ -128,19 +182,17 @@ function GoalBlock({
         rows={2}
         value={sentence}
         onChange={(event) => onAction({ type: "sentenceEdited", sentence: event.target.value })}
-        aria-describedby={SUCCESS_ID}
         className="w-full resize-none border-0 border-b-(length:--stroke-rule) border-line-strong bg-paper pb-(--space-1) display-m text-balance text-ink"
       />
       {/* The deterministic condition under the sentence: what counts as arriving. */}
-      <p id={SUCCESS_ID} className="mono text-ink-3">
-        {`success · ${successText(preset.success)}`}
-      </p>
+      <SuccessField success={success} usesPreset={usesPresetSuccess(state)} onAction={onAction} />
       <div className="mt-(--space-2) flex items-start gap-(--space-4)">
         <Button
           type="button"
           variant="outline"
           onClick={onCheck}
-          disabled={check.status === "checking" || sentence.trim() === ""}
+          disabled={check.status === "checking" || sentence.trim() === "" || successHeld}
+          aria-describedby={successHeld ? SUCCESS_HINT_ID : undefined}
         >
           Check the goal
         </Button>
@@ -253,13 +305,7 @@ export function StartPanel({
       <h2 id={HEADING_ID} className="sr-only">
         Start a race
       </h2>
-      <GoalBlock
-        presetId={state.presetId}
-        sentence={state.sentence}
-        check={state.check}
-        onAction={onAction}
-        onCheck={onCheck}
-      />
+      <GoalBlock state={state} onAction={onAction} onCheck={onCheck} />
       <div className="mt-(--space-5) grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-(--space-6) border-t border-line pt-(--space-4)">
         <CastPicker profiles={profiles} chosen={state.profileIds} onAction={onAction} />
         <div className="flex flex-col items-end gap-(--space-2)">

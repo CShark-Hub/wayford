@@ -105,7 +105,7 @@ describe("the lane", () => {
     expect(lane(over)).not.toContain("shadow-(--shadow-raised)");
   });
 
-  test.each<OutcomeKind>(["through", "gaveUp", "overBudget", "error"])(
+  test.each<OutcomeKind>(["through", "gaveUp", "outOfTime", "stepCap", "overBudget", "error"])(
     "is raised once it ends %s",
     (outcome) => {
       const article = attributesOf(lane({ outcome }).match(/^<article[^>]*>/)?.[0] ?? "");
@@ -120,7 +120,7 @@ describe("the track", () => {
     expect(pips.map((pip) => pip["data-pip"])).toStrictEqual(KAI_PIPS.map((pip) => pip.kind));
   });
 
-  test.each<OutcomeKind>(["gaveUp", "overBudget", "error"])(
+  test.each<OutcomeKind>(["gaveUp", "outOfTime", "stepCap", "overBudget", "error"])(
     "ends %s with that outcome's glyph after the pips, before the post",
     (end) => {
       const track = trackOf(lane({ pips: VERA_PIPS, outcome: end }));
@@ -182,7 +182,17 @@ describe("the track", () => {
       "5 steps: click, scroll, doubleClick, wasted, gave up",
     ],
     [
-      "over budget",
+      "out of time",
+      { pips: VERA_PIPS, outcome: "outOfTime", steps: "4 steps" },
+      "4 steps: click, scroll, doubleClick, wasted, out of time",
+    ],
+    [
+      "the step cap hit",
+      { pips: VERA_PIPS, outcome: "stepCap", steps: "4 steps" },
+      "4 steps: click, scroll, doubleClick, wasted, hit the step cap",
+    ],
+    [
+      "over budget, a run recorded before its limit was",
       { pips: VERA_PIPS, outcome: "overBudget", steps: "4 steps" },
       "4 steps: click, scroll, doubleClick, wasted, over budget",
     ],

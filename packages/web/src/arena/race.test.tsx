@@ -3,6 +3,7 @@ import {
   type Action,
   RunEvent,
   type RunId,
+  type RunLimit,
   type RunOutcome,
   runResultFromEvents,
 } from "@wayford/core";
@@ -503,6 +504,11 @@ const overBudget = [
   }),
 ];
 
+/** `overBudget` with the limit that cut it off, as the loop has recorded it since #196. */
+function cutOffBy(limit: RunLimit): RunEvent[] {
+  return [...overBudget.slice(0, -1), RunEvent.parse({ ...overBudget.at(-1), limit })];
+}
+
 /** `demoRace`'s events for `run`. */
 function demoEventsOf(run: StartedRun): readonly RunEvent[] {
   const events = demoRace.events.get(run.id);
@@ -684,10 +690,13 @@ describe("laneOutcome", () => {
     ]);
   });
 
-  test("a run that ended: its stored outcome, Over budget told from Gave up", () => {
+  test("a run that ended: its stored outcome, a budget run out told from Gave up and by its limit", () => {
     const ended: [readonly RunEvent[], OutcomeKind][] = [
       [reachesTheGoal, "through"],
       [runEventFixtures, "gaveUp"],
+      [cutOffBy("steps"), "stepCap"],
+      [cutOffBy("clock"), "outOfTime"],
+      // No limit on its runFinished, as before #196: Over budget.
       [overBudget, "overBudget"],
       [crashes, "error"],
     ];

@@ -449,6 +449,26 @@ describe("the runs behind a value", () => {
     ]);
   });
 
+  test("a budget run out's label names the limit that cut it off, or over budget when none is recorded", async () => {
+    const client = presets({ contrast: [vera] });
+    const [first, second, third] = vera.values.find((value) => value.value === 3)?.runIds ?? [];
+    if (first === undefined || second === undefined || third === undefined) {
+      throw new Error("no three runs at 3");
+    }
+    /** Run `id` cut off by what `limit` records: the step cap, the clock, or nothing, as before #196. */
+    const ranOut = (id: string, limit: Partial<RunResult>) =>
+      RunResult.parse({ ...storedRun(id, "budget_exceeded"), ...limit });
+    client.setQueryData(runQuery(first).queryKey, ranOut(first, { limit: "steps", maxSteps: 5 }));
+    client.setQueryData(runQuery(second).queryKey, ranOut(second, { limit: "clock" }));
+    client.setQueryData(runQuery(third).queryKey, ranOut(third, {}));
+    const cells = seedCells(await render("/boundary?axis=contrast&value=3", client));
+    expect(cells.slice(0, 3).map((cell) => cell.attributes["aria-label"])).toEqual([
+      "seed 1: hit the step cap, every route closed. Opens run_swp-vera-30-s1",
+      "seed 2: out of time, route open. Opens run_swp-vera-30-s2",
+      "seed 3: over budget, every route closed. Opens run_swp-vera-30-s3",
+    ]);
+  });
+
   test("without a route table, a cell has the Report's one border and its label says so", async () => {
     const client = presets({ contrast: [noRoutes] });
     const id = noRoutes.values.find((value) => value.value === 3)?.runIds[0];

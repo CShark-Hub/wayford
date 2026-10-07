@@ -33,11 +33,6 @@ export function withPersonas(state: PanelState, profiles: readonly Profile[]): P
   );
 }
 
-/** The panel's current preset and sentence, as an answer is tagged with them. */
-export function forOf(state: PanelState) {
-  return { presetId: state.presetId, sentence: state.sentence };
-}
-
 /** The hard goal, as the personas get it. */
 export const GOAL = "you want to see what you ordered three months ago";
 
