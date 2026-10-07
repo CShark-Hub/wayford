@@ -121,7 +121,7 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
-| s2-13 | Runs on any site: start URL, jargon and settle | M | — | Tomasz | review (PR #189) |
+| s2-13 | Runs on any site: start URL, jargon and settle | M | — | Tomasz | done |
 | s4-09 | io on any URL: the Lens's measurement and axe | L | s2-13 | Marcin | doing |
 | s4-10 | Scout over HTTP and the sweep CLI on any stored task | M | s2-13 (s4-09 for the report box) | | todo |
 | s3-15 | Target screen: a site and a goal in, every screen out | M | s3-13 (s4-10 and s3-16 for some boxes) | | todo |
@@ -136,7 +136,7 @@ Optional, taken only once every task above is taken:
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
 | s3-14 | Cast and Runs redesigned, Recharts out | M | s3-13, s3-08 | | todo |
-| s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02, s3-11 | Grzegorz | review (PR #187) |
+| s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02, s3-11 | Grzegorz | done |
 | s2-07 | B2: scroll when stuck | S | s2-10 | Grzegorz | done |
 | s2-08 | B4: misclick on small targets | M | s2-10 | | todo |
 | s2-09 | Simulated time: click speed and the budget | L | s2-10, after s2-08 | | todo |
