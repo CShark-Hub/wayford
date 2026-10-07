@@ -3,9 +3,10 @@
  * backends, listen. Everything worth testing lives in `app.ts`, so this file does nothing on import
  * that a test would want. `pnpm dev` runs it under `tsx watch`.
  *
- * It, the `analyse` CLI, the sweep CLI, `sweep-cli.ts`, and `seed:demo`, `seed-demo-cli.ts`, are
- * the only io entry points that load agent's runtime and Playwright, through `actor-backends.ts`,
- * `analyst-routes.ts`, `axe-scan.ts`, `chromium.ts`, `live-measure.ts` and `seed-demo.ts`
+ * It, the `analyse` CLI, the sweep CLI, `sweep-cli.ts`, `seed:demo`, `seed-demo-cli.ts`, and the
+ * capture CLI, `illustration-cli.ts`, are the only io entry points that load agent's runtime and
+ * Playwright, through `actor-backends.ts`, `analyst-routes.ts`, `axe-scan.ts`, `chromium.ts`,
+ * `live-illustration.ts`, `live-measure.ts` and `seed-demo.ts`
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
  */
 import { join } from "node:path";
@@ -21,6 +22,7 @@ import { axeScanner } from "./axe-scan.js";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
 import { loadConfigFromEnvFile } from "./config.js";
 import { migrateDatabase, openDatabase } from "./db/database.js";
+import { liveIllustration } from "./live-illustration.js";
 import { liveMeasure } from "./live-measure.js";
 import { exitOnTermination } from "./shutdown.js";
 
@@ -49,7 +51,8 @@ const llm = createLlm(settings, { logger });
 migrateDatabase(config.DATABASE_URL);
 const db = openDatabase(config.DATABASE_URL);
 
-// One Chromium for every run, every measurement and every axe-core scan, launched by the first one.
+// One Chromium for every run, every measurement, every picture and every axe-core scan, launched
+// by the first one.
 const browser = sharedBrowser();
 
 const app = createApp({
@@ -59,6 +62,8 @@ const app = createApp({
   run: sharedChromium(browser),
   // The preview's live page (s3-05), at the app's defaults like the arena's runs.
   measure: liveMeasure({ browser, origin: TARGET_APP_ORIGIN }),
+  // The Lens's Illustration view (s3-06): /deliveries under the persona's vision emulation.
+  illustrate: liveIllustration({ browser, origin: TARGET_APP_ORIGIN }),
   // The preview's axe-core card and the report's axe findings (s4-06), scanned on desktop.
   scanAxe: axeScanner({ browser, origin: TARGET_APP_ORIGIN }),
   // One `Llm` per run, so each run's log lines carry its run id.

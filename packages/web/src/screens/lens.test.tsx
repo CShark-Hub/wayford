@@ -1,6 +1,7 @@
 /**
  * The Lens through the app's own router, against "Screen" and "Acceptance mapping" in
- * `docs/specs/2026-10-01-s3-01-preview.md` and `docs/specs/2026-10-06-s3-11-lens-redesign.md`.
+ * `docs/specs/2026-10-01-s3-01-preview.md`, `docs/specs/2026-10-06-s3-11-lens-redesign.md` and
+ * `docs/specs/2026-10-07-s3-06-illustration-view.md`.
  * Each test loads a URL into a memory history and renders the page with `renderToStaticMarkup`, as
  * `router.test.tsx` does: what a copied link opens with, read off the markup, with no DOM library.
  *
@@ -22,6 +23,7 @@ import {
   type ObservedElement,
   type PageMeasurement,
   type Profile,
+  type VisionDeficiency,
 } from "@wayford/core";
 import {
   axeScanFixture,
@@ -36,10 +38,12 @@ import { perceive } from "@wayford/filter/perceive";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { axeQuery } from "../api/axe.js";
+import { illustrationQuery } from "../api/illustration.js";
 import { measurementQuery } from "../api/measure.js";
 import {
   attributesOf,
   captionOf,
+  classesOf,
   type Drawn,
   detailsOf,
   drawnBoxes,
@@ -52,7 +56,7 @@ import {
 } from "../preview/rendered-markup.js";
 import { PREVIEW_PAGES } from "../preview/search.js";
 import { createAppRouter } from "../router.js";
-import { lensCounts, rulesFired } from "./lens.js";
+import { lensCounts, rulesFired, sourceBadge } from "./lens.js";
 
 vi.mock("@wayford/filter/perceive", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@wayford/filter/perceive")>();
@@ -419,7 +423,7 @@ test("a URL that sets every control restores every control", async () => {
   // Zoya is the current persona, and only she.
   const current = personaLinks(html).filter((link) => link.attributes["aria-current"] === "page");
   expect(current.map((link) => link.name)).toEqual(["Zoya"]);
-  expect(viewOf(html)).toEqual({ Perceived: "false", Evidence: "true" });
+  expect(viewOf(html)).toEqual({ Perceived: "false", Evidence: "true", Illustration: "false" });
   // And the drawing is the one those values give, on the rest of Zoya.
   const profile: Profile = {
     ...zoya,
@@ -490,10 +494,19 @@ test("every slider has a label pointing at its input and an aria-valuetext", asy
   }
 });
 
-test("Perceived and Evidence carry aria-checked in both views", async () => {
-  expect(viewOf(await render(VERA))).toEqual({ Perceived: "true", Evidence: "false" });
+test("Perceived, Evidence and Illustration carry aria-checked in each view", async () => {
+  expect(viewOf(await render(VERA))).toEqual({
+    Perceived: "true",
+    Evidence: "false",
+    Illustration: "false",
+  });
   const evidence = await render(`${VERA}&evidence=true`);
-  expect(viewOf(evidence)).toEqual({ Perceived: "false", Evidence: "true" });
+  expect(viewOf(evidence)).toEqual({ Perceived: "false", Evidence: "true", Illustration: "false" });
+  expect(viewOf(await render(`${VERA}&illustration=true`))).toEqual({
+    Perceived: "false",
+    Evidence: "false",
+    Illustration: "true",
+  });
   // The evidence view outlines what perception removed; the perceived view does not.
   expect(evidence).toContain("data-removed");
   expect(await render(VERA)).not.toContain("data-removed");
@@ -530,13 +543,26 @@ test("the top bar's story nav has a Lens link to /lens, between Cast and Race", 
 });
 
 test("the persona control links every persona on the seed and view the URL holds", async () => {
-  const html = await render("/lens?persona=prof_vera&seed=7&contrast=2&evidence=true");
-  expect(personaLinks(html).map((link) => [link.name, link.attributes.href])).toEqual(
-    profileFixtures.map((profile) => [
-      profile.label,
-      `/lens?persona=${profile.id}&seed=7&evidence=true`,
-    ]),
-  );
+  // Each URL's view, as its persona links write it: an evidence link keeps `evidence=true` alone
+  // even beside `illustration=true`, since evidence is the view it opens.
+  const cases: [url: string, view: string][] = [
+    ["/lens?persona=prof_vera&seed=7&contrast=2&evidence=true", "&evidence=true"],
+    ["/lens?persona=prof_vera&seed=7&contrast=2&illustration=true", "&illustration=true"],
+    ["/lens?persona=prof_vera&seed=7&evidence=true&illustration=true", "&evidence=true"],
+    ["/lens?persona=prof_vera&seed=7&contrast=2", ""],
+  ];
+  for (const [url, view] of cases) {
+    const html = await render(url);
+    expect(
+      personaLinks(html).map((link) => [link.name, link.attributes.href]),
+      url,
+    ).toEqual(
+      profileFixtures.map((profile) => [
+        profile.label,
+        `/lens?persona=${profile.id}&seed=7${view}`,
+      ]),
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -561,10 +587,16 @@ function titleOf(html: string): string {
   return textOf(elementOf(html, "h2", `id="preview-page-title"`));
 }
 
-/** The text of the stage's `role="status"` banner or line, or `undefined` when it shows none. */
+/** The text of the first `role="status"` banner or line, or `undefined` when it shows none. */
 function statusOf(html: string): string | undefined {
-  const banner = html.match(/<(div|p)(?=[^>]*\srole="status")[^>]*>(.*?)<\/\1>/s);
-  return banner === null ? undefined : textOf(withoutHidden(banner[2] ?? ""));
+  return statusesOf(html)[0];
+}
+
+/** Every status line's text, in page order. */
+function statusesOf(html: string): string[] {
+  return [...html.matchAll(/<(div|p)(?=[^>]*\srole="status")[^>]*>(.*?)<\/\1>/gs)].map((banner) =>
+    textOf(withoutHidden(banner[2] ?? "")),
+  );
 }
 
 /** The page control's links: each name, href and `aria-current`. */
@@ -916,3 +948,206 @@ function renamedArchive(): FullObservation {
     }),
   };
 }
+
+// ---------------------------------------------------------------------------
+// The illustration view (s3-06)
+// ---------------------------------------------------------------------------
+
+/** Vera at seed 1 in the illustration view, on `/deliveries`. */
+const VERA_PICTURED = `${VERA}&illustration=true`;
+
+/** Chrome's emulation is an illustration; the threshold decides (`docs/PLAN.md` F2 AC4). */
+const NOT_DECISION =
+  "The filter's thresholds decide what reaches the model, and this picture does not follow the sliders.";
+
+const UNAVAILABLE = "target_app_unavailable: the target app did not load";
+
+/**
+ * `client` holding io's picture of `/deliveries` on `device` under `emulation`, as the object URL
+ * `src`, so a render fetches nothing.
+ */
+function pictured(
+  device: DeviceKind,
+  emulation: VisionDeficiency,
+  src: string,
+  client: QueryClient = liveClient(),
+): QueryClient {
+  client.setQueryData(illustrationQuery(device, emulation).queryKey, src);
+  return client;
+}
+
+/**
+ * `client`'s answers (`liveClient`'s by default), with the picture for `device` and `emulation`
+ * failed, as it does while io or the target app is down. The query neither retries nor retries on
+ * mount (`src/api/illustration.ts`), so a static render keeps the failure.
+ */
+async function pictureFailed(
+  device: DeviceKind,
+  emulation: VisionDeficiency,
+  client: QueryClient = liveClient(),
+) {
+  await client.prefetchQuery({
+    ...illustrationQuery(device, emulation),
+    queryFn: () => Promise.reject(new Error(UNAVAILABLE)),
+  });
+  return client;
+}
+
+/** The page's one `<img>`, by its attributes, or `undefined` when it shows none. */
+function imgOf(html: string): Record<string, string> | undefined {
+  const tag = html.match(/<img(\s[^>]*?)\/?>/)?.[1];
+  return tag === undefined ? undefined : attributesOf(tag);
+}
+
+/** Whether any element on the page wears `measure`, the measuring surface's dot grid. */
+function onMeasuringSurface(html: string): boolean {
+  return [...html.matchAll(/\sclass="([^"]*)"/g)].some((m) =>
+    classesOf({ class: m[1] ?? "" }).includes("measure"),
+  );
+}
+
+/** Each skeleton's classes, in page order. */
+function skeletonsOf(html: string): string[][] {
+  return [...html.matchAll(/<div(?=[^>]*\sdata-slot="skeleton")(\s[^>]*)>/g)].map((m) =>
+    classesOf(attributesOf(m[1] ?? "")),
+  );
+}
+
+test("Vera's illustration view shows Chrome's blurredVision picture of /deliveries, labelled, with nothing drawn", async () => {
+  const html = await render(VERA_PICTURED, pictured("desktop", "blurredVision", "blob:vera"));
+  expect(imgOf(html)).toMatchObject({
+    src: "blob:vera",
+    alt: "/deliveries on desktop under Chrome's blurredVision emulation",
+  });
+  expect(captionOf(html)).toBe(
+    `Chrome's blurredVision emulation on desktop: an illustration, not decision. ${NOT_DECISION}`,
+  );
+  // No drawn element and no frame: the picture never stands in for the filter's decision.
+  expect(drawnBoxes(html)).toEqual([]);
+  expect(html).not.toContain("data-lens-stage");
+  // On plain paper: nothing in the picture is measured.
+  expect(onMeasuringSurface(html)).toBe(false);
+  // The stage depends on the picture alone: no line about the measurement, and no status.
+  expect(textOf(html)).not.toContain("Live: ");
+  expect(textOf(html)).not.toContain("Measuring");
+  expect(statusOf(html)).toBeUndefined();
+  // The readout strip stays under it, reading Vera's thresholds on the measurement.
+  const expected = realPerceive(measurementFixture, vera, 1, { jargon: targetAppJargon });
+  expect(stripOf(html)).toEqual(expectedStrip(expected));
+});
+
+test("Milo's picture is the plain page on mobile, which reads as no emulation", async () => {
+  const html = await render(
+    "/lens?persona=prof_milo&illustration=true",
+    pictured("mobile", "none", "blob:milo"),
+  );
+  const img = imgOf(html);
+  expect(img).toMatchObject({
+    src: "blob:milo",
+    alt: "/deliveries on mobile with no vision emulation",
+  });
+  expect(captionOf(html)).toBe(
+    `No vision emulation, the plain page on mobile: an illustration, not decision. ${NOT_DECISION}`,
+  );
+  // The words are about what Chrome renders, never about what a persona sees.
+  expect(`${captionOf(html)} ${img?.alt}`).not.toMatch(/\b(see|sees|seen|saw)\b/i);
+});
+
+test("with io stopped, the stored picture shows under its own banner, below the measurement's, and no Live: line", async () => {
+  // Both of io's answers failed: the measurement and the picture.
+  const io = await failedClient("desktop", "/deliveries");
+  const html = await render(VERA_PICTURED, await pictureFailed("desktop", "blurredVision", io));
+  expect(imgOf(html)).toMatchObject({
+    src: "/illustration/desktop-blurredVision.png",
+    alt: "/deliveries on desktop under Chrome's blurredVision emulation",
+  });
+  const [measurement, picture] = statusesOf(html);
+  expect(measurement).toContain("The live page is unavailable: ");
+  expect(picture).toBe(
+    `The live picture is unavailable: ${UNAVAILABLE}. Showing the stored picture of /deliveries ` +
+      "on desktop, blurredVision, taken at the target app's default parameters.Try again",
+  );
+  expect(captionOf(html)).toBe(
+    `Chrome's blurredVision emulation on desktop: an illustration, not decision. ${NOT_DECISION}`,
+  );
+  expect(textOf(html)).not.toContain("Live: ");
+});
+
+test("the measurement's banner reports the measurement in the illustration view too", async () => {
+  const client = await failedClient("desktop", "/deliveries");
+  const html = await render(
+    VERA_PICTURED,
+    pictured("desktop", "blurredVision", "blob:vera", client),
+  );
+  expect(statusOf(html)).toContain("The live page is unavailable: ");
+  expect(statusOf(html)).toContain("Showing the stored /deliveries");
+  // The picture is io's, live.
+  expect(imgOf(html)?.src).toBe("blob:vera");
+  expect(textOf(html)).not.toContain("The live picture is unavailable");
+});
+
+test("while the picture is taken, a status line says so over a skeleton in the picture's shape", async () => {
+  const html = await render(VERA_PICTURED);
+  expect(statusOf(html)).toBe("Taking the picture of /deliveries on desktop…");
+  expect(imgOf(html)).toBeUndefined();
+  expect(captionOf(html)).toBeUndefined();
+  // One skeleton, the picture's: the measurement is in, so the strip shows none.
+  const desktop = skeletonsOf(html);
+  expect(desktop).toHaveLength(1);
+  expect(desktop[0]).toContain("aspect-[1280/720]");
+  // On a phone, the phone's viewport.
+  const milo = await render("/lens?persona=prof_milo&illustration=true");
+  expect(statusOf(milo)).toBe("Taking the picture of /deliveries on mobile…");
+  expect(skeletonsOf(milo)[0]).toContain("aspect-[412/839]");
+});
+
+test("off /deliveries the illustration view shows no picture, and links to /deliveries with the rest kept", async () => {
+  const html = await render(
+    "/lens?persona=prof_vera&seed=7&contrast=2.5&page=/account&illustration=true",
+    pictured("desktop", "blurredVision", "blob:vera"),
+  );
+  expect(imgOf(html)).toBeUndefined();
+  expect(skeletonsOf(html)).toEqual([]);
+  expect(statusOf(html)).toBeUndefined();
+  expect(textOf(html)).toContain("The illustration is taken of /deliveries only.");
+  // The stage's one link, read by its text: the top bar's wordmark holds nested spans that
+  // `linksOf` refuses.
+  const link = html.match(/<a(\s[^>]*)>Open \/deliveries<\/a>/)?.[1];
+  expect(attributesOf(link ?? "").href).toBe(
+    "/lens?persona=prof_vera&seed=7&contrast=2.5&illustration=true",
+  );
+  // The page picker still says which page was asked for.
+  expect(pageLinks(html).find((anchor) => anchor.current === "page")?.name).toBe("/account");
+});
+
+test("a link with evidence=true opens the evidence view, beside illustration=true too", async () => {
+  for (const url of [`${VERA}&evidence=true`, `${VERA}&evidence=true&illustration=true`]) {
+    const html = await render(url, pictured("desktop", "blurredVision", "blob:vera"));
+    expect(viewOf(html), url).toEqual({
+      Perceived: "false",
+      Evidence: "true",
+      Illustration: "false",
+    });
+    expect(html, url).toContain("data-removed");
+    expect(imgOf(html), url).toBeUndefined();
+  }
+});
+
+test("the top bar's badge reports the stage's data: the picture in the illustration view, else the page", () => {
+  for (const view of ["perceived", "evidence"] as const) {
+    expect(sourceBadge(view, "live", "stored")).toEqual({ source: "live", label: "live page" });
+    expect(sourceBadge(view, "stored", "live")).toEqual({ source: "stored", label: "stored page" });
+    expect(sourceBadge(view, undefined, "live")).toBeUndefined();
+  }
+  // A live measurement beside a stored picture reads stored: the stage shows the stored picture.
+  expect(sourceBadge("illustration", "live", "stored")).toEqual({
+    source: "stored",
+    label: "stored picture",
+  });
+  expect(sourceBadge("illustration", "stored", "live")).toEqual({
+    source: "live",
+    label: "live picture",
+  });
+  // No picture yet, or none asked for off /deliveries: the badge claims nothing.
+  expect(sourceBadge("illustration", "live", undefined)).toBeUndefined();
+});

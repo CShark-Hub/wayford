@@ -11,9 +11,9 @@
  * refusal (the range, the axis on this persona, the cost estimate), all before the target app is
  * served on 5174 or a browser launched. A running `pnpm dev` holds 5174 and has to be stopped.
  *
- * It is one of four io entry points, with `server.ts`, the `analyse` CLI and `seed:demo`, that load
- * agent's runtime and Playwright, so it stays out of the barrel, and no test imports it: it loads
- * `.env` and starts billed runs.
+ * It is one of five io entry points, with `server.ts`, the `analyse` CLI, `seed:demo` and the
+ * illustration capture CLI, that load agent's runtime and Playwright, so it stays out of the
+ * barrel, and no test imports it: it loads `.env` and starts billed runs.
  *
  * Exit 0 when every value ran with no `error` run, boundary or not: a boundary is a measurement.
  * 1 for a refusal, a failure, a stop for spend, or any errored run, after the table. 2 for a usage

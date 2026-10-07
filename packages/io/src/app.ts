@@ -5,6 +5,7 @@ import type { RouteFacts } from "./analyst-runs.js";
 import { type AxeScanFn, axeLookup } from "./axe.js";
 import { axeRoute } from "./routes/axe.js";
 import { healthRoute } from "./routes/health.js";
+import { type IllustrateFn, illustrationRoute } from "./routes/illustration.js";
 import { type MeasureFn, measureRoute } from "./routes/measure.js";
 import { profilesRoute } from "./routes/profiles.js";
 import { reportsRoute } from "./routes/reports.js";
@@ -15,13 +16,19 @@ import { createRunner, type RunnerOptions } from "./runner.js";
 
 /**
  * What the app runs on: the runner's options, the one `Llm` the Extractor and the Analyst are
- * called on, how a target-app page is measured for the preview and scanned with axe-core, what the
- * Analyst reads besides the stored runs, and the pause between two replayed events of the fixture
- * run (300 ms when absent).
+ * called on, how a target-app page is measured and pictured for the preview and scanned with
+ * axe-core, what the Analyst reads besides the stored runs, and the pause between two replayed
+ * events of the fixture run (300 ms when absent).
  */
 export type AppOptions = RunnerOptions & {
   llm: Llm;
   measure: MeasureFn;
+  /**
+   * Pictures the target app's `/deliveries` under a persona's vision emulation, for the Lens's
+   * Illustration view. Handed in, like `measure`, since the capture loads Playwright: `server.ts`
+   * wires it.
+   */
+  illustrate: IllustrateFn;
   /**
    * Scans one target-app page with axe-core, on a miss of the stored scans. Handed in, like
    * `measure`, since the scanner loads Playwright: `server.ts` wires it.
@@ -69,6 +76,7 @@ export function createApp(options: AppOptions) {
     })
     .route("/axe", axeRoute({ axe }))
     .route("/health", healthRoute())
+    .route("/illustration", illustrationRoute(options))
     .route("/measure", measureRoute(options))
     .route("/profiles", profilesRoute())
     .route("/reports", reportsRoute({ ...options, axe }))

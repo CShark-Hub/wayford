@@ -2,12 +2,14 @@
  * Test support for io's own tests, never exported from the barrel
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, "test-app.ts"): `testApp`, the whole app on a store
  * in a temporary folder, and `runnerDefaults` and `analystDefaults`, what it runs on; `postJson`
- * and `getJson`, one request each; `fakeRun`, a `RunFn` scripted per run, so no io test needs a
- * browser or a model, and `gate`, which holds one open; `readSse` and `readEvents`, which read a
- * server-sent event stream message by message; `noAxeViolations`, the default axe-core scan, which
- * finds nothing; `quiet` and `capture`, a logger that writes nothing and one that keeps every
- * warning; and for the Analyst's tests, `storedRun`, `fakeAxe` and Vera's `/deliveries` as the
- * filter gives it. io's test files share it, as agent's callers share `fake-llm.ts`.
+ * and `getJson`, one request each, and `getBytes`, one read as bytes; `fakeRun`, a `RunFn`
+ * scripted per run, so no io test needs a browser or a model, and `gate`, which holds one open;
+ * `readSse` and `readEvents`, which read a server-sent event stream message by message;
+ * `noIllustration`, the default picture, which throws; `noAxeViolations`, the default axe-core
+ * scan, which finds nothing; `quiet` and `capture`, a logger that writes nothing and one that
+ * keeps every warning; and for the Analyst's tests, `storedRun`, `fakeAxe` and Vera's
+ * `/deliveries` as the filter gives it. io's test files share it, as agent's callers share
+ * `fake-llm.ts`.
  */
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -51,6 +53,7 @@ import pino from "pino";
 import { type AppOptions, createApp } from "./app.js";
 import type { AxeLookup, AxeScanFn } from "./axe.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
+import type { IllustrateFn } from "./routes/illustration.js";
 import type { MeasureFn } from "./routes/measure.js";
 import type { RunFn, RunnerOptions } from "./runner.js";
 
@@ -119,6 +122,14 @@ export const fakeBackends: Readonly<Record<ActorBackendName, ActorBackendFactory
  */
 export const noMeasure: MeasureFn = () => {
   throw new Error("this io test measures no page");
+};
+
+/**
+ * An `IllustrateFn` that throws if called: a test that takes a picture says how, as
+ * `illustration.test.ts` and `illustration.browser.test.ts` do.
+ */
+export const noIllustration: IllustrateFn = () => {
+  throw new Error("this io test takes no picture");
 };
 
 /**
@@ -212,8 +223,8 @@ export type TestApp = TempStore & { app: ReturnType<typeof createApp> };
 
 /**
  * The whole app on a `tempStore()`, on `runnerDefaults`, the fake `Llm` with no answers,
- * `noMeasure`, `noAxeViolations` and `analystDefaults`. `options` replaces any of them. The fixture
- * replay keeps the route's own pace unless `replaySpacingMs` is given.
+ * `noMeasure`, `noIllustration`, `noAxeViolations` and `analystDefaults`. `options` replaces any
+ * of them. The fixture replay keeps the route's own pace unless `replaySpacingMs` is given.
  */
 export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
   const store = await tempStore();
@@ -221,6 +232,7 @@ export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
     ...runnerDefaults(store),
     llm: fakeLlm({}),
     measure: noMeasure,
+    illustrate: noIllustration,
     scanAxe: noAxeViolations,
     ...analystDefaults(store),
     ...options,
@@ -244,6 +256,19 @@ export async function postJson(app: App, path: string, body: unknown) {
 export async function getJson(app: App, path: string) {
   const res = await app.request(path);
   return { status: res.status, body: await res.json() };
+}
+
+/**
+ * `GET` a route that answers bytes, such as `/illustration`'s PNG: the status, the content type
+ * and the body as bytes.
+ */
+export async function getBytes(app: App, path: string) {
+  const res = await app.request(path);
+  return {
+    status: res.status,
+    contentType: res.headers.get("content-type"),
+    bytes: new Uint8Array(await res.arrayBuffer()),
+  };
 }
 
 type RunOptions = Parameters<RunFn>[0];

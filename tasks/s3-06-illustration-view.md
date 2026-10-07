@@ -39,13 +39,36 @@ The preview gets a third view, Illustration: the target app's `/deliveries` as a
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/io test` includes `/illustration` against the running target app: a PNG for `blurredVision` whose bytes differ from the one for `none`, and a second request for the same pair served from the cache
-- [ ] A web test renders `/lens` for Vera in the illustration view and shows the picture for `desktop` and `blurredVision`, the words "illustration, not decision", and no drawn element
-- [ ] A web test with a fetch spy shows that moving a slider in the illustration view requests no picture
-- [ ] With io stopped, the illustration view shows the stored picture and the banner
-- [ ] A link with `evidence=true` still opens the evidence view
-- [ ] With `pnpm dev`, Illustration shows a blurred `/deliveries` for Vera, a low-contrast one for Zoya and an unemulated one for Ada, labelled as such (screenshots in the PR)
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+- [x] `pnpm --filter @wayford/io test` includes `/illustration` against the running target app: a PNG for `blurredVision` whose bytes differ from the one for `none`, and a second request for the same pair served from the cache
+  - `packages/io/src/illustration.browser.test.ts`, on a served target app: "blurredVision pictures /deliveries in other bytes than no emulation does, both PNG" and "a second request for one device and emulation is answered from the cache".
+  - The route's own cases are in `illustration.test.ts`: the defaults, the 400s, one capture per pair, shared in-flight requests, and a failed capture as a 502 that is not kept.
+  - `pnpm --filter @wayford/io test`: 39 files, 353 tests, after merging main.
+- [x] A web test renders `/lens` for Vera in the illustration view and shows the picture for `desktop` and `blurredVision`, the words "illustration, not decision", and no drawn element
+  - `lens.test.tsx`, "Vera's illustration view shows Chrome's blurredVision picture of /deliveries, labelled, with nothing drawn".
+- [x] A web test with a fetch spy shows that moving a slider in the illustration view requests no picture
+  - `lens.browser.test.ts`, "in the illustration view the picture is fetched once, slider moves fetch nothing, and a persona switch does". The persona switch to Zoya fetches her picture, which proves the spy sees picture fetches.
+- [x] With io stopped, the illustration view shows the stored picture and the banner
+  - `lens.test.tsx`, "with io stopped, the stored picture shows under its own banner, below the measurement's, and no Live: line": both of io's answers failed.
+  - `lens.browser.test.ts`, "off /deliveries no picture is asked for; a failed picture reads stored though the page is live, and Try again brings io's back": the picture alone failed, then the banner's Try again replaces the stored picture with io's.
+  - By hand, with web and the target app up and io stopped: `/illustration/desktop-blurredVision.png` under "The live picture is unavailable: io did not answer (HTTP 502). Showing the stored picture of /deliveries on desktop, blurredVision, taken at the target app's default parameters.", with the badge "stored picture" and the page at 720 px.
+- [x] A link with `evidence=true` still opens the evidence view
+  - `lens.test.tsx`, "a link with evidence=true opens the evidence view, beside illustration=true too", and `search.test.ts`.
+- [x] With `pnpm dev`, Illustration shows a blurred `/deliveries` for Vera, a low-contrast one for Zoya and an unemulated one for Ada, labelled as such (screenshots in the PR)
+  - At 1280 × 720, with io started on a placeholder LLM key and an unreachable base URL, so nothing could be billed. Each screen fits with no scroll, under the badge "live picture".
+  - Vera reads "Chrome's blurredVision emulation on desktop: an illustration, not decision. …", Zoya "Chrome's reducedContrast emulation on desktop: …", and Ada "No vision emulation, the plain page on desktop: …".
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+  - Biome is clean on 385 files and typecheck exits 0. `pnpm test`: 153 files, 2136 tests, after the second review's fixes.
+  - `pnpm --filter @wayford/web check:self`: `4 screens checked in Daylight and Night: 0 shortfalls`, the new `lens-illustration` entry included, beside s3-08's `report`.
+
+## Outcome
+
+- **Built on the Lens.** This task predates s3-11, so its Context names `screens/preview.tsx` and "the preview". The view is on `screens/lens.tsx`, at `/lens`.
+- **The URL.** It gains `illustration=true` beside `evidence=true`. When both are set, `evidence=true` wins.
+- **Off `/deliveries`.** The view shows no picture and asks io for none. It says the illustration is of `/deliveries` only, and links there.
+- **The capture command** is `pnpm --filter @wayford/io capture:illustrations`, in `packages/io/src/illustration-cli.ts`, not `packages/io/scripts/`. io's other CLIs live in `src/`, and io's typecheck covers only `src/`. The four stored PNGs total about 228 KB.
+- **Outside the expected files:** `packages/web/scripts/self-check.ts` holds the view to the floors, since `[data-lens-stage]` does not cover it.
+- **ADR 0002 cut a third "real page" view.** This view is F2 AC4's labelled emulation screenshot, fixed to the persona, so it is not that view. The spec's decision log says why.
+- **Board.** The board row still lists `s3-07` as a dependency. The view is built on s3-13 and s3-11, which replaced s3-07's direction.
 
 ## Out of scope
 

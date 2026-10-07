@@ -4,6 +4,7 @@
  * never bundled: it is the one place in web that imports the filter's main entry (`docs/STACK.md`,
  * "Package import rules").
  */
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   type Bbox,
@@ -42,7 +43,10 @@ export interface SelfCheckScreen {
   path: string;
   /** Shown once the screen has its data; the check measures after it is visible. */
   ready: string;
-  /** Each a JSON body, keyed by its path under `/api`, such as `/runs`. */
+  /**
+   * Each keyed by its path under `/api`, such as `/runs`: a JSON body, or the bytes of a PNG, as
+   * io's `/illustration` answers.
+   */
   responses: Record<string, unknown>;
   /**
    * A CSS selector whose elements the check skips: an element whose box centre lies inside one is
@@ -82,6 +86,26 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     // measure today, so this is a guard: a box drawn as a heading, a paragraph or a control would
     // be skipped, not failed. The rail, the controls, the strip and the caption are checked.
     exclude: "[data-lens-stage]",
+  },
+  {
+    name: "lens-illustration",
+    path: "/lens?illustration=true",
+    // Ready once io's picture is on the stage, the strip has its counts and the axe-core card
+    // lists its scan. A blob, so the stored picture the Lens falls back to cannot stand in for
+    // io's.
+    ready: 'main:has(figure img[src^="blob:"]):has(dl dd p):has(section[aria-label="axe-core"] li)',
+    // Vera, the default persona, on /deliveries: the strip's measurement and scan as the lens
+    // entry has them, and her picture, desktop under blurredVision. Nothing is skipped: the view
+    // draws no page, so its caption is held to the floors; the picture, an image, is not
+    // measured. The loading line and the stored-picture banner show only before io's picture or
+    // without it, and this entry does not reach them.
+    responses: {
+      "/measure": measurementFixture,
+      "/axe": axeScanFixture("/deliveries"),
+      "/illustration": readFileSync(
+        new URL("../public/illustration/desktop-blurredVision.png", import.meta.url),
+      ),
+    },
   },
   {
     name: "report",
@@ -193,7 +217,10 @@ export async function checkScreen(
   await page.route(/^https?:\/\/[^/]+\/api\//, (route) => {
     const path = new URL(route.request().url()).pathname.slice("/api".length);
     if (Object.hasOwn(screen.responses, path)) {
-      return route.fulfill({ json: screen.responses[path] });
+      const response = screen.responses[path];
+      return response instanceof Uint8Array
+        ? route.fulfill({ body: Buffer.from(response), contentType: "image/png" })
+        : route.fulfill({ json: response });
     }
     unlisted ??= notListed(screen, path);
     reject(unlisted);

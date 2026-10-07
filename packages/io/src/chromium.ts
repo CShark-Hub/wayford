@@ -7,7 +7,8 @@
  *
  * It stays out of io's barrel (spec, decision log, "The barrel"): it loads agent's runtime and
  * Playwright. Outside its tests, `server.ts`, the sweep CLI, `sweep-cli.ts`, `seed:demo`,
- * `seed-demo-cli.ts`, and the axe-core scanner, `axe-scan.ts`, are its only importers.
+ * `seed-demo-cli.ts`, the illustration capture CLI, `illustration-cli.ts`, and the axe-core
+ * scanner, `axe-scan.ts`, are its only importers.
  */
 import { runActor } from "@wayford/agent";
 import { WayfordError } from "@wayford/core";

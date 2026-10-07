@@ -10,6 +10,8 @@
  * - `contrastSoftness`, `fontPxSoftness`, `targetPxSoftness`: 0 to 1. Absent or invalid, the
  *   persona's own, or 0.
  * - `evidence`: `true` for the evidence view. Anything else, off.
+ * - `illustration`: `true` for the illustration view (s3-06). Anything else, off. `evidence=true`
+ *   wins over it, so an s3-01 evidence link keeps its meaning.
  * - `page`: one of `PREVIEW_PAGES`, the target-app page the preview perceives. Absent or invalid,
  *   `/deliveries`.
  *
@@ -102,6 +104,7 @@ export const PreviewSearch = z.object({
   targetPx: thresholdParam("targetPx"),
   targetPxSoftness: softnessParam,
   evidence: z.literal(true).optional().catch(undefined),
+  illustration: z.literal(true).optional().catch(undefined),
   page: z.enum(PREVIEW_PAGES).optional().catch(undefined),
 });
 export type PreviewSearch = z.infer<typeof PreviewSearch>;
@@ -110,6 +113,12 @@ export type PreviewSearch = z.infer<typeof PreviewSearch>;
 function personaIdOf(search: PreviewSearch): string {
   return search.persona ?? DEFAULT_PERSONA;
 }
+
+/**
+ * The Lens's three views: the page as perceived, the evidence of what removed what, and the page
+ * under the persona's Chrome vision emulation, which illustrates and never decides.
+ */
+export type LensView = "perceived" | "evidence" | "illustration";
 
 /** One metric's sliders: the threshold, `off` included, and its softness. */
 export type Cut = { threshold: number; softness: number };
@@ -131,7 +140,7 @@ export type PreviewState = {
    * does, so a moved slider is never presented as the persona.
    */
   edited: boolean;
-  evidence: boolean;
+  view: LensView;
   /** The target-app page perceived. */
   page: PreviewPage;
 };
@@ -173,9 +182,16 @@ export function resolvePreview(search: PreviewSearch): PreviewState {
     cuts,
     profile: { ...persona, perception },
     edited,
-    evidence: search.evidence === true,
+    view: viewOf(search),
     page: search.page ?? DEFAULT_PAGE,
   };
+}
+
+/** The view a search opens: evidence when it says so, whatever else it says, then illustration. */
+function viewOf(search: PreviewSearch): LensView {
+  if (search.evidence === true) return "evidence";
+  if (search.illustration === true) return "illustration";
+  return "perceived";
 }
 
 /**
@@ -185,13 +201,14 @@ export function resolvePreview(search: PreviewSearch): PreviewState {
  * (`docs/PLAN.md`, A20). The page is left out at its default, so a short link stays short.
  */
 export function personaSearch(
-  state: Pick<PreviewState, "seed" | "evidence" | "page">,
+  state: Pick<PreviewState, "seed" | "view" | "page">,
   personaId: string,
 ): PreviewSearch {
   return {
     persona: personaId,
     seed: state.seed,
-    evidence: state.evidence ? true : undefined,
+    evidence: state.view === "evidence" ? true : undefined,
+    illustration: state.view === "illustration" ? true : undefined,
     page: pageParam(state.page),
   };
 }

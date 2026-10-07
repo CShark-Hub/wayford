@@ -4,13 +4,14 @@
  * preview perceives the page a run starts on (`docs/PLAN.md` F2). `routes/measure.ts` keeps what
  * this returns.
  *
- * Its page loading is exported for the axe-core scanner (`axe-scan.ts`, s4-06), which opens a
- * page the same way: `withOwnContext`, the page loaded and its fonts awaited in a context of its
- * own on the shared browser, under a deadline. The caller names its work, so a failed scan's
- * messages say "scanning", never "measuring".
+ * Its page loading is exported for the axe-core scanner (`axe-scan.ts`, s4-06) and the Lens's
+ * picture (`live-illustration.ts`, s3-06), which open a page the same way: `withOwnContext`, the
+ * page loaded and its fonts awaited in a context of its own on the shared browser, under a
+ * deadline. The caller names its work, so a failed scan's messages say "scanning", never
+ * "measuring".
  *
  * It stays out of io's barrel, as `chromium.ts` does: it loads agent's runtime and Playwright.
- * Outside its tests, `server.ts` and `axe-scan.ts` are its only importers.
+ * Outside its tests, `server.ts`, `axe-scan.ts` and `live-illustration.ts` are its only importers.
  */
 import {
   type DeviceContextOptions,
@@ -40,10 +41,14 @@ const FONTS_TIMEOUT_MS = 3000;
 const MEASURE_TIMEOUT_MS = 15_000;
 
 /** What a caller does with the page, as its error messages name it. */
-export type PageWork = "measuring" | "scanning";
+export type PageWork = "measuring" | "scanning" | "picturing";
 
 /** Each work as "was not …" says it. */
-const DONE: Readonly<Record<PageWork, string>> = { measuring: "measured", scanning: "scanned" };
+const DONE: Readonly<Record<PageWork, string>> = {
+  measuring: "measured",
+  scanning: "scanned",
+  picturing: "pictured",
+};
 
 /**
  * Measures with a context of its own on the shared browser, closed when the measurement ends or

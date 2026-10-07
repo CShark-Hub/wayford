@@ -13,10 +13,14 @@
  * Under the drawn page, a strip reads the observation's counts and the rules that fired, beside a
  * card with axe-core's scan of the page from io (s4-06), the same for every persona and device.
  *
+ * A third view, Illustration (s3-06), puts io's picture of `/deliveries` under the persona's
+ * Chrome vision emulation on the stage in place of the drawing (`src/preview/illustration.tsx`).
+ * The picture follows the persona, never a slider, and the top bar's badge then reports it.
+ *
  * The look is `docs/design/screens/lens.html` (s3-11): the rail and the stage fit 1280 × 720 with
  * no scroll, and the rail sets the persona's slot, `--p`, which its gauges and sliders fill with.
  */
-import { useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { createRoute, Link, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   type FullObservation,
@@ -46,13 +50,16 @@ import {
 import { TopBarSlot } from "#components/top-bar";
 import { Button } from "#components/ui/button";
 import { axeQuery } from "../api/axe.js";
+import { illustrationQuery } from "../api/illustration.js";
 import { measurementQuery } from "../api/measure.js";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledJargon, bundledMeasurement, bundledProfiles } from "../bundled-fixtures.js";
+import { ILLUSTRATED_PAGE, IllustrationStage } from "../preview/illustration.js";
 import { looksOf, PerceivedPage } from "../preview/perceived-page.js";
 import {
   CUT_SLIDERS,
   isOff,
+  type LensView,
   PREVIEW_PAGES,
   type PreviewPage,
   PreviewSearch,
@@ -441,10 +448,34 @@ function Rail({
 // The stage
 // ---------------------------------------------------------------------------
 
-const VIEWS = [
+const VIEWS: readonly { value: LensView; label: string }[] = [
   { value: "perceived", label: "Perceived" },
   { value: "evidence", label: "Evidence" },
-] as const;
+  { value: "illustration", label: "Illustration" },
+];
+
+/** Where a query's data came from: io's answer, the stored fallback once io failed, or none yet. */
+type Settled = "live" | "stored" | undefined;
+
+/** A query's `Settled`: live when it has data, stored when it failed without any. */
+function settledOf(query: UseQueryResult<unknown, Error>): Settled {
+  if (query.data !== undefined) return "live";
+  return query.isError ? "stored" : undefined;
+}
+
+/**
+ * What the top bar's source badge says: where the stage's data came from, taken from that data
+ * (`docs/DESIGN.md`, Principle 6). In the Illustration view the stage holds the picture, so the
+ * badge is the picture's; in the other two it is the measured page's. Nothing settled, nothing.
+ */
+export function sourceBadge(
+  view: LensView,
+  page: Settled,
+  picture: Settled,
+): { source: "live" | "stored"; label: string } | undefined {
+  const [settled, noun] = view === "illustration" ? [picture, "picture"] : [page, "page"];
+  return settled === undefined ? undefined : { source: settled, label: `${settled} ${noun}` };
+}
 
 /**
  * One link per Lens page, to this Lens on that page, with persona, seed, sliders and view as they
@@ -650,6 +681,12 @@ export function LensScreen() {
   // in the cache and asks io nothing (`src/api/measure.ts`).
   const device = state.persona.device;
   const live = useQuery(measurementQuery(device, state.page));
+  // The picture follows the persona alone: keyed by the persona's device and emulation, which no
+  // slider writes, and asked for only in the Illustration view on /deliveries, so no other view,
+  // page or slider move asks io for one (`src/api/illustration.ts`).
+  const emulation = state.persona.perception.emulation;
+  const pictured = state.view === "illustration" && state.page === ILLUSTRATED_PAGE;
+  const picture = useQuery({ ...illustrationQuery(device, emulation), enabled: pictured });
   // Perceived again on every render, with no memo: a render follows a URL change, and `perceive`
   // on a page stays far inside its 5 ms budget (`bench:perceive`). It gets the whole persona, so
   // the caps and unknown patterns a run applies apply here too (F2 AC3). It gets the target app's
@@ -671,10 +708,15 @@ export function LensScreen() {
   const { move, release } = useSliderWrites(navigate);
   useRedrawTiming();
 
-  // The View control replaces the history entry, as a slider does; a persona link pushes one.
-  function showEvidence(evidence: boolean) {
+  // The View control replaces the history entry, as a slider does; a persona link pushes one. It
+  // writes both view keys, so the URL holds the one view picked.
+  function showView(view: LensView) {
     void navigate({
-      search: (prev) => ({ ...prev, evidence: evidence ? true : undefined }),
+      search: (prev) => ({
+        ...prev,
+        evidence: view === "evidence" ? true : undefined,
+        illustration: view === "illustration" ? true : undefined,
+      }),
       replace: true,
       resetScroll: false,
     });
@@ -684,12 +726,18 @@ export function LensScreen() {
   const source = stage?.failure === undefined ? "live" : "stored";
   // What the drawing is of. The page is keyed by it, so a persona, page, source or view switch
   // draws a fresh page, which animates nothing, while a threshold move animates what it changes.
-  const scene = `${state.persona.id}|${state.page}|${source}|${state.evidence ? "evidence" : "perceived"}`;
+  const scene = `${state.persona.id}|${state.page}|${source}|${state.view}`;
+  // Off /deliveries the Illustration view asks for no picture, so a cached one claims nothing.
+  const badge = sourceBadge(
+    state.view,
+    stage === undefined ? undefined : source,
+    pictured ? settledOf(picture) : undefined,
+  );
   return (
     <div className="mx-auto grid h-[calc(100dvh_-_var(--header-h))] min-h-166 max-w-(--content-max) grid-cols-[var(--rail-w)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)]">
-      {stage === undefined ? null : (
+      {badge === undefined ? null : (
         <TopBarSlot>
-          <SourceBadge source={source}>{`${source} page`}</SourceBadge>
+          <SourceBadge source={badge.source}>{badge.label}</SourceBadge>
         </TopBarSlot>
       )}
       <Rail state={state} onMove={move} onRelease={release} />
@@ -705,8 +753,8 @@ export function LensScreen() {
           <SegmentedControl
             label="View"
             options={VIEWS}
-            value={state.evidence ? "evidence" : "perceived"}
-            onValueChange={(view) => showEvidence(view === "evidence")}
+            value={state.view}
+            onValueChange={showView}
           />
         </div>
         {stage?.failure === undefined ? null : (
@@ -724,7 +772,17 @@ export function LensScreen() {
           </Banner>
         )}
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          {stage === undefined ? (
+          {state.view === "illustration" ? (
+            // The stage depends on the picture alone: no line about the measurement shows here, so
+            // a stored picture never sits under "Live:". The strip's skeletons cover the rest.
+            <IllustrationStage
+              device={device}
+              emulation={emulation}
+              page={state.page}
+              search={search}
+              picture={picture}
+            />
+          ) : stage === undefined ? (
             <>
               <p role="status" className="body text-ink-2">
                 {`Measuring ${state.page} on the target app, on ${device}…`}
@@ -747,7 +805,7 @@ export function LensScreen() {
               <PerceivedPage
                 key={scene}
                 observation={stage.observation}
-                evidence={state.evidence}
+                evidence={state.view === "evidence"}
                 subject={subject}
               />
             </>

@@ -35,7 +35,7 @@ test("a link without persona or seed opens Vera at seed 1", () => {
   expect(state.persona).toStrictEqual(profileFixture("prof_vera"));
   expect(state.seed).toBe(1);
   expect(state.edited).toBe(false);
-  expect(state.evidence).toBe(false);
+  expect(state.view).toBe("perceived");
   expect(state.page).toBe("/deliveries");
 });
 
@@ -52,6 +52,7 @@ test("a present but invalid key comes back as undefined, overrides the raw query
     targetPx: null,
     targetPxSoftness: true,
     evidence: false,
+    illustration: "yes",
     page: "/nowhere",
   };
   expect({ ...query, ...validate(query) }).toStrictEqual({
@@ -64,6 +65,7 @@ test("a present but invalid key comes back as undefined, overrides the raw query
     targetPx: undefined,
     targetPxSoftness: undefined,
     evidence: undefined,
+    illustration: undefined,
     page: undefined,
   });
   // Each falls back on its own, an unknown persona to Vera and the rest to her own values.
@@ -280,26 +282,41 @@ test("a persona link keeps the seed and the evidence toggle and drops every thre
     evidence: true,
   });
   const link = personaSearch(resolvePreview(moved), "prof_zoya");
-  expect(link).toStrictEqual({ persona: "prof_zoya", seed: 7, evidence: true, page: undefined });
+  expect(link).toStrictEqual({
+    persona: "prof_zoya",
+    seed: 7,
+    evidence: true,
+    illustration: undefined,
+    page: undefined,
+  });
   // So Zoya opens at her own values, unedited, on Vera's seed (`docs/PLAN.md`, A20).
   const zoya = resolvePreview(link);
   expect(zoya.persona).toStrictEqual(profileFixture("prof_zoya"));
   expect(zoya.seed).toBe(7);
   expect(zoya.edited).toBe(false);
-  expect(zoya.evidence).toBe(true);
+  expect(zoya.view).toBe("evidence");
   // Without the toggle, the link carries none; without a seed in the URL, it writes out the 1.
   expect(personaSearch(stateOf({ persona: "prof_vera", seed: 7 }), "prof_milo")).toStrictEqual({
     persona: "prof_milo",
     seed: 7,
     evidence: undefined,
+    illustration: undefined,
     page: undefined,
   });
   expect(personaSearch(stateOf({}), "prof_milo")).toStrictEqual({
     persona: "prof_milo",
     seed: 1,
     evidence: undefined,
+    illustration: undefined,
     page: undefined,
   });
+});
+
+test("illustration=true opens the illustration view, and evidence=true wins over it", () => {
+  expect(stateOf({ illustration: true }).view).toBe("illustration");
+  expect(stateOf({ evidence: true }).view).toBe("evidence");
+  // An s3-01 evidence link keeps its meaning whatever else the URL holds.
+  expect(stateOf({ evidence: true, illustration: true }).view).toBe("evidence");
 });
 
 test("each preview page is a page param, and anything else falls back to /deliveries", () => {

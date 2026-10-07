@@ -50,15 +50,19 @@ export async function getFromIo<T>(
 /** io's answer to a request it refused. */
 const IoError = z.object({ error: z.string() });
 
-/** The `error` of io's `{ error }` answer, or `undefined` for any other body. */
-function ioError(body: unknown): string | undefined {
+/**
+ * The `error` of io's `{ error }` answer, or `undefined` for any other body. `api/illustration.ts`
+ * words a refused picture with it too.
+ */
+export function ioError(body: unknown): string | undefined {
   const parsed = IoError.safeParse(body);
   return parsed.success ? parsed.data.error : undefined;
 }
 
 /**
- * How both of io's queries cache, `measurementQuery` and `api/axe.ts`'s `axeQuery`: an answer
- * never goes stale and is never dropped, and a failure is retried neither at once nor on mount.
+ * How io's queries cache, `measurementQuery`, `api/axe.ts`'s `axeQuery` and
+ * `api/illustration.ts`'s `illustrationQuery`: an answer never goes stale and is never dropped,
+ * and a failure is retried neither at once nor on mount.
  */
 export const IO_CACHE = {
   staleTime: Number.POSITIVE_INFINITY,

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "analyse": "tsx src/analyse.ts",
+    "capture:illustrations": "tsx src/illustration-cli.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "dev": "tsx watch src/server.ts",

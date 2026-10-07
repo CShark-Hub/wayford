@@ -7,9 +7,15 @@
  * the measurement nor the scan (s4-06). Then the page control opens `/account`, which fetches both:
  * the spy is seen to catch the screen's fetches, so its silence before means something.
  *
+ * The illustration view (s3-06) is held to the same: its picture, answered from `/api/illustration`,
+ * is fetched once, slider moves fetch nothing, and a persona switch fetches the next persona's.
+ * Off `/deliveries` it fetches no picture, and a failed picture is badged stored while the
+ * measurement beside it is live.
+ *
  * The static tests in `lens.test.tsx` cannot show this: a static render runs no effect, so
  * nothing there would fetch either way.
  */
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { AxeScan } from "@wayford/core";
 import { axeScanFixture, axeScanFixtures, measurementFixture } from "@wayford/core/fixtures";
@@ -172,6 +178,158 @@ test("slider moves redraw the page and make no request; a page link does", async
     ]),
   );
   await card.getByText("axe-core, WCAG 2.2 A and AA: 0 violations", { exact: true }).waitFor();
+  await page.close();
+});
+
+/** The screen's fetch of the picture for `emulation` on desktop (`src/api/illustration.ts`). */
+function pictureFetch(emulation: string): string {
+  return `/api/illustration?device=desktop&emulation=${emulation}`;
+}
+
+test("in the illustration view the picture is fetched once, slider moves fetch nothing, and a persona switch does", async () => {
+  // The picture follows the persona, never the sliders (s3-06, task Constraints).
+  const page = await spiedPage();
+  // io's answer is the stored picture for the pair, full size, so the fit below is a real one.
+  await page.route(
+    (url) => url.pathname === "/api/illustration",
+    async (route) => {
+      const url = new URL(route.request().url());
+      const name = `${url.searchParams.get("device")}-${url.searchParams.get("emulation")}.png`;
+      const body = await readFile(`${WEB_ROOT}public/illustration/${name}`);
+      return route.fulfill({ body, contentType: "image/png" });
+    },
+  );
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    requests.push(request.url());
+  });
+
+  await page.goto(`${origin}/lens?persona=prof_vera`);
+  await page.getByText("Live: http://localhost:5174/deliveries on desktop").waitFor();
+  await page.waitForLoadState("networkidle");
+  // The perceived view asks for no picture.
+  expect(await fetchesOf(page)).toEqual(fetchesFor("/deliveries"));
+
+  // The View control opens the illustration view, replacing the history entry with the key.
+  await page.getByRole("radio", { name: "Illustration" }).click();
+  await page.waitForFunction(() => new URLSearchParams(location.search).get("illustration"));
+  const picture = page.getByRole("img", {
+    name: "/deliveries on desktop under Chrome's blurredVision emulation",
+  });
+  await picture.waitFor();
+  await page.locator("[data-source]", { hasText: "live picture" }).waitFor();
+  await page.waitForLoadState("networkidle");
+  const once = [...fetchesFor("/deliveries"), pictureFetch("blurredVision")].sort();
+  expect(await fetchesOf(page)).toEqual(once);
+  // It fits the projector with no scroll, as the other views do (s3-11): the 1280 × 720 picture
+  // is scaled down into the stage, above its caption.
+  expect(page.viewportSize()).toEqual({ width: 1280, height: 720 });
+  expect(
+    await page.evaluate(() => ({
+      down: document.documentElement.scrollHeight <= window.innerHeight,
+      across: document.documentElement.scrollWidth <= window.innerWidth,
+    })),
+  ).toEqual({ down: true, across: true });
+  const box = await picture.boundingBox();
+  const caption = await page.locator("figcaption").boundingBox();
+  expect(box !== null && caption !== null && box.y + box.height <= caption.y).toBe(true);
+  expect(box !== null && box.width < 1280).toBe(true);
+  const src = await picture.getAttribute("src");
+
+  requests.length = 0;
+  await press(page, "preview-contrast", "ArrowRight", 5);
+  await press(page, "preview-contrastSoftness", "ArrowRight", 2);
+  await press(page, "preview-seed", "ArrowRight", 3);
+  await page.locator("h1").click();
+  await page.waitForFunction(() => new URLSearchParams(location.search).get("seed") === "4");
+  // The sliders moved and the URL holds them, and the picture is the one it was.
+  const query = new URL(page.url()).searchParams;
+  expect(query.has("contrast")).toBe(true);
+  expect(query.get("illustration")).toBe("true");
+  expect(await picture.getAttribute("src")).toBe(src);
+  // No fetch and no request: neither the picture, nor the measurement, nor the scan.
+  expect(await fetchesOf(page)).toEqual(once);
+  expect(requests).toEqual([]);
+
+  // A persona link keeps the view and asks io for Zoya's picture, through the same spy.
+  await page
+    .getByRole("navigation", { name: "Persona" })
+    .getByRole("link", { name: "Zoya" })
+    .click();
+  await expect
+    .poll(() => fetchesOf(page))
+    .toEqual([...once, pictureFetch("reducedContrast")].sort());
+  await page
+    .getByRole("img", { name: "/deliveries on desktop under Chrome's reducedContrast emulation" })
+    .waitFor();
+  await page.close();
+});
+
+test("off /deliveries no picture is asked for; a failed picture reads stored though the page is live, and Try again brings io's back", async () => {
+  // The badge claims only the picture's source in the illustration view (s3-06, spec "the stage
+  // claims only the picture's source"), and only where a picture is asked for.
+  const page = await spiedPage();
+  // io's picture fails until the test brings it back, for Try again.
+  let pictureUp = false;
+  await page.route(
+    (url) => url.pathname === "/api/illustration",
+    async (route) =>
+      pictureUp
+        ? route.fulfill({
+            body: await readFile(`${WEB_ROOT}public/illustration/desktop-blurredVision.png`),
+            contentType: "image/png",
+          })
+        : route.fulfill({ status: 502, json: { error: "the picture browser did not start" } }),
+  );
+  const pictureBadge = page.locator("[data-source]", { hasText: "picture" });
+
+  // On /account the view asks io for no picture, and the top bar claims none.
+  await page.goto(`${origin}/lens?persona=prof_vera&page=/account&illustration=true`);
+  await page.getByText("The illustration is taken of /deliveries only.").waitFor();
+  await page.waitForLoadState("networkidle");
+  expect(await fetchesOf(page)).toEqual(fetchesFor("/account"));
+  expect(await pictureBadge.count()).toBe(0);
+
+  // On /deliveries io's picture fails while its measurement is live: the stored picture shows
+  // under its banner, and the badge says so.
+  await page.getByRole("link", { name: "Open /deliveries" }).click();
+  await page
+    .getByText("The live picture is unavailable: the picture browser did not start.")
+    .waitFor();
+  await page.waitForLoadState("networkidle");
+  // The measurement is live: io answered it, and its stored banner is not drawn. Nor is a
+  // "Live:" line, since the stage holds the stored picture.
+  expect(await page.getByText("The live page is unavailable").count()).toBe(0);
+  expect(await page.getByText("Live: ").count()).toBe(0);
+  const picture = page.getByRole("img", {
+    name: "/deliveries on desktop under Chrome's blurredVision emulation",
+  });
+  expect(await picture.getAttribute("src")).toBe("/illustration/desktop-blurredVision.png");
+  expect(await pictureBadge.textContent()).toBe("stored picture");
+  expect(await pictureBadge.getAttribute("data-source")).toBe("stored");
+  const failed = [...fetchesFor("/account", "/deliveries"), pictureFetch("blurredVision")].sort();
+  expect(await fetchesOf(page)).toEqual(failed);
+
+  // Back on /account the failed picture claims nothing and is not asked for again.
+  await page
+    .getByRole("navigation", { name: "Page" })
+    .getByRole("link", { name: "/account" })
+    .click();
+  await page.getByText("The illustration is taken of /deliveries only.").waitFor();
+  await page.waitForLoadState("networkidle");
+  expect(await pictureBadge.count()).toBe(0);
+  expect(await fetchesOf(page)).toEqual(failed);
+
+  // Back on /deliveries with io's picture up, Try again asks for it, and it replaces the stored one.
+  await page
+    .getByRole("navigation", { name: "Page" })
+    .getByRole("link", { name: "/deliveries" })
+    .click();
+  pictureUp = true;
+  await page.getByRole("button", { name: "Try again" }).click();
+  await page.locator("[data-source]", { hasText: "live picture" }).waitFor();
+  expect(await picture.getAttribute("src")).toMatch(/^blob:/);
+  expect(await page.getByText("The live picture is unavailable").count()).toBe(0);
   await page.close();
 });
 
