@@ -64,7 +64,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 ### 6. The boundary — 1:16 to 1:26
 
 - **Screen:** the Boundary screen. Contrast on Vera: the success rate, the route-open curve and the boundary marker. Then switch the axis to `maxElements` on Kai.
-- **Say:** "And the boundary. From a contrast threshold of [X] to one, fewer than half of Vera's runs get through. For Kai, that happens at [N] things at once. A number for a feature, not an anecdote."
+- **Say:** "And the boundary. The first contrast threshold where fewer than half of Vera's runs get through: [X] to one. For Kai, the first is [N] things at once. A number for a feature, not an anecdote."
 - If a curve has no boundary in its range, say "no boundary up to [the range's end]". If the sweep stopped at a value where a run errored, say "the sweep stops at [value]: a run there errored".
 - **Needs:** the sweep on both axes and its screen (`s4-05`, `s3-09`), run by `seed:demo` on Jev.
 
@@ -83,7 +83,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 - Jev's speed or cost as its maker states them. Quote the numbers `seed:demo` printed.
 - "Only the filter differs." The dice, the memory and the budget differ too.
 - "The run replays." The perception decisions and the dice replay from the seed; the model's answers do not.
-- "The route closes at [X]" for the boundary. The boundary is where fewer than half the runs get through: the agent's number, not the filter's.
+- "The route closes at [X]" or "from [X] on" for the boundary. The boundary is the first value where fewer than half the runs get through: the agent's number, not the filter's, and not a claim about every value past it, since the rate can climb back.
 
 ## Before the demo
 

@@ -67,7 +67,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 | `/race` | Race | Arena | Three to five personas live on one goal. Beat 4 | `screens/race.html` | `s3-12` |
 | `/report/$taskId` | Report | — | Ten seeds, two numbers, findings by certainty. Beat 5 | `screens/report.html` | `s3-08` |
 | `/runs/$runId` | Run detail | Run detail | One run step by step: screenshot beside what the model read | `screens/run-detail.html` | `s3-12` |
-| `/boundary` | Boundary | Sweep | The threshold from which fewer than half of a persona's runs get through. Beat 6 | `screens/boundary.html` | `s3-09` |
+| `/boundary` | Boundary | Sweep | The first threshold where fewer than half of a persona's runs get through. Beat 6 | `screens/boundary.html` | `s3-09` |
 | `/runs` | Runs | Runs | The archive table, off the story path | — | `s3-14` (optional) |
 
 `/` redirects to `/cast`. `/events`, the m0-07 debug screen, keeps its route and leaves the nav. Until `s3-14` is taken, Cast and Runs keep their layouts and take the new look through the tokens.
@@ -231,7 +231,7 @@ The sweep is the one chart in scope, drawn as plain SVG from the tokens:
 - **Got through:** a dashed line in the persona colour with open circles.
 - **The gap:** the area between the two lines is hatched. It is the agent's own wayfinding, a hypothesis.
 - **The boundary:** a `signal` post with a flag naming the value: the first value, from the laxest, where fewer than half the runs got through (`boundaryOf`).
-  - The headline says that in those words, e.g. "Under half get through from 3:1."
+  - The headline says that in those words, e.g. "Under half get through, first at 3:1." It names the first value only: the rate is not monotone, so a value past the boundary can climb back over half, and "from 3:1 on" would claim what the sweep did not measure.
   - With no boundary in range: no post, and "no boundary up to" the last value.
   - Where `boundaryOf` stopped at a value with an errored run: no post, and the headline names that value and the error. Nothing is claimed past it.
 - **Ticks:** 16 px mono.
