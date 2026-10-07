@@ -4,7 +4,7 @@
  * (`screens/arena.tsx`) calls them; the reducer (`panel-state.ts`) keeps every rule about what an
  * answer may change.
  */
-import type { Profile, Seed, Task } from "@wayford/core";
+import type { Profile, Seed, Task, TaskId } from "@wayford/core";
 import { type Extraction, extractTask, type StartedRun, startRuns } from "../api/runs.js";
 import {
   type PanelAction,
@@ -18,8 +18,20 @@ import {
  * A race io has started: the task the check accepted, whose goal the personas got and whose id and
  * success condition the race's goal strip shows; the label of the preset it came from ("Hard
  * goal"); the seed the runs share; and the runs.
+ *
+ * `presetTask` is the preset's own task, when the goal the personas got is the preset's sentence
+ * word for word: the stored report on that task, the one `seed:demo` writes, is on the same goal.
+ * Every race is checked anew (`startSucceeded` spends the check) and the check mints a new task, so
+ * the race's own task has no report until its runs are analysed. Undefined when the sentence was
+ * edited or the check rewrote it.
  */
-export type Race = { task: Task; label: string; seed: Seed; runs: StartedRun[] };
+export type Race = {
+  task: Task;
+  label: string;
+  seed: Seed;
+  runs: StartedRun[];
+  presetTask: TaskId | undefined;
+};
 
 /** A rejection's message, for the panel's alert line. */
 function messageOf(error: unknown): string {
@@ -73,5 +85,6 @@ export async function startRace(
     return undefined;
   }
   dispatch({ type: "startSucceeded" });
-  return { task, label: preset.label, seed: request.seeds[0], runs };
+  const presetTask = task.goal === preset.sentence ? preset.id : undefined;
+  return { task, label: preset.label, seed: request.seeds[0], runs, presetTask };
 }

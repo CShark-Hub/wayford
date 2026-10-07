@@ -58,6 +58,19 @@ export function backendOf(run: RunResult, jevModel: string): ReportBackend {
 }
 
 /**
+ * The backend a report reads when its request names none: the one every run of `runs` that is no
+ * sweep run is on, so a race on the LLM gets its report. Jev, which `seed:demo` runs on, when the
+ * runs are on both backends or there is none.
+ */
+export function defaultBackend(runs: readonly RunResult[], jevModel: string): ReportBackend {
+  const backends = new Set(
+    runs.filter((run) => run.sweep === undefined).map((run) => backendOf(run, jevModel)),
+  );
+  const [only, ...more] = backends;
+  return only !== undefined && more.length === 0 ? only : "jev";
+}
+
+/**
  * The latest run per persona and seed on `backend` that is no sweep run, and what was left out.
  *
  * `runs` come newest first, as `listRuns` returns them, so the first run met per persona and seed

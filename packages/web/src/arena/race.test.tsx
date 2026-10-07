@@ -1,3 +1,4 @@
+import { createMemoryHistory, RouterContextProvider } from "@tanstack/react-router";
 import {
   type Action,
   RunEvent,
@@ -14,10 +15,13 @@ import { FakeEventSource } from "../api/fake-event-source.js";
 import type { StreamStatus } from "../api/run-events.js";
 import type { StartedRun } from "../api/runs.js";
 import { attributesOf, lineOf } from "../preview/rendered-markup.js";
+import { createAppRouter } from "../router.js";
 import { demoRace } from "./demo-race.js";
 import {
   atStep,
   avatarStateOf,
+  beforeEnd,
+  failed,
   finished,
   fixtureEvent,
   hardTask,
@@ -34,6 +38,7 @@ import {
   type RaceSnapshot,
   type RunView,
   raceOver,
+  runStored,
   runView,
   stepPips,
   stepsText,
@@ -137,18 +142,22 @@ function deliver({ run, event, index }: Delivery) {
   sourceOf(run).emit(event.type, JSON.stringify(event), String(index));
 }
 
-/** The race drawn from `snapshot`. */
+/** The race drawn from `snapshot`, inside the app's router, so its links build their hrefs. */
 function render(snapshot: RaceSnapshot): string {
+  const router = createAppRouter({ history: createMemoryHistory({ initialEntries: ["/race"] }) });
   return renderToStaticMarkup(
-    <RaceView
-      task={hardTask}
-      label="Hard goal"
-      seed={SEED}
-      runs={runs}
-      snapshot={snapshot}
-      profiles={profileFixtures}
-      onNewRace={() => {}}
-    />,
+    <RouterContextProvider router={router}>
+      <RaceView
+        task={hardTask}
+        label="Hard goal"
+        seed={SEED}
+        runs={runs}
+        snapshot={snapshot}
+        profiles={profileFixtures}
+        reportTask={hardTask.id}
+        onNewRace={() => {}}
+      />
+    </RouterContextProvider>,
   );
 }
 
@@ -453,6 +462,19 @@ describe("raceOver", () => {
     expect(raceOver(runs, snapshotOf([], [[kai, "failed"]]))).toBe(true);
     // One lost stream does not end the others' runs.
     expect(raceOver(runs, snapshotOf([ada, kai], [[kai, "failed"]]))).toBe(false);
+  });
+});
+
+describe("runStored", () => {
+  test("holds once a run that started has its terminal event, runFinished or runFailed", () => {
+    expect(runStored(runEventFixtures)).toBe(true);
+    expect(runStored([...beforeEnd, failed])).toBe(true);
+  });
+
+  test("does not hold before the terminal event, nor for a run that never sent runStarted", () => {
+    expect(runStored([])).toBe(false);
+    expect(runStored(beforeEnd)).toBe(false);
+    expect(runStored([failed])).toBe(false);
   });
 });
 

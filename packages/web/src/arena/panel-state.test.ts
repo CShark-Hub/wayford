@@ -176,10 +176,12 @@ test("a start goes starting, then clears it on success and keeps io's reason on 
   expect(again.starting).toBe(true);
   expect(again.startError).toBeUndefined();
   expect(startBlocker(again)).toBeDefined();
-  // After a race, "New race" comes back to a panel that can start again.
+  // After a race, "New race" comes back to a panel whose check the race spent: the next race is
+  // checked again, so io mints it a task of its own.
   const raced = dispatched(again, { type: "startSucceeded" });
   expect(raced.starting).toBe(false);
-  expect(startBlocker(raced)).toBeUndefined();
+  expect(raced.check).toStrictEqual({ status: "unchecked" });
+  expect(startBlocker(raced)).toMatch(/^Check the goal first/);
 });
 
 test("seedOf reads digits only, within a 32-bit seed", () => {

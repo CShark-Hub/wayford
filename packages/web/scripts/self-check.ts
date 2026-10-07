@@ -126,10 +126,10 @@ function laneOf(page: Page, name: string) {
 /**
  * The Race with `demoRace`'s three runs started, each streaming its `events`. `act` checks the hard
  * goal, picks Ada, Kai and Vera, starts the race and waits for each lane's `waits`. io answers the
- * goal accepted as it stands (201), the three runs started (202), each run's events as its stream,
- * and every screenshot up to the latest of each, read off `runView`. A lane shows only the latest
- * once its stream has delivered, but a stream that arrived in two chunks would draw an earlier one
- * first, and an unlisted request fails the check.
+ * goal accepted as it stands (201), the three runs started (202), the hard goal's stored report,
+ * each run's events as its stream, and every screenshot up to the latest of each, read off
+ * `runView`. A lane shows only the latest once its stream has delivered, but a stream that arrived
+ * in two chunks would draw an earlier one first, and an unlisted request fails the check.
  */
 export function raceScreen({
   name,
@@ -156,6 +156,8 @@ export function raceScreen({
     responses: {
       "/tasks": jsonAnswer({ task: taskFixture("task_past-order"), rewritten: false }, 201),
       "/runs": jsonAnswer({ runs: demoRace.runs }, 202),
+      // The hard goal's stored report, which the race reads as it starts, to lead to once over.
+      "/reports/task_past-order": reportFixture("task_past-order"),
       ...Object.fromEntries(
         streams.map(([runId, runEvents]) => [
           `/runs/${runId}/events`,

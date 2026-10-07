@@ -14,8 +14,12 @@
  * The finish order stays as a list for screen readers, the page's one live region. It numbers only
  * the runs that got through, with the places their goal posts show to the eye. Every other ended
  * run follows with no number, its outcome word and its clock, and a lost run comes last.
+ *
+ * Each lane links to its run detail as soon as io has stored the run (`runStored`), and once the
+ * race is over (`raceOver`) the goal strip leads on to a report, whatever the outcomes.
  */
-import type { Profile, RunEvent, Seed, Task } from "@wayford/core";
+import { Link } from "@tanstack/react-router";
+import type { Profile, RunEvent, Seed, Task, TaskId } from "@wayford/core";
 import type { ReactElement } from "react";
 import { OUTCOME_WORDS } from "#components/outcome";
 import { PersonaAvatar } from "#components/persona-avatar";
@@ -23,10 +27,11 @@ import { RaceLane } from "#components/race-lane";
 import { SourceBadge } from "#components/source-badge";
 import { Tag } from "#components/tag";
 import { TopBarSlot } from "#components/top-bar";
-import { Button } from "#components/ui/button";
+import { Button, buttonVariants } from "#components/ui/button";
 import { type StartedRun, screenshotUrl } from "../api/runs.js";
 import { slotOf } from "../avatar/slots.js";
 import { STATE_WORDS } from "../avatar/state.js";
+import { count } from "../components/outcome-words.js";
 import { STUCK_STEPS } from "./avatar-state.js";
 import {
   clockText,
@@ -35,6 +40,7 @@ import {
   type RaceSnapshot,
   type RunView,
   raceOver,
+  runStored,
   runView,
   stepPips,
   stepsText,
@@ -60,6 +66,31 @@ function detailOf(view: RunView, lost: boolean): string | ReactElement | undefin
       <span className="mono">{view.stuckOn}</span>
       {" as it was"}
     </>
+  );
+}
+
+/**
+ * "Analyse this race": the race's own report, which starts the Analyst on arrival
+ * (`screens/report.tsx`, `?analyse`). io reads the backend the race's runs are on.
+ */
+function AnalyseLink({
+  taskId,
+  variant,
+  size,
+}: {
+  taskId: TaskId;
+  variant: "default" | "ghost";
+  size: "default" | "sm";
+}) {
+  return (
+    <Link
+      to="/report/$taskId"
+      params={{ taskId }}
+      search={{ analyse: true }}
+      className={buttonVariants({ variant, size })}
+    >
+      Analyse this race
+    </Link>
   );
 }
 
@@ -116,6 +147,7 @@ function LaneOf({
       steps={stepsText(events, view.ended !== undefined)}
       detail={detailOf(view, lost)}
       narration={view.narration}
+      runId={runStored(events) ? run.id : undefined}
     />
   );
 }
@@ -131,6 +163,16 @@ function LaneOf({
  *
  * "New race" calls `onNewRace` once the race is over (`raceOver`): io cannot cancel a run, so a new
  * race started sooner would queue behind this one's runs. Until then it says why it waits.
+ *
+ * Once the race is over, a line under the buttons says how many runs got through, in k/n, and how
+ * many streams were lost, and the strip leads on to a report. Every race is checked anew, and the
+ * check mints a task, so this race's own report does not exist until its runs are analysed, which
+ * takes minutes and a model call:
+ * - With `reportTask`, a stored report is on the same goal: the preset's own task's, the one
+ *   `seed:demo` writes. "See the report" opens it, and a line says this race is not in it.
+ *   "Analyse this race" follows as the quiet action.
+ * - With none, the goal was edited or no report is stored on it, and "Analyse this race" is the
+ *   way on.
  */
 export function RaceView({
   task,
@@ -139,6 +181,7 @@ export function RaceView({
   runs,
   snapshot,
   profiles,
+  reportTask,
   onNewRace,
 }: {
   task: Task;
@@ -147,6 +190,7 @@ export function RaceView({
   runs: readonly StartedRun[];
   snapshot: RaceSnapshot;
   profiles: readonly Profile[];
+  reportTask: TaskId | undefined;
   onNewRace: () => void;
 }) {
   const profileOf = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -204,13 +248,37 @@ export function RaceView({
             >
               New race
             </Button>
+            {!over ? null : reportTask === undefined ? (
+              <AnalyseLink taskId={task.id} variant="default" size="default" />
+            ) : (
+              <Link
+                to="/report/$taskId"
+                params={{ taskId: reportTask }}
+                className={buttonVariants({ variant: "default" })}
+              >
+                See the report
+              </Link>
+            )}
           </div>
-          {over ? null : (
+          {over ? (
+            <div className="flex items-center gap-(--space-3)">
+              <p className="body text-ink-2">
+                <span className="mono text-ink">{`${places.size}/${runs.length}`}</span>
+                {` got through${lost.length === 0 ? "" : `, ${count(lost.length, "stream")} lost`}`}
+              </p>
+              {reportTask === undefined ? null : (
+                <AnalyseLink taskId={task.id} variant="ghost" size="sm" />
+              )}
+            </div>
+          ) : (
             <p id={NEW_RACE_LINE_ID} className="max-w-80 text-right body text-ink-3">
               New race opens once every run has ended: io keeps running them, and a new race would
               queue behind them.
             </p>
           )}
+          {over && reportTask !== undefined ? (
+            <p className="text-right body text-ink-3">This race is not in the stored report.</p>
+          ) : null}
         </div>
       </header>
       <ol className="flex flex-col gap-2.5">

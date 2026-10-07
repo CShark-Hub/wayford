@@ -1,8 +1,9 @@
 /**
  * One persona's run in the race, drawn as `.wf-lane` (`docs/DESIGN.md`, "RaceLane"): who is
- * running, the track of step pips to the goal post, the latest screenshot, how the run stands, and
- * the latest narration. It draws only what it is given. `arena/race-view.tsx` folds the events
- * into these props, so a test can render any moment of a lane without a stream.
+ * running, the track of step pips to the goal post, the latest screenshot, how the run stands, the
+ * latest narration, and, once the run is stored, a link to its run detail. It draws only what it
+ * is given. `arena/race-view.tsx` folds the events into these props, so a test can render any
+ * moment of a lane without a stream.
  *
  * The grid has two rows. Row 1 holds who and the track. Row 2 holds the detail line and the
  * narration under them, two lines in all: the narration takes both when there is no detail line,
@@ -14,6 +15,7 @@
  * there would make the lane 24 px taller. While the race is live its header is 18 px taller too, so
  * three such lanes would overflow 720 by 30 px.
  */
+import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { ReactElement, ReactNode } from "react";
 import { type PersonaSlot, slotStyle } from "../avatar/slots.js";
@@ -126,6 +128,7 @@ export function RaceLane({
   steps,
   detail,
   narration,
+  runId,
 }: {
   /** The `<h3>`'s id, which names the `<article>`. */
   headingId: string;
@@ -158,6 +161,11 @@ export function RaceLane({
   detail: string | ReactElement | undefined;
   /** The latest narration; undefined when there is none, as on a Jev run. */
   narration: string | undefined;
+  /**
+   * The run's id once io has stored it: the right column then links to its run detail. Undefined
+   * draws no link, since run detail has nothing to show before the run is stored.
+   */
+  runId: string | undefined;
 }) {
   return (
     <article
@@ -214,6 +222,20 @@ export function RaceLane({
         <Outcome kind={outcome} />
         <span className="readout whitespace-nowrap text-ink">{clock}</span>
         <span className="mono text-ink-3">{steps}</span>
+        {runId === undefined ? null : (
+          // The lane's heading names the run the link opens: it is the link's context.
+          <Link
+            to="/runs/$runId"
+            params={{ runId }}
+            className="inline-flex min-h-(--target-min) items-center gap-1 body text-ink underline underline-offset-4"
+          >
+            See the run
+            {/* A span, not CSS content: a pseudo-element's text joins the link's accessible name. */}
+            <span aria-hidden="true" className="text-ink-3">
+              →
+            </span>
+          </Link>
+        )}
       </div>
       <div className="col-span-2 flex min-h-12 min-w-0 flex-col self-start">
         {detail === undefined ? null : (

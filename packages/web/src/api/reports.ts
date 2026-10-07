@@ -25,9 +25,10 @@ export async function fetchReport(taskId: string): Promise<Report | null> {
 
 /**
  * `POST /api/reports/:taskId`: the Analyst over the task's stored runs on `backend`, stored in
- * place of the report before it. With no `backend` the body is `{}` and io picks its default,
- * `jev`. io's 201 parses with `Report`; any refusal rejects, a 404 included, since on `POST` it
- * means there are no runs to read, not that no report is stored.
+ * place of the report before it. With no `backend` the body is `{}` and io reads the backend the
+ * task's runs are on, `jev` when they are on both. io's 201 parses with `Report`; any refusal
+ * rejects, a 404 included, since on `POST` it means there are no runs to read, not that no report
+ * is stored.
  */
 export async function analyse(taskId: string, backend?: ReportBackend): Promise<Report> {
   return parseResponse(await postJson(reportPath(taskId), { backend }), Report, "a report");

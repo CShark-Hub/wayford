@@ -42,7 +42,7 @@ async function storeRun(t: Awaited<ReturnType<typeof app>>, seed: number, modelI
 }
 
 describe("POST /reports/:taskId", () => {
-  test("201 with the report, which is stored and read back by GET; jev by default", async () => {
+  test("201 with the report, which is stored and read back by GET; jev when the runs are", async () => {
     const fake = fakeLlm({ analyst: [NOTHING] });
     const t = await app({ llm: fake });
     const run = await storeRun(t, 1, FAKE_JEV_MODEL);
@@ -57,20 +57,32 @@ describe("POST /reports/:taskId", () => {
     expect(await getJson(t.app, `/reports/${TASK}`)).toStrictEqual({ status: 200, body });
   });
 
-  test("a run on the LLM alone is a 404 on the default backend, naming the count, and a 201 on llm", async () => {
+  test("a run on the LLM alone is read on llm when no backend is named, and a 404 on jev, naming the count", async () => {
     const fake = fakeLlm({ analyst: [NOTHING] });
     const t = await app({ llm: fake });
-    await storeRun(t, 1, FAKE_LLM_MODEL);
+    const run = await storeRun(t, 1, FAKE_LLM_MODEL);
 
-    expect(await postJson(t.app, `/reports/${TASK}`, {})).toStrictEqual({
+    expect(await postJson(t.app, `/reports/${TASK}`, { backend: "jev" })).toStrictEqual({
       status: 404,
       body: { error: `no runs of ${TASK} on jev; 1 on llm` },
     });
     expect(fake.calls).toStrictEqual([]);
 
-    const { status, body } = await postJson(t.app, `/reports/${TASK}`, { backend: "llm" });
+    const { status, body } = await postJson(t.app, `/reports/${TASK}`, {});
     expect(status).toBe(201);
-    expect(body.backend).toBe("llm");
+    expect(body).toMatchObject({ backend: "llm", runCount: 1 });
+    expect(body.personas[0].seeds[0].runId).toBe(run.id);
+  });
+
+  test("runs on both backends are read on jev when no backend is named, the LLM's left out", async () => {
+    const fake = fakeLlm({ analyst: [NOTHING] });
+    const t = await app({ llm: fake });
+    await storeRun(t, 1, FAKE_LLM_MODEL);
+    await storeRun(t, 2, FAKE_JEV_MODEL);
+
+    const { status, body } = await postJson(t.app, `/reports/${TASK}`, {});
+    expect(status).toBe(201);
+    expect(body).toMatchObject({ backend: "jev", runCount: 1, leftOut: { otherBackend: 1 } });
   });
 
   test("a body that is not { backend? } is a 400, asks no model and stores nothing", async () => {

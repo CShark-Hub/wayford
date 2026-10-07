@@ -7,7 +7,9 @@
  * opens it, is read for its source badge, and on Jev's step for the row of labels under the draw,
  * which ends inside the 720 px view. The race is read live, as race-live and again with a detail
  * line in every lane, for its badge and its fit in one 1280 × 720 view, and once every run has
- * ended, for no badge at all. Run detail's ← and → are pressed on the page itself, and its
+ * ended, for no badge at all, its floors and its fit, and the links on to the report and each run,
+ * on a goal with a stored report and on one without, and Back from the report finds it again,
+ * until New race clears it. Run detail's ← and → are pressed on the page itself, and its
  * screenshot crop is measured against the click point and the flag that names the action.
  */
 import { RunEvent, RunResult } from "@wayford/core";
@@ -333,6 +335,13 @@ function raceEndedScreen(): SelfCheckScreen {
   });
 }
 
+/** The race's line under its buttons once it is over: how many got through. */
+function resultLineOf(page: Page) {
+  return page
+    .locator('section[aria-labelledby="race-goal"] > header p')
+    .filter({ hasText: "got through" });
+}
+
 describe("on the web app", () => {
   // Only these tests need the web app, so only they start it.
   let app: Awaited<ReturnType<typeof startWebApp>>;
@@ -433,14 +442,93 @@ describe("on the web app", () => {
       },
     );
 
-    test("the race once every run has ended: the top bar holds no badge", async () => {
+    test.each(SELF_CHECK_THEMES.map((theme) => [THEME_NAMES[theme], theme] as const))(
+      "the race once every run has ended, in %s: no badge, nothing under the floor, three lanes fit 1280 × 720, and it leads on to the report and each run",
+      async (_theme, theme) => {
+        const page = await newPage();
+        const check = await checkScreen(page, app.origin, raceEndedScreen(), theme);
+        expect(check.shortfalls).toEqual([]);
+        // The race holds nothing stored, and no stream is left to bring an event. The slot is
+        // there, so a count of 0 inside it is the badge gone, not a slot that was never drawn.
+        const slot = topBarSlot(page);
+        expect(await slot.count()).toBe(1);
+        expect(await slot.locator("[data-source]").count()).toBe(0);
+        const height = await page.evaluate(() => document.scrollingElement?.scrollHeight);
+        expect(height).toBeLessThanOrEqual(SELF_CHECK_VIEWPORT.height);
+
+        // The self-check's io accepts the hard goal as its own task, so the race's task and the
+        // preset's are one: the report it leads to is the preset's.
+        const report = page.getByRole("link", { name: "See the report", exact: true });
+        expect(await report.getAttribute("href")).toBe("/report/task_past-order");
+        const analyse = page.getByRole("link", { name: "Analyse this race", exact: true });
+        expect(await analyse.getAttribute("href")).toBe("/report/task_past-order?analyse=true");
+        expect(await resultLineOf(page).textContent()).toBe("1/3 got through");
+        const [ada, kai, vera] = demoRuns();
+        for (const [persona, run] of [
+          ["Ada", ada],
+          ["Kai", kai],
+          ["Vera", vera],
+        ] as const) {
+          const link = page
+            .getByRole("article", { name: persona, exact: true })
+            .getByRole("link", { name: "See the run", exact: true });
+          expect(await link.getAttribute("href"), persona).toBe(`/runs/${run.id}`);
+        }
+      },
+    );
+
+    test("the race once every run has ended on a goal with no stored report: Analyse this race is the way on", async () => {
+      const page = await newPage();
+      const ended = raceEndedScreen();
+      const unreported: SelfCheckScreen = {
+        ...ended,
+        responses: {
+          ...ended.responses,
+          "/reports/task_past-order": new SelfCheckAnswer(
+            404,
+            "application/json",
+            JSON.stringify({ error: "no report on task_past-order" }),
+          ),
+        },
+      };
+      const check = await checkScreen(page, app.origin, unreported, "light");
+      expect(check.shortfalls).toEqual([]);
+      expect(await page.getByRole("link", { name: "See the report", exact: true }).count()).toBe(0);
+      expect(await page.getByText("This race is not in the stored report.").count()).toBe(0);
+      const analyse = page.getByRole("link", { name: "Analyse this race", exact: true });
+      expect(await analyse.getAttribute("href")).toBe("/report/task_past-order?analyse=true");
+      // The primary look, in ink, as "See the report" has when a report is stored.
+      expect(await analyse.getAttribute("class")).toMatch(/\bbg-ink\b/);
+    });
+
+    test("Back from the report the race leads to finds the race as it ended, and New race clears it", async () => {
       const page = await newPage();
       await checkScreen(page, app.origin, raceEndedScreen(), "light");
-      // The race holds nothing stored, and no stream is left to bring an event. The slot is there,
-      // so a count of 0 inside it is the badge gone, not a slot that was never drawn.
-      const slot = topBarSlot(page);
-      expect(await slot.count()).toBe(1);
-      expect(await slot.locator("[data-source]").count()).toBe(0);
+      await page.getByRole("link", { name: "See the report", exact: true }).click();
+      await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+
+      await page.goBack();
+      // The same runs followed again: io replays each stream from its start.
+      for (const persona of ["Ada", "Kai", "Vera"]) {
+        await page.getByRole("article", { name: persona, exact: true }).waitFor();
+      }
+      await page
+        .getByRole("article", { name: "Kai", exact: true })
+        .getByText("Gave up", { exact: true })
+        .waitFor();
+      expect(await resultLineOf(page).textContent()).toBe("1/3 got through");
+
+      // New race: the panel, which asks for the goal to be checked again, since the race spent its
+      // check. Away to the report and Back finds the panel, not the race.
+      await page.getByRole("button", { name: "New race", exact: true }).click();
+      const start = page.getByRole("button", { name: "Start the race", exact: true });
+      await start.waitFor();
+      expect(await start.isDisabled()).toBe(true);
+      await page.goForward();
+      await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+      await page.goBack();
+      await start.waitFor();
+      expect(await page.getByRole("article", { name: "Ada", exact: true }).count()).toBe(0);
     });
   });
 

@@ -2,8 +2,9 @@
  * A task's report, built, stored and printed by hand:
  * `pnpm --filter @wayford/io analyse -- --task <task id> [--backend jev|llm]`.
  * It is `POST /reports/:taskId` without HTTP (`docs/specs/2026-10-05-s4-04-analyst.md`, "io:
- * storage, routes, CLI"): the latest stored run per persona and seed on the backend, `jev` when
- * `--backend` is absent, as `seed:demo` runs, read from the database `DATABASE_URL` names; one
+ * storage, routes, CLI"): the latest stored run per persona and seed on the backend, when
+ * `--backend` is absent the one the task's runs are on, `jev` when they are on both, as
+ * `seed:demo` runs (`defaultBackend`), read from the database `DATABASE_URL` names; one
  * Analyst call on the `analyst` role, with the key in the root `.env`, billed; the report stored
  * in place of the task's report before it, so the report screen shows what was printed.
  *
@@ -42,7 +43,8 @@ const USAGE = `usage: pnpm --filter @wayford/io analyse -- --task <task id> [--b
 
 interface Arguments {
   taskId: TaskId;
-  backend: ReportBackend;
+  /** Absent for the one the task's runs are on, as the route reads an empty body. */
+  backend: ReportBackend | undefined;
 }
 
 /**
@@ -69,7 +71,8 @@ function readArguments(argv: readonly string[]): Arguments | string {
   if (!task.success) {
     return `--task ${values.task} is no task id: ${task.error.issues[0]?.message}`;
   }
-  const backend = ReportBackend.safeParse(values.backend ?? "jev");
+  if (values.backend === undefined) return { taskId: task.data, backend: undefined };
+  const backend = ReportBackend.safeParse(values.backend);
   if (!backend.success) {
     return `--backend is one of ${ReportBackend.options.join(", ")}, got ${values.backend}`;
   }

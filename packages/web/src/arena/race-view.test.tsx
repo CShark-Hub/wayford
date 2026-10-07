@@ -1,10 +1,12 @@
-import { RunEvent, runResultFromEvents } from "@wayford/core";
+import { createMemoryHistory, RouterContextProvider } from "@tanstack/react-router";
+import { RunEvent, runResultFromEvents, type Task, type TaskId } from "@wayford/core";
 import { profileFixtures, runEventFixtures } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import type { StreamStatus } from "../api/run-events.js";
 import { type StartedRun, screenshotUrl } from "../api/runs.js";
 import { attributesOf, classesOf, lineOf, styleOf } from "../preview/rendered-markup.js";
+import { createAppRouter } from "../router.js";
 import { STUCK_STEPS } from "./avatar-state.js";
 import { demoRace, eventsOf } from "./demo-race.js";
 import {
@@ -42,18 +44,34 @@ function endedBy(outcome: string): RunEvent[] {
   return [...beforeEnd, RunEvent.parse({ ...finished, outcome })];
 }
 
-/** The race of `runs` after `snapshot`, on the hard goal. */
-function renderRace(runs: readonly StartedRun[], snapshot: RaceSnapshot): string {
+/** The hard goal as the check hands it back for a race: the same goal, on a task minted for it. */
+const raceTask: Task = { ...hardTask, id: "task_minted-for-race" };
+
+/**
+ * The race of `runs` after `snapshot`, on the hard goal, inside the app's router, so its links
+ * build their hrefs. A static render runs no effect. A stored report is on the goal, the hard
+ * goal's, unless `unreported`: the goal was edited, or no report is stored on it.
+ */
+function renderRace(
+  runs: readonly StartedRun[],
+  snapshot: RaceSnapshot,
+  { unreported = false }: { unreported?: boolean } = {},
+): string {
+  const reportTask: TaskId | undefined = unreported ? undefined : hardTask.id;
+  const router = createAppRouter({ history: createMemoryHistory({ initialEntries: ["/race"] }) });
   return renderToStaticMarkup(
-    <RaceView
-      task={hardTask}
-      label="Hard goal"
-      seed={runs[0]?.seed ?? 1}
-      runs={runs}
-      snapshot={snapshot}
-      profiles={profileFixtures}
-      onNewRace={() => {}}
-    />,
+    <RouterContextProvider router={router}>
+      <RaceView
+        task={raceTask}
+        label="Hard goal"
+        seed={runs[0]?.seed ?? 1}
+        runs={runs}
+        snapshot={snapshot}
+        profiles={profileFixtures}
+        reportTask={reportTask}
+        onNewRace={() => {}}
+      />
+    </RouterContextProvider>,
   );
 }
 
@@ -107,16 +125,53 @@ function detailOf(html: string, run: StartedRun = vera) {
 
 /**
  * A lane's right column, the `<div>` around its `readout` clock, as "outcome | clock | steps": each
- * of its three spans on one line. The outcome's span holds its glyph, which has no text.
+ * of its three spans on one line. The outcome's span holds its glyph, which has no text. The run
+ * link under them is `runLinkOf`'s.
  */
 function standingOf(html: string, run: StartedRun = vera): string {
   const tile = tileOf(html, run);
   const clock = tile.search(/<span class="readout[\s"]/);
   if (clock === -1) throw new Error(`no clock in ${run.id}`);
-  const column = tile.slice(tile.lastIndexOf("<div", clock), tile.indexOf("</div>", clock));
+  const column = tile
+    .slice(tile.lastIndexOf("<div", clock), tile.indexOf("</div>", clock))
+    .replace(/<a\s.*?<\/a>/s, "");
   return [...column.matchAll(/<span[^>]*>(.*?)<\/span>/gs)]
     .map(([, inner]) => lineOf(inner ?? ""))
     .join(" | ");
+}
+
+/**
+ * The href of the link in `run`'s lane, and its text with the arrow `RaceLane` hides from its
+ * name; undefined when the lane has none.
+ */
+function runLinkOf(html: string, run: StartedRun = vera) {
+  const links = [...tileOf(html, run).matchAll(/<a\s([^>]*)>(.*?)<\/a>/gs)];
+  if (links.length > 1) throw new Error(`${run.id}'s lane holds more than one link`);
+  const [link] = links;
+  if (link === undefined) return undefined;
+  return { href: attributesOf(link[1] ?? "").href, text: lineOf(link[2] ?? "") };
+}
+
+/** The goal strip's link that reads `text`: its href and classes; undefined while it has none. */
+function stripLinkOf(html: string, text: "See the report" | "Analyse this race") {
+  const strip = html.slice(0, html.indexOf("<ol"));
+  const tag = strip.match(new RegExp(`<a\\s([^>]*)>${text}</a>`))?.[1];
+  if (tag === undefined) return undefined;
+  const attributes = attributesOf(tag);
+  return { href: attributes.href, classes: classesOf(attributes) };
+}
+
+/** The goal strip's words, on one line. */
+function stripText(html: string): string {
+  return lineOf(html.slice(0, html.indexOf("<ol")));
+}
+
+/** The goal strip's result line, on one line, with its k/n's classes; undefined while it has none. */
+function resultLineOf(html: string) {
+  const strip = html.slice(0, html.indexOf("<ol"));
+  const found = strip.match(/<p[^>]*>(<span ([^>]*)>\d+\/\d+<\/span>.*?)<\/p>/s);
+  if (found === null) return undefined;
+  return { text: lineOf(found[1] ?? ""), countClasses: classesOf(attributesOf(found[2] ?? "")) };
 }
 
 /** The track's label: every step in words. */
@@ -408,6 +463,21 @@ describe("the race in progress, as demoRace holds it", () => {
   test("the finish order lists the two runs that ended, in words and the clock, the one through numbered", () => {
     expect(finishLines(html)).toStrictEqual(["1. Ada Got through 0:06.5", "– Vera Gave up 0:15.5"]);
   });
+
+  test("the two runs that ended link to their run detail; Kai's, still running, does not", () => {
+    expect(runLinkOf(html, ada)).toStrictEqual({ href: `/runs/${ada.id}`, text: "See the run →" });
+    expect(runLinkOf(html, kai)).toBeUndefined();
+    expect(runLinkOf(html, veraRace)).toStrictEqual({
+      href: `/runs/${veraRace.id}`,
+      text: "See the run →",
+    });
+  });
+
+  test("Kai still runs, so the race does not yet lead to a report", () => {
+    expect(stripLinkOf(html, "See the report")).toBeUndefined();
+    expect(stripLinkOf(html, "Analyse this race")).toBeUndefined();
+    expect(resultLineOf(html)).toBeUndefined();
+  });
 });
 
 describe("around the lanes", () => {
@@ -442,12 +512,94 @@ describe("around the lanes", () => {
     }
   });
 
+  test("once the race is over on a goal with a stored report: See the report opens it, in ink, after New race; Analyse this race follows, quiet", () => {
+    const running = render(upTo(8));
+    expect(stripLinkOf(running, "See the report")).toBeUndefined();
+    expect(stripLinkOf(running, "Analyse this race")).toBeUndefined();
+    for (const [what, html] of [
+      ["ended", render(runEventFixtures, "ended")],
+      ["lost", render(upTo(8), "failed")],
+    ] as const) {
+      // The preset's task, whose report is stored: the race's own task has none yet.
+      const report = stripLinkOf(html, "See the report");
+      expect(report?.href, what).toBe(`/report/${hardTask.id}`);
+      // The primary look: ink, as `Button`'s default variant draws it. New race stays outlined.
+      expect(report?.classes, what).toEqual(expect.arrayContaining(["bg-ink", "text-paper"]));
+      expect(newRace(html)["data-variant"], what).toBe("outline");
+      expect(html.indexOf(">New race<"), what).toBeLessThan(html.indexOf(">See the report<"));
+      // The race's own report, which starts the Analyst on arrival, as a ghost button.
+      const analyse = stripLinkOf(html, "Analyse this race");
+      expect(analyse?.href, what).toBe(`/report/${raceTask.id}?analyse=true`);
+      expect(analyse?.classes, what).toEqual(expect.arrayContaining(["bg-transparent"]));
+      expect(stripText(html), what).toContain("This race is not in the stored report.");
+    }
+  });
+
+  test("once the race is over on a goal with no stored report, edited or never analysed: Analyse this race is the way on, and no stored report is claimed", () => {
+    const html = renderRace(
+      [vera],
+      { events: new Map([[vera.id, runEventFixtures]]), streams: new Map() },
+      { unreported: true },
+    );
+    expect(stripLinkOf(html, "See the report")).toBeUndefined();
+    const analyse = stripLinkOf(html, "Analyse this race");
+    expect(analyse?.href).toBe(`/report/${raceTask.id}?analyse=true`);
+    expect(analyse?.classes).toEqual(expect.arrayContaining(["bg-ink", "text-paper"]));
+    expect(stripText(html)).not.toContain("stored report");
+    expect(resultLineOf(html)?.text).toBe("0/1 got through");
+  });
+
+  test("once the race is over, a line says how many got through, k/n in mono, and how many streams were lost", () => {
+    const ada: StartedRun = { id: "run_ada-hard-1", profileId: "prof_ada", seed: vera.seed };
+    const adaThrough = eventsOf(ada, endedBy("success"));
+    // A race that gave up only is the no-report test's above.
+    const cases: [string, readonly StartedRun[], RaceSnapshot, string][] = [
+      [
+        "an error",
+        [vera],
+        { events: new Map([[vera.id, [...beforeEnd, failed]]]), streams: new Map() },
+        "0/1 got through",
+      ],
+      [
+        "one through, one gave up",
+        [ada, vera],
+        {
+          events: new Map([
+            [ada.id, adaThrough],
+            [vera.id, runEventFixtures],
+          ]),
+          streams: new Map(),
+        },
+        "1/2 got through",
+      ],
+      [
+        "one through, one stream lost",
+        [ada, vera],
+        {
+          events: new Map([
+            [ada.id, adaThrough],
+            [vera.id, upTo(8)],
+          ]),
+          streams: new Map([[vera.id, "failed"]]),
+        },
+        "1/2 got through, 1 stream lost",
+      ],
+    ];
+    for (const [what, runs, snapshot, line] of cases) {
+      const html = renderRace(runs, snapshot);
+      expect(resultLineOf(html), what).toStrictEqual({
+        text: line,
+        countClasses: expect.arrayContaining(["mono"]),
+      });
+    }
+  });
+
   test("the goal strip: the preset's tag and the task id, the goal in quotes, its success in mono, and the seed", () => {
     const html = render([]);
     expect(hardTask.goal).toBe(GOAL);
     expect(html).toMatch(new RegExp(`<h2 [^>]*id="race-goal"[^>]*><q>${GOAL}</q></h2>`));
     const strip = html.slice(0, html.indexOf("<ol"));
-    expect(lineOf(strip)).toMatch(/^Hard goal task_past-order /);
+    expect(lineOf(strip)).toMatch(/^Hard goal task_minted-for-race /);
     expect(strip).toMatch(
       /<p class="[^"]*\bmono\b[^"]*">success · URL matches \*\*\/deliveries\/archive<\/p>/,
     );

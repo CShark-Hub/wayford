@@ -53,6 +53,7 @@ import { closureFindings, type Draft, provenanceOf } from "./analyst-closures.js
 import { analystCase } from "./analyst-digest.js";
 import {
   byPersona,
+  defaultBackend,
   personaResults,
   type RouteFacts,
   type RouteFactsOf,
@@ -144,22 +145,21 @@ function answerFor(drafts: readonly Draft[]) {
 /**
  * Read, analyse, store. `ok: false` for an unknown task or no runs on the backend, before any
  * model call. The task comes from the database, else from the bundled fixtures, which the seeded
- * runs name; only a task found reaches the ground-truth file's path. A failed model call (an
+ * runs name; only a task found reaches the ground-truth file's path. With no `backend`, the
+ * report reads `defaultBackend`'s, the one the task's runs are on. A failed model call (an
  * `LlmError`) propagates and nothing is stored.
  */
 export async function analyseAndStore(
   deps: AnalystDeps,
   taskId: TaskId,
-  backend: ReportBackend,
+  requested: ReportBackend | undefined,
 ): Promise<Analysis> {
   const task = await loadTaskOrFixture(deps.db, taskId);
   if (task === undefined) return { ok: false, error: `no task ${taskId}` };
-  const { chosen, leftOut } = selectRuns(
-    // Sweep runs included: `chooseRuns` leaves them out and counts them for the report.
-    await listRuns(deps.db, { taskId: task.id, sweeps: "include" }),
-    backend,
-    deps.jevModel,
-  );
+  // Sweep runs included: `selectRuns` leaves them out and counts them for the report.
+  const runs = await listRuns(deps.db, { taskId: task.id, sweeps: "include" });
+  const backend = requested ?? defaultBackend(runs, deps.jevModel);
+  const { chosen, leftOut } = selectRuns(runs, backend, deps.jevModel);
   if (chosen.length === 0) {
     const count = leftOut.otherBackend === 0 ? "none" : String(leftOut.otherBackend);
     return {

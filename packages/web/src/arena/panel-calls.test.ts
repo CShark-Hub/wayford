@@ -95,7 +95,7 @@ test("checkGoal: a sentence edited while io checks the old one drops the late an
   expect(screen.state().check).toStrictEqual({ status: "unchecked" });
 });
 
-test("startRace: io's 202 starts the race, and the panel can start again after it", async () => {
+test("startRace: io's 202 starts the race, and spends the check, so the next race is checked anew", async () => {
   const started: StartedRun[] = bundledProfiles.slice(0, MIN_PERSONAS).map((profile, i) => ({
     id: `run_race-${i + 1}`,
     profileId: profile.id,
@@ -116,11 +116,34 @@ test("startRace: io's 202 starts the race, and the panel can start again after i
   });
   expect(screen.actions.map(({ type }) => type)).toStrictEqual(["startStarted", "startSucceeded"]);
   // The task the check accepted, so the race shows its id, goal and success condition, and the
-  // chosen preset's label.
-  expect(race).toStrictEqual({ task: acceptedTask, label: "Hard goal", seed: 1, runs: started });
-  // "New race" comes back to a panel that can start again.
+  // chosen preset's label. The goal is the preset's sentence as it stands, so the race names the
+  // preset's own task, whose report is stored.
+  expect(race).toStrictEqual({
+    task: acceptedTask,
+    label: "Hard goal",
+    seed: 1,
+    runs: started,
+    presetTask: hard.id,
+  });
+  // "New race" comes back to a panel whose check the race spent, so the next race is checked anew
+  // and gets a task of its own: its report then reads its runs alone.
   expect(screen.state().starting).toBe(false);
-  expect(startBlocker(screen.state())).toBeUndefined();
+  expect(startBlocker(screen.state())).toMatch(/^Check the goal first/);
+});
+
+test("startRace: a goal that is not the preset's sentence word for word names no preset task", async () => {
+  const started: StartedRun[] = [{ id: "run_race-1", profileId: "prof_ada", seed: 1 }];
+  const edited = { ...acceptedTask, goal: "find what you ordered in the summer" };
+  for (const extraction of [
+    { ok: true as const, task: edited, rewritten: false },
+    { ok: true as const, task: edited, rewritten: true },
+  ]) {
+    answer(Response.json({ runs: started }, { status: 202 }));
+    const chosen = withPersonas(initialPanel(), bundledProfiles.slice(0, MIN_PERSONAS));
+    const state = dispatched(chosen, { type: "checkAnswered", for: forOf(chosen), extraction });
+    const race = await startRace(state, bundledProfiles, panel(state).dispatch);
+    expect(race?.presetTask, `rewritten: ${extraction.rewritten}`).toBeUndefined();
+  }
 });
 
 test("startRace: io's refusal is the panel's alert, and no race starts", async () => {

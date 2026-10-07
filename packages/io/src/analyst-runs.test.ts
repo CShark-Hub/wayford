@@ -11,6 +11,7 @@ import { describe, expect, test } from "vitest";
 import {
   backendOf,
   byPersona,
+  defaultBackend,
   personaResults,
   type RouteFactsOf,
   selectRuns,
@@ -73,6 +74,26 @@ describe("backendOf", () => {
     });
     expect(backendOf(older, FAKE_JEV_MODEL)).toBe("llm");
     expect(backendOf(drawn, FAKE_JEV_MODEL)).toBe("jev");
+  });
+});
+
+describe("defaultBackend", () => {
+  const llm = run(vera, 1, { id: "run_llm", modelId: FAKE_LLM_MODEL });
+  const jev = run(vera, 2, { id: "run_jev", modelId: FAKE_JEV_MODEL });
+
+  test("the one backend every run is on", () => {
+    expect(defaultBackend([llm], FAKE_JEV_MODEL)).toBe("llm");
+    expect(defaultBackend([jev], FAKE_JEV_MODEL)).toBe("jev");
+  });
+
+  test("Jev when the runs are on both backends, or there is none", () => {
+    expect(defaultBackend([llm, jev], FAKE_JEV_MODEL)).toBe("jev");
+    expect(defaultBackend([], FAKE_JEV_MODEL)).toBe("jev");
+  });
+
+  test("a sweep run does not count: the report leaves it out", () => {
+    const sweep = run(vera, 3, { id: "run_jev-sweep", modelId: FAKE_JEV_MODEL, sweep: SWEEP });
+    expect(defaultBackend([llm, sweep], FAKE_JEV_MODEL)).toBe("llm");
   });
 });
 

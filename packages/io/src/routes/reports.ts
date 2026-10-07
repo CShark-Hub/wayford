@@ -3,7 +3,9 @@
  * read back (`docs/specs/2026-10-05-s4-04-analyst.md`, "io: storage, routes, CLI"). The latest
  * report per task is the one kept; history is out of scope.
  *
- * `POST /:taskId`, with the body `{ backend? }`, `jev` when absent:
+ * `POST /:taskId`, with the body `{ backend? }`. When it names none, the backend is the one the
+ * task's runs are on, so a race on the LLM gets its report, and `jev`, which `seed:demo` runs on,
+ * when they are on both or there is none (`defaultBackend`):
  * - 201 `Report`: the report over the latest run per persona and seed on `backend`, stored in place
  *   of the task's report before it.
  * - 400 `{ error }`: `:taskId` is not a `TaskId`, or the body is not `{ backend? }`. No model is
@@ -42,8 +44,8 @@ type SameBackends = [ActorBackendName] extends [ReportBackend]
   : false;
 const _sameBackends: SameBackends = true;
 
-/** The body of `POST`: the backend, Jev when absent, as `seed:demo` runs on Jev. */
-const ReportRequest = z.object({ backend: ReportBackend.default("jev") }).strict();
+/** The body of `POST`: the backend, or none, for the one the task's runs are on. */
+const ReportRequest = z.object({ backend: ReportBackend.optional() }).strict();
 
 /** The path's `:taskId`, checked before anything is read with it: 400 when it is no `TaskId`. */
 const reportParams = zValidator("param", z.object({ taskId: TaskId }), (result, c) => {

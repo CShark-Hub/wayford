@@ -131,6 +131,19 @@ export function streamLost(view: RunView, stream: StreamStatus | undefined): boo
 }
 
 /**
+ * Whether io has stored the run `events` are of, so its run detail opens: its terminal event came,
+ * and it had sent `runStarted`. io stores a run before it publishes the terminal event, and stores
+ * none that never started (`closeOut` in `packages/io/src/runner.ts`). A store that failed there
+ * is logged, and run detail then says no such run is stored. Pure.
+ */
+export function runStored(events: readonly RunEvent[]): boolean {
+  return (
+    events.some((event) => event.type === "runStarted") &&
+    events.some((event) => event.type === "runFinished" || event.type === "runFailed")
+  );
+}
+
+/**
  * Every run's events so far, in stream order, and where each run's stream stands, by run id. A
  * snapshot handed out is never changed: the next event makes a new one.
  */

@@ -12,7 +12,11 @@
  *   draws the new report once io answers; a refusal shows the fault, and Try again posts the same.
  * - The top bar says `stored`, with the report's backend, which a static render cannot show: its
  *   slot is a portal.
- * - With no report, "Analyse runs" posts no backend, so io picks its default.
+ * - With no report, "Analyse runs" posts no backend, so io reads the one the task's runs are on.
+ * - Arriving with `?analyse=true`, as the race's "Analyse this race" does, starts the Analyst once
+ *   and drops the flag, so a reload starts nothing. With a report stored it starts none. Arriving
+ *   again within the app starts it once on a report already read as none, StrictMode's second
+ *   effect included, and not again while it runs, which shows as running.
  * - A ten-seed report fits: the findings' headings end above 720 px, and nothing scrolls sideways.
  */
 import { fileURLToPath } from "node:url";
@@ -325,6 +329,78 @@ test("with no report, Analyse runs posts no backend", async () => {
   await page.getByText("No report on this goal yet.").waitFor();
 
   await page.getByRole("button", { name: "Analyse runs" }).click();
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  expect(posts).toEqual([{ body: "{}", contentType: "application/json" }]);
+});
+
+test("arriving with ?analyse=true starts the Analyst once, posts no backend, and drops the flag, so a reload starts nothing", async () => {
+  const posts: Posted[] = [];
+  const answer = held<Answer>();
+  const page = await servedPage((request, pathname) => {
+    if (pathname !== REPORT_PATH) return undefined;
+    if (request.method() === "POST") {
+      posts.push(posted(request));
+      return answer.promise;
+    }
+    return { status: 404, json: { error: `no report on ${TASK_ID}` } };
+  });
+  await page.goto(`${origin}/report/${TASK_ID}?analyse=true`);
+
+  await page.getByText("Analysing the stored runs.", { exact: false }).waitFor();
+  await page.waitForURL(`${origin}/report/${TASK_ID}`);
+  answer.release({ status: 201, json: reportFixture(TASK_ID) });
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  expect(posts).toEqual([{ body: "{}", contentType: "application/json" }]);
+
+  // io in this test stores nothing, so the reload reads no report, and asks for none.
+  await page.reload();
+  await page.getByText("No report on this goal yet.").waitFor();
+  expect(posts).toHaveLength(1);
+});
+
+test("arriving with ?analyse=true on a goal with a stored report shows it and posts nothing", async () => {
+  const posts: Posted[] = [];
+  const page = await servedPage((request, pathname) => {
+    if (request.method() === "POST") posts.push(posted(request));
+    return get(request, pathname, REPORT_PATH, reportFixture(TASK_ID));
+  });
+  await page.goto(`${origin}/report/${TASK_ID}?analyse=true`);
+
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  await page.waitForURL(`${origin}/report/${TASK_ID}`);
+  expect(posts).toEqual([]);
+});
+
+test("arriving again within the app starts the Analyst once: on a report already read as none, and not again while it runs, which shows as running", async () => {
+  const posts: Posted[] = [];
+  const answer = held<Answer>();
+  const page = await servedPage((request, pathname) => {
+    if (pathname !== REPORT_PATH) return undefined;
+    if (request.method() === "POST") {
+      posts.push(posted(request));
+      return answer.promise;
+    }
+    return { status: 404, json: { error: `no report on ${TASK_ID}` } };
+  });
+  // Read first, so the arrival finds "no report" at once and StrictMode's second effect sees it
+  // too. An arrival on a page loaded cold reads the report only after both effects ran.
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  await page.getByText("No report on this goal yet.").waitFor();
+  // Away and back with the flag, twice, as a second click on "Analyse this race" would come. Each
+  // move is within the app, which unmounts the screen and keeps the analysis.
+  for (const _arrival of ["first", "while it runs"]) {
+    await page.getByRole("link", { name: "Runs", exact: true }).click();
+    await page.waitForURL(`${origin}/runs`);
+    await page.evaluate((path) => {
+      history.pushState({}, "", path);
+      dispatchEvent(new PopStateEvent("popstate"));
+    }, `/report/${TASK_ID}?analyse=true`);
+    await page.waitForURL(`${origin}/report/${TASK_ID}`);
+    await page.getByText("Analysing the stored runs.", { exact: false }).waitFor();
+    expect(await page.getByRole("button", { name: "Analysing…" }).isDisabled()).toBe(true);
+  }
+
+  answer.release({ status: 201, json: reportFixture(TASK_ID) });
   await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
   expect(posts).toEqual([{ body: "{}", contentType: "application/json" }]);
 });

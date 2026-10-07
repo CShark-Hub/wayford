@@ -94,7 +94,10 @@ export type PanelAction =
   /** Ignored when `for` is not the current preset and sentence. */
   | { type: "checkFailed"; for: CheckedFor; message: string }
   | { type: "startStarted" }
-  /** Clears `starting`, so the panel can start again after "New race". */
+  /**
+   * Clears `starting`, and the check: io mints a task per check, so the next race is checked again
+   * and gets a task of its own, and its report reads its runs only.
+   */
   | { type: "startSucceeded" }
   | { type: "startFailed"; message: string };
 
@@ -171,7 +174,7 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
       return { ...rest, starting: true };
     }
     case "startSucceeded":
-      return { ...state, starting: false };
+      return { ...state, starting: false, check: UNCHECKED };
     case "startFailed":
       return { ...state, starting: false, startError: action.message };
   }

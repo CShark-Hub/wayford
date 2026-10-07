@@ -5,13 +5,20 @@
  *
  * The report is stored by io's Analyst (`api/reports.ts`), so the top bar says `stored`, with the
  * backend the report read. "Analyse again" asks io to build it anew; io's `POST` is synchronous
- * with no progress, so "running" is the mutation's own pending state. With no report yet, the
- * screen offers the same instead of an empty page.
+ * with no progress, so "running" is the pending state of this goal's analysis. With no report yet,
+ * the screen offers the same instead of an empty page.
  *
  * `?persona=` is the persona whose row was picked: the findings narrow to theirs and the page's
  * measurements, and say so, so a picked row is a link.
+ *
+ * `?analyse=true` asks for the Analyst on arrival, as the race's "Analyse this race" does. Once
+ * the stored report has been read, the screen starts it, on io's default backend, only when no
+ * report is stored and none is being built, then drops the flag from the address, so a reload, a
+ * shared link or a second click on the race never pays for another. An analysis started on an
+ * earlier visit shows as running too: the mutation outlives the screen, and its `onSuccess` stores
+ * the report all the same.
  */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute, Link } from "@tanstack/react-router";
 import {
   ProfileId,
@@ -20,7 +27,7 @@ import {
   type ScoutLine,
   type UnevidencedClosure,
 } from "@wayford/core";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { z } from "zod";
 import { analyse, reportQuery } from "../api/reports.js";
 import { bundledTasks } from "../bundled-fixtures.js";
@@ -43,7 +50,10 @@ import { rootRoute } from "../shell.js";
  * The report's search params: the persona whose row was picked. A broken value degrades to none,
  * as the runs screen's filters do, instead of an error screen.
  */
-export const ReportSearch = z.object({ persona: ProfileId.optional().catch(undefined) });
+export const ReportSearch = z.object({
+  persona: ProfileId.optional().catch(undefined),
+  analyse: z.boolean().optional().catch(undefined),
+});
 
 /** Scout's line: reached in N steps, did not reach in N attempts, or no ground truth. */
 function scoutLine(scout: ScoutLine): string {
@@ -213,7 +223,8 @@ function Fault({
 
 export function ReportScreen() {
   const { taskId } = reportRoute.useParams();
-  const { persona } = reportRoute.useSearch();
+  const { persona, analyse: analyseOnArrival } = reportRoute.useSearch();
+  const navigate = reportRoute.useNavigate();
   const client = useQueryClient();
   const query = useQuery(reportQuery(taskId));
   const analysis = useMutation({
@@ -227,7 +238,25 @@ export function ReportScreen() {
   });
   const goal = bundledTasks.find((task) => task.id === taskId)?.goal;
   const stored = query.data;
-  const pending = analysis.isPending;
+  // This goal's analyses still running: this screen's own, or one an earlier visit started.
+  const pending = useIsMutating({ mutationKey: ["analyse", taskId] }) > 0;
+
+  // Handled once per arrival, after the stored report has been read: the flag stays set until the
+  // replaced address reaches the screen, and StrictMode runs the effect twice. With no backend, io
+  // reads the one the task's runs are on.
+  const { mutate } = analysis;
+  const handled = useRef(false);
+  const read = !query.isPending;
+  useEffect(() => {
+    if (!analyseOnArrival) {
+      handled.current = false;
+      return;
+    }
+    if (handled.current || !read) return;
+    handled.current = true;
+    if (stored === null && !pending) mutate(undefined);
+    void navigate({ search: ({ analyse: _analyse, ...rest }) => rest, replace: true });
+  }, [analyseOnArrival, read, stored, pending, mutate, navigate]);
 
   let body: ReactNode;
   // Before a not-found too: io failing after a 404 says nothing about whether a report is stored.

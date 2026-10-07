@@ -1,6 +1,8 @@
+import { createMemoryHistory, RouterContextProvider } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { attributesOf, classesOf, elementOf, lineOf, textOf } from "../preview/rendered-markup.js";
+import { createAppRouter } from "../router.js";
 import { OUTCOME_WORDS, type OutcomeKind } from "./outcome.js";
 import { type Pip, RaceLane } from "./race-lane.js";
 
@@ -20,6 +22,7 @@ const RUNNING: Props = {
   steps: "0 steps so far",
   detail: undefined,
   narration: undefined,
+  runId: undefined,
 };
 
 /** Vera's run as the fixture ends it: four pips, then the give-up, which makes none. */
@@ -39,8 +42,14 @@ const KAI_PIPS: Pip[] = [
   { kind: "now", word: "under way" },
 ];
 
+/** The lane inside the app's router, so a run link builds its href. A static render runs no effect. */
 function lane(over: Partial<Props> = {}): string {
-  return renderToStaticMarkup(<RaceLane {...RUNNING} {...over} />);
+  const router = createAppRouter({ history: createMemoryHistory({ initialEntries: ["/race"] }) });
+  return renderToStaticMarkup(
+    <RouterContextProvider router={router}>
+      <RaceLane {...RUNNING} {...over} />
+    </RouterContextProvider>,
+  );
 }
 
 /** The attributes of every start tag in `html` that carries `attribute`, in order. */
@@ -227,6 +236,23 @@ describe("the right column", () => {
     const words = lineOf(lane({ outcome: "gaveUp", clock: "0:15.5", steps: "5 steps" }));
     expect(words.indexOf("Gave up")).toBeLessThan(words.indexOf("0:15.5"));
     expect(words.indexOf("0:15.5")).toBeLessThan(words.indexOf("5 steps"));
+  });
+
+  test("links to the run's detail once given its id, last, a 32 px target named by its words", () => {
+    const html = lane({ outcome: "gaveUp", steps: "5 steps", runId: "run_vera-hard-1" });
+    const [link, ...more] = [...html.matchAll(/(<a\s[^>]*>)(.*?)<\/a>/gs)];
+    expect(more).toStrictEqual([]);
+    const attributes = attributesOf(link?.[1] ?? "");
+    expect(attributes.href).toBe("/runs/run_vera-hard-1");
+    expect(classesOf(attributes)).toContain("min-h-(--target-min)");
+    // The arrow is hidden, so the link's name is its words alone.
+    expect(link?.[2]).toMatch(/^See the run<span aria-hidden="true"[^>]*>→<\/span>$/);
+    const words = lineOf(html);
+    expect(words.indexOf("5 steps")).toBeLessThan(words.indexOf("See the run"));
+  });
+
+  test("draws no link with no run id: run detail has nothing before the run is stored", () => {
+    expect(lane({ outcome: "moving" })).not.toMatch(/<a\s/);
   });
 });
 
