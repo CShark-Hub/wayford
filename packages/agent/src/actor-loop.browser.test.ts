@@ -38,14 +38,16 @@ import {
   taskFixture,
 } from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter";
-import pino from "pino";
+import { TARGET_APP_DEFAULT_QUERY } from "@wayford/filter/serve-target-app";
+import pino, { type Logger } from "pino";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { actorTurn, providerSeedFor } from "./actor-backend.js";
 import { runActor } from "./actor-loop.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
 import { LlmError } from "./llm.js";
 import { actorMessages, llmActor } from "./llm-actor.js";
-import { TARGET_APP_DEFAULTS } from "./start-url.js";
+import { SETTLE_TIMEOUT_MS } from "./settle.js";
+import { startUrlFor, TARGET_APP_DEFAULTS } from "./start-url.js";
 import {
   app,
   billed,
@@ -108,7 +110,8 @@ interface Walked {
 
 /**
  * One run on the served app at its defaults, the run seed 7, a cap of 3 and the wall clock unless
- * told otherwise, the Actor answering from `answers` in order.
+ * told otherwise, the Actor answering from `answers` in order. `elsewhere` hands the run neither
+ * the app's parameters nor its jargon list, as a run on another site gets (ADR 0003, D2).
  */
 async function walk(scripted: {
   profile: Profile;
@@ -118,6 +121,8 @@ async function walk(scripted: {
   maxSteps?: number;
   now?: () => number;
   sweep?: RunSweep;
+  elsewhere?: boolean;
+  logger?: Logger;
 }): Promise<Walked> {
   const fake = fakeLlm({ actor: [...scripted.answers] });
   const events: RunEvent[] = [];
@@ -126,11 +131,12 @@ async function walk(scripted: {
     profile: scripted.profile,
     task: scripted.task,
     seed: scripted.seed ?? RUN_SEED,
-    params: TARGET_APP_DEFAULTS,
-    jargon: targetAppJargon,
+    ...(scripted.elsewhere === true
+      ? {}
+      : { params: TARGET_APP_DEFAULTS, jargon: targetAppJargon }),
     runsDir,
     backend: llmActor({ settings, llm: () => billed(fake) }),
-    logger: quiet,
+    logger: scripted.logger ?? quiet,
     onEvent: (event) => {
       events.push(event);
     },
@@ -896,6 +902,21 @@ test("a Kai run on /settings/data records K2 on the ledger", async () => {
   expect(calls[0]?.messages[1]?.content).not.toContain("Fulfilment ledger");
 });
 
+test("a run handed params records the start URL with the three parameters, on a free port", async () => {
+  const task = taskOf("task_next-parcel");
+  const { result, events } = await walk({
+    profile: profileFixture("prof_ada"),
+    task,
+    maxSteps: 1,
+    answers: [GIVE_UP],
+  });
+
+  const startUrl = `${app.origin}/${TARGET_APP_DEFAULT_QUERY}`;
+  expect(startUrlFor(task, TARGET_APP_DEFAULTS)).toBe(startUrl);
+  expect(result.startUrl).toBe(startUrl);
+  expect(events[0]).toMatchObject({ type: "runStarted", startUrl });
+});
+
 test("a back at the start page goes nowhere", async () => {
   const { result, events } = await walk({
     profile: profileFixture("prof_ada"),
@@ -1027,6 +1048,29 @@ test.each([
   expect(await readdir(runsDir)).toStrictEqual([]);
 });
 
+test("a run handed the target app's params without its jargon list rejects with invalid_run_input before any event", async () => {
+  // Kai's K2 would be off without a sound: the list is optional only for another site.
+  const onEvent = vi.fn();
+
+  const error = await runActor({
+    browser,
+    profile: profileFixture("prof_kai"),
+    task: taskOf("task_next-parcel"),
+    seed: RUN_SEED,
+    params: TARGET_APP_DEFAULTS,
+    runsDir,
+    backend: llmActor({ settings, llm: () => fakeLlm({}) }),
+    logger: quiet,
+    onEvent,
+  }).catch((reason: unknown) => reason);
+
+  expect(error).toBeInstanceOf(WayfordError);
+  expect((error as WayfordError).code).toBe("invalid_run_input");
+  expect((error as WayfordError).message).toContain("jargon");
+  expect(onEvent).not.toHaveBeenCalled();
+  expect(await readdir(runsDir)).toStrictEqual([]);
+});
+
 /** Ada on the easy goal, giving up at once, every event handed to `onEvent`. */
 function adaGivingUp(onEvent: (event: RunEvent) => void, fake: FakeLlm): Promise<RunResult> {
   return runActor({
@@ -1120,7 +1164,8 @@ describe("a listener that throws", () => {
  * Three behaviours of the loop that the target app cannot show: it moves nothing, links nowhere
  * dead and has no hover state worth measuring. A plain `node:http` server on 127.0.0.1 serves one
  * small page for each. The runs start there, with the app's parameters on the URL, which these
- * pages ignore.
+ * pages ignore, unless a test runs `elsewhere`, as a run on another site (ADR 0003): no
+ * parameters, no jargon list, and the lenient `settle`.
  */
 describe("on pages served for the purpose", () => {
   const HTML = (title: string, style: string, body: string) =>
@@ -1129,6 +1174,10 @@ describe("on pages served for the purpose", () => {
   // first rests on the second after the navigation.
   const SPOT =
     "a { position: absolute; left: 40px; top: 40px; width: 240px; height: 48px; line-height: 48px; color: #000000; text-decoration: none; }";
+  const SPINNER =
+    "@keyframes spin { to { transform: rotate(360deg); } } .spinner { width: 24px; height: 24px; border: 2px solid #000000; animation: spin 1s linear infinite; }";
+  // The spinner, and a face the server answers 404 for, used by every paragraph.
+  const BUSY = `${SPINNER} @font-face { font-family: "Gone Sans"; src: url("/gone.woff2") format("woff2"); } p { font-family: "Gone Sans", sans-serif; }`;
   const PAGES: Record<string, string> = {
     // Faint for most of a second, then black: measured mid-way, it would read as low contrast.
     "/fading": HTML(
@@ -1158,11 +1207,23 @@ describe("on pages served for the purpose", () => {
     "/form-next": HTML("Form next", "", "<p>Somewhere else</p>"),
     // A link into a page whose spinner never stops, so the page after the click never settles.
     "/spin-from": HTML("Spin from", "", '<p><a href="/spin">Spinning page</a></p>'),
-    "/spin": HTML(
-      "Spin",
-      "@keyframes spin { to { transform: rotate(360deg); } } .spinner { width: 24px; height: 24px; border: 2px solid #000000; animation: spin 1s linear infinite; }",
-      '<div class="spinner"></div><p>Loading</p>',
+    "/spin": HTML("Spin", SPINNER, '<div class="spinner"></div><p>Loading</p>'),
+    // Another site's home page, for a start URL with no path.
+    "/": HTML("Home", "", "<p>Somewhere else entirely</p>"),
+    // A term from the target app's jargon list, on a site that has none.
+    "/ledger": HTML("Ledger", "", '<p><a href="/ledger-open">Fulfilment ledger</a></p>'),
+    // Real pages as many are: a spinner that never stops and a font that 404s, on every page.
+    "/busy-1": HTML(
+      "Busy one",
+      BUSY,
+      '<div class="spinner"></div><p><a href="/busy-2">Next</a></p>',
     ),
+    "/busy-2": HTML(
+      "Busy two",
+      BUSY,
+      '<div class="spinner"></div><p><a href="/busy-done">Next</a></p>',
+    ),
+    "/busy-done": HTML("Busy done", BUSY, '<div class="spinner"></div><p>Done</p>'),
   };
 
   let server: Server;
@@ -1355,6 +1416,88 @@ describe("on pages served for the purpose", () => {
     // link's centre, is #bbbbbb at its darkest, where an unhovered link would be black.
     const screenshot = join(runDir, stepAt(result, 0).screenshotPath ?? "");
     expect(await darkest(screenshot, { x: 40, y: 40, width: 80, height: 48 })).toBeGreaterThan(150);
+  });
+
+  describe("as another site, handed no params", () => {
+    test("a run opens its start URL as given and records it unchanged", async () => {
+      // No path before the query: `new URL` would add a `/`, and a parameter appended would show.
+      const task = { ...servedTask("/"), startUrl: `${origin}?q=1#h` };
+      const { result, events } = await walk({
+        profile: profileFixture("prof_ada"),
+        task,
+        maxSteps: 1,
+        answers: [GIVE_UP],
+        elsewhere: true,
+      });
+
+      expect(result.outcome).toBe("gave_up");
+      expect(result.startUrl).toBe(task.startUrl);
+      expect(events[0]).toMatchObject({ type: "runStarted", startUrl: task.startUrl });
+      // The browser's own spelling of the same page: no parameter was added on the way.
+      expect(stepAt(result, 0).urlBefore).toBe(`${origin}/?q=1#h`);
+    });
+
+    test("K2 never fires with no jargon list, even on a term from the target app's list", async () => {
+      // Not vacuous: the term is the list's, Kai has a vocabulary and lacks both its words, and
+      // the run on the target app above records K2 on it.
+      const kai = profileFixture("prof_kai");
+      expect(targetAppJargon).toContain("Fulfilment ledger");
+      expect(kai.knowledge.domainVocabulary).toBeDefined();
+
+      const { result, calls } = await walk({
+        profile: kai,
+        task: servedTask("/ledger"),
+        maxSteps: 1,
+        answers: [GIVE_UP],
+        elsewhere: true,
+      });
+
+      const ledger = measured(result, 0, "Fulfilment ledger");
+      expect(ledger.decisions.filter((decision) => decision.rule === "K2")).toStrictEqual([]);
+      expect(ledger.renamedName).toBeUndefined();
+      expect(calls[0]?.messages[1]?.content).toContain("Fulfilment ledger");
+    });
+
+    test("an endless spinner and a font that 404s cost each step milliseconds, not the deadline", async () => {
+      const lines: Record<string, unknown>[] = [];
+      const logger = pino(
+        { level: "info" },
+        { write: (line: string) => void lines.push(JSON.parse(line)) },
+      );
+      const { result, events } = await walk({
+        profile: profileFixture("prof_ada"),
+        task: {
+          ...servedTask("/busy-1"),
+          success: { type: "urlMatches", pattern: "**/busy-done" },
+        },
+        answers: [click("link", "Next"), click("link", "Next")],
+        elsewhere: true,
+        logger,
+      });
+
+      expect(result.outcome).toBe("success");
+      expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+      // Each gap holds one `settle`: from the plan to the landing (the settle after the action),
+      // and from the landing to the next observation (the settle before the measurement).
+      const at = (type: RunEvent["type"], step: number): number => {
+        const event = events.find((e) => e.type === type && e.stepIndex === step);
+        if (event === undefined) throw new Error(`no ${type} at step ${step}`);
+        return Date.parse(event.timestamp);
+      };
+      const gaps = [
+        at("actionPerformed", 0) - at("actionPlanned", 0),
+        at("stepObserved", 1) - at("actionPerformed", 0),
+        at("actionPerformed", 1) - at("actionPlanned", 1),
+      ];
+      for (const gap of gaps) expect(gap).toBeLessThan(SETTLE_TIMEOUT_MS);
+      // What was skipped is logged, and the record has no field for it.
+      const skipped = lines.filter((line) => line.msg === "settle skipped what never ends");
+      expect(skipped.length).toBeGreaterThan(0);
+      expect(skipped[0]).toMatchObject({
+        failedFonts: ['"Gone Sans"'],
+        endlessAnimations: ['animation "spin" on <div>'],
+      });
+    });
   });
 });
 

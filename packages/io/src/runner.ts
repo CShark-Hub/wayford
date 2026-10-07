@@ -55,10 +55,17 @@ export interface RunnerOptions {
   backends: Readonly<Record<ActorBackendName, ActorBackendFactory>>;
   /** The backend of a set that names none: `LLM_ACTOR_BACKEND`'s (`actor-backends.ts`). */
   defaultBackend: ActorBackendName;
-  /** The target app's parameters, the same for every run. */
+  /**
+   * The origin the target app is served on, port included: `http://localhost:5174` for io. A set
+   * whose task starts there runs on the target app and gets `params` and `jargon`; any other set
+   * gets neither, and `runActor` takes it as another site (`docs/adr/0003-any-target.md`, D2).
+   * Parsed when the runner is built, so a bad one fails then.
+   */
+  targetAppOrigin: string;
+  /** The target app's parameters, for every run on `targetAppOrigin`. */
   params: TargetAppParams;
   /**
-   * The target app's jargon list, the same for every run: `@wayford/core/fixtures`
+   * The target app's jargon list, for every run on `targetAppOrigin`: `@wayford/core/fixtures`
    * `targetAppJargon`, which `runActor` hands to `perceive` for K2.
    */
   jargon: readonly string[];
@@ -126,6 +133,9 @@ export const MAX_CONCURRENT_RUNS = 5;
  */
 export function createRunner(options: RunnerOptions): Runner {
   const { db, run, backends, defaultBackend, params, jargon, runsDir, logger } = options;
+  // `URL.origin` keeps the port and drops a scheme's default one, so `localhost:8080` is never the
+  // app on 5174.
+  const targetApp = new URL(options.targetAppOrigin).origin;
   const lives = new Map<string, LiveRun>();
   const slots = slotQueue(MAX_CONCURRENT_RUNS);
 
@@ -141,6 +151,8 @@ export function createRunner(options: RunnerOptions): Runner {
       seed: Seed;
       backend: ActorBackendFactory;
       sweep?: RunSweep;
+      params?: TargetAppParams;
+      jargon?: readonly string[];
     },
     slot: Promise<void>,
     live: LiveWriter,
@@ -156,7 +168,7 @@ export function createRunner(options: RunnerOptions): Runner {
       await slot;
       let settled: Settled;
       try {
-        await run({ ...inputs, params, jargon, runsDir, logger, runId, onEvent });
+        await run({ ...inputs, runsDir, logger, runId, onEvent });
         settled = { ok: true };
       } catch (error) {
         settled = { ok: false, error };
@@ -176,6 +188,15 @@ export function createRunner(options: RunnerOptions): Runner {
       const backend = backends[name];
       // The key is left out of a set that is no sweep's, not set to undefined.
       const inSweep = sweep === undefined ? {} : { sweep };
+      // Decided once: a set has one task, so all its runs are on one site. Off the target app both
+      // keys are left out, which `runActor` reads as another site.
+      const origin = new URL(task.startUrl).origin;
+      const site = origin === targetApp ? { params, jargon } : {};
+      // Said once per set, so a task typed as `127.0.0.1` for the app's `localhost` does not
+      // change how its runs perceive without a word.
+      if (origin !== targetApp) {
+        logger.info({ taskId: task.id, origin, targetApp }, "the set runs off the target app");
+      }
       const started: StartedRun[] = [];
       // Seed-major: a set cut short still has whole seeds, comparable across personas (A20).
       for (const seed of seeds) {
@@ -185,7 +206,7 @@ export function createRunner(options: RunnerOptions): Runner {
           // Stored as a `LiveRun`, so a reader gets no way to publish.
           lives.set(id, live);
           // The slot is asked for now, in call order, so the queue is FIFO across `start` calls.
-          void job(id, { task, profile, seed, backend, ...inSweep }, slots.take(), live);
+          void job(id, { task, profile, seed, backend, ...inSweep, ...site }, slots.take(), live);
           started.push({ id, profileId: profile.id, seed });
         }
       }

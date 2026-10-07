@@ -129,6 +129,31 @@ test("start mints a run per seed × persona, seed-major, and returns before any 
   }
 });
 
+test("a task on the target app's origin gets the parameters and the jargon list; any other origin, the same host on another port included, neither", async () => {
+  const run = fakeRun();
+  const runner = runnerOn(run, { targetAppOrigin: "http://localhost:5174" });
+  const onApp = { ...task, startUrl: "http://localhost:5174/deliveries" };
+  const elsewhere = { ...task, startUrl: "https://shop.example/" };
+  const otherPort = { ...task, startUrl: "http://localhost:8080/" };
+  const started = [onApp, elsewhere, otherPort].flatMap((each) => runner.start(each, [ada], [7]));
+  for (const { id } of started) await drain(runner.live(id));
+
+  const byUrl = new Map(run.calls.map((call) => [call.task.startUrl, call]));
+  expect(byUrl.get(onApp.startUrl)).toMatchObject({ params: TARGET_APP_DEFAULTS });
+  expect(byUrl.get(onApp.startUrl)?.jargon).toBe(targetAppJargon);
+  for (const off of [elsewhere, otherPort]) {
+    const call = byUrl.get(off.startUrl);
+    expect(call).toBeDefined();
+    // Left out, not set to undefined, which `exactOptionalPropertyTypes` would refuse.
+    expect(call).not.toHaveProperty("params");
+    expect(call).not.toHaveProperty("jargon");
+  }
+});
+
+test("a target-app origin that is no URL fails when the runner is built, not on the first run", () => {
+  expect(() => runnerOn(fakeRun(), { targetAppOrigin: "not a url" })).toThrow();
+});
+
 test("a set started with a sweep hands it to every run and each stored run carries it; a set without one hands none", async () => {
   const run = fakeRun();
   const runner = runnerOn(run);

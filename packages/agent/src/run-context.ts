@@ -1,9 +1,9 @@
 /**
  * The browser side of a run: one Playwright context opened for a persona, a task and a seed on
- * the target app, with the persona's device, its vision emulation, the fake cursor and every
- * recording running (`docs/PLAN.md` F5 AC7, F12; `docs/RULES.md` V1, P6). Closing it leaves one
- * `webm`, one `trace.zip` and one PNG per step in the caller's directory, each named for persona,
- * seed and run id.
+ * the target app or another site, with the persona's device, its vision emulation, the fake
+ * cursor and every recording running (`docs/PLAN.md` F5 AC7, F12; `docs/RULES.md` V1, P6).
+ * Closing it leaves one `webm`, one `trace.zip` and one PNG per step in the caller's directory,
+ * each named for persona, seed and run id.
  *
  * No model, no filter and no `RunEvent`: what to click, and what a step is, are the Actor loop's
  * (s2-03). The font check belongs to whoever measures, so it is not here either.
@@ -25,7 +25,8 @@ export interface RunContextOptions {
   task: Task;
   seed: Seed;
   runId: RunId;
-  params: TargetAppParams;
+  /** The target app's parameters, put on the start URL. Absent on another site (`startUrlFor`). */
+  params?: TargetAppParams;
   outputDir: string;
 }
 
@@ -84,10 +85,11 @@ const RunInputs = z.object({
  *
  * Inputs that fail core's schemas throw a `WayfordError` with code `invalid_run_context`, and
  * parameters outside the target app's ranges one with `invalid_target_app_params`, before
- * anything is created. A start that fails, a response that is not OK included, closes the
- * context, deletes the unfinished video and throws one with code `run_start_failed`, the start's
- * own error as its cause. A browser that is already gone refuses the delete, and can leave
- * Playwright's `page@….webm` behind, as `close` can.
+ * anything is created. With no `params` the page loads at `task.startUrl` exactly as given. A
+ * start that fails, a response that is not OK included, closes the context, deletes the unfinished
+ * video and throws one with code `run_start_failed`, the start's own error as its cause. A browser
+ * that is already gone refuses the delete, and can leave Playwright's `page@….webm` behind, as
+ * `close` can.
  */
 export async function openRunContext(options: RunContextOptions): Promise<RunContext> {
   const { browser, params, ...inputs } = options;

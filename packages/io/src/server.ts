@@ -63,6 +63,9 @@ const app = createApp({
   scanAxe: axeScanner({ browser, origin: TARGET_APP_ORIGIN }),
   // One `Llm` per run, so each run's log lines carry its run id.
   ...actorBackends(settings),
+  // A run set whose task starts here is on the target app, and only those get its parameters and
+  // jargon list; a task on any other site gets neither (ADR 0003, D2).
+  targetAppOrigin: TARGET_APP_ORIGIN,
   // The arena runs on the app's defaults (s3-03, Out of scope).
   params: TARGET_APP_DEFAULTS,
   // The target app's jargon list, so a run perceives what the preview shows (K2, s1-05).

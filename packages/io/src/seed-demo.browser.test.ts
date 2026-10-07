@@ -85,6 +85,8 @@ function reducedPlan(origin: string): DemoPlan {
 test("the fake path on the reduced plan: 12 runs with a decision on every step, 2 reports, 2 sweeps of 4 runs", async () => {
   const runner = createRunner({
     ...runnerDefaults(store),
+    // The app served on a free port, so its runs get the parameters and the jargon list.
+    targetAppOrigin: target.origin,
     run: sharedChromium(
       sharedBrowser(async () => {
         const browser = await chromium.launch();

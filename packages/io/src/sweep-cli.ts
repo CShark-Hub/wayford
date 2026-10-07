@@ -42,6 +42,7 @@ import {
   readSeeds,
   scriptArgs,
   serveOnFixturePort,
+  TARGET_APP_PORT,
 } from "@wayford/agent/cli";
 import {
   MAX_RUN_SET_SEEDS,
@@ -235,6 +236,10 @@ async function main(args: Arguments): Promise<number> {
         db,
         run: sharedChromium(browser),
         ...actorBackends(settings),
+        // The fixtures' origin, where the tasks start, as `server.ts` has it. Not `app.origin`: Vite
+        // reports `127.0.0.1` there under `--dns-result-order=ipv4first`, and every set would then
+        // run as another site, without the app's parameters and jargon list.
+        targetAppOrigin: `http://localhost:${TARGET_APP_PORT}`,
         // The app's defaults, as the arena's runs: the walk measured the same page.
         params: TARGET_APP_DEFAULTS,
         jargon: targetAppJargon,

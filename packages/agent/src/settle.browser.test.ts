@@ -8,7 +8,7 @@
 import { WayfordError } from "@wayford/core";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { retryOnNavigation, settle } from "./settle.js";
+import { retryOnNavigation, SETTLE_TIMEOUT_MS, settle } from "./settle.js";
 
 // Launching Chromium takes longer than vitest's 5 s hook default, and one test holds a page busy
 // for two seconds.
@@ -98,11 +98,12 @@ test("a used font that cannot be fetched fails font_failed, naming its family", 
   });
 });
 
-test("a page with nothing moving settles at once", async () => {
+test("a page with nothing moving settles at once, and the strict path skips nothing", async () => {
   await withPage(async (page) => {
     await page.setContent("<p>Nothing here moves</p>");
-    const [, ms] = await timed(() => settle(page));
+    const [skipped, ms] = await timed(() => settle(page));
     expect(ms).toBeLessThan(100);
+    expect(skipped).toStrictEqual({ failedFonts: [], endlessAnimations: [] });
   });
 });
 
@@ -120,7 +121,7 @@ test("at the deadline it names what still runs, a transition by its property", a
       document.querySelector("div")?.classList.add("sliding");
       document.querySelector("a")?.classList.add("faded");
     });
-    const error = await rejection(settle(page, 300), "page_not_settled");
+    const error = await rejection(settle(page, { timeoutMs: 300 }), "page_not_settled");
     expect(error.message).toContain("within 300 ms");
     expect(error.message).toContain('animation "slide" on <div>');
     expect(error.message).toContain('transition of "opacity" on <a>');
@@ -148,9 +149,126 @@ test("at the deadline it says the fonts are still loading", async () => {
     });
     expect(status).toBe("loading");
 
-    const error = await rejection(settle(page, 300), "page_not_settled");
+    const error = await rejection(settle(page, { timeoutMs: 300 }), "page_not_settled");
     expect(error.message).toContain("within 300 ms");
     expect(error.message).toContain("fonts are still loading");
+  });
+});
+
+/**
+ * A page off the target app as many real ones are: a spinner that turns forever and a used font
+ * that cannot be fetched. The font's request fails at once, so only the face's status is left.
+ */
+async function spinnerWithGoneFont(page: Page): Promise<void> {
+  await page.route("http://settle.test/**", (route) => route.abort());
+  await page.setContent(`<style>
+      @keyframes spin { to { transform: rotate(360deg) } }
+      .spinner { animation: spin 1s linear infinite }
+      @font-face {
+        font-family: "Gone Sans";
+        src: url("http://settle.test/gone.woff2") format("woff2");
+      }
+      p { font-family: "Gone Sans", sans-serif }
+    </style>
+    <div class="spinner">Loading</div>
+    <p>Drawn in a font that never arrives</p>`);
+  expect(await runningOn(page)).toBe(1);
+}
+
+test("lenient: an endless animation and a failed font are skipped at once, and named", async () => {
+  await withPage(async (page) => {
+    await spinnerWithGoneFont(page);
+    const [skipped, ms] = await timed(() => settle(page, { lenient: true }));
+    expect(ms).toBeLessThan(500);
+    expect(skipped).toStrictEqual({
+      failedFonts: ['"Gone Sans"'],
+      endlessAnimations: ['animation "spin" on <div>'],
+    });
+    // Skipped, not stopped: the spinner still turns.
+    expect(await runningOn(page)).toBe(1);
+  });
+});
+
+test("strict: the same page is not settled at the deadline, the spinner named", async () => {
+  await withPage(async (page) => {
+    await spinnerWithGoneFont(page);
+    // Animations come before fonts, so the spinner holds it to the deadline; the failed font alone
+    // is `font_failed`, as the test above with "Gone Sans" shows.
+    const error = await rejection(settle(page, { timeoutMs: 300 }), "page_not_settled");
+    expect(error.message).toContain('animation "spin" on <div>');
+  });
+});
+
+test("lenient: a finite animation beside an endless one is still waited out", async () => {
+  await withPage(async (page) => {
+    await page.setContent(`<style>
+        @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        .fading { animation: fade 400ms linear }
+        .spinner { animation: spin 1s linear infinite }
+      </style>
+      <div class="spinner">Loading</div>
+      <p id="box" onanimationend="this.dataset.ended = 'yes'">Fading in</p>`);
+    await page.evaluate(() => document.getElementById("box")?.classList.add("fading"));
+
+    const [skipped, ms] = await timed(() => settle(page, { lenient: true }));
+    expect(await page.evaluate(() => document.getElementById("box")?.dataset.ended)).toBe("yes");
+    expect(ms).toBeLessThan(SETTLE_TIMEOUT_MS);
+    expect(skipped).toStrictEqual({
+      failedFonts: [],
+      endlessAnimations: ['animation "spin" on <div>'],
+    });
+  });
+});
+
+/**
+ * A reading-progress bar: one iteration, driven by the scroll position, not the clock. It runs
+ * until the page is scrolled to its end, so waiting cannot end it.
+ */
+async function progressBar(page: Page): Promise<void> {
+  await page.setContent(`<style>
+      @keyframes grow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+      .progress { height: 4px; background: #000000; animation: grow linear both; animation-timeline: scroll(); }
+      .long { height: 3000px }
+    </style>
+    <div class="progress"></div>
+    <p class="long">A long read</p>`);
+  expect(await runningOn(page)).toBe(1);
+}
+
+test("lenient: a scroll-driven animation is skipped at once, and named", async () => {
+  await withPage(async (page) => {
+    await progressBar(page);
+    const [skipped, ms] = await timed(() => settle(page, { lenient: true }));
+    expect(ms).toBeLessThan(500);
+    expect(skipped).toStrictEqual({
+      failedFonts: [],
+      endlessAnimations: ['animation "grow" on <div>'],
+    });
+  });
+});
+
+test("strict: a scroll-driven animation is not settled at the deadline", async () => {
+  await withPage(async (page) => {
+    await progressBar(page);
+    const error = await rejection(settle(page, { timeoutMs: 300 }), "page_not_settled");
+    expect(error.message).toContain('animation "grow" on <div>');
+  });
+});
+
+test("lenient: a finite animation still running at the deadline is not settled", async () => {
+  await withPage(async (page) => {
+    await page.setContent(`<style>
+        @keyframes slide { to { transform: translateX(100px) } }
+        .sliding { animation: slide 10s linear }
+      </style>
+      <div>Sliding</div>`);
+    await page.evaluate(() => document.querySelector("div")?.classList.add("sliding"));
+    const error = await rejection(
+      settle(page, { lenient: true, timeoutMs: 300 }),
+      "page_not_settled",
+    );
+    expect(error.message).toContain('animation "slide" on <div>');
   });
 });
 
@@ -170,7 +288,7 @@ test("retryOnNavigation fails page_not_settled from Node when the page's main th
     // has to hold around the whole attempt, not only the settle.
     const [error, ms] = await timed(() =>
       rejection(
-        retryOnNavigation(page, () => settle(page, 100), 500),
+        retryOnNavigation(page, () => settle(page, { timeoutMs: 100 }), 500),
         "page_not_settled",
       ),
     );

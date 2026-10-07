@@ -157,6 +157,8 @@ test("Vera's contrast sweep succeeds on exactly the route-open seeds at every va
 
   const runner = createRunner({
     ...runnerDefaults(store),
+    // The app served on a free port, so its runs get the parameters and the jargon list.
+    targetAppOrigin: target.origin,
     run: sharedChromium(
       sharedBrowser(async () => {
         const browser = await chromium.launch();

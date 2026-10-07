@@ -12,7 +12,11 @@ import { llmActor, parseLlmSettings } from "@wayford/agent";
 import { fakeLlm } from "@wayford/agent/fake";
 import { type ActorResponse, runResultFromEvents } from "@wayford/core";
 import { taskFixture } from "@wayford/core/fixtures";
-import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
+import {
+  serveTargetApp,
+  TARGET_APP_DEFAULT_QUERY,
+  type TargetApp,
+} from "@wayford/filter/serve-target-app";
 import { type Browser, chromium } from "playwright";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { sharedBrowser, sharedChromium } from "./chromium.js";
@@ -64,6 +68,8 @@ const browsers: Browser[] = [];
 beforeAll(async () => {
   target = await serveTargetApp();
   io = await testApp({
+    // The app served on a free port, so its runs get the parameters and the jargon list.
+    targetAppOrigin: target.origin,
     run: sharedChromium(
       sharedBrowser(async () => {
         const browser = await chromium.launch();
@@ -121,6 +127,8 @@ test("two runs started together share one Chromium, end success and are stored a
     const stored = await (await io.app.request(`/runs/${id}`)).json();
     expect(stored).toStrictEqual(runResultFromEvents(events));
     expect(stored).toMatchObject({ id, profileId: "prof_ada", seed, outcome: "success" });
+    // On the served app's origin, so the runner handed the run the app's parameters.
+    expect(stored.startUrl).toBe(`${target.origin}/${TARGET_APP_DEFAULT_QUERY}`);
 
     const video = await io.app.request(`/runs/${id}/video`);
     expect(video.status).toBe(200);

@@ -68,7 +68,11 @@ export interface ScoutOptions {
   /** The caller's, as for `runActor`: Scout never launches or closes it. */
   browser: Browser;
   task: Task;
-  params: TargetAppParams;
+  /**
+   * The target app's parameters, which each attempt gets with the app's jargon list. Absent on
+   * another site, where the attempts get neither, as any run there (`runActor`).
+   */
+  params?: TargetAppParams;
   /**
    * Scout writes `<dir>/<task id>.json`, and each attempt's run folder goes under
    * `<dir>/attempts/`, so all its output sits in one directory, apart from the Actor's runs.
@@ -101,9 +105,11 @@ export async function scout(options: ScoutOptions): Promise<GroundTruth> {
         profile: SCOUT_PROFILE,
         task,
         seed,
-        params: options.params,
-        // Scout's profile sets no vocabulary, so K2 never fires; passed all the same, as every run.
-        jargon: targetAppJargon,
+        // Scout's profile sets no vocabulary, so K2 never fires; the list goes with the parameters
+        // all the same, as on every run on the target app.
+        ...(options.params === undefined
+          ? {}
+          : { params: options.params, jargon: targetAppJargon }),
         runsDir: join(dir, "attempts"),
         backend: llmActor({ settings, role: "scout", ...(llm && { llm }) }),
         logger: options.logger,

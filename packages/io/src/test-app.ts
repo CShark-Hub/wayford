@@ -169,7 +169,8 @@ export function capture() {
 
 /**
  * The runner's options on `store`, with nothing real behind them: `fakeRun()`, `fakeBackends` with
- * `llm` the default, the target app's defaults and jargon list, and `quiet`.
+ * `llm` the default, the target app on the core task fixtures' origin with its defaults and jargon
+ * list, and `quiet`. A test that serves the app on a free port passes its origin.
  */
 export function runnerDefaults(store: TempStore): RunnerOptions {
   return {
@@ -177,6 +178,7 @@ export function runnerDefaults(store: TempStore): RunnerOptions {
     run: fakeRun(),
     backends: fakeBackends,
     defaultBackend: "llm",
+    targetAppOrigin: "http://localhost:5174",
     params: TARGET_APP_DEFAULTS,
     jargon: targetAppJargon,
     runsDir: store.runsDir,

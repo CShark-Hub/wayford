@@ -8,6 +8,14 @@
  *
  * `settleScript` reaches the page as source, so it is one self-contained function, as
  * `cursor.ts`'s is (`docs/specs/2026-10-01-s2-03-actor-loop.md`, "settle.ts").
+ *
+ * Off the target app `settle` is lenient (`docs/adr/0003-any-target.md`, D4): a font that failed
+ * is noted, since a real person sees the fallback too, and an animation that waiting cannot end is
+ * not waited on: one that repeats forever, or one the scroll position drives, such as a reading
+ * progress bar. That costs a claim. An element that animates forever is measured at whatever frame
+ * it is in, so on such a page the seed no longer fixes that measurement. A scroll-driven one
+ * follows the scroll, which the run's own actions set. On the target app `settle` stays strict:
+ * the calibration depends on it.
  */
 import { WayfordError } from "@wayford/core";
 import type { Page } from "playwright";
@@ -45,6 +53,28 @@ interface Unsettled {
   why: string;
 }
 
+/** What a lenient `settle` did not wait on. Both lists are empty on the strict path. */
+export interface Skipped {
+  /** The families of the font faces that failed to load, quoted, as `font_failed` names them. */
+  failedFonts: string[];
+  /**
+   * The animations waiting cannot end, those that repeat forever or that the scroll position
+   * drives, as the deadline's message names them.
+   */
+  endlessAnimations: string[];
+}
+
+export interface SettleOptions {
+  /**
+   * Off the target app: a failed font face, and an animation whose iteration count is infinite
+   * or whose timeline is not the document's (a scroll-driven one), are skipped and returned, not
+   * errors. Strict when absent.
+   */
+  lenient?: boolean;
+  /** `SETTLE_TIMEOUT_MS` when absent. */
+  timeoutMs?: number;
+}
+
 /**
  * Waits until the page's document has loaded, its fonts are loaded and no animation or transition
  * runs, for at most `timeoutMs`. Call it before every `collect`, and before the screenshot after
@@ -55,12 +85,17 @@ interface Unsettled {
  * that failed to load, whose text would be measured in a fallback font. Playwright's own errors,
  * such as a destroyed context when the page navigates meanwhile, pass through for
  * `retryOnNavigation`.
+ *
+ * `lenient` skips the failed faces and the endless animations instead, and returns them for the
+ * caller to log. Loading and every other animation keep the deadline.
  */
-export async function settle(page: Page, timeoutMs = SETTLE_TIMEOUT_MS): Promise<void> {
-  const unsettled = await page.evaluate<Unsettled | null>(settleSource(timeoutMs));
-  if (unsettled !== null) {
-    throw new WayfordError(unsettled.code, `the page at ${page.url()} ${unsettled.why}`);
+export async function settle(page: Page, options: SettleOptions = {}): Promise<Skipped> {
+  const { lenient = false, timeoutMs = SETTLE_TIMEOUT_MS } = options;
+  const settled = await page.evaluate<Unsettled | Skipped>(settleSource(timeoutMs, lenient));
+  if ("code" in settled) {
+    throw new WayfordError(settled.code, `the page at ${page.url()} ${settled.why}`);
   }
+  return settled;
 }
 
 /**
@@ -151,22 +186,23 @@ function navigatedAway(error: unknown): boolean {
 const SETTLE_SCRIPT = settleScript.toString();
 
 /**
- * `settleScript` called with `timeoutMs`, wrapped to run in the page. `tsx` compiles with
- * `keepNames`, which wraps nested functions in `__name(…)`, a helper its module defines and the
- * page does not, so the shim defines it (`cursor.ts`, the same pattern).
+ * `settleScript` called with `timeoutMs` and `lenient`, wrapped to run in the page. `tsx` compiles
+ * with `keepNames`, which wraps nested functions in `__name(…)`, a helper its module defines and
+ * the page does not, so the shim defines it (`cursor.ts`, the same pattern).
  */
-function settleSource(timeoutMs: number): string {
-  return `(() => { const __name = (f) => f; return (${SETTLE_SCRIPT})(${JSON.stringify(timeoutMs)}); })()`;
+function settleSource(timeoutMs: number, lenient: boolean): string {
+  return `(() => { const __name = (f) => f; return (${SETTLE_SCRIPT})(${JSON.stringify(timeoutMs)}, ${JSON.stringify(lenient)}); })()`;
 }
 
 /**
  * The in-page half: the document's `load` first, then the fonts, then every running animation
- * until none runs, all against one deadline. `null` once the page holds still, or why it does not.
- * Only running animations count: a paused one does not move. The `load` covers a navigation that
- * no action started, such as a script's after the quiet window: its new document can answer while
- * its images still load and its layout still moves.
+ * until none runs, all against one deadline. What was skipped once the page holds still, or why
+ * it does not. Only running animations count: a paused one does not move. The `load` covers a
+ * navigation that no action started, such as a script's after the quiet window: its new document
+ * can answer while its images still load and its layout still moves. `lenient` sets the endless
+ * animations aside and takes failed faces as settled.
  */
-async function settleScript(timeoutMs: number): Promise<Unsettled | null> {
+async function settleScript(timeoutMs: number, lenient: boolean): Promise<Unsettled | Skipped> {
   let expired = false;
   let timer: number | undefined;
   const deadline = new Promise<void>((resolve) => {
@@ -193,6 +229,14 @@ async function settleScript(timeoutMs: number): Promise<Unsettled | null> {
       ? `an animation with no id${on}`
       : `animation ${JSON.stringify(animation.id)}${on}`;
   };
+  // Waiting cannot end it: it repeats forever, or the scroll position drives it, not the clock,
+  // so it runs until the page is scrolled to its end. An animation with no effect has no
+  // iterations, so only its timeline can make it endless.
+  const isEndless = (animation: Animation): boolean =>
+    !(animation.timeline instanceof DocumentTimeline) ||
+    animation.effect?.getTiming().iterations === Number.POSITIVE_INFINITY;
+  // Set aside when lenient, and named only at the end.
+  const endless = new Set<Animation>();
 
   try {
     if (document.readyState !== "complete") {
@@ -209,25 +253,35 @@ async function settleScript(timeoutMs: number): Promise<Unsettled | null> {
       const running = document
         .getAnimations()
         .filter((animation) => animation.playState === "running");
-      if (running.length === 0) {
+      // What the loop waits on: every running animation when strict, the finite ones when lenient.
+      const waited: Animation[] = [];
+      for (const animation of running) {
+        if (lenient && isEndless(animation)) endless.add(animation);
+        else waited.push(animation);
+      }
+      if (waited.length === 0) {
         // `document.fonts.ready` resolves for a face that failed too, and the set's status still
         // reads `loaded`: only the face's own status tells.
         const failed = new Set<string>();
         document.fonts.forEach((face) => {
           if (face.status === "error") failed.add(face.family);
         });
-        if (failed.size === 0) return null;
-        const families = [...failed].map((family) => JSON.stringify(family)).join(", ");
+        const families = [...failed].map((family) => JSON.stringify(family));
+        if (failed.size === 0 || lenient) {
+          // A label once, however many animations share it.
+          const endlessAnimations = [...new Set([...endless].map(label))];
+          return { failedFonts: families, endlessAnimations };
+        }
         return {
           code: "font_failed",
-          why: `could not load ${families}; its text would be measured in a fallback font`,
+          why: `could not load ${families.join(", ")}; its text would be measured in a fallback font`,
         };
       }
-      if (expired) return late(`still running: ${running.map(label).join(", ")}`);
+      if (expired) return late(`still running: ${waited.map(label).join(", ")}`);
       // `allSettled`, since a cancelled animation rejects `finished`. An animation that never ends
       // never finishes, so the deadline ends the wait for it.
       await Promise.race([
-        Promise.allSettled(running.map((animation) => animation.finished)),
+        Promise.allSettled(waited.map((animation) => animation.finished)),
         deadline,
       ]);
       // One frame, so what the ended ones start, such as a transition on `animationend`, shows.

@@ -21,6 +21,12 @@ function paramsError(params: TargetAppParams): WayfordError {
 }
 
 describe("startUrlFor", () => {
+  test("with no parameters the task's start URL comes back as given, on any site", () => {
+    // `new URL` would add a `/` before the query, so a URL passed through it would show.
+    const startUrl = "http://127.0.0.1:1234?q=1#h";
+    expect(startUrlFor({ startUrl })).toBe(startUrl);
+  });
+
   test("the defaults on a fixture task give the task's acceptance URL, exactly", () => {
     expect(startUrlFor(taskFixture("task_past-order"), TARGET_APP_DEFAULTS)).toBe(
       "http://localhost:5174/?contrast=2&fontPx=16&targetPx=36",

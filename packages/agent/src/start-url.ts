@@ -1,6 +1,7 @@
 /**
  * The URL a run opens the target app at: the task's start URL with the app's three parameters on
- * it (issue #51, `packages/target-app/README.md`, "Parameters").
+ * it (issue #51, `packages/target-app/README.md`, "Parameters"). A run on any other site is handed
+ * no parameters and opens its start URL as given.
  *
  * The app removes the parameters from the address bar once it has saved them, so after load
  * `page.url()` cannot give them back. The URL built here is the one `goto` receives and the run
@@ -38,11 +39,16 @@ const PARAM_NAMES = ["contrast", "fontPx", "targetPx"] as const;
  * the run records. A parameter the task's URL already carries is replaced, duplicates included;
  * any other query parameter and the hash are kept.
  *
+ * With no `params` the run is on another site (`docs/adr/0003-any-target.md`, D2 and D3), and the
+ * start URL is `task.startUrl` exactly as given, never passed through `URL`, which could respell
+ * it.
+ *
  * Parameters that are missing, unknown or outside the README's ranges throw a `WayfordError` with
  * code `invalid_target_app_params`. The app would drop or clamp them silently, and the recorded
  * URL would then no longer be the whole setting.
  */
-export function startUrlFor(task: Pick<Task, "startUrl">, params: TargetAppParams): string {
+export function startUrlFor(task: Pick<Task, "startUrl">, params?: TargetAppParams): string {
+  if (params === undefined) return task.startUrl;
   const parsed = TargetAppParams.safeParse(params);
   if (!parsed.success) {
     throw new WayfordError(

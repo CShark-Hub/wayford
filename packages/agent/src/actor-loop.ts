@@ -1,5 +1,5 @@
 /**
- * The Actor loop: one persona walks one task on the target app with one run seed, and every step
+ * The Actor loop: one persona walks one task on a site with one run seed, and every step
  * of it is recorded (`tasks/s2-03-actor-loop.md`). It is our own loop, because the persona is a
  * filter between the page and the model, and only a loop of ours can put it there (`AGENTS.md`):
  * each step measures the page, perceives it through the persona's thresholds, and shows the model
@@ -63,7 +63,7 @@ import { behave } from "./behaviour.js";
 import { type HistoryStep, oneLine, repeats } from "./history.js";
 import { LlmError } from "./llm.js";
 import { openRunContext, type RunContext, type RunRecording } from "./run-context.js";
-import { retryOnNavigation, settle } from "./settle.js";
+import { retryOnNavigation, type Skipped, settle } from "./settle.js";
 import { startUrlFor, type TargetAppParams } from "./start-url.js";
 import { checkSuccessCondition, type SuccessWatch, watchSuccess } from "./success.js";
 
@@ -84,14 +84,22 @@ export interface RunActorOptions {
    * seed (`docs/PLAN.md` A20) and the decision stream (ADR 0001 §3).
    */
   seed: Seed;
-  params: TargetAppParams;
+  /**
+   * The target app's parameters, for a run on the target app, wherever it is served: the start URL
+   * gets them (`startUrlFor`) and `settle` stays strict. A run handed none is on another site
+   * (`docs/adr/0003-any-target.md`, D2 to D4): it opens `task.startUrl` exactly as given and gets
+   * the lenient `settle`, which logs a font that failed and does not wait on an animation that
+   * waiting cannot end, endless or scroll-driven. Whoever serves the app decides; agent holds no
+   * target-app origin.
+   */
+  params?: TargetAppParams;
   /**
    * The target app's jargon list, `@wayford/core/fixtures` `targetAppJargon`, handed to `perceive`
-   * each step. Runs only ever drive the target app (`params`), so there is one list. Required, so
-   * typecheck finds every caller: a caller that left it out would turn K2 off without a sound. K2
-   * fires only for a profile that sets `domainVocabulary` (`docs/RULES.md` stage 4).
+   * each step for K2, which fires only for a profile that sets `domainVocabulary` (`docs/RULES.md`
+   * stage 4). Absent, K2 never fires: another site has no list. Required with `params`, so a run
+   * on the target app never turns K2 off without a sound: `runActor` refuses one without it.
    */
-  jargon: readonly string[];
+  jargon?: readonly string[];
   /** The run's files go under `<runsDir>/<runId>/`. */
   runsDir: string;
   /**
@@ -150,16 +158,18 @@ export interface RunActorOptions {
  *   separators, so a run's folder can move as a whole.
  * - There is no module state: concurrent runs on one `Browser` share nothing but the browser.
  * - It rejects before any event only where no run can start: with `invalid_run_input` for a
- *   `maxSteps` that is not a positive integer, a seed that is not a `Seed`, an empty `runsDir`, a
- *   `sweep` whose value is not the one the profile sets on its axis, or a `runStarted` that fails
+ *   `maxSteps` that is not a positive integer, a seed that is not a `Seed`, an empty `runsDir`,
+ *   `params` with no `jargon`, a `sweep` whose value is not the one the profile sets on its axis,
+ *   or a `runStarted` that fails
  *   its schema (a bad run id, task id, profile id, start URL or sweep); with
- *   `startUrlFor`'s `invalid_target_app_params`; and with whatever the backend factory throws.
+ *   `startUrlFor`'s `invalid_target_app_params` for `params` given out of range; and with whatever
+ *   the backend factory throws.
  *   Once `runStarted` is out, every failure is the run's own `runFailed`, and `runActor` rejects
  *   only when folding the events or writing `result.json` fails, or when the listener throws on
  *   the terminal event.
  */
 export async function runActor(options: RunActorOptions): Promise<RunResult> {
-  const { browser, profile, task, seed, params, runsDir } = options;
+  const { browser, profile, task, seed, params, jargon, runsDir } = options;
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
   if (!Number.isInteger(maxSteps) || maxSteps < 1) {
     throw invalidInput(`maxSteps must be a positive integer, got ${maxSteps}`);
@@ -171,6 +181,11 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
   }
   if (runsDir.length === 0) {
     throw invalidInput("runsDir is empty, so the run has nowhere to keep its files");
+  }
+  // The list is optional only for another site, so a run on the target app without it would turn
+  // K2 off without a sound.
+  if (params !== undefined && jargon === undefined) {
+    throw invalidInput("a run handed the target app's params needs its jargon list too");
   }
   // `sweep.value` is the record's only trace of the swept threshold, so it must be the one applied.
   if (options.sweep !== undefined) {
@@ -236,7 +251,15 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
     // Before a context, a video and a trace are opened for a run no step could make succeed. A
     // task that fails its schema is `openRunContext`'s to refuse.
     if (SuccessCondition.safeParse(task.success).success) checkSuccessCondition(task.success);
-    run = await openRunContext({ browser, profile, task, seed, runId, params, outputDir: runDir });
+    run = await openRunContext({
+      browser,
+      profile,
+      task,
+      seed,
+      runId,
+      outputDir: runDir,
+      ...(params === undefined ? {} : { params }),
+    });
     watch = watchSuccess(run.page.context(), task.success);
     const loop: Loop = {
       run,
@@ -244,7 +267,9 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
       profile,
       task,
       seed,
-      jargon: options.jargon,
+      // An empty list is no list: K2 never fires (`perceive`).
+      jargon: jargon ?? [],
+      lenient: params === undefined,
       maxSteps,
       draw,
       now,
@@ -333,8 +358,10 @@ interface Loop {
   profile: Profile;
   task: Task;
   seed: Seed;
-  /** The target app's jargon list, for K2 in `perceive`. */
+  /** The target app's jargon list, for K2 in `perceive`. Empty off the target app. */
   jargon: readonly string[];
+  /** Off the target app: `settle` skips failed fonts and endless animations (ADR 0003, D4). */
+  lenient: boolean;
   maxSteps: number;
   /** The run's behaviour stream, `rng(seed)`. */
   draw: () => number;
@@ -433,12 +460,13 @@ async function observe(loop: Loop, k: number): Promise<Observation> {
       `step ${k} cannot observe ${url}: the filter measures only http(s) pages`,
     );
   }
-  const measurement = await retryOnNavigation(page, async () => {
+  const { measurement, skipped } = await retryOnNavigation(page, async () => {
     // First, so the hover state measured is the one the pointer gives, on a new document too.
     await loop.run.restorePointer();
-    await settle(page);
-    return collect(page, { isMobile });
+    const skipped = await settle(page, { lenient: loop.lenient });
+    return { measurement: await collect(page, { isMobile }), skipped };
   });
+  noteSkipped(loop, k, skipped);
   // `perceive` does not know the step, and the fold rejects an observation of another one.
   const full: FullObservation = {
     ...perceive(measurement, loop.profile, loop.seed, { jargon: loop.jargon }),
@@ -501,15 +529,15 @@ async function ask(
 async function land(loop: Loop, k: number, arrival: Arrival): Promise<boolean> {
   const { run, watch } = loop;
   const { page } = run;
-  let after: { urlAfter: string; met: boolean; screenshotPath: string };
+  let after: { urlAfter: string; met: boolean; screenshotPath: string; skipped: Skipped };
   try {
     await arrival.wait();
     after = await retryOnNavigation(page, async () => {
       await run.restorePointer();
-      await settle(page);
+      const skipped = await settle(page, { lenient: loop.lenient });
       const urlAfter = page.url();
       const met = await watch.met(page, urlAfter);
-      return { urlAfter, met, screenshotPath: loop.stored(await run.screenshot(k)) };
+      return { urlAfter, met, screenshotPath: loop.stored(await run.screenshot(k)), skipped };
     });
   } catch (error) {
     try {
@@ -522,8 +550,18 @@ async function land(loop: Loop, k: number, arrival: Arrival): Promise<boolean> {
     throw error;
   }
   const { urlAfter, screenshotPath } = after;
+  noteSkipped(loop, k, after.skipped);
   loop.emit({ type: "actionPerformed", stepIndex: k, urlAfter, screenshotPath });
   return after.met;
+}
+
+/**
+ * Logs what a lenient `settle` did not wait on, once per settle that skipped anything: core's
+ * record has no field for it (s2-13, Constraints). The strict path skips nothing, so logs nothing.
+ */
+function noteSkipped(loop: Loop, k: number, skipped: Skipped): void {
+  if (skipped.failedFonts.length === 0 && skipped.endlessAnimations.length === 0) return;
+  loop.logger.info({ step: k, ...skipped }, "settle skipped what never ends");
 }
 
 // ---------------------------------------------------------------------------
