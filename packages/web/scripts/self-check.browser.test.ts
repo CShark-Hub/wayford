@@ -335,6 +335,85 @@ function raceEndedScreen(): SelfCheckScreen {
   });
 }
 
+/**
+ * `steps` steps of a long run, each a copy of one of the fixture's first four in turn (a click, a
+ * scroll, a double click and a wasted step) under its own index. `ended`, the cap cuts the run off
+ * after the last, Over budget; otherwise the last step is under way, observed and no more.
+ */
+function longRun(steps: number, ended: boolean): RunEvent[] {
+  const [started, ...rest] = runEventFixtures;
+  const finished = runEventFixtures.at(-1);
+  if (started?.type !== "runStarted" || finished?.type !== "runFinished") {
+    throw new Error("the fixture stream opens with runStarted and ends in runFinished");
+  }
+  const stepEvents = (copied: number, as: number): RunEvent[] =>
+    rest
+      .filter((event) => event.stepIndex === copied && event.type !== "runFinished")
+      .map((event) => RunEvent.parse({ ...event, stepIndex: as }));
+  const events: RunEvent[] = [started];
+  for (let k = 0; k < steps; k++) {
+    const step = stepEvents(k % 4, k);
+    const last = k === steps - 1;
+    events.push(...(last && !ended ? step.filter((event) => event.type === "stepObserved") : step));
+  }
+  if (ended) {
+    events.push(RunEvent.parse({ ...finished, stepIndex: steps - 1, outcome: "budget_exceeded" }));
+  }
+  return events;
+}
+
+/**
+ * The Race with three long runs: Ada's cut off at 20 steps, the loop's default cap, Kai's 40th step
+ * under way, and Vera's cut off at 40, the most a cap scaled from Scout gives (issue #196).
+ */
+function raceLongScreen(): SelfCheckScreen {
+  const [ada, kai, vera] = demoRuns();
+  return raceScreen({
+    name: "race-long",
+    events: new Map([
+      [ada.id, eventsOf(ada, longRun(20, true))],
+      [kai.id, eventsOf(kai, longRun(40, false))],
+      [vera.id, eventsOf(vera, longRun(40, true))],
+    ]),
+    waits: { Ada: "20 steps", Kai: "40 steps so far", Vera: "40 steps" },
+    ready: 'role=article[name="Vera"s] >> text="Over budget"',
+  });
+}
+
+/** One lane's track as laid out: where it starts, each pip's box, the end mark's and the post's. */
+type TrackBoxes = {
+  pips: { kind: string; left: number; right: number; width: number }[];
+  track: { left: number };
+  end: { left: number; right: number } | undefined;
+  post: { left: number };
+};
+
+/** Every lane's track on `page`, in lane order. */
+function trackBoxes(page: Page): Promise<TrackBoxes[]> {
+  return page.locator("article").evaluateAll((articles) =>
+    articles.map((article) => {
+      const box = (element: Element | null) => {
+        if (element === null) throw new Error("a lane is missing part of its track");
+        const { left, right, width } = element.getBoundingClientRect();
+        return { left, right, width };
+      };
+      // The post stands in the track, which the avatar's own role="img" would hide from a query.
+      const post = article.querySelector("[data-goal]");
+      const track = post?.parentElement ?? null;
+      const end = article.querySelector("[data-end]");
+      return {
+        pips: [...article.querySelectorAll("[data-pip]")].map((pip) => ({
+          kind: pip.getAttribute("data-pip") ?? "",
+          ...box(pip),
+        })),
+        track: box(track),
+        end: end === null ? undefined : box(end),
+        post: box(post),
+      };
+    }),
+  );
+}
+
 /** The race's line under its buttons once it is over: how many got through. */
 function resultLineOf(page: Page) {
   return page
@@ -529,6 +608,52 @@ describe("on the web app", () => {
       await page.goBack();
       await start.waitFor();
       expect(await page.getByRole("article", { name: "Ada", exact: true }).count()).toBe(0);
+    });
+  });
+
+  describe("the Race lane's pips, as laid out at 1280 × 720", () => {
+    // A box edge may land on a fraction of a pixel, so edges are compared to a tolerance.
+    const EPS = 0.5;
+
+    test("a short run's pips keep their 16 px and their 6 px gaps, as s3-12 set them", async () => {
+      const page = await newPage();
+      await checkScreen(page, app.origin, listedScreen("race-live"), "light");
+      const lanes = await trackBoxes(page);
+      expect(lanes.map((lane) => lane.pips.length)).toEqual([2, 5, 4]);
+      for (const { pips, track } of lanes) {
+        pips.forEach((pip, i) => {
+          // The pip under way is 20 px, 4 px past where a pip would stand.
+          const now = pip.kind === "now";
+          expect(pip.width).toBeCloseTo(now ? 20 : 16, 1);
+          expect(pip.left - track.left).toBeCloseTo(22 * i + (now ? 4 : 0), 1);
+        });
+      }
+    });
+
+    // Only colours change with the theme (`index.css` sets every size on `:root`), so one theme
+    // measures both.
+    test("20 and 40 steps: the pips, in order, and the end mark all stay left of the post", async () => {
+      const page = await newPage();
+      await checkScreen(page, app.origin, raceLongScreen(), "light");
+      const lanes = await trackBoxes(page);
+      expect(lanes.map((lane) => lane.pips.length)).toEqual([20, 40, 40]);
+      expect(lanes.map((lane) => lane.pips.at(-1)?.kind === "now")).toEqual([false, true, false]);
+      // Ada's and Vera's runs end Over budget, which a mark closes; Kai's goes on.
+      expect(lanes.map((lane) => lane.end !== undefined)).toEqual([true, false, true]);
+      for (const { pips, end, post } of lanes) {
+        pips.forEach((pip, i) => {
+          expect(pip.width).toBeGreaterThan(1);
+          // The post stands inside the track, so a pip left of it is clear of the screenshot too.
+          expect(pip.right).toBeLessThanOrEqual(post.left + EPS);
+          const before = pips[i - 1];
+          if (before !== undefined) expect(pip.left).toBeGreaterThanOrEqual(before.right - EPS);
+        });
+        const last = pips.at(-1);
+        if (end !== undefined && last !== undefined) {
+          expect(end.left).toBeGreaterThanOrEqual(last.right - EPS);
+          expect(end.right).toBeLessThanOrEqual(post.left + EPS);
+        }
+      }
     });
   });
 

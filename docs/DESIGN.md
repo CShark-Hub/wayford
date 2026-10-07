@@ -195,7 +195,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | ThresholdGauge | A ruler: persona fill to the value, signal post at the threshold, softness band below it, provenance tag. A native range input over the drawing | `s3-11` |
 | FilterStates | Visible, degraded (hatch), removed (dashed signal outline and cut flag `P1 · 2.0 < 4.5`), renamed (`[unfamiliar term]`), cut by attention (quiet flag) | `s3-11` |
 | Outcome | Glyph and word: Got through, Gave up, Out of time, Hit the step cap, Over budget, Error. The three budget endings share one hourglass | `s3-12` |
-| RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail | `s3-12` |
+| RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail. A run too long for its track narrows every done pip alike, so all of them stay between the start and the post | `s3-12` |
 | StepTimeline | 40 px step buttons, ← → moves; wasted hatched, last ringed | `s3-12` |
 | JevDraw | Options laid end to end on 0–1, the rolled needle in signal, the drawn segment filled | `s3-10` |
 | SeedStrip | One 32 px cell per seed: border = route open (solid) or closed (dashed), fill = got through, slash = error | `s3-08` |

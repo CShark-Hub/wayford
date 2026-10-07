@@ -42,17 +42,37 @@ export type Pip = { kind: "act" | "scroll" | "back" | "wasted" | "now"; word: st
 
 // `.wf-pip` and its modifiers in docs/design/components.css. Every pip is positioned, so it paints
 // over the track's rule. A wasted pip is hatched on surface, so the rule does not run through it,
-// and in ink-3, as the reference draws it: the default `--line` would not read at 16 px.
+// and in ink-3, as the reference draws it: the default `--line` would not read at 16 px. A step
+// that is done sizes itself in its cell (`PipCell`), so only its look is here.
 const PIP_LOOKS: Record<Pip["kind"], string> = {
-  act: "size-4 rounded-xs bg-(--p)",
-  scroll: "size-4 rounded-xs bg-surface ring-2 ring-inset ring-(--p)",
-  back: "size-4 rounded-full bg-surface ring-2 ring-inset ring-ink-3",
-  wasted:
-    "size-4 rounded-xs bg-surface hatch [--hatch-line:var(--ink-3)] ring-1 ring-inset ring-ink-3",
+  act: "rounded-xs bg-(--p)",
+  scroll: "rounded-xs bg-surface ring-2 ring-inset ring-(--p)",
+  back: "rounded-full bg-surface ring-2 ring-inset ring-ink-3",
+  wasted: "rounded-xs bg-surface hatch [--hatch-line:var(--ink-3)] ring-1 ring-inset ring-ink-3",
   // 20 px, ringed in the slot past a 3 px surface gap. The margin keeps the ring off its
   // neighbour.
   now: "mx-1 size-5 rounded-xs bg-(--p) ring-2 ring-(--p) ring-offset-3 ring-offset-surface",
 };
+
+/**
+ * A step that is done, in a 22 px cell: its 16 px pip and the 6 px gap after it, the spacing s3-12
+ * set so 20 steps fit at 1280 (the reference's 10 px would not). A run long enough to fill the
+ * track, which the step cap allows up to 40 steps (issue #196), would otherwise run past the post
+ * and across the screenshot. So the cells give way together, and each pip keeps 16 / 22 of its
+ * narrower cell: every step stays on the track, in order, its kind still told by its fill or its
+ * ring. Until the track is full a cell keeps its 22 px, so a short run is drawn exactly as before.
+ * The step under way and the end mark never give way.
+ */
+function PipCell({ kind }: { kind: Exclude<Pip["kind"], "now"> }) {
+  return (
+    <span className="min-w-0 shrink basis-5.5">
+      <span
+        data-pip={kind}
+        className={cn("relative block h-4 w-[min(16px,73%)]", PIP_LOOKS[kind])}
+      />
+    </span>
+  );
+}
 
 /**
  * A place as English writes it: 1st, 2nd, 3rd, then 4th and 5th. Places run from 1 to the arena's
@@ -186,17 +206,23 @@ export function RaceLane({
       <div
         role="img"
         aria-label={trackLabel(pips, outcome, place, steps)}
-        className="relative flex h-10 min-w-0 items-center gap-1.5 pr-7"
+        className="relative flex h-10 min-w-0 items-center pr-7"
       >
         <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-(length:--stroke-rule) border-line" />
-        {pips.map((pip, index) => (
-          <span
+        {/* No gap on the track: each done step's cell holds the gap after its pip (`PipCell`). */}
+        {pips.map((pip, index) =>
+          pip.kind === "now" ? (
+            <span
+              // biome-ignore lint/suspicious/noArrayIndexKey: pips only append, so a pip's index is its step
+              key={index}
+              data-pip="now"
+              className={cn("relative shrink-0", PIP_LOOKS.now)}
+            />
+          ) : (
             // biome-ignore lint/suspicious/noArrayIndexKey: pips only append, so a pip's index is its step
-            key={index}
-            data-pip={pip.kind}
-            className={cn("relative shrink-0", PIP_LOOKS[pip.kind])}
-          />
-        ))}
+            <PipCell key={index} kind={pip.kind} />
+          ),
+        )}
         {markedEnding(outcome) ? (
           <span
             data-end={outcome}
