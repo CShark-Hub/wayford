@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel --filter @wayford/io --filter @wayford/web --filter @wayford/target-app dev",
+    "seed:demo": "pnpm --filter @wayford/io seed:demo",
     "test": "vitest run",
     "test:unit": "vitest run --exclude \"**/*.browser.test.ts\"",
     "test:watch": "vitest",

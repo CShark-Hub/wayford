@@ -5,10 +5,13 @@ import { z } from "zod";
 // The LLM settings live in @wayford/agent (`parseLlmSettings`), which fails
 // when the key is missing. `server.ts` runs it at boot, from the environment
 // this file loads.
+/** The database when `DATABASE_URL` is unset: `wayford.sqlite` at the repository root. */
+export const DEFAULT_DATABASE_URL = "file:./wayford.sqlite";
+
 const ConfigSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-  DATABASE_URL: z.string().min(1).default("file:./wayford.sqlite"),
+  DATABASE_URL: z.string().min(1).default(DEFAULT_DATABASE_URL),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

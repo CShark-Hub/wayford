@@ -5,8 +5,9 @@
  * (`axe.ts`) stores what it returns.
  *
  * It stays out of io's barrel, as `live-measure.ts` and `chromium.ts` do: it loads agent's runtime
- * and Playwright. Outside its tests, `server.ts` and the `analyse` CLI are its only importers.
- * axe-core itself loads on the first scan only, so a server that never scans never loads it.
+ * and Playwright. Outside its tests, `server.ts`, the `analyse` CLI and `seed-demo-cli.ts` are its
+ * only importers. axe-core itself loads on the first scan only, so a server that never scans never
+ * loads it.
  */
 import type { AxeBuilder } from "@axe-core/playwright";
 import { startUrlFor, TargetAppParams } from "@wayford/agent";

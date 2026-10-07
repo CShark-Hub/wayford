@@ -20,7 +20,7 @@ import { loadRun } from "./db/runs.js";
 import { sweeps } from "./db/schema.js";
 import { listSweeps, loadSweep } from "./db/sweeps.js";
 import { createRunner } from "./runner.js";
-import { runSweep, type SweepDeps, type SweepInput } from "./sweep.js";
+import { routeOpenFrom, runSweep, type SweepDeps, type SweepInput } from "./sweep.js";
 import {
   FAKE_STEP_COST,
   type FakeRun,
@@ -312,4 +312,11 @@ test("a sweep's backends are agent's Actor backends", () => {
 test("the runs' start URL carries the query the route walk measures at", () => {
   // The route-open share is about the page the runs saw (spec §6, "Tying the share to the runs").
   expect(startUrlFor(task, TARGET_APP_DEFAULTS).endsWith(TARGET_APP_DEFAULT_QUERY)).toBe(true);
+});
+
+test("with no routes, as for a task with no route table, route-open is undefined for every profile", () => {
+  const seedsOpen = () => {
+    throw new Error("no route table, so nothing is read off a walk");
+  };
+  expect(routeOpenFrom(undefined, [], seedsOpen)(vera, [1, 2])).toBeUndefined();
 });

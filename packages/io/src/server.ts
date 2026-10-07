@@ -3,9 +3,9 @@
  * backends, listen. Everything worth testing lives in `app.ts`, so this file does nothing on import
  * that a test would want. `pnpm dev` runs it under `tsx watch`.
  *
- * It, the `analyse` CLI and the sweep CLI, `sweep-cli.ts`, are the only io modules that load
- * agent's runtime and Playwright, through `actor-backends.ts`, `analyst-routes.ts`,
- * `axe-scan.ts`, `chromium.ts` and `live-measure.ts`
+ * It, the `analyse` CLI, the sweep CLI, `sweep-cli.ts`, and `seed:demo`, `seed-demo-cli.ts`, are
+ * the only io entry points that load agent's runtime and Playwright, through `actor-backends.ts`,
+ * `analyst-routes.ts`, `axe-scan.ts`, `chromium.ts`, `live-measure.ts` and `seed-demo.ts`
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, decision log, "The barrel").
  */
 import { join } from "node:path";

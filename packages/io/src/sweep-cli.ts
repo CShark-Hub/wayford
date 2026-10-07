@@ -11,9 +11,9 @@
  * refusal (the range, the axis on this persona, the cost estimate), all before the target app is
  * served on 5174 or a browser launched. A running `pnpm dev` holds 5174 and has to be stopped.
  *
- * It is one of three io modules, with `server.ts` and the `analyse` CLI, that load agent's runtime
- * and Playwright, so it stays out of the barrel, and no test imports it: it loads `.env` and starts
- * billed runs.
+ * It is one of four io entry points, with `server.ts`, the `analyse` CLI and `seed:demo`, that load
+ * agent's runtime and Playwright, so it stays out of the barrel, and no test imports it: it loads
+ * `.env` and starts billed runs.
  *
  * Exit 0 when every value ran with no `error` run, boundary or not: a boundary is a measurement.
  * 1 for a refusal, a failure, a stop for spend, or any errored run, after the table. 2 for a usage
@@ -44,7 +44,6 @@ import {
   serveOnFixturePort,
 } from "@wayford/agent/cli";
 import {
-  boundaryOf,
   MAX_RUN_SET_SEEDS,
   type Profile,
   type Seed,
@@ -66,6 +65,7 @@ import { loadTask } from "./db/tasks.js";
 import { createRunner } from "./runner.js";
 import { exitOnTermination } from "./shutdown.js";
 import { routeOpenFrom, runSweep } from "./sweep.js";
+import { boundaryLine, percent, routeOpenShare, shown, wallTime } from "./sweep-text.js";
 
 const DEFAULT_MAX_USD = 2;
 const REQUIRED = ["task", "persona", "axis", "from", "to", "step", "seeds"];
@@ -159,15 +159,6 @@ function findPersona(text: string): Profile {
   throw new WayfordError("profile_not_found", `no persona ${text}; one of ${known}`);
 }
 
-/** A value as the table prints it: a contrast ratio with at least one decimal, a cap as it is. */
-function shown(axis: SweepAxis, value: number): string {
-  return axis === "contrast" && Number.isInteger(value) ? value.toFixed(1) : String(value);
-}
-
-function percent(successes: number, seeds: number): string {
-  return `${Math.round((successes / seeds) * 100)}%`;
-}
-
 const COLUMNS = ["value", "success", "rate", "route-open", "errors"];
 const WIDTHS = [8, 9, 6, 12, 7];
 
@@ -180,35 +171,9 @@ function valueLine(axis: SweepAxis, row: SweepValue, seeds: number): string {
     shown(axis, row.value),
     `${row.successes}/${seeds}`,
     percent(row.successes, seeds),
-    row.routeOpenSeeds === null ? "—" : `${row.routeOpenSeeds.length}/${seeds}`,
+    routeOpenShare(row, seeds),
     String(row.errors),
   ]);
-}
-
-/**
- * The line under the table: the boundary, else why there is none, from core's `boundaryOf`, as the
- * stored sweep has it. Rows settled before a stop give the same answer.
- */
-function boundaryLine(axis: SweepAxis, rows: readonly SweepValue[], seeds: number): string {
-  const boundary = boundaryOf(rows, seeds);
-  const at = rows.find((row) => row.value === boundary);
-  if (at !== undefined) {
-    return `boundary   ${shown(axis, at.value)} (rate ${percent(at.successes, seeds)})`;
-  }
-  // No boundary and an errored value: `boundaryOf` stopped there.
-  const errored = rows.find((row) => row.errors > 0);
-  if (errored !== undefined) {
-    return `no boundary: ${shown(axis, errored.value)} had errors, so nothing past it is claimed`;
-  }
-  const last = rows.at(-1);
-  return last === undefined
-    ? "boundary   none: no value ran"
-    : `no boundary up to ${shown(axis, last.value)}`;
-}
-
-function wallTime(ms: number): string {
-  const seconds = Math.round(ms / 1000);
-  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
 }
 
 /** The sweep, and its exit code: 0 when every value ran with no error run, 1 otherwise. */
@@ -255,11 +220,11 @@ async function main(args: Arguments): Promise<number> {
     try {
       if (walked.status === "rejected") throw walked.reason;
       // Every swept value reads the same walk: sweeping moves no device.
-      const routes = walked.value && routesFor(walked.value, task.id, profile.device);
-      const routeOpen =
-        routes === undefined
-          ? () => undefined
-          : routeOpenFrom(routes, targetAppJargon, routeOpenSeeds);
+      const routeOpen = routeOpenFrom(
+        walked.value && routesFor(walked.value, task.id, profile.device),
+        targetAppJargon,
+        routeOpenSeeds,
+      );
 
       const browser = sharedBrowser(async () => {
         const launch = await launchChromium();

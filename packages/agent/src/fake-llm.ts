@@ -8,6 +8,10 @@
  * scripts Jev's probabilities from the request the same way, putting them on an option by its
  * element's name, since refs differ per persona.
  *
+ * One user is no test: io's `seed:demo --fake` (s4-07) answers Jev and the Analyst through it, so
+ * the demo's screens can be built on real-shaped data with no key, every answer checked as the
+ * real adapter checks it.
+ *
  * It answers from canned entries, one queue per role, and sends nothing.
  */
 import type { Cost, LlmRole } from "@wayford/core";

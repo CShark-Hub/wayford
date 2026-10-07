@@ -64,14 +64,17 @@ export interface SweepDeps {
 }
 
 /**
- * `SweepDeps["routeOpen"]` over the walked routes: the seeds with at least one route open. Filter's
- * `routeOpenSeeds` is passed in, since its entry loads Playwright and this module must not.
+ * `SweepDeps["routeOpen"]` over the walked routes: the seeds with at least one route open, and
+ * undefined for every profile when there are no routes, as `routesFor` gives a task with no route
+ * table. Filter's `routeOpenSeeds` is passed in, since its entry loads Playwright and this module
+ * must not.
  */
 export function routeOpenFrom(
-  routes: readonly WalkedRoute[],
+  routes: readonly WalkedRoute[] | undefined,
   jargon: readonly string[],
   seedsOpen: typeof routeOpenSeeds,
 ): SweepDeps["routeOpen"] {
+  if (routes === undefined) return () => undefined;
   return (profile, seeds) =>
     seedsOpen(routes, profile, seeds, { jargon })
       .filter(({ open }) => open.length > 0)
@@ -156,8 +159,8 @@ export async function runSweep(deps: SweepDeps, input: SweepInput): Promise<Swee
 
 /**
  * Waits for the run to end. Its record is stored, or its save has failed, by then. The id came
- * from `runner.start`, so the runner always has the run.
+ * from `runner.start`, so the runner always has the run. `seed:demo` waits on its run sets so.
  */
-async function ended(live: LiveRun | undefined): Promise<void> {
+export async function ended(live: LiveRun | undefined): Promise<void> {
   while (live?.ended === false) await live.changed();
 }

@@ -6,8 +6,8 @@
  *
  * It stays out of io's barrel, as `chromium.ts` does: `@wayford/filter/routes` walks the target
  * app, and loads Playwright and Vite to do it. The app takes the facts as `AppOptions.routes`, so
- * `analyst.ts` and the routes import their type alone. Outside its tests, `server.ts` and the
- * `analyse` CLI are its only importers.
+ * `analyst.ts` and the routes import their type alone. Outside its tests, `server.ts`, the
+ * `analyse` CLI and `seed-demo.ts` are its only importers.
  */
 import type { DeviceKind } from "@wayford/core";
 import {

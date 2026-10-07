@@ -25,6 +25,7 @@ pnpm lint        # Biome, also enforces package import rules
 pnpm typecheck   # tsc --noEmit in every package
 pnpm dev         # io on 3000, web on 5173, target-app on 5174
 pnpm --filter @wayford/io db:migrate   # creates wayford.sqlite at the repository root
+pnpm seed:demo --fake   # the demo's runs, reports and sweeps, with no key; stop pnpm dev first
 ```
 
 Copy `.env.example` to `.env`, both at the repository root, before running `io`.
