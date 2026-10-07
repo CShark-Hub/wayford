@@ -376,7 +376,11 @@ test("every persona fixture sends Jev the same first request on the same page (F
         answers: [jevGiveUp],
       });
       // On the terminal event, not the outcome, so a run that failed prints its `runFailed` error.
-      expect(events.at(-1)).toMatchObject({ type: "runFinished", outcome: "gave_up" });
+      // Ended, not failed: a persona with `scrollWhenStuck` may scroll instead (B2) and meet the cap.
+      expect(events.at(-1)).toMatchObject({
+        type: "runFinished",
+        outcome: expect.stringMatching(/^(gave_up|budget_exceeded)$/),
+      });
       // The whole request: its role, its state and its question, options and all.
       return decideCalls[0];
     }),

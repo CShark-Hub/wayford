@@ -1,0 +1,30 @@
+# s2-07 — B2: scroll when stuck: plan
+
+Task: `tasks/s2-07-scroll-when-stuck.md` · Spec: none (S task)
+Status: approved 2026-10-07 (auto)
+
+| # | Step | Files | Serves box | Test first | Done when | Parallel with |
+|---|---|---|---|---|---|---|
+| 1 | B2 in stage 7: `behave` takes the Actor's previous proposal, and rolls B2 on a `giveUp` or a repeat, after B1, as the B2 row defines a repeat | `packages/agent/src/behaviour.ts`, `behaviour.test.ts` | 1, 4, 6 | `behaviour.test.ts`: p 1 on a `giveUp` performs `scroll` down with the roll fired; p 0 rolls and keeps the `giveUp`; a repeat rolls and a fired roll scrolls; a first step or a different proposal takes no draw; a repeated `scroll` down takes no draw; on a repeated click B1 rolls first, and when it fires B2 takes no draw; without the knob nothing is drawn; every result passes core's roll audit (`CompleteRunStep`'s refine, through a parse) | `pnpm --filter @wayford/agent exec vitest run src/behaviour.test.ts` green | 3 |
+| 2 | The loop passes the previous proposal, and a fired B2 on a `giveUp` keeps the run going | `packages/agent/src/actor-loop.ts`, `actor-loop.browser.test.ts` | 2, 3, 4, 5, 6, 7 | `actor-loop.browser.test.ts`: p 1 and a fake that gives up on step 2 scrolls there, the roll fired, and the run reaches step 3; p 0 ends `gave_up` on step 2, the roll not fired; a repeated click rolls B2 and a fired roll scrolls; two runs with the same seed and answers have equal B1 and B2 rolls; every `RunResult` parses (core's audit); p 1 and a fake that only gives up ends `budget_exceeded` at the step cap | `pnpm --filter @wayford/agent test` green | — |
+| 3 | RULES' B2 row says what a repeat is | `docs/RULES.md` | 4 | — (prose; step 1's tests pin the same rule) | the row reads as built | 1 |
+| 4 | Verify: `pnpm lint`, `pnpm typecheck`, `pnpm test`; tick the boxes | `tasks/s2-07-scroll-when-stuck.md` | all | — | all exit 0; each box has its evidence | — |
+
+Step 2 waits on step 1. No step changes `pnpm-lock.yaml`.
+
+## Decision log
+
+| Question | Taken | Why |
+|---|---|---|
+| What a repeat is (superseded by the review row below) | The Actor's proposal equals its previous proposal: same type, ref, direction, text or wait, compared whole. A wasted step proposes nothing and is skipped, so the comparison is with the last step that proposed an action. The first proposal of a run is never a repeat | B2 is about the Actor being stuck, which is what it proposes, not what the dice made of it. Comparing performed actions would let a B1 double click hide a repeated click. Skipping wasted steps keeps "the same proposal again" true across a refused answer |
+| B1 and B2 on one step | B1 rolls first, in RULES' table order. When B1 fired, B2 does not apply on that step: the action is no longer the Actor's repeat, and B2 takes no draw | Core's roll audit holds a fired B1 to a `doubleClick` and a fired B2 to a `scroll`, so both firing on one step cannot be stored. Zoya sets both knobs (0.9 and 0.3). Changing core's contract is outside the task's files; this rule keeps every stored step valid and the stream's order fixed |
+| A repeated `scroll` down | Not a B2 case: no draw, nothing logged | B2's effect is a `scroll` down, so a fired roll would change nothing, and a fired roll that changes nothing would read as a lie in the log |
+| A `giveUp` that B2 turned into a scroll | The run goes on; the next step's proposal is compared with that `giveUp` | Only a performed `giveUp` ends `gave_up` (F5 AC4). A second `giveUp` is a `giveUp` case anyway |
+| Where RULES says it | In the B2 row's "Effect" column, after its first sentence | The task allows RULES only to pin what a repeat is; the B1 precedence is part of that definition, since it says when a proposal counts as the Actor's repeat |
+| Tests in the browser file | Beside B1's loop tests in `actor-loop.browser.test.ts` | The loop's B1 tests live there, on the served target app; the boxes ask for runs, not just `behave` |
+| What a repeat is, revised (review) | The proposal's history line equals the previous proposal's line: the same move on the same URL, its target named by role and name (`repeats` in `history.ts`). `behave` takes a `repeated` boolean | The cold review showed that comparing whole actions is wrong: every page gives its refs out again, so Milo's correct second click on the easy goal ("Delivery address", the same ref as "Your account" on the home page) was scrolled away in 9 of 10 seeds. The history line is already the one place an action is named by what it targets |
+| A click B2 blocked, proposed again (review) | Still a repeat, compared with the blocked proposal | The Actor proposing the same move again is what stuck means; the step cap and B3 bound it |
+| Two controls shown under one name (review) | A repeat when the Actor was shown the same role and name for both, as K1 or K4 can make two unknown controls read `button "button"` | The Actor cannot tell them apart, so to it the move is the same; comparing the measured names would judge stuck by what the persona never saw |
+| Two scroll-ups in a row (review) | A repeat only when the first left the page as it was, as at the top of a page; then B2 turns it into a scroll down | The row says any repeated action; other directions are out of scope, and `behaviour.test.ts` pins this edge |
+| A page that changed under the same move (PR review) | No repeat: a repeat also needs the observation the Actor was shown to be unchanged (`renderObservationForModel` equal) | A second "Next" on a single-page wizard, or a second scroll that moved the page, is progress. Comparing only the history line counted it as stuck, which on sites we did not build (ADR 0003) would scroll Milo away from real progress 9 times in 10. A page that changes every step (a clock) then hides a repeat, which understates, as RULES stage 4 prefers |
+| "You gave up" in the history after B2 turned a `giveUp` into a scroll (PR review, question) | Kept | The history tells what the Actor proposed, never what the dice did (s2-10). Changing the prompt is out of scope for this task |

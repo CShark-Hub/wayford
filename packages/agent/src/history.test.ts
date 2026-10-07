@@ -1,6 +1,6 @@
 import { type Action, FullObservation, Observation, toActorObservation } from "@wayford/core";
 import { describe, expect, test } from "vitest";
-import { type HistoryStep, renderHistory } from "./history.js";
+import { type HistoryStep, renderHistory, repeats } from "./history.js";
 
 const BOX = { x: 120, y: 240, width: 180, height: 36 };
 
@@ -201,5 +201,79 @@ describe("memorySteps (M1)", () => {
       "- On http://localhost:5174/deliveries: you pointed at something that was not on that page, so nothing happened.",
       lines[3],
     ]);
+  });
+});
+
+describe("repeats: B2's repeat, the same line as the last proposal", () => {
+  const CLICK_E1: Action = { type: "click", ref: "e1" };
+  const clickedHome: HistoryStep = { observation: home, proposed: CLICK_E1 };
+  // The home page again, a step later, with a banner above the link: "Your account" is e2 now.
+  const homeAgain = shownPage("/", 1, [
+    ["link", "Summer sale"],
+    ["link", "Your account"],
+  ]);
+
+  // One URL whose "Next" changes the step it shows, as a single-page wizard's does.
+  const wizardAt = (step: number) =>
+    shownPage("/wizard", step, [
+      ["heading", `Step ${step} of 5`],
+      ["button", "Next"],
+    ]);
+  const NEXT: Action = { type: "click", ref: "e2" };
+
+  test.each([
+    ["the same click on the same page", [clickedHome], { observation: home, proposed: CLICK_E1 }],
+    [
+      "a Next that changed nothing",
+      [{ observation: wizardAt(1), proposed: NEXT }],
+      { observation: wizardAt(1), proposed: NEXT },
+    ],
+    [
+      "across a wasted step",
+      [clickedHome, { observation: home, wasted: true }],
+      { observation: home, proposed: CLICK_E1 },
+    ],
+    [
+      "a second scroll up on one URL",
+      [{ observation: account, proposed: { type: "scroll", direction: "up" } }],
+      { observation: account, proposed: { type: "scroll", direction: "up" } },
+    ],
+  ] as const)("%s is a repeat", (_, history, step) => {
+    expect(repeats(history, step)).toBe(true);
+  });
+
+  test.each([
+    ["the run's first proposal", [], { observation: home, proposed: CLICK_E1 }],
+    // Every page gives its refs out again: e1 is "Your account" on / and "Delivery address" on
+    // /account, so the walk's second click repeats nothing.
+    ["the same ref on another page", [clickedHome], { observation: account, proposed: CLICK_E1 }],
+    [
+      "another element on the same page",
+      [clickedHome],
+      { observation: homeAgain, proposed: CLICK_E1 },
+    ],
+    // A press or scroll that changed the page is progress, even on one URL.
+    [
+      "a Next that moved the wizard on",
+      [{ observation: wizardAt(1), proposed: NEXT }],
+      { observation: wizardAt(2), proposed: NEXT },
+    ],
+    [
+      "the same element on a page that changed: a banner above it",
+      [clickedHome],
+      { observation: homeAgain, proposed: { type: "click", ref: "e2" } },
+    ],
+    [
+      "another move on the same element",
+      [clickedHome],
+      { observation: home, proposed: { type: "doubleClick", ref: "e1" } },
+    ],
+    [
+      "back on another page",
+      [{ observation: account, proposed: { type: "back" } }],
+      { observation: home, proposed: { type: "back" } },
+    ],
+  ] as const)("%s is not a repeat", (_, history, step) => {
+    expect(repeats(history, step)).toBe(false);
   });
 });

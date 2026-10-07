@@ -15,7 +15,13 @@
  * the page before's `e3`). No narration either: it is the model's interpretation, and the Jev
  * backend (s2-06) writes none.
  */
-import type { Action, ActorElement, ElementRef, Observation } from "@wayford/core";
+import {
+  type Action,
+  type ActorElement,
+  type ElementRef,
+  type Observation,
+  renderObservationForModel,
+} from "@wayford/core";
 
 /**
  * One step as the Actor took it: the page it was shown and the action it proposed there, or
@@ -46,6 +52,19 @@ export function renderHistory(steps: readonly HistoryStep[], memorySteps?: numbe
   if (dropped > 0)
     lines.unshift(`- ${dropped} earlier ${dropped === 1 ? "step" : "steps"} not shown.`);
   return lines.join("\n");
+}
+
+/** Whether `step` repeats the Actor's last proposal: `docs/RULES.md` stage 7, the B2 row. */
+export function repeats(
+  history: readonly HistoryStep[],
+  step: { observation: Observation; proposed: Action },
+): boolean {
+  const last = history.findLast((earlier) => "proposed" in earlier);
+  return (
+    last !== undefined &&
+    historyLine(last) === historyLine(step) &&
+    renderObservationForModel(last.observation) === renderObservationForModel(step.observation)
+  );
 }
 
 function historyLine(step: HistoryStep): string {

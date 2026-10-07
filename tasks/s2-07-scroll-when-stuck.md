@@ -36,14 +36,20 @@ When the Actor would give up or repeat itself, a persona with `scrollWhenStuck` 
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/agent test` passes
-- [ ] With `scrollWhenStuck` 1, a fake that answers `giveUp` on step 2 gets a scroll performed on step 2, its roll stored as fired, and the run goes on to step 3
-- [ ] With `scrollWhenStuck` 0, the same fake ends `gave_up` on step 2, its roll stored as not fired
-- [ ] A repeated action, as RULES' B2 row defines it (Constraints), rolls B2, and a fired roll performs a scroll
-- [ ] Same seed and answers twice: every B1 and B2 roll is equal (F5 AC1)
-- [ ] Every step of the `RunResult` passes core's roll audit
-- [ ] With `scrollWhenStuck` 1 and a fake that only gives up, the run ends `budget_exceeded` at the step cap
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
+- [x] `pnpm --filter @wayford/agent test` passes: 25 files, 428 tests
+- [x] With `scrollWhenStuck` 1, a fake that answers `giveUp` on step 2 gets a scroll performed on step 2, its roll stored as fired, and the run goes on to step 3: `packages/agent/src/actor-loop.browser.test.ts`, "B2: scroll when stuck", "at p 1, a giveUp on step 2 …" (steps 0 to 3; step 2 proposed `giveUp`, performed a `scroll` down, B2 fired)
+- [x] With `scrollWhenStuck` 0, the same fake ends `gave_up` on step 2, its roll stored as not fired: same file, "at p 0, the same answers end gave_up on step 2 …"
+- [x] A repeated action, as RULES' B2 row defines it (Constraints), rolls B2, and a fired roll performs a scroll: same file, "a repeated proposal rolls B2 …" and "two clicks with one ref on two pages are no repeat …"; what is and is not a repeat in `packages/agent/src/history.test.ts` ("repeats: …"); a repeated scroll down and B1 first in `packages/agent/src/behaviour.test.ts`
+- [x] Same seed and answers twice: every B1 and B2 roll is equal (F5 AC1): same file, "the same seed and answers twice give equal B1 and B2 rolls …", each roll equal to `rng(RUN_SEED)`'s draws in order
+- [x] Every step of the `RunResult` passes core's roll audit: the loop parses every `actionPlanned` through core's `RunEvent` as it emits it, and the result through `RunResult`, so a step the audit refuses ends the run `error`; every B2 loop test asserts its outcome or its landed steps, which such a run fails. The same-seed test asserts both runs end `gave_up`. With B2 made to scroll on an unfired roll, a step the audit refuses, that test fails on `['error', 'error']`
+- [x] With `scrollWhenStuck` 1 and a fake that only gives up, the run ends `budget_exceeded` at the step cap: same file, "at p 1, an Actor that only gives up …" (cap 3)
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root: biome clean on 353 files, typecheck exit 0, 139 files and 1987 tests
+
+## Outcome
+
+- A repeat is a proposal whose history line is the line of the Actor's previous proposal: the same move on the same URL, its target named by role and name, on a page the Actor was shown unchanged. A press or scroll that changed the page is progress, even on one URL (PR review). Neither option in Constraints held: a ref alone is no repeat, since every page gives its refs out again. Wasted steps are skipped, and the first proposal is never a repeat. A repeated `scroll` down is not a B2 case, because B2 would perform the same scroll.
+- B2 rolls after B1 and does not apply on a step where B1 fired: core's roll audit holds a fired B1 to the double click it made, and Zoya sets both knobs.
+- B2 keeps Milo and Zoya going past a give-up, so the two F5 AC6 tests (`actor-loop.browser.test.ts`, `jev-actor.browser.test.ts`) now accept `gave_up` or `budget_exceeded`.
 
 ## Out of scope
 

@@ -387,6 +387,124 @@ test("B1 draws the behaviour stream in order, and a wasted step draws nothing", 
   expect(urlAfter(result.steps[3])).toBe(`${app.origin}/deliveries/archive`);
 });
 
+describe("B2: scroll when stuck", () => {
+  const SCROLL_UP: ActorResponse = { narration: "", action: { type: "scroll", direction: "up" } };
+  const SCROLLED_DOWN = { type: "scroll", direction: "down" };
+  /** Ada, who sets no B1 knob, with `scrollWhenStuck` p: only B2 rolls. */
+  const stuckAda = (p: number): Profile => {
+    const ada = profileFixture("prof_ada");
+    return { ...ada, behaviour: { ...ada.behaviour, scrollWhenStuck: p } };
+  };
+  // A click, a back, then a giveUp on step 2, and another after it.
+  const GIVES_UP_ON_STEP_2 = [click("link", "Deliveries"), BACK, GIVE_UP, GIVE_UP];
+
+  test("at p 1, a giveUp on step 2 is performed as a scroll down, its roll fired, and the run goes on to step 3", async () => {
+    const { result } = await walk({
+      profile: stuckAda(1),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 4,
+      answers: GIVES_UP_ON_STEP_2,
+    });
+    const step2 = completeAt(result, 2);
+    expect(step2.proposedAction).toStrictEqual({ type: "giveUp" });
+    expect(step2.performedAction).toStrictEqual(SCROLLED_DOWN);
+    expect(step2.dice).toStrictEqual([
+      { rule: "B2", p: 1, rolled: step2.dice[0]?.rolled, fired: true },
+    ]);
+    // Not a give-up: the Actor decides again on step 3, and only the cap ends the run.
+    expect(result.steps.map((step) => step.stepIndex)).toStrictEqual([0, 1, 2, 3]);
+    expect(result.outcome).toBe("budget_exceeded");
+  });
+
+  test("at p 0, the same answers end gave_up on step 2, its roll stored as not fired", async () => {
+    const { result } = await walk({
+      profile: stuckAda(0),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 4,
+      answers: GIVES_UP_ON_STEP_2,
+    });
+    expect(result.outcome).toBe("gave_up");
+    expect(result.steps).toHaveLength(3);
+    const step2 = completeAt(result, 2);
+    expect(step2.performedAction).toStrictEqual({ type: "giveUp" });
+    expect(step2.dice).toStrictEqual([
+      { rule: "B2", p: 0, rolled: step2.dice[0]?.rolled, fired: false },
+    ]);
+    // Steps 0 and 1 were neither a giveUp nor a repeat: nothing rolled.
+    expect(diceOf(result).slice(0, 2)).toStrictEqual([[], []]);
+  });
+
+  test("a repeated proposal rolls B2, and a fired roll performs a scroll down", async () => {
+    const { result } = await walk({
+      profile: stuckAda(1),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 2,
+      answers: [SCROLL_UP, SCROLL_UP],
+    });
+    // The first scroll up is the run's first proposal; the second repeats it.
+    expect(diceOf(result)[0]).toStrictEqual([]);
+    const step1 = completeAt(result, 1);
+    expect(step1.proposedAction).toStrictEqual(SCROLL_UP.action);
+    expect(step1.performedAction).toStrictEqual(SCROLLED_DOWN);
+    expect(step1.dice.map(({ rule, fired }) => ({ rule, fired }))).toStrictEqual([
+      { rule: "B2", fired: true },
+    ]);
+  });
+
+  test("two clicks with one ref on two pages are no repeat: nothing rolls", async () => {
+    // Ada is given one ref for "Go to deliveries" on / and for the checkbox on /deliveries.
+    const { result } = await walk({
+      profile: stuckAda(1),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 2,
+      answers: [
+        click("link", "Go to deliveries"),
+        click("checkbox", "Text me on the day of delivery"),
+      ],
+    });
+    const [first, second] = [completeAt(result, 0), completeAt(result, 1)];
+    expect(second.proposedAction).toStrictEqual(first.proposedAction);
+    expect(second.performedAction).toStrictEqual(second.proposedAction);
+    expect(diceOf(result)).toStrictEqual([[], []]);
+  });
+
+  test("the same seed and answers twice give equal B1 and B2 rolls, the stream's draws in order", async () => {
+    // Both knobs at once, as Zoya sets them, on Ada, who sees every link the answers click: B1
+    // rolls on the click, B2 on each giveUp.
+    const both = { ...stuckAda(0.5), behaviour: { ...stuckAda(0.5).behaviour, doubleClick: 0.5 } };
+    const answers = [click("link", "Deliveries"), GIVE_UP, GIVE_UP, GIVE_UP];
+    const task = taskOf("task_next-parcel");
+    const [a, b] = await Promise.all([
+      walk({ profile: both, task, maxSteps: 4, answers }),
+      walk({ profile: both, task, maxSteps: 4, answers }),
+    ]);
+    // Both ended as the answers lead, so neither stored a step core's roll audit refused.
+    expect([a.result.outcome, b.result.outcome]).toStrictEqual(["gave_up", "gave_up"]);
+    const dice = diceOf(a.result);
+    expect(diceOf(b.result)).toStrictEqual(dice);
+    const rolls = dice.flatMap((step) => step ?? []);
+    expect(rolls.some(({ rule }) => rule === "B1")).toBe(true);
+    expect(rolls.some(({ rule }) => rule === "B2")).toBe(true);
+    // One stream across both rules: the rolls are the run seed's draws, in the order rolled.
+    const draw = rng(RUN_SEED);
+    expect(rolls.map(({ rolled }) => rolled)).toStrictEqual(rolls.map(() => draw()));
+  });
+
+  test("at p 1, an Actor that only gives up is kept going until the step cap ends it budget_exceeded", async () => {
+    const { result } = await walk({
+      profile: stuckAda(1),
+      task: taskOf("task_next-parcel"),
+      maxSteps: 3,
+      answers: [GIVE_UP, GIVE_UP, GIVE_UP],
+    });
+    expect(result.outcome).toBe("budget_exceeded");
+    expect(result.steps).toHaveLength(3);
+    for (const i of [0, 1, 2]) {
+      expect(completeAt(result, i).performedAction).toStrictEqual(SCROLLED_DOWN);
+    }
+  });
+});
+
 /**
  * The first run seed from 1 to 200 at which `profile` sees "Order archive" degraded on the
  * measurement fixture, which is the app's /deliveries at its defaults, and the name it reads then.
@@ -733,7 +851,8 @@ test("every persona fixture sends the same first request on the same page (F5 AC
         maxSteps: 1,
         answers: [GIVE_UP],
       });
-      expect(result.outcome).toBe("gave_up");
+      // Ended, not failed: a persona with `scrollWhenStuck` may scroll instead (B2) and meet the cap.
+      expect(["gave_up", "budget_exceeded"]).toContain(result.outcome);
       // The whole request: its messages, its role, its schema and any seed.
       return calls[0];
     }),

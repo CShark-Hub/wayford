@@ -1,7 +1,7 @@
-import type { Action } from "@wayford/core";
+import type { Action, Behaviour } from "@wayford/core";
 import { actionFixtures, profileFixture } from "@wayford/core/fixtures";
 import { expect, test } from "vitest";
-import { behave } from "./behaviour.js";
+import { type Behaved, behave } from "./behaviour.js";
 
 // A roll fires strictly below p, so the edges are p itself and the largest numbers under it.
 const JUST_UNDER_HALF = 0.5 - 2 ** -54;
@@ -91,4 +91,84 @@ test("a profile without doubleClick takes no draw on a click and rolls nothing",
   expect(behaved.performed).toBe(CLICK);
   expect(behaved.dice).toStrictEqual([]);
   expect(stream.taken()).toBe(0);
+});
+
+// ---------------------------------------------------------------------------
+// B2: scroll when stuck
+// ---------------------------------------------------------------------------
+
+const GIVE_UP: Action = { type: "giveUp" };
+const BACK: Action = { type: "back" };
+const SCROLL_DOWN: Action = { type: "scroll", direction: "down" };
+const SCROLL_UP: Action = { type: "scroll", direction: "up" };
+
+test.each<[string, Action, Pick<Behaviour, "scrollWhenStuck">, boolean, number[], Behaved]>([
+  [
+    "p 1 on a giveUp scrolls down, the roll fired",
+    GIVE_UP,
+    { scrollWhenStuck: 1 },
+    false,
+    [HIGHEST_DRAW],
+    { performed: SCROLL_DOWN, dice: [{ rule: "B2", p: 1, rolled: HIGHEST_DRAW, fired: true }] },
+  ],
+  [
+    "p 0 on a giveUp rolls and keeps the giveUp",
+    GIVE_UP,
+    { scrollWhenStuck: 0 },
+    false,
+    [0],
+    { performed: GIVE_UP, dice: [{ rule: "B2", p: 0, rolled: 0, fired: false }] },
+  ],
+  [
+    "p 1 on a repeat scrolls down",
+    BACK,
+    { scrollWhenStuck: 1 },
+    true,
+    [0],
+    { performed: SCROLL_DOWN, dice: [{ rule: "B2", p: 1, rolled: 0, fired: true }] },
+  ],
+  [
+    "a repeated scroll up is turned down",
+    SCROLL_UP,
+    { scrollWhenStuck: 1 },
+    true,
+    [0],
+    { performed: SCROLL_DOWN, dice: [{ rule: "B2", p: 1, rolled: 0, fired: true }] },
+  ],
+  [
+    "a repeated scroll down takes no draw, since a fired roll would change nothing",
+    SCROLL_DOWN,
+    { scrollWhenStuck: 1 },
+    true,
+    [],
+    { performed: SCROLL_DOWN, dice: [] },
+  ],
+  ["no knob takes no draw on a repeat", BACK, {}, true, [], { performed: BACK, dice: [] }],
+])("%s", (_, proposed, behaviour, repeated, draws, behaved) => {
+  const stream = scripted(...draws);
+  expect(behave(proposed, behaviour, stream.draw, repeated)).toStrictEqual(behaved);
+  expect(stream.taken()).toBe(draws.length);
+});
+
+test("on a repeated click B1 rolls first; when it fires, B2 does not apply and takes no draw", () => {
+  // Zoya sets both knobs. Core's audit holds a fired B1 to a double click, so B2 cannot also fire.
+  const { behaviour } = profileFixture("prof_zoya");
+  expect(behaviour.doubleClick).toBeDefined();
+  expect(behaviour.scrollWhenStuck).toBeDefined();
+  const firedB1 = scripted(0);
+  expect(behave(CLICK, { doubleClick: 1, scrollWhenStuck: 1 }, firedB1.draw, true)).toStrictEqual({
+    performed: { type: "doubleClick", ref: "e3" },
+    dice: [{ rule: "B1", p: 1, rolled: 0, fired: true }],
+  });
+  expect(firedB1.taken()).toBe(1);
+
+  // B1 rolled and held: the click is still the Actor's repeat, so B2 takes the next draw.
+  const heldB1 = scripted(0.5, 0);
+  expect(behave(CLICK, { doubleClick: 0, scrollWhenStuck: 1 }, heldB1.draw, true)).toStrictEqual({
+    performed: SCROLL_DOWN,
+    dice: [
+      { rule: "B1", p: 0, rolled: 0.5, fired: false },
+      { rule: "B2", p: 1, rolled: 0, fired: true },
+    ],
+  });
 });

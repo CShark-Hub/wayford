@@ -60,7 +60,7 @@ import {
   providerSeedFor,
 } from "./actor-backend.js";
 import { behave } from "./behaviour.js";
-import { type HistoryStep, oneLine } from "./history.js";
+import { type HistoryStep, oneLine, repeats } from "./history.js";
 import { LlmError } from "./llm.js";
 import { openRunContext, type RunContext, type RunRecording } from "./run-context.js";
 import { retryOnNavigation, settle } from "./settle.js";
@@ -367,7 +367,12 @@ async function walk(loop: Loop): Promise<FinishedOutcome> {
       // 3. Plan: stage 7's dice on the action proposed, and what they leave is what is performed.
       const { action: proposed, narration } = answer.response;
       if (narration !== "") loop.emit({ type: "narration", stepIndex: k, text: narration });
-      const { performed, dice } = behave(proposed, loop.profile.behaviour, loop.draw);
+      const { performed, dice } = behave(
+        proposed,
+        loop.profile.behaviour,
+        loop.draw,
+        repeats(history, { observation: shown, proposed }),
+      );
       // A backend that drew the action says how, and the record keeps it beside the dice.
       loop.emit({
         type: "actionPlanned",
@@ -387,7 +392,7 @@ async function walk(loop: Loop): Promise<FinishedOutcome> {
       history.push({ observation: shown, proposed });
       // 5. The end checks, success first, so the last step the cap allows can still succeed.
       if (met) return "success";
-      // The performed one, which B2 will make a scroll in place of a giveUp (s2-07).
+      // The performed one: a giveUp B2 turned into a scroll does not end the run.
       if (performed.type === "giveUp") return "gave_up";
     }
     // 6. The cap, wasted steps included, so the same seed and answers end a capped run the same.
