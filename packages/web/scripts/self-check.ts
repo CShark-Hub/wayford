@@ -16,6 +16,7 @@ import { axeScanFixture, measurementFixture, reportFixture } from "@wayford/core
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
 import { createServer } from "vite";
+import { fixtureSweep } from "../src/boundary/fixture-sweeps.js";
 import { THEME_NAMES, type Theme } from "../src/theme.js";
 
 /**
@@ -50,6 +51,16 @@ export interface SelfCheckScreen {
   exclude?: string;
 }
 
+/**
+ * The Boundary is drawn once its headline shows and the top bar carries the sweep's stored badge.
+ * The badge is a portal into the bar, which only a mounted shell draws, so this is where a screen
+ * that drops it fails.
+ */
+const BOUNDARY_READY = [
+  'body:has([data-slot="top-bar-slot"] [data-source="stored"])',
+  'main h1:has-text("Under half get through")',
+].join(" ");
+
 /** The screens that must pass. The shell is measured around each of them. */
 export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
   {
@@ -78,6 +89,19 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     ready: "role=heading[name=/^Measurement/]",
     // The hard goal's report, which holds a finding of each certainty. The screen asks for no more.
     responses: { "/reports/task_past-order": reportFixture("task_past-order") },
+  },
+  {
+    name: "boundary",
+    path: "/boundary",
+    ready: BOUNDARY_READY,
+    // Vera's preset asks for her contrast sweeps; responses are keyed by path, so the query is not.
+    responses: { "/sweeps": [fixtureSweep("swp_vera-contrast")] },
+  },
+  {
+    name: "boundary · maxElements",
+    path: "/boundary/swp_kai-max-elements",
+    ready: BOUNDARY_READY,
+    responses: { "/sweeps/swp_kai-max-elements": fixtureSweep("swp_kai-max-elements") },
   },
 ];
 

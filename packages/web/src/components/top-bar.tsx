@@ -12,14 +12,16 @@ import { buttonVariants } from "./ui/button.js";
 
 /**
  * The story's screens, numbered in the order the demo walks them. A screen joins once its route
- * exists: `s3-09` adds `05 Boundary`. Report opens the hard goal's report, the one the demo walks.
- * Runs sits apart, and Events, the m0-07 debug screen, keeps its route but has no entry.
+ * exists. Report opens the hard goal's report, the one the demo walks. Boundary stays current on
+ * `/boundary/$sweepId` and under a search, as a link is current wherever its path leads. Runs sits
+ * apart, and Events, the m0-07 debug screen, keeps its route but has no entry.
  */
 export const STORY_NAV = [
   { number: "01", label: "Cast", to: "/cast" },
   { number: "02", label: "Lens", to: "/lens" },
   { number: "03", label: "Race", to: "/race" },
   { number: "04", label: "Report", to: "/report/$taskId", params: { taskId: DEMO_GOAL } },
+  { number: "05", label: "Boundary", to: "/boundary" },
 ] as const;
 
 // TanStack's Link marks the current page with `aria-current="page"`, so the style keys on what a

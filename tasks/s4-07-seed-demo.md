@@ -72,13 +72,14 @@ Read first, in this order:
   - `GET /runs` returned 60 runs;
   - `GET /reports/:taskId` returned 200 for both tasks, each over 30 runs. The hard goal's report holds an axe-core `measurement` finding, 4 deterministic findings and a hypothesis, and the fake Analyst answered the measurement's key too;
   - `GET /sweeps` returned 2, both complete with 7 values.
-- [ ] After `pnpm seed:demo --fake`, `pnpm dev` shows a populated dashboard, both reports, both sweeps and, once `s3-10` is in, the Jev panel in run detail. The PR has a screenshot of each.
-  - **These hold now, on the `--fake` data above:**
-    - the dashboard: `/runs` shows 60 runs and both goals' results per persona;
-    - the Jev panel (`s3-10`, merged in PR #174): run detail names the backend `jev` and the model `fake-jev`, and shows each step's options with their probability and share, and where the roll landed.
-
-    Both were screenshotted locally. `gh` cannot attach images, so they are dragged into the PR by hand.
-  - **These wait:** the Report screen, `s3-08`, merged in PR #183 after these screenshots were taken. The Boundary screen, `s3-09`, is in review in PR #182. Their screenshots, and this tick, move to `s3-09`'s PR, which merges after this one (Outcome).
+- [x] After `pnpm seed:demo --fake`, `pnpm dev` shows a populated dashboard, both reports, both sweeps and, once `s3-10` is in, the Jev panel in run detail. The PR has a screenshot of each.
+  - Ticked in `s3-09`'s PR (#182) on 2026-10-07, after merging main with this task, `s3-08` (PR #183) and `s3-10` (PR #174). Scout's ground truth from box 4's run was copied into `runs/ground-truth/`.
+  - `pnpm seed:demo --fake` on a fresh `DATABASE_URL=file:./wayford-fake.sqlite` exited 0 with box 2's summary: 200 runs, 58 success and 142 gave up; Vera's boundary 2.5 and Kai's 16; wall time 2m 01s.
+  - `pnpm dev` ran on it, and Playwright took each screen at 1280 × 720 in Daylight and Night. The screenshots are in PR #182:
+    - **the dashboard:** `/runs`, 60 of 60 runs, and both goals' results per persona;
+    - **both reports:** `/report/task_past-order` and `/report/task_next-parcel`, each opening with Scout's line, with `stored jev` in the top bar;
+    - **both sweeps:** `/boundary`, "Under half get through, first at 2.5:1.", and `/boundary?axis=maxElements`, "Under half get through, first at 16.";
+    - **the Jev panel:** run detail of one of Kai's runs on the hard goal, on `jev` with `fake-jev`. It shows each option's probability, share and range, and where the roll landed.
 - [x] With a real key, `pnpm seed:demo --reset` on Jev completes; its summary is in the PR. Run on 2026-10-06 with Marcin's yes, after Scout (`pnpm --filter @wayford/agent scout`: both goals reached in 2 steps, 0.0010 USD). It exited 0:
 
   ```
@@ -136,7 +137,7 @@ Built as `docs/specs/2026-10-06-s4-07-seed-demo.md` says. Every choice is in its
   - The cost is the runs plus the Analyst, and "per run" is the runs' cost alone.
   - The command exits 1 when a run errored or was never stored.
 - **The real seed's estimate** is printed, never refused: the task names no limit.
-- **Box 3 stays unticked when this PR merges.** `s3-09`'s PR (#182) merges after it, since its empty state names `pnpm seed:demo`. That PR merges main, runs `pnpm seed:demo --fake`, adds the Report (`s3-08`, merged in PR #183) and Boundary screenshots on that data, and ticks the box here. The dashboard and the Jev panel (`s3-10`) parts hold now.
+- **Box 3 was ticked in `s3-09`'s PR (#182)**, which merged after this one, since its empty state names `pnpm seed:demo`. That PR merged main, ran `pnpm seed:demo --fake`, and added the dashboard, Report, Boundary and Jev panel screenshots on that data.
 - **The real seed** (box 4) cost 0.1183 USD in 8 m 26 s, Scout 0.0010 USD more.
   - The Analyst ran on Luna, the `.env` default. For the pitch run, `LLM_ANALYST_MODEL=anthropic/claude-opus-5.5` escalates it (`docs/PLAN.md`, "AI access").
   - Rerun it the day before the demo: Scout, then `pnpm seed:demo --reset`.

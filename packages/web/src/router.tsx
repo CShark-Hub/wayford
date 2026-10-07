@@ -1,5 +1,6 @@
 import { createRoute, createRouter, type RouterHistory, redirect } from "@tanstack/react-router";
 import { arenaRoute } from "./screens/arena.js";
+import { boundaryRoute, boundarySweepRoute } from "./screens/boundary.js";
 import { eventsRoute } from "./screens/events.js";
 import { lensRoute } from "./screens/lens.js";
 import { personasRoute } from "./screens/personas.js";
@@ -21,6 +22,8 @@ const indexRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   arenaRoute,
+  boundaryRoute,
+  boundarySweepRoute,
   eventsRoute,
   personasRoute,
   lensRoute,

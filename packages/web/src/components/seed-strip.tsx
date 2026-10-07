@@ -4,7 +4,8 @@
  * route was closed, a 1 px line-strong border when the goal has no route table (dotted means soft, so it is
  * not used here). The fill is the agent's: the persona's `--p` when it got through. A slash in
  * `fault` marks a run the tool fell over in. The fill reads the slot's `--p`, which the caller sets
- * (`slotStyle`) on the row the strip sits in.
+ * (`slotStyle`) on the row the strip sits in. `SeedCell` draws one cell, so a screen that reads its
+ * runs one by one, as the Boundary does, draws the same cells as the strip.
  */
 import { Link } from "@tanstack/react-router";
 import type { ReportSeed } from "@wayford/core";
@@ -13,7 +14,7 @@ import type { ReactNode } from "react";
 import { OUTCOME_WORDS } from "./outcome-words.js";
 
 /** Whether the filter left a route open in a seed, closed every one, or had no route table. */
-type RouteState = "open" | "closed" | "none";
+export type RouteState = "open" | "closed" | "none";
 
 function routeState(seed: ReportSeed): RouteState {
   if (seed.openRoutes === null) return "none";
@@ -39,28 +40,52 @@ function seedLabel(seed: ReportSeed): string {
 export function SeedStrip({ seeds, label }: { seeds: readonly ReportSeed[]; label: string }) {
   return (
     <fieldset aria-label={label} className="inline-flex flex-wrap gap-1.5">
-      {seeds.map((seed) => {
-        const route = routeState(seed);
-        const name = seedLabel(seed);
-        return (
-          <Link
-            key={seed.seed}
-            to="/runs/$runId"
-            params={{ runId: seed.runId }}
-            aria-label={name}
-            title={name}
-            data-route={route}
-            className={cn(
-              "relative block size-8 shrink-0 rounded-xs transition-colors hover:bg-paper-sunken",
-              BORDER[route],
-              seed.outcome === "success" && "bg-(--p) hover:bg-(--p)",
-            )}
-          >
-            {seed.outcome === "error" ? <FaultSlash /> : null}
-          </Link>
-        );
-      })}
+      {seeds.map((seed) => (
+        <SeedCell
+          key={seed.seed}
+          runId={seed.runId}
+          route={routeState(seed)}
+          through={seed.outcome === "success"}
+          slashed={seed.outcome === "error"}
+          label={seedLabel(seed)}
+        />
+      ))}
     </fieldset>
+  );
+}
+
+/**
+ * One seed's cell, a link to its run: `route` sets its border, `through` its fill, and `slashed`
+ * draws the fault slash.
+ */
+export function SeedCell({
+  runId,
+  route,
+  through,
+  slashed,
+  label,
+}: {
+  runId: string;
+  route: RouteState;
+  through: boolean;
+  slashed: boolean;
+  label: string;
+}) {
+  return (
+    <Link
+      to="/runs/$runId"
+      params={{ runId }}
+      aria-label={label}
+      title={label}
+      data-route={route}
+      className={cn(
+        "relative block size-8 shrink-0 rounded-xs transition-colors hover:bg-paper-sunken",
+        BORDER[route],
+        through && "bg-(--p) hover:bg-(--p)",
+      )}
+    >
+      {slashed ? <FaultSlash /> : null}
+    </Link>
   );
 }
 

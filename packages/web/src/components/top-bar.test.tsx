@@ -41,7 +41,7 @@ function pathOf(entry: (typeof STORY_NAV)[number]): string {
   return entry.to.replace(/\$(\w+)/g, (_, name: string) => params[name] ?? "");
 }
 
-test("the story nav numbers Cast, Lens, Race and Report, and nothing else", async () => {
+test("the story nav numbers Cast, Lens, Race, Report and Boundary, and nothing else", async () => {
   const nav = linksOf(elementOf(await render("/cast"), "nav", 'aria-label="Story"'));
   expect(nav.map(({ name, attributes, numbers }) => [numbers[0], name, attributes.href])).toEqual([
     ["01", "Cast", "/cast"],
@@ -49,6 +49,7 @@ test("the story nav numbers Cast, Lens, Race and Report, and nothing else", asyn
     ["03", "Race", "/race"],
     // The hard goal's report, the one the demo walks.
     ["04", "Report", "/report/task_past-order"],
+    ["05", "Boundary", "/boundary"],
   ]);
 });
 
@@ -58,6 +59,16 @@ test.each(STORY_NAV.map((entry) => [pathOf(entry), entry.label] as const))(
     const nav = linksOf(elementOf(await render(path), "nav", 'aria-label="Story"'));
     const current = nav.filter((link) => link.attributes["aria-current"] === "page");
     expect(current.map((link) => link.name)).toEqual([label]);
+  },
+);
+
+// A preset, a stored sweep by id: every Boundary URL keeps its entry current.
+test.each(["/boundary", "/boundary?axis=maxElements", "/boundary/swp_vera-contrast"])(
+  "on %s, Boundary is the current page",
+  async (path) => {
+    const nav = linksOf(elementOf(await render(path), "nav", 'aria-label="Story"'));
+    const current = nav.filter((link) => link.attributes["aria-current"] === "page");
+    expect(current.map((link) => link.name)).toEqual(["Boundary"]);
   },
 );
 
