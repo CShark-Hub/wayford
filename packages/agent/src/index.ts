@@ -8,4 +8,5 @@ export * from "./llm-actor.js";
 export * from "./llm-settings.js";
 export * from "./models.js";
 export * from "./run-context.js";
+export * from "./settle.js";
 export * from "./start-url.js";

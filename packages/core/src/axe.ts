@@ -1,15 +1,16 @@
 /**
- * An `AxeScan` is what axe-core found on one target-app page at one set of app
- * parameters, scanned once (`docs/PLAN.md` F10). io stores and serves it, web
- * draws it on the preview's card, and the report cites each violation as a
- * `measurement` finding. It is a record at rest beside the seven contracts,
- * and new, so none of them changes.
+ * An `AxeScan` is what axe-core found on one page, scanned once (`docs/PLAN.md`
+ * F10): a target-app page at one set of app parameters, or any page by its URL
+ * (s4-09). io stores and serves it, web draws it on the preview's card, and
+ * the report cites each violation as a `measurement` finding. It is a record
+ * at rest beside the seven contracts, and new, so none of them changes.
  *
  * axe is a measurement, never a filter input: nothing in `packages/filter`
  * reads a scan, and the Actor never sees one. The scan is by page, not by run,
- * because the pages are the same for every persona at fixed app parameters.
+ * because a page is the same for every persona at fixed app parameters.
  */
 import { z } from "zod";
+import { HttpUrl } from "./primitives.js";
 
 // ---------------------------------------------------------------------------
 // Tags and impacts
@@ -30,16 +31,50 @@ export const AXE_IMPACTS = ["minor", "moderate", "serious", "critical"] as const
 // ---------------------------------------------------------------------------
 
 /**
- * The page's path and the app's query, with no origin and no hash:
- * `/settings/data?contrast=2&fontPx=16&targetPx=36`. The same build serves the
- * target app on 5174, on a test's free port and in the `analyse` CLI, so a
- * stored scan holds for all three. A leading `//` or `/\` is refused too: a
- * browser reads either as an origin.
+ * The page's whole URL, as `new URL(…).href` spells it: an `HttpUrl`, the URL
+ * a run's step stands on, with no user and no password, its query and its
+ * hash kept. One page has one key, so a spelling `new URL` would change is
+ * refused. The origin is in the key since s4-09: the same path on two sites is
+ * two pages (`docs/adr/0003-any-target.md`, D5). A target-app page carries the
+ * app's query, on the target-app origin io is configured with:
+ * `http://localhost:5174/settings/data?contrast=2&fontPx=16&targetPx=36`.
+ *
+ * io's `url=` is read through it too, so its messages name a page URL, not a
+ * scan's.
  */
-export const AxeUrl = z
-  .string()
-  .regex(/^\/(?![/\\])[^?#]*\?[^#]+$/, "an axe URL is a path and a query, no origin and no hash");
+export const AxeUrl = HttpUrl.superRefine(
+  (value, ctx) => {
+    const refuse = (message: string) => ctx.addIssue({ code: "custom", message });
+    const url = parseUrl(value);
+    if (url.username !== "" || url.password !== "") {
+      return refuse("a page URL names no user and no password");
+    }
+    if (url.href !== value) {
+      return refuse(`a page URL is spelled as new URL spells it: ${url.href}`);
+    }
+  },
+  // `HttpUrl`'s own refusal does not stop the checks after it, and `new URL` would throw on what
+  // it refused.
+  { when: (payload) => payload.issues.length === 0 },
+);
 export type AxeUrl = z.infer<typeof AxeUrl>;
+
+/** What `AxeUrl` reads of a parsed URL. */
+interface ParsedUrl {
+  username: string;
+  password: string;
+  href: string;
+}
+
+/**
+ * `new URL(value)`, on a value `HttpUrl` has already parsed. `URL` is a global in Node and in every
+ * browser, but filter's `tsconfig.perceive.json` compiles core with no DOM and no Node types, so
+ * nothing declares it there, as `id.ts` finds for `crypto`. Read through one cast, at call time.
+ */
+function parseUrl(value: string): ParsedUrl {
+  const { URL } = globalThis as unknown as { URL: new (url: string) => ParsedUrl };
+  return new URL(value);
+}
 
 // ---------------------------------------------------------------------------
 // Scan
@@ -62,10 +97,10 @@ export const AxeViolation = z
   .strict();
 export type AxeViolation = z.infer<typeof AxeViolation>;
 
-/** One target-app page at one set of app parameters, scanned once. */
+/** One page, scanned once. */
 export const AxeScan = z
   .object({
-    /** The key: the page's path and the app's query. */
+    /** The key: the page's whole URL. */
     url: AxeUrl,
     /** When it was scanned. A timestamp only. */
     scannedAt: z.iso.datetime(),

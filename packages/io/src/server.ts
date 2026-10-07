@@ -56,16 +56,21 @@ const db = openDatabase(config.DATABASE_URL);
 const browser = sharedBrowser();
 
 const app = createApp({
+  // io's own host by each loopback name, on its port: any other `Host` is refused (ADR 0003, D7).
+  hosts: [`localhost:${config.PORT}`, `127.0.0.1:${config.PORT}`, `[::1]:${config.PORT}`],
   llm,
   db,
   runsDir: RUNS_DIR,
   run: sharedChromium(browser),
-  // The preview's live page (s3-05), at the app's defaults like the arena's runs.
-  measure: liveMeasure({ browser, origin: TARGET_APP_ORIGIN }),
+  // The preview's live page (s3-05): a target-app page at the app's defaults like the arena's runs,
+  // or any page as given (s4-09). The route builds the URL, from `targetAppOrigin` for `page=`, and
+  // a page on that origin loads strictly whichever way it was asked.
+  measure: liveMeasure({ browser, targetAppOrigin: TARGET_APP_ORIGIN }),
   // The Lens's Illustration view (s3-06): /deliveries under the persona's vision emulation.
   illustrate: liveIllustration({ browser, origin: TARGET_APP_ORIGIN }),
-  // The preview's axe-core card and the report's axe findings (s4-06), scanned on desktop.
-  scanAxe: axeScanner({ browser, origin: TARGET_APP_ORIGIN }),
+  // The preview's axe-core card and the report's axe findings (s4-06), scanned on desktop: a
+  // target-app page on the target app, or any page as given (s4-09), each stored by its whole URL.
+  scanAxe: axeScanner({ browser, targetAppOrigin: TARGET_APP_ORIGIN }),
   // One `Llm` per run, so each run's log lines carry its run id.
   ...actorBackends(settings),
   // A run set whose task starts here is on the target app, and only those get its parameters and

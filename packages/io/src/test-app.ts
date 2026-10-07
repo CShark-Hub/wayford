@@ -7,11 +7,17 @@
  * `readSse` and `readEvents`, which read a server-sent event stream message by message;
  * `noIllustration`, the default picture, which throws; `noAxeViolations`, the default axe-core
  * scan, which finds nothing; `quiet` and `capture`, a logger that writes nothing and one that
- * keeps every warning; and for the Analyst's tests, `storedRun`, `fakeAxe` and Vera's
- * `/deliveries` as the filter gives it. io's test files share it, as agent's callers share
- * `fake-llm.ts`.
+ * keeps every warning; for the Analyst's tests, `storedRun`, `fakeAxe` and Vera's `/deliveries`
+ * as the filter gives it; and for the browser tests on any page, `anyPage`, a site's page with a
+ * 404 stylesheet, a 404 font face and an endless animation, `FAINT_TEXT`, its paragraph,
+ * `FAILED_FONT_PAGE`, a page whose only fault is its font, and `serveLocal`, `servePage` and
+ * `stopLocal`, a Node server on a free port. io's test files share
+ * it, as agent's callers share `fake-llm.ts`.
  */
+import { once } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer, type RequestListener, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -53,6 +59,7 @@ import pino from "pino";
 import { type AppOptions, createApp } from "./app.js";
 import type { AxeLookup, AxeScanFn } from "./axe.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
+import type { PageRef } from "./page-ref.js";
 import type { IllustrateFn } from "./routes/illustration.js";
 import type { MeasureFn } from "./routes/measure.js";
 import type { RunFn, RunnerOptions } from "./runner.js";
@@ -133,36 +140,44 @@ export const noIllustration: IllustrateFn = () => {
 };
 
 /**
- * An `AxeScanFn` that finds no violation on any page, scanned at a fixed time by a fake axe-core:
- * a test that needs violations, or a failed scan, says so, as `routes/axe.test.ts` does.
+ * An `AxeScanFn` that finds no violation on any page, scanned at a fixed time by a fake axe-core,
+ * keyed by the page's URL: a test that needs violations, or a failed scan, says so, as
+ * `routes/axe.test.ts` does.
  */
-export const noAxeViolations: AxeScanFn = async (url) => ({
-  url,
+export const noAxeViolations: AxeScanFn = async (page) => ({
+  url: page.url,
   scannedAt: "2026-10-06T09:00:00.000Z",
   axeVersion: "fake",
   violations: [],
 });
 
-/** An `AxeLookup` that keeps every URL it was asked, in order. */
-export type FakeAxe = AxeLookup & { readonly asked: string[] };
+/**
+ * An `AxeLookup` that keeps every page it was asked, in order: whole, `onTargetApp` included, in
+ * `pages`, and by URL alone in `asked`, read off `pages`.
+ */
+export type FakeAxe = AxeLookup & { readonly pages: PageRef[]; readonly asked: string[] };
 
 /**
- * An `AxeLookup` for the Analyst's tests, with no store and no scanner: a URL in `failures`
- * rejects with its error, one of `scans` answers with that scan, and any other URL finds no
- * violation, as `noAxeViolations` scans it.
+ * An `AxeLookup` for the Analyst's tests, with no store and no scanner, reading each page by its
+ * whole URL: a URL in `failures` rejects with its error, one of `scans` answers with that scan,
+ * and any other page finds no violation, as `noAxeViolations` scans it.
  */
 export function fakeAxe(
   scans: readonly AxeScan[] = [],
   failures: Readonly<Record<string, Error>> = {},
 ): FakeAxe {
-  const asked: string[] = [];
-  const lookup: AxeLookup = async (url) => {
-    asked.push(url);
-    const failure = failures[url];
+  const pages: PageRef[] = [];
+  const lookup: AxeLookup = async (page) => {
+    pages.push(page);
+    const failure = failures[page.url];
     if (failure !== undefined) throw failure;
-    return scans.find((scan) => scan.url === url) ?? noAxeViolations(url);
+    return scans.find((scan) => scan.url === page.url) ?? noAxeViolations(page);
   };
-  return Object.assign(lookup, { asked });
+  // A getter, not `Object.assign`, which would copy the URLs once.
+  return Object.defineProperties(lookup, {
+    pages: { value: pages },
+    asked: { get: () => pages.map((page) => page.url) },
+  }) as FakeAxe;
 }
 
 /** A logger that writes nothing. */
@@ -178,6 +193,9 @@ export function capture() {
   return { lines, logger };
 }
 
+/** The target app's origin in io's tests: the one the core task fixtures start on. */
+const FIXTURE_ORIGIN = "http://localhost:5174";
+
 /**
  * The runner's options on `store`, with nothing real behind them: `fakeRun()`, `fakeBackends` with
  * `llm` the default, the target app on the core task fixtures' origin with its defaults and jargon
@@ -189,7 +207,7 @@ export function runnerDefaults(store: TempStore): RunnerOptions {
     run: fakeRun(),
     backends: fakeBackends,
     defaultBackend: "llm",
-    targetAppOrigin: "http://localhost:5174",
+    targetAppOrigin: FIXTURE_ORIGIN,
     params: TARGET_APP_DEFAULTS,
     jargon: targetAppJargon,
     runsDir: store.runsDir,
@@ -199,16 +217,18 @@ export function runnerDefaults(store: TempStore): RunnerOptions {
 
 /**
  * The Analyst's options on `store`, with nothing behind them: no route table for any task,
- * `<dir>/ground-truth` as the ground-truth folder (absent, so no ground truth) and
- * `FAKE_JEV_MODEL` as Jev's model, the one `fakeBackends.jev` names.
+ * `<dir>/ground-truth` as the ground-truth folder (absent, so no ground truth),
+ * `FAKE_JEV_MODEL` as Jev's model, the one `fakeBackends.jev` names, and the target app on the
+ * origin `runnerDefaults` has, the one the core task fixtures start on.
  */
 export function analystDefaults(
   store: TempStore,
-): Pick<AppOptions, "routes" | "groundTruthDir" | "jevModel"> {
+): Pick<AppOptions, "routes" | "groundTruthDir" | "jevModel" | "targetAppOrigin"> {
   return {
     routes: async () => undefined,
     groundTruthDir: join(store.dir, "ground-truth"),
     jevModel: FAKE_JEV_MODEL,
+    targetAppOrigin: FIXTURE_ORIGIN,
   };
 }
 
@@ -222,13 +242,15 @@ export type TestAppOptions = Partial<Omit<AppOptions, "db" | "runsDir">>;
 export type TestApp = TempStore & { app: ReturnType<typeof createApp> };
 
 /**
- * The whole app on a `tempStore()`, on `runnerDefaults`, the fake `Llm` with no answers,
- * `noMeasure`, `noIllustration`, `noAxeViolations` and `analystDefaults`. `options` replaces any
- * of them. The fixture replay keeps the route's own pace unless `replaySpacingMs` is given.
+ * The whole app on a `tempStore()`, answering `localhost`, the host `app.request` gives a bare
+ * path, on `runnerDefaults`, the fake `Llm` with no answers, `noMeasure`, `noIllustration`,
+ * `noAxeViolations` and `analystDefaults`. `options` replaces any of them. The fixture replay keeps
+ * the route's own pace unless `replaySpacingMs` is given.
  */
 export async function testApp(options: TestAppOptions = {}): Promise<TestApp> {
   const store = await tempStore();
   const app = createApp({
+    hosts: ["localhost"],
     ...runnerDefaults(store),
     llm: fakeLlm({}),
     measure: noMeasure,
@@ -580,4 +602,96 @@ export function firstSeed(holds: (seed: Seed) => boolean): Seed {
     if (holds(seed)) return seed;
   }
   throw new Error("seeds 1 to 30 hold no seed the test needs");
+}
+
+/** The paragraph `anyPage` sets at #aaa on white, about 2.3:1, when it is faint. */
+export const FAINT_TEXT = "This paragraph is set at a low contrast.";
+
+/**
+ * A page as a real site may serve it: a stylesheet link and a font face the server answers 404,
+ * text in that face, so the face is asked for and fails, and an animation that never ends. Its
+ * paragraph, `FAINT_TEXT`, is at #aaa on white when `faint`, axe-core's `color-contrast`, and black
+ * otherwise. No finite animation: this machine's headless Chromium draws no animation frames, so
+ * one would never finish, while an endless one is set aside without waiting.
+ */
+export function anyPage(faint: boolean): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Any page</title>
+    <link rel="stylesheet" href="/missing.css" />
+    <style>
+      @font-face {
+        font-family: "Missing Face";
+        src: url("/missing.woff2") format("woff2");
+      }
+      body { background: #fff; color: #000; font-family: sans-serif; }
+      .faint { color: ${faint ? "#aaa" : "#000"}; }
+      .missing { font-family: "Missing Face", sans-serif; }
+      .spinner { width: 24px; height: 24px; background: #333; animation: spin 1s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Any page</h1>
+      <p class="faint">${FAINT_TEXT}</p>
+      <p class="missing">This line asks for a font the server does not have.</p>
+      <div class="spinner"></div>
+    </main>
+  </body>
+</html>`;
+}
+
+/**
+ * A page whose one fault is a font face the server answers 404, used by its only text: the strict
+ * load refuses it as `font_failed`, the lenient one sets the face aside. No animation, since the
+ * strict load waits on one before it checks the fonts.
+ */
+export const FAILED_FONT_PAGE = `<!doctype html>
+<html lang="en">
+  <head>
+    <title>Failed font</title>
+    <style>
+      @font-face { font-family: "Missing Face"; src: url("/missing.woff2") format("woff2"); }
+      p { font-family: "Missing Face", sans-serif; }
+    </style>
+  </head>
+  <body><p>This line asks for a font the server does not have.</p></body>
+</html>`;
+
+/** A Node HTTP server of a test's, and the origin it listens on. */
+export interface LocalServer {
+  server: Server;
+  /** `http://127.0.0.1:<port>`. */
+  origin: string;
+}
+
+/** A server on `127.0.0.1` and a free port, answering with `handle`. */
+export async function serveLocal(handle: RequestListener): Promise<LocalServer> {
+  const server = createServer(handle);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  return { server, origin: `http://127.0.0.1:${port}` };
+}
+
+/** `serveLocal` with `/page` answering `html`, and every other path a 404. */
+export function servePage(html: string): Promise<LocalServer> {
+  return serveLocal((req, res) => {
+    if (req.url === "/page") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(html);
+      return;
+    }
+    res.writeHead(404, { "content-type": "text/plain" });
+    res.end("not found");
+  });
+}
+
+/** Stops `local`'s server, its open connections first. */
+export async function stopLocal(local: LocalServer): Promise<void> {
+  local.server.closeAllConnections();
+  await new Promise((resolve) => local.server.close(resolve));
 }

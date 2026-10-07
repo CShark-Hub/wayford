@@ -100,12 +100,16 @@ const FIXTURE_EVERYWHERE: LiveAnswer[] = (["desktop", "mobile"] as const).flatMa
 
 /**
  * io's axe-core scan of `page`: the stored one where there is one (`/deliveries` with its
- * `color-contrast`, `/settings/data` with none), else one that found nothing, at the same query.
+ * `color-contrast`, `/settings/data` with none), else one that found nothing, on the same origin
+ * and at the same query.
  */
 function axeScanOf(page: string): AxeScan {
-  if (axeScanFixtures.some((scan) => scan.url.startsWith(`${page}?`))) return axeScanFixture(page);
+  const stored = axeScanFixtures.find((scan) => new URL(scan.url).pathname === page);
+  if (stored !== undefined) return stored;
   const { url, ...deliveries } = axeScanFixture("/deliveries");
-  return { ...deliveries, url: `${page}${url.slice(url.indexOf("?"))}`, violations: [] };
+  const at = new URL(url);
+  at.pathname = page;
+  return { ...deliveries, url: at.href, violations: [] };
 }
 
 /**

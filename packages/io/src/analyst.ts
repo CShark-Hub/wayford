@@ -4,9 +4,9 @@
  *
  * Code decides what is true; the model only words it. Before the call, code has chosen the runs,
  * counted the numbers and written the `deterministic` findings with their evidence and basis, and
- * a `measurement` finding for each axe-core violation on a target-app page the runs stood on
- * (`analyst-axe.ts`, F10 AC2): a scan that fails costs only its page's measurements, never the
- * report. The model gets all of it in one `analyst` call (F8 AC4) and writes into fields (A9): one
+ * a `measurement` finding for each axe-core violation on a page the runs stood on, on the target
+ * app or any other site (`analyst-axe.ts`, F10 AC2): a scan that fails costs only its page's
+ * measurements, never the report. The model gets all of it in one `analyst` call (F8 AC4) and writes into fields (A9): one
  * recommendation per finding and at most five hypotheses. After the call, code checks every
  * hypothesis before it is stored:
  * - every evidence ref must name a run the report read and a step that run has, or the whole
@@ -84,17 +84,26 @@ export interface AnalystDeps {
   /** Jev's pinned model, which marks a stored run as Jev's (`backendOf`). */
   jevModel: string;
   /**
-   * The axe-core scan of a target-app page at the app's parameters, stored or scanned on a miss:
-   * the app's one lookup, which `GET /axe` reads too, so the two share a scan.
+   * The axe-core scan of a page the runs stood on, a target-app page at the app's parameters or
+   * any other page by its URL, stored or scanned on a miss: the app's one lookup, which `GET /axe`
+   * reads too, so the two share a scan.
    */
   axe: AxeLookup;
+  /**
+   * The origin the target app is served on, port included, as io hands its runner:
+   * `http://localhost:5174`. A run whose start URL is on it is a target-app run, whose pages are
+   * scanned at its app parameters; any other run's pages are scanned as it stood on them
+   * (`analyst-axe.ts`).
+   */
+  targetAppOrigin: string;
   logger: Logger;
 }
 
 export type Analysis = { ok: true; report: Report } | { ok: false; error: string };
 
 /** What `analyseTask` reads, already loaded, beside what it calls. */
-interface AnalysisInput extends Pick<AnalystDeps, "llm" | "routes" | "axe" | "logger"> {
+interface AnalysisInput
+  extends Pick<AnalystDeps, "llm" | "routes" | "axe" | "targetAppOrigin" | "logger"> {
   task: Task;
   backend: ReportBackend;
   /** The runs the report reads, as `selectRuns` chose them: at least one, `analyseAndStore` checks. */
@@ -172,7 +181,8 @@ export async function analyseAndStore(
  * order.
  */
 async function analyseTask(input: AnalysisInput): Promise<Report> {
-  const { task, backend, chosen, leftOut, groundTruth, llm, routes, axe, logger } = input;
+  const { task, backend, chosen, leftOut, groundTruth, llm, routes, axe, targetAppOrigin, logger } =
+    input;
   const scout = scoutLineOf(groundTruth);
 
   // Each persona's runs by seed, the order the report lists them in. A run of an unbundled profile
@@ -202,7 +212,13 @@ async function analyseTask(input: AnalysisInput): Promise<Report> {
     closures.push(...drafts);
   }
   const personas = personaResults(groups, facts);
-  const measurements = await axeDrafts({ taskId: task.id, runs: ordered, axe, logger });
+  const measurements = await axeDrafts({
+    taskId: task.id,
+    runs: ordered,
+    axe,
+    targetAppOrigin,
+    logger,
+  });
   // Measurements first, then every persona's closures in order, keyed across both: the ids the
   // answer names them by, one recommendation each.
   const drafts: Draft[] = [...measurements, ...closures].map((draft, index) => ({

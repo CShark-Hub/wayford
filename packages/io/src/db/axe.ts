@@ -1,5 +1,9 @@
 /**
- * The stored axe-core scans, one per target-app page and app parameters, keyed by the page's URL.
+ * The stored axe-core scans, one per page, keyed by the page's whole URL, origin included, so the
+ * same path on two sites is two rows (`docs/adr/0003-any-target.md`, D5). A target-app page's row
+ * is keyed on the target-app origin io is configured with, at its app parameters; any other page's
+ * by the URL it was asked for. Rows keyed by a path alone, from before s4-09, went with migration
+ * `0006_axe_results_by_origin`.
  *
  * A stored scan is kept until it is cleared, and nothing clears it on its own: a change to the
  * target app or an axe-core upgrade keeps serving the old scan. To scan again, run

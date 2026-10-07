@@ -222,8 +222,10 @@ LLM_API_KEY=x pnpm dev                 # io needs a key to boot; browsing calls 
 | Process | Port | Open |
 |---|---|---|
 | web | 5173 | <http://localhost:5173> |
-| io (HTTP API and SSE) | 3000 | <http://localhost:3000/health> |
+| io (HTTP API and SSE) | 3000 | `curl localhost:3000/health` |
 | target-app (Quillmere, the demo shop) | 5174 | <http://localhost:5174> |
+
+io answers `curl` and the web UI, never a page a browser opens on its own: a request naming another host, sent from another site, or a navigation the browser started itself is a 403. Its Chromium opens pages nobody vetted, and none of them may reach io (`docs/adr/0003-any-target.md`, D7).
 
 Then open the Cast, the Lens on `/deliveries`, the Report for the hard goal and a run from Runs. The Race starts live runs, so it needs a real key.
 

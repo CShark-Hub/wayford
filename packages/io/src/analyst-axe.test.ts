@@ -1,6 +1,7 @@
 import { startUrlFor, TARGET_APP_DEFAULTS } from "@wayford/agent";
 import {
   type AxeScan,
+  type AxeViolation,
   Finding,
   type FullObservation,
   type Profile,
@@ -16,8 +17,9 @@ import {
 import { TARGET_APP_DEFAULT_QUERY } from "@wayford/filter/serve-target-app";
 import { describe, expect, test } from "vitest";
 import { axeDrafts } from "./analyst-axe.js";
-import { axeUrl } from "./axe.js";
-import { capture, type FakeAxe, fakeAxe, quiet, storedRun } from "./test-app.js";
+import type { AxeLookup } from "./axe.js";
+import { targetAppPage } from "./page-ref.js";
+import { capture, fakeAxe, quiet, storedRun } from "./test-app.js";
 
 const ada = profileFixture("prof_ada");
 const vera = profileFixture("prof_vera");
@@ -25,8 +27,9 @@ const vera = profileFixture("prof_vera");
 const TASK = taskFixture("task_past-order");
 const APP = "http://localhost:5174";
 
-/** A target-app page at the app's defaults, as an axe URL. */
-const atDefaults = (path: string) => axeUrl(path, TARGET_APP_DEFAULT_QUERY);
+/** A target-app page at the app's defaults on `origin`, by its whole URL: the key it is asked by. */
+const atDefaults = (path: string, origin = APP) =>
+  targetAppPage(origin, path, TARGET_APP_DEFAULT_QUERY).url;
 const DELIVERIES = atDefaults("/deliveries");
 
 /** The real scan of `/deliveries` at the defaults: one `color-contrast` violation. */
@@ -53,8 +56,15 @@ function runOn(profile: Profile, id: string, paths: string[], origin = APP): Run
 /** `run`, started at `startUrl` instead: other app parameters, or another site. */
 const startedAt = (run: RunResult, startUrl: string): RunResult => ({ ...run, startUrl });
 
-function drafts(runs: RunResult[], axe: FakeAxe, logger = quiet) {
-  return axeDrafts({ taskId: TASK.id, runs, axe, logger });
+/** `scan` keyed by `url` instead, with `violations` in place of its own. */
+const scanOf = (url: string, violations: AxeScan["violations"]): AxeScan => ({
+  ...deliveriesScan,
+  url,
+  violations,
+});
+
+function drafts(runs: RunResult[], axe: AxeLookup, logger = quiet, targetAppOrigin = APP) {
+  return axeDrafts({ taskId: TASK.id, runs, axe, targetAppOrigin, logger });
 }
 
 describe("axeDrafts: the pages asked", () => {
@@ -85,16 +95,72 @@ describe("axeDrafts: the pages asked", () => {
       ],
       axe,
     );
-    expect(axe.asked).toEqual([DELIVERIES, "/deliveries?contrast=3&fontPx=16&targetPx=36"]);
+    expect(axe.asked).toEqual([
+      DELIVERIES,
+      "http://localhost:5174/deliveries?contrast=3&fontPx=16&targetPx=36",
+    ]);
   });
 
-  test("a page outside the target app is never asked", async () => {
+  test("on a target-app run, a page outside the app's paths is never asked", async () => {
     const axe = fakeAxe();
     await drafts([runOn(vera, "run_vera-1", ["/nope", "/deliveries", "/deliveries/nope"])], axe);
     expect(axe.asked).toEqual([DELIVERIES]);
   });
 
-  test("a run whose start URL is a public site, standing on its /, asks nothing", async () => {
+  test("on a target-app run, a step off the app's origin is not asked", async () => {
+    const run = storedRun({
+      profile: vera,
+      seed: 1,
+      runId: "run_vera-1",
+      steps: [
+        { observation: on("/settings", "http://localhost:4000") },
+        { observation: on("/deliveries") },
+      ],
+    });
+    const axe = fakeAxe();
+    await drafts([run], axe);
+    expect(axe.asked).toEqual([DELIVERIES]);
+  });
+
+  test("a run on the origin handed in is on the target app, whatever its host and port", async () => {
+    const served = "http://127.0.0.1:41234";
+    const axe = fakeAxe();
+    await drafts(
+      [
+        startedAt(
+          runOn(ada, "run_ada-1", ["/account"], served),
+          `${served}/${TARGET_APP_DEFAULT_QUERY}`,
+        ),
+      ],
+      axe,
+      quiet,
+      served,
+    );
+    expect(axe.pages).toEqual([{ url: atDefaults("/account", served), onTargetApp: true }]);
+  });
+
+  test("a run on 127.0.0.1 or on another port of localhost is on another site: its pages are asked as it stood on them", async () => {
+    const axe = fakeAxe();
+    await drafts(
+      [
+        startedAt(
+          runOn(vera, "run_vera-1", ["/settings"], "http://localhost:4000"),
+          "http://localhost:4000/",
+        ),
+        startedAt(
+          runOn(ada, "run_ada-1", ["/account"], "http://127.0.0.1:5174"),
+          `http://127.0.0.1:5174/${TARGET_APP_DEFAULT_QUERY}`,
+        ),
+      ],
+      axe,
+    );
+    expect(axe.pages).toEqual([
+      { url: "http://localhost:4000/settings", onTargetApp: false },
+      { url: "http://127.0.0.1:5174/account", onTargetApp: false },
+    ]);
+  });
+
+  test("a run whose start URL is a public site asks its own pages, never the target app's", async () => {
     const site = "https://example.com";
     const run = storedRun({
       profile: vera,
@@ -103,28 +169,12 @@ describe("axeDrafts: the pages asked", () => {
       task: { ...TASK, startUrl: `${site}/` },
       steps: [{ observation: on("/", site) }, { observation: on("/deliveries", site) }],
     });
-    // Every start URL carries the app's parameters, whatever the site.
+    // Every stored run's start URL carries the app's parameters, and still this is another site.
     expect(new URL(run.startUrl).search).toBe(TARGET_APP_DEFAULT_QUERY);
     const axe = fakeAxe([deliveriesScan]);
 
     expect(await drafts([run], axe)).toEqual([]);
-    expect(axe.asked).toEqual([]);
-  });
-
-  test("a step off its run's origin is not asked; a run served on 127.0.0.1 is", async () => {
-    const local = "http://127.0.0.1:5174";
-    const axe = fakeAxe();
-    await drafts(
-      [
-        runOn(vera, "run_vera-1", ["/settings"], "http://localhost:4000"),
-        startedAt(
-          runOn(ada, "run_ada-1", ["/account"], local),
-          `${local}/${TARGET_APP_DEFAULT_QUERY}`,
-        ),
-      ],
-      axe,
-    );
-    expect(axe.asked).toEqual([atDefaults("/account")]);
+    expect(axe.asked).toEqual([`${site}/`, `${site}/deliveries`]);
   });
 });
 
@@ -215,5 +265,142 @@ describe("axeDrafts: the drafts", () => {
     await expect(drafts([runOn(vera, "run_vera-1", ["/deliveries"])], axe)).rejects.toThrow(
       "a bug in the lookup",
     );
+  });
+});
+
+describe("axeDrafts: off the target app", () => {
+  const SITE = "https://example.com";
+
+  /** A run of `profile` started at `SITE`, standing on `paths` there, one step each. */
+  const onSite = (profile: Profile, id: string, paths: string[]) =>
+    startedAt(runOn(profile, id, paths, SITE), `${SITE}/`);
+
+  test("a run on an app on localhost:<another port> cites none of the target app's violations, and its own", async () => {
+    const other = "http://localhost:8080";
+    const imageAlt: AxeViolation = {
+      ruleId: "image-alt",
+      impact: "critical",
+      tags: ["wcag2a", "wcag111"],
+      help: "Images must have alternative text",
+      nodes: 2,
+    };
+    const axe = fakeAxe([deliveriesScan, scanOf(`${other}/deliveries`, [imageAlt])]);
+    const runs = [
+      startedAt(runOn(vera, "run_vera-1", ["/deliveries", "/deliveries"], other), `${other}/`),
+      startedAt(runOn(ada, "run_ada-1", ["/deliveries"], other), `${other}/`),
+    ];
+
+    const result = await drafts(runs, axe);
+
+    expect(axe.pages).toEqual([{ url: `${other}/deliveries`, onTargetApp: false }]);
+    expect(result).toEqual([
+      {
+        finding: {
+          id: expect.stringMatching(/^fnd_/),
+          taskId: TASK.id,
+          type: "measurement",
+          axeRuleId: "image-alt",
+          title:
+            "axe-core: Images must have alternative text (image-alt) on http://localhost:8080/deliveries",
+          detail:
+            "axe-core 4.13.0 reports image-alt on http://localhost:8080/deliveries, scanned on desktop: 2 elements, impact critical, WCAG tags wcag2a, wcag111. 2 of the report's runs stood on the page.",
+          evidence: [
+            { runId: "run_vera-1", stepIndex: 0 },
+            { runId: "run_ada-1", stepIndex: 0 },
+          ],
+          basis: [],
+          personaIds: [],
+        },
+        fallback:
+          "Fix what axe-core's image-alt rule reports on http://localhost:8080/deliveries: Images must have alternative text.",
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("app's");
+  });
+
+  test("a page is a step's page on any origin, without its hash", async () => {
+    const www = "https://www.example.com";
+    // The start URL redirected to `www.`, whose pages are still the run's.
+    const run = storedRun({
+      profile: vera,
+      seed: 1,
+      runId: "run_vera-site",
+      task: { ...TASK, startUrl: `${SITE}/` },
+      steps: ["/#main", "/docs#intro", "/", "/docs#usage", "/"].map((path) => ({
+        observation: on(path, www),
+      })),
+    });
+    const axe = fakeAxe([scanOf(`${www}/docs`, [contrast])]);
+
+    const result = await drafts([run], axe);
+
+    expect(axe.asked).toEqual([`${www}/`, `${www}/docs`]);
+    expect(result).toMatchObject([
+      {
+        finding: {
+          title: `axe-core: ${contrast.help} (color-contrast) on ${www}/docs`,
+          evidence: [{ runId: "run_vera-site", stepIndex: 1 }],
+        },
+      },
+    ]);
+  });
+
+  test("a report over runs on more than ten foreign pages scans ten: those the most runs stood on, in the order first stood on", async () => {
+    const page = (n: number) => `${SITE}/page-${n}`;
+    const all = Array.from({ length: 12 }, (_, i) => `/page-${i + 1}`);
+    // Every page stood on by two runs, but for /page-2 and /page-5, by one.
+    const runs = [
+      onSite(vera, "run_vera-1", all),
+      onSite(
+        ada,
+        "run_ada-1",
+        all.filter((path) => path !== "/page-2" && path !== "/page-5"),
+      ),
+    ];
+    const { lines, logger } = capture();
+    const axe = fakeAxe([
+      scanOf(page(12), [contrast]),
+      scanOf(page(2), [contrast]),
+      scanOf(page(1), [contrast]),
+    ]);
+
+    const result = await drafts(runs, axe, logger);
+
+    expect(axe.asked).toEqual([1, 3, 4, 6, 7, 8, 9, 10, 11, 12].map(page));
+    expect(result.map((d) => d.finding.title)).toEqual([
+      `axe-core: ${contrast.help} (color-contrast) on ${page(1)}`,
+      `axe-core: ${contrast.help} (color-contrast) on ${page(12)}`,
+    ]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      skipped: [
+        { url: page(2), runs: 1 },
+        { url: page(5), runs: 1 },
+      ],
+      msg: expect.stringContaining("these give no axe finding"),
+    });
+  });
+
+  test("a tie at the cut goes to the page stood on first", async () => {
+    // Eleven pages, one run each, stood on from /k down to /a: by URL, /k would be the one left out.
+    const paths = [..."kjihgfedcba"].map((letter) => `/${letter}`);
+    const { lines, logger } = capture();
+    const axe = fakeAxe();
+
+    await drafts([onSite(vera, "run_vera-1", paths)], axe, logger);
+
+    expect(axe.asked).toEqual(paths.slice(0, 10).map((path) => `${SITE}${path}`));
+    expect(lines).toMatchObject([{ skipped: [{ url: `${SITE}/a`, runs: 1 }] }]);
+  });
+
+  test("ten foreign pages or fewer are all asked, with no warning", async () => {
+    const paths = Array.from({ length: 10 }, (_, i) => `/page-${i + 1}`);
+    const { lines, logger } = capture();
+    const axe = fakeAxe();
+
+    await drafts([onSite(vera, "run_vera-1", paths)], axe, logger);
+
+    expect(axe.asked).toHaveLength(10);
+    expect(lines).toEqual([]);
   });
 });

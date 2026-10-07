@@ -266,13 +266,17 @@ export function reportFixture(taskId: string): Report {
  * Two axe-core scans (`s4-06`) of the target app at its defaults, on desktop, as io's scanner
  * (`packages/io/src/axe-scan.ts`) wrote them on Windows with axe-core 4.13.0, against the WCAG 2.2
  * A and AA tags. `/deliveries` holds one `color-contrast` violation, the archive link at 2.005:1.
- * `/settings/data` holds none.
+ * `/settings/data` holds none. Each is keyed by its whole URL on `http://localhost:5174`, the
+ * origin the task fixtures start on, which s4-09 put in the key.
  */
 export const axeScanFixtures: AxeScan[] = readJson("axe-scans.json", AxeScan.array());
 
-/** The fixture scan of `page`, a target-app path such as `/deliveries`, at the app's defaults. */
+/**
+ * The fixture scan of `page`, a target-app path such as `/deliveries`, at the app's defaults on
+ * `http://localhost:5174`.
+ */
 export function axeScanFixture(page: string): AxeScan {
-  const found = axeScanFixtures.find((scan) => scan.url.slice(0, scan.url.indexOf("?")) === page);
+  const found = axeScanFixtures.find((scan) => new URL(scan.url).pathname === page);
   if (!found) throw new Error(`No axe scan fixture for ${page}`);
   return found;
 }

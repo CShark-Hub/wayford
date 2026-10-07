@@ -36,7 +36,13 @@ export default defineConfig({
     // The page reaches io as `/api/...` on its own origin, so there is no CORS
     // to configure and EventSource needs no credentials mode. Ports: docs/STACK.md.
     proxy: {
-      "/api": { target: "http://localhost:3000", rewrite: (path) => path.replace(/^\/api/, "") },
+      "/api": {
+        target: "http://localhost:3000",
+        // io refuses any `Host` but its own (ADR 0003, D7), so the proxy sends
+        // io's, `localhost:3000`, not the page's `localhost:5173`.
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
     },
   },
 });

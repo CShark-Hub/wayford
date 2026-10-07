@@ -112,6 +112,8 @@ test("the fake path on the reduced plan: 12 runs with a decision on every step, 
       // No axe-core here: the CLI scans the served app, and the Analyst's axe findings are
       // `analyst-axe.test.ts`'s. Every page the runs stood on is asked for.
       axe,
+      // The runner's, so the reports read the runs as target-app runs.
+      targetAppOrigin: target.origin,
       logger: quiet,
       say: (line) => said.push(line),
     },

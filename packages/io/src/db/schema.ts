@@ -7,8 +7,8 @@
  * `reports.ts`, `sweeps.ts` and `axe.ts` parse each document with its core
  * schema on the way in and out (`parseRow` in `database.ts`). `profiles` has no
  * read or write functions yet, so nothing checks its rows. Findings are stored
- * inside their report. `axe_results` holds one axe-core scan per target-app
- * page and app parameters, keyed by the page's URL.
+ * inside their report. `axe_results` holds one axe-core scan per page, keyed
+ * by the page's whole URL, origin included.
  *
  * Written to stay Postgres-compatible (`docs/STACK.md`): `text`, `integer` and
  * `real` only, nothing SQLite-only. A switch rewrites this file with `pg-core`
@@ -94,9 +94,10 @@ export const reports = sqliteTable("reports", {
 });
 
 /**
- * A stored axe result is its whole `AxeScan`: one target-app page at one set of app parameters,
- * scanned once. Its `url`, the page's path and the app's query with no origin, is the key; nothing
- * filters or sorts on anything else, so the scan time stays in the document.
+ * A stored axe result is its whole `AxeScan`: one page, scanned once. Its `url`, the page's whole
+ * URL with its origin, is the key: a target-app page's on the target-app origin io is configured
+ * with, at the app's parameters. Nothing filters or sorts on anything else, so the scan time stays
+ * in the document.
  */
 export const axeResults = sqliteTable("axe_results", {
   url: text("url").primaryKey(),

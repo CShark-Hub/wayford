@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { createLlm, parseLlmSettings } from "@wayford/agent";
+import { TARGET_APP_PORT } from "@wayford/agent/cli";
 import { ReportBackend, TaskId, WayfordError } from "@wayford/core";
 import { profileFixtures, targetAppJargon } from "@wayford/core/fixtures";
 import pino from "pino";
@@ -87,9 +88,13 @@ async function main({ taskId, backend }: Arguments): Promise<number> {
   // Idempotent, so the command works on a fresh clone and on an up-to-date database alike.
   migrateDatabase(config.DATABASE_URL);
   const db = openDatabase(config.DATABASE_URL);
-  // Serves the target app and launches Chromium on its first scan only: none when every page the
-  // runs stood on is already stored.
-  const axeScan = servedAxeScanner();
+  // The origin the runs it reads were started on, the one `server.ts` and `seed:demo` hand their
+  // runner: a run there is a target-app run.
+  const targetAppOrigin = `http://localhost:${TARGET_APP_PORT}`;
+  // Serves the target app and launches Chromium on its first target-app scan only: none when every
+  // page the runs stood on is already stored. Its keys are on `targetAppOrigin`, whatever free port
+  // it serves on.
+  const axeScan = servedAxeScanner(targetAppOrigin);
   try {
     const analysis = await analyseAndStore(
       {
@@ -102,6 +107,7 @@ async function main({ taskId, backend }: Arguments): Promise<number> {
         groundTruthDir: join(RUNS_DIR, "ground-truth"),
         jevModel: settings.jevModel,
         axe: axeLookup({ db, scan: axeScan.scan }),
+        targetAppOrigin,
         logger,
       },
       taskId,

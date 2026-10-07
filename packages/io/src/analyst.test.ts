@@ -34,10 +34,10 @@ import {
 } from "./analyst.js";
 import { fallbackRecommendation } from "./analyst-closures.js";
 import type { RouteFacts } from "./analyst-runs.js";
-import { axeUrl } from "./axe.js";
 import { loadReport } from "./db/reports.js";
 import { saveRun } from "./db/runs.js";
 import { saveTask } from "./db/tasks.js";
+import { targetAppPage } from "./page-ref.js";
 import {
   analystDefaults,
   archiveLink,
@@ -73,7 +73,8 @@ async function store(): Promise<TempStore> {
 
 /**
  * The Analyst's dependencies on `s`: `analystDefaults` (no route table, no ground truth, Jev as
- * `FAKE_JEV_MODEL`), `llm`, an axe-core lookup that finds no violation, and `quiet`.
+ * `FAKE_JEV_MODEL`, the target app on the origin the task fixtures start on), `llm`, an axe-core
+ * lookup that finds no violation, and `quiet`.
  */
 function depsOf(s: TempStore, llm: FakeLlm, over: Partial<AnalystDeps> = {}): AnalystDeps {
   return { db: s.db, llm, ...analystDefaults(s), axe: fakeAxe(), logger: quiet, ...over };
@@ -389,8 +390,15 @@ describe("analyseAndStore: deterministic findings", () => {
   });
 });
 
-/** `/deliveries` at the app's defaults, where every stored run of these tests stands. */
-const DELIVERIES = axeUrl("/deliveries", TARGET_APP_DEFAULT_QUERY);
+/**
+ * `/deliveries` at the app's defaults, where every stored run of these tests stands, on the origin
+ * the task fixtures start on, by its whole URL.
+ */
+const DELIVERIES = targetAppPage(
+  "http://localhost:5174",
+  "/deliveries",
+  TARGET_APP_DEFAULT_QUERY,
+).url;
 
 /** The real scan of `/deliveries` at the defaults: one `color-contrast` violation. */
 const deliveriesScan = axeScanFixture("/deliveries");

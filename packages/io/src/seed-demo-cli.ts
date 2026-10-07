@@ -190,6 +190,11 @@ async function main(args: Arguments): Promise<number> {
         );
       }
 
+      // The fixtures' origin, where the tasks start, as `server.ts` has it, for the runner and the
+      // reports. Not `app.origin`: Vite reports `127.0.0.1` there under
+      // `--dns-result-order=ipv4first`, and every set would then run as another site, without the
+      // app's parameters and jargon list.
+      const targetAppOrigin = `http://localhost:${TARGET_APP_PORT}`;
       // One Chromium for every run and every axe-core scan, as `server.ts` shares it.
       const browser = sharedBrowser(async () => {
         const launch = await launchChromium();
@@ -201,10 +206,7 @@ async function main(args: Arguments): Promise<number> {
         run: sharedChromium(browser),
         backends: actor.backends,
         defaultBackend: args.backend,
-        // The fixtures' origin, where the tasks start, as `server.ts` has it. Not `app.origin`: Vite
-        // reports `127.0.0.1` there under `--dns-result-order=ipv4first`, and every set would then
-        // run as another site, without the app's parameters and jargon list.
-        targetAppOrigin: `http://localhost:${TARGET_APP_PORT}`,
+        targetAppOrigin,
         // The app's defaults, as the arena's runs: the walk measured the same page.
         params: TARGET_APP_DEFAULTS,
         jargon: targetAppJargon,
@@ -223,8 +225,13 @@ async function main(args: Arguments): Promise<number> {
             groundTruthDir,
             jevModel: actor.jevModel,
             // The report's axe findings (s4-06): each page the runs stood on, scanned once on the
-            // app served here and stored, or read from the store when scanned before.
-            axe: axeLookup({ db, scan: axeScanner({ browser, origin: app.origin }) }),
+            // app served here and stored under its URL on the runs' origin, or read from the store
+            // when scanned before.
+            axe: axeLookup({
+              db,
+              scan: axeScanner({ browser, targetAppOrigin, servedOrigin: app.origin }),
+            }),
+            targetAppOrigin,
             logger,
             say,
           },
