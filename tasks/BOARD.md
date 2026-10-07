@@ -136,8 +136,8 @@ Optional, taken only once every task above is taken:
 | Task | Title | Size | Depends on | Owner | Status |
 |---|---|---|---|---|---|
 | s3-14 | Cast and Runs redesigned, Recharts out | M | s3-13, s3-08 | | todo |
-| s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02, s3-07 | | todo |
-| s2-07 | B2: scroll when stuck | S | s2-10 | Grzegorz Stysiak | review (PR #185) |
+| s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02, s3-07 | | Grzegorz | review (PR #187) |
+| s2-07 | B2: scroll when stuck | S | s2-10 | | Grzegorz Stysiak | review (PR #185) |
 | s2-08 | B4: misclick on small targets | M | s2-10 | | todo |
 | s2-09 | Simulated time: click speed and the budget | L | s2-10, after s2-08 | | todo |
 
