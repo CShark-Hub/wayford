@@ -72,9 +72,9 @@ The Race and run detail match their reference screens:
 - [x] `pnpm --filter @wayford/web check:self` passes with the Race and run detail listed, in both themes
   - It prints `floors: text 4.5:1 and 16 px, targets 32 px`, then `10 screens checked in Daylight and Night: 0 shortfalls`, and exits 0 (after the merges of `main` with s3-08, s3-09 and s3-06).
   - The screens are `cast`, `lens` (from `s3-11`), `lens-illustration` (from `s3-06`), `race` (the setup strip), `race-live` (three lanes from `demoRace`), `report` (from `s3-08`), `boundary` and `boundary · maxElements` (from `s3-09`), `run-detail` (`run_vera-hard-1?step=1`) and `run-detail-jev` (`run_vera-hard-jev`).
-- [ ] The PR shows a race in progress and a step replay at 1280 × 720 beside the two reference screens, and the reviewer approves the look
+- [x] The PR shows a race in progress and a step replay at 1280 × 720 beside the two reference screens, and the reviewer approves the look
   - The screenshots are on the PR, in Daylight and Night, beside `docs/design/screens/race.html` and `run-detail.html` taken at the same size.
-  - Approval is the reviewer's.
+  - Approved by the reviewer, Grzegorz, who merged PR #181 on 2026-10-07 after his review at 7d8bcf2.
 - [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root
   - Lint: 408 files. Typecheck: exit 0. Test: 161 files passed, 1 skipped; 2467 tests passed, 3 skipped. Run after the third PR review's fixes and the merge of `main` with s3-06.
 
