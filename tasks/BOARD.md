@@ -109,6 +109,7 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s3-08 | Report screen | M | s4-04, s3-13 | Grzegorz | done |
 | s3-09 | Boundary screen | M | s4-05, s3-13 | Marcin | done |
 | s4-07 | `seed:demo`: the demo's data in one command | M | s4-04, s4-05, s2-12 | Marcin | done |
+| s3-18 | The source badge moves into the page | S | s3-12, s3-14 | Tomasz | done |
 | demo-1 | Agree the 90-second script, `docs/DEMO.md`, and rehearse beats 1 to 4 | — | by Friday 2026-10-09 | team | todo |
 | demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task | team | todo |
 

@@ -5,7 +5,7 @@ import { expect, test } from "vitest";
 import { forgetRace, showRace } from "../arena/shown-race.js";
 import { attributesOf, elementOf, textOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
-import { STORY_NAV, TopBarSlot } from "./top-bar.js";
+import { STORY_NAV } from "./top-bar.js";
 
 /** The page at `path` through the app's own router, shell included. A static render runs no effect. */
 async function render(path: string): Promise<string> {
@@ -105,7 +105,7 @@ test("on another task's report, no story entry is the current page", async () =>
   expect(nav.filter((link) => link.attributes["aria-current"] === "page")).toEqual([]);
 });
 
-test("Runs sits outside the story nav, Events has no link, and the slot is empty", async () => {
+test("Runs sits outside the story nav, and Events has no link", async () => {
   const bar = topBarOf(await render("/runs"));
   const nav = elementOf(bar, "nav", 'aria-label="Story"');
   expect(linksOf(nav).map((link) => link.name)).not.toContain("Runs");
@@ -115,8 +115,6 @@ test("Runs sits outside the story nav, Events has no link, and the slot is empty
     "aria-current": "page",
   });
   expect(links.map((link) => link.attributes.href)).not.toContain("/events");
-  // The bar fills nothing itself: a screen's badge and tag come from that screen's data.
-  expect(bar).toMatch(/<div data-slot="top-bar-slot"[^>]*><\/div>/);
 });
 
 test("Target sits outside the story nav, before Runs, and is current on its screen", async () => {
@@ -134,13 +132,8 @@ test("the wordmark reads Wayford and opens the Cast", async () => {
   expect(wordmark).toMatchObject({ name: "Wayford", attributes: { href: "/cast" } });
 });
 
-test("the theme toggle is in the bar, after the slot", async () => {
+test("the bar draws no source badge and no backend word", async () => {
   const bar = topBarOf(await render("/cast"));
-  expect(bar.indexOf('aria-label="Switch to Night"')).toBeGreaterThan(
-    bar.indexOf('data-slot="top-bar-slot"'),
-  );
-});
-
-test("a screen's slot content draws nothing in a static render, and needs no bar", () => {
-  expect(renderToStaticMarkup(<TopBarSlot>live</TopBarSlot>)).toBe("");
+  expect(bar).not.toContain("data-source");
+  expect(bar).not.toMatch(/>(jev|llm)</);
 });

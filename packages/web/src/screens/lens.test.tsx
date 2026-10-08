@@ -57,15 +57,7 @@ import {
 } from "../preview/rendered-markup.js";
 import { PREVIEW_PAGES } from "../preview/search.js";
 import { createAppRouter } from "../router.js";
-import {
-  lensCounts,
-  openedSearch,
-  openUrl,
-  rulesFired,
-  sourceBadge,
-  stageSettled,
-  UrlForm,
-} from "./lens.js";
+import { lensCounts, openedSearch, openUrl, rulesFired, UrlForm } from "./lens.js";
 
 vi.mock("@wayford/filter/perceive", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@wayford/filter/perceive")>();
@@ -636,6 +628,13 @@ test("the screen draws io's live measurement of the page, for the persona's devi
   );
 });
 
+test("the Lens draws no source badge: its Live line or its banner says where the page came from", async () => {
+  const live = liveOf("/deliveries");
+  const client = liveClient([["desktop", "/deliveries", live]]);
+  expect(await render(VERA, client)).not.toContain("data-source");
+  expect(await render(`${VERA}&illustration=true`, client)).not.toContain("data-source");
+});
+
 test("Milo, on a phone, gets the phone's measurement, drawn no wider than the phone", async () => {
   const phone = liveOf("/deliveries", true);
   const html = await render(
@@ -1146,25 +1145,6 @@ test("a link with evidence=true opens the evidence view, beside illustration=tru
   }
 });
 
-test("the top bar's badge reports the stage's data: the picture in the illustration view, else the page", () => {
-  for (const view of ["perceived", "evidence"] as const) {
-    expect(sourceBadge(view, "live", "stored")).toEqual({ source: "live", label: "live page" });
-    expect(sourceBadge(view, "stored", "live")).toEqual({ source: "stored", label: "stored page" });
-    expect(sourceBadge(view, undefined, "live")).toBeUndefined();
-  }
-  // A live measurement beside a stored picture reads stored: the stage shows the stored picture.
-  expect(sourceBadge("illustration", "live", "stored")).toEqual({
-    source: "stored",
-    label: "stored picture",
-  });
-  expect(sourceBadge("illustration", "stored", "live")).toEqual({
-    source: "live",
-    label: "live picture",
-  });
-  // No picture yet, or none asked for off /deliveries: the badge claims nothing.
-  expect(sourceBadge("illustration", "live", undefined)).toBeUndefined();
-});
-
 // ---------------------------------------------------------------------------
 // A page by URL (s3-16)
 // ---------------------------------------------------------------------------
@@ -1259,13 +1239,6 @@ test("a failed URL page draws no page, never the stored /deliveries, and says wh
     "rules fired": "none",
   });
   expect(skeletonsOf(html)).toEqual([]);
-  // The source badge claims nothing: no page was measured, live or stored.
-  expect(stageSettled({ kind: "failed", failure: UNAVAILABLE })).toBeUndefined();
-  expect(stageSettled({ kind: "measuring" })).toBeUndefined();
-  expect(stageSettled({ kind: "live", observation: observationFixture })).toBe("live");
-  expect(
-    stageSettled({ kind: "stored", observation: observationFixture, failure: UNAVAILABLE }),
-  ).toBe("stored");
 });
 
 test("a url= link round-trips as a plain anchor writes it and as encodeURIComponent does", async () => {

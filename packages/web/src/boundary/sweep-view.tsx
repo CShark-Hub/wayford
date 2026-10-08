@@ -1,7 +1,7 @@
 /**
- * One loaded sweep, laid out as `docs/design/screens/boundary.html` draws it: the source in the top
- * bar; the head, with the persona, the meta line, the headline and the axis switch; the lead; then
- * the chart beside the value table, and the runs of a value when one is open.
+ * One loaded sweep, laid out as `docs/design/screens/boundary.html` draws it: the head, with the
+ * persona, the meta line, the headline and the axis switch; the lead; then the chart beside the
+ * value table, and the runs of a value when one is open.
  *
  * The headline and the lead say what `readSweep` reads, in the agent's words: the boundary is a
  * got-through number, never where a route closes (`docs/DEMO.md`, "Words we do not use"). Route
@@ -17,9 +17,6 @@ import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { PersonaAvatar, PersonaChip, personaLabel } from "../components/persona-avatar.js";
 import { SEGMENT_GROUP, segmentItem } from "../components/segmented-control.js";
-import { SourceBadge } from "../components/source-badge.js";
-import { Tag } from "../components/tag.js";
-import { TopBarSlot } from "../components/top-bar.js";
 import { AXIS_COPY, BOUNDARY_PRESETS, gridOf, proseValue, rangeLabel, seedsLabel } from "./axis.js";
 import { readSweep, type SweepReading } from "./reading.js";
 import { SweepChart } from "./sweep-chart.js";
@@ -32,16 +29,6 @@ import { ValueTable } from "./value-table.js";
  */
 export const FRAME =
   "mx-auto grid max-w-(--content-max) gap-(--space-3) px-(--space-6) pt-(--space-5) pb-(--space-3)";
-
-/** Where the screen's numbers come from: stored, on the backend the sweep ran on. */
-export function SweepSource({ sweep }: { sweep: Sweep }) {
-  return (
-    <>
-      <SourceBadge source="stored" />
-      <Tag variant="plain">{sweep.backend}</Tag>
-    </>
-  );
-}
 
 /**
  * The switch between the two demo presets: a link each, drawn as a segmented control, each a chip
@@ -87,12 +74,19 @@ function headlineErrors(errors: number): string {
 }
 
 /**
- * The meta line: who, which goal, the range, the seeds and the runs stored, and how far an
+ * The meta line: who, which goal, the backend, the range, the seeds and the runs stored, and how far an
  * incomplete sweep got.
  */
 function metaOf(sweep: Sweep, persona: string): string {
   const runs = sweep.values.reduce((sum, row) => sum + row.runIds.length, 0);
-  const parts = [persona, sweep.taskId, rangeLabel(sweep), seedsLabel(sweep.seeds), `${runs} runs`];
+  const parts = [
+    persona,
+    sweep.taskId,
+    sweep.backend,
+    rangeLabel(sweep),
+    seedsLabel(sweep.seeds),
+    `${runs} runs`,
+  ];
   if (sweep.status === "incomplete") {
     parts.push(`incomplete, ${sweep.values.length} of ${gridOf(sweep).length} values`);
   }
@@ -217,10 +211,6 @@ export function SweepView({
   const open = sweep.values.find((row) => row.value === value);
   return (
     <div className={FRAME} style={slotStyle(slotOf(sweep.profileId))}>
-      <TopBarSlot>
-        <SweepSource sweep={sweep} />
-      </TopBarSlot>
-
       <header className="flex items-center gap-(--space-5)">
         {profile === undefined ? null : <PersonaAvatar profile={profile} className="size-22" />}
         {/* As the picture lays it out: the meta line and the switch share the top row, and the

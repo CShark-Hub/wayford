@@ -27,7 +27,6 @@ import { PersonaAvatar } from "#components/persona-avatar";
 import { RaceLane } from "#components/race-lane";
 import { SourceBadge } from "#components/source-badge";
 import { Tag } from "#components/tag";
-import { TopBarSlot } from "#components/top-bar";
 import { Button, buttonVariants } from "#components/ui/button";
 import { screenshotUrl } from "../api/runs.js";
 import { slotOf } from "../avatar/slots.js";
@@ -145,7 +144,7 @@ function LaneOf({
  * ids against; were one not, its id would name it, with no avatar. A race on more than one seed
  * names each lane's seed after its persona, since each persona then has a lane per seed.
  *
- * `source` is where the folds come from. The top bar's badge reads `live` while a live race is not
+ * `source` is where the folds come from. The header's badge reads `live` while a live race is not
  * `over`, so a stream can still bring an event, and nothing once it is: the screen holds no record,
  * only what the streams brought. A race drawn from its runs' records reads `stored`.
  *
@@ -208,18 +207,16 @@ export function RaceView({
   const lost = lanes.filter((lane) => lane.lost);
   return (
     <section aria-labelledby="race-goal" className="flex flex-col pb-(--space-4)">
-      <TopBarSlot>
-        {source === "stored" ? (
-          <SourceBadge source="stored" />
-        ) : over ? null : (
-          <SourceBadge source="live" />
-        )}
-      </TopBarSlot>
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-(--space-6) pt-(--space-4) pb-(--space-4)">
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-(--space-3)">
             <Tag>{label}</Tag>
             <span className="mono-label text-ink-3">{task.id}</span>
+            {source === "stored" ? (
+              <SourceBadge source="stored" />
+            ) : over ? null : (
+              <SourceBadge source="live" />
+            )}
           </div>
           <h2 id="race-goal" className="my-1.5 display-m text-balance text-ink">
             <q>{task.goal}</q>

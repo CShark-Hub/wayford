@@ -7,9 +7,9 @@
  * is a link. Under the replay sits the recording.
  *
  * The run comes from io, parsed with core's schema (`src/api/runs.ts`); the screenshots, the video
- * and the trace are files the browser fetches from io itself. The top bar says the run is stored,
- * and names the backend its Actor ran on. The persona's slot is set once on the screen's root, so
- * the avatar, the Jev draw and the marks take its colour, and nothing else does.
+ * and the trace are files the browser fetches from io itself. The facts name the backend its Actor
+ * ran on. The persona's slot is set once on the screen's root, so the avatar, the Jev draw and the
+ * marks take its colour, and nothing else does.
  */
 import { useQuery } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
@@ -24,10 +24,7 @@ import { Banner } from "../components/banner.js";
 import { Outcome, outcomeKind } from "../components/outcome.js";
 import { PersonaAvatar, personaLabel } from "../components/persona-avatar.js";
 import { Skeleton } from "../components/skeleton.js";
-import { SourceBadge } from "../components/source-badge.js";
 import { StepTimeline } from "../components/step-timeline.js";
-import { Tag } from "../components/tag.js";
-import { TopBarSlot } from "../components/top-bar.js";
 import { Button } from "../components/ui/button.js";
 import { Detail, Details, FACTS, Fact } from "../runs/details.js";
 import { describeAction, RunDetailSearch } from "../runs/replay.js";
@@ -130,6 +127,14 @@ function Loading({ runId }: { runId: string }) {
   );
 }
 
+/**
+ * Whether a step of `run` planned an action. Before one, `backendOf` reads a Jev run as `llm`, so
+ * the facts name no backend then (`docs/DESIGN.md`, Principle 6).
+ */
+function planned(run: RunResult): boolean {
+  return run.steps.some((step) => "proposedAction" in step && step.proposedAction !== undefined);
+}
+
 /** A file of the run to save, as an outlined button with the download icon. */
 function DownloadLink({ href, children }: { href: string; children: string }) {
   return (
@@ -174,6 +179,7 @@ function Header({ run }: { run: RunResult }) {
           <Fact term="duration">{formatSeconds(run.durationMs)}</Fact>
           <Fact term="steps">{run.steps.length}</Fact>
           <Fact term="cost">{costLine(run.cost)}</Fact>
+          {planned(run) ? <Fact term="backend">{backendOf(run)}</Fact> : null}
           <Fact term="actor">{run.modelIds.actor}</Fact>
           <Fact term="task">{run.taskId}</Fact>
           <Fact term="start">
@@ -292,10 +298,6 @@ function RunDetail({
   const current = steps[position];
   return (
     <div className={PAGE} style={slotStyle(slotOf(run.profileId))}>
-      <TopBarSlot>
-        <SourceBadge source="stored" />
-        <Tag variant="plain">{backendOf(run)}</Tag>
-      </TopBarSlot>
       <Header run={run} />
       <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-y border-line py-2">
         {steps.length === 0 ? (

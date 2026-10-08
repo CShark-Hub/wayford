@@ -330,14 +330,8 @@ const TARGET_RUNS = [1, 2, 3].flatMap((seed) =>
   })),
 );
 
-/**
- * The page once the top bar carries a stored badge. The badge is a portal into the bar, which only
- * a mounted shell draws, so this is where a screen that drops it fails.
- */
-const STORED_BADGE_SHOWN = 'body:has([data-slot="top-bar-slot"] [data-source="stored"])';
-
-/** The Boundary is drawn once its headline shows and the top bar carries the sweep's stored badge. */
-const BOUNDARY_READY = `${STORED_BADGE_SHOWN} main h1:has-text("Under half get through")`;
+/** The Boundary is drawn once its headline shows. */
+const BOUNDARY_READY = 'main h1:has-text("Under half get through")';
 
 /** The screens that must pass. The shell is measured around each of them. */
 export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
@@ -465,8 +459,8 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
   {
     name: "runs",
     path: "/runs",
-    // Ready once the table has its rows and the top bar says stored, which a mounted shell draws.
-    ready: `${STORED_BADGE_SHOWN} main:has(table tbody tr)`,
+    // Ready once the table has its rows.
+    ready: "main:has(table tbody tr)",
     // Every fixture run, with a persona that is not bundled and both limits among them, and the
     // tasks that label their goals.
     responses: { "/runs": fixtureRuns, "/tasks": taskFixtures },

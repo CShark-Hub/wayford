@@ -7,8 +7,8 @@
  * The URL holds the filters (`src/runs/filter.ts`), so a filtered view is a link and a reload
  * opens the same view: each filter is a row of links in the segment look, and its picked chip is
  * the URL's value, even one no chip would otherwise hold. The screen fetches every run once and
- * filters in the browser. Every listed run is stored, so the top bar says `stored` once io has
- * answered with runs; the archive spans backends, so no backend tag goes beside it.
+ * filters in the browser. Every listed run is stored, so the screen carries no source badge, and
+ * the archive spans backends, so it names none.
  */
 import { useQuery } from "@tanstack/react-query";
 import { createRoute, Link } from "@tanstack/react-router";
@@ -24,8 +24,6 @@ import { OUTCOME_WORDS } from "../components/outcome-words.js";
 import { PersonaName } from "../components/persona-avatar.js";
 import { SEGMENT_GROUP, segmentItem } from "../components/segmented-control.js";
 import { Skeleton } from "../components/skeleton.js";
-import { SourceBadge } from "../components/source-badge.js";
-import { TopBarSlot } from "../components/top-bar.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
 import { EXACT } from "../report/cast-table.js";
 import { filterRuns, type RunFilter, RunsSearch } from "../runs/filter.js";
@@ -299,11 +297,7 @@ function Fault({ message, onRetry }: { message: string; onRetry: () => void }) {
   );
 }
 
-/**
- * The stored runs: the filters, then the table of the runs they keep, or a line saying none. The
- * top bar says `stored` exactly while they are drawn; the archive spans backends, so no backend
- * tag goes beside it.
- */
+/** The stored runs: the filters, then the table of the runs they keep, or a line saying none. */
 function StoredRuns({
   runs,
   shown,
@@ -320,9 +314,6 @@ function StoredRuns({
   const goals = new Map(tasks.map((task) => [task.id, task.goal]));
   return (
     <>
-      <TopBarSlot>
-        <SourceBadge source="stored" />
-      </TopBarSlot>
       <Filters runs={runs} goals={goals} search={search} />
       {shown.length === 0 ? (
         <div className="grid justify-items-start gap-(--space-1)">

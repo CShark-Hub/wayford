@@ -1,11 +1,9 @@
 /**
  * The one bar on every screen (`docs/DESIGN.md`, "Space, shape and layout"): the wordmark, the
- * numbered story nav, then Runs, a slot for the screen's own source badge and backend tag, and the
- * theme toggle. No sidebar and no command palette.
+ * numbered story nav, then Target and Runs, and the theme toggle. Nothing in it comes from a
+ * screen's data. No sidebar and no command palette.
  */
 import { Link } from "@tanstack/react-router";
-import { createContext, type ReactNode, useContext, useState } from "react";
-import { createPortal } from "react-dom";
 import { DEMO_GOAL } from "../arena/panel-state.js";
 import { useShownRace } from "../arena/shown-race.js";
 import { ThemeToggle } from "./theme-toggle.js";
@@ -33,27 +31,6 @@ export const STORY_NAV = [
 const NAV_LINK =
   "group inline-flex min-h-9 items-center gap-1.5 rounded-sm border-b-2 border-transparent px-3 label text-ink-2 transition-colors hover:bg-paper-sunken hover:text-ink aria-[current=page]:border-ink aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=page]:ring-1 aria-[current=page]:ring-line";
 
-/** The element a screen's badge and tag are drawn into, and its setter for the bar's ref. */
-type Slot = { element: HTMLElement | null; setElement: (element: HTMLElement | null) => void };
-
-const SlotContext = createContext<Slot>({ element: null, setElement: () => {} });
-
-/** Holds the top bar's slot element, so a screen anywhere under the shell can fill it. */
-export function TopBarProvider({ children }: { children: ReactNode }) {
-  const [element, setElement] = useState<HTMLElement | null>(null);
-  return <SlotContext.Provider value={{ element, setElement }}>{children}</SlotContext.Provider>;
-}
-
-/**
- * A screen's source badge and backend tag, drawn in the top bar. They come from the screen's own
- * data, so the bar never says where data came from on its own. Nothing is drawn until the bar's
- * slot element exists: a static render draws nothing here and never calls `createPortal`.
- */
-export function TopBarSlot({ children }: { children: ReactNode }) {
-  const { element } = useContext(SlotContext);
-  return element ? createPortal(children, element) : null;
-}
-
 /** "Wayford" led by a short stack of posts, one signal and two ink steps, drawn in CSS. */
 function Wordmark() {
   return (
@@ -70,9 +47,8 @@ function Wordmark() {
   );
 }
 
-/** The bar. Its slot element is registered with the provider through its ref. */
+/** The bar. */
 export function TopBar() {
-  const { setElement } = useContext(SlotContext);
   const shownRace = useShownRace();
   return (
     <header className="grid h-(--header-h) grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-(--space-6) border-b border-line bg-paper px-(--space-6)">
@@ -118,7 +94,6 @@ export function TopBar() {
         <Link to="/runs" className={buttonVariants({ variant: "ghost" })}>
           Runs
         </Link>
-        <div ref={setElement} data-slot="top-bar-slot" className="flex items-center gap-2" />
         <ThemeToggle />
       </div>
     </header>

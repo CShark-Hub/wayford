@@ -10,8 +10,7 @@
  *   rest with focus on the first of them, and folds them again.
  * - "Analyse again" shows it running while io's `POST` is held, posts the report's own backend, and
  *   draws the new report once io answers; a refusal shows the fault, and Try again posts the same.
- * - The top bar says `stored`, with the report's backend, which a static render cannot show: its
- *   slot is a portal.
+ * - The meta line names the report's backend, and the page draws no source badge.
  * - With no report, "Analyse runs" posts no backend, so io reads the one the task's runs are on.
  * - Arriving with `?analyse=true`, as the race's "Analyse this race" does, starts the Analyst once
  *   and drops the flag, so a reload starts nothing. With a report stored it starts none. Arriving
@@ -287,7 +286,7 @@ test("moving to another goal's report while one is analysed: that page is not ru
     .getByRole("link", { name: /Report/ })
     .click();
   await page.waitForURL(`${origin}/report/${TASK_ID}`);
-  await page.getByText(`${TASK_ID} · 9 runs`, { exact: false }).waitFor();
+  await page.getByText(`${TASK_ID} · jev · 9 runs`, { exact: false }).waitFor();
   expect(await page.getByRole("button", { name: "Analyse again" }).isEnabled()).toBe(true);
   expect(await page.getByRole("button", { name: "Analysing…" }).count()).toBe(0);
 
@@ -300,19 +299,18 @@ test("moving to another goal's report while one is analysed: that page is not ru
   await page.getByText("Analysed 6 Oct 2026, 10:10 UTC", { exact: false }).waitFor();
   await page.goForward();
   await page.waitForURL(`${origin}/report/${TASK_ID}`);
-  await page.getByText(`${TASK_ID} · 9 runs`, { exact: false }).waitFor();
+  await page.getByText(`${TASK_ID} · jev · 9 runs`, { exact: false }).waitFor();
   await page.getByText("Analysed 5 Oct 2026, 14:20 UTC", { exact: false }).waitFor();
   expect(await page.getByText("Analysed 6 Oct 2026, 10:10 UTC", { exact: false }).count()).toBe(0);
 });
 
-test("the top bar shows stored and the report's backend", async () => {
+test("the meta line names the report's backend, and no source badge is drawn", async () => {
   const page = await servedPage((request, pathname) =>
     get(request, pathname, REPORT_PATH, LLM_REPORT),
   );
   await page.goto(`${origin}/report/${TASK_ID}`);
-  const slot = page.locator('[data-slot="top-bar-slot"]');
-  await slot.locator('[data-source="stored"]').getByText("stored", { exact: true }).waitFor();
-  expect(await slot.innerText()).toMatch(/^stored\s+llm$/);
+  await page.getByText(`${TASK_ID} · llm · 9 runs`, { exact: false }).waitFor();
+  expect(await page.locator("[data-source]").count()).toBe(0);
 });
 
 test("with no report, Analyse runs posts no backend", async () => {

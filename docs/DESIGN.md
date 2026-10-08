@@ -54,7 +54,11 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 
    Run through Vera's perception rules, Wayford's own screens lose nothing. They use none of the patterns she does not know: no hamburger, no kebab menu, no breadcrumb.
 6. **Claim less.**
-   - A source badge says whether the screen's data is live or stored. It is taken from that data, never hard-coded.
+   - Where a screen's data can be live or stored, the screen says which, in the page beside that data, taken from it, never hard-coded:
+     - the Race carries a source badge in its header, `live` while its streams are open, `stored` on a race read back from io;
+     - the Lens says it in the stage: its `Live:` line when io answered, and when it did not, a stored banner on a target-app page or a fault banner on a page opened by URL.
+   - A screen whose data can only be stored (Run detail, Runs, Report, Boundary) carries no source badge: a badge that never changes reads as a status of the whole app.
+   - The backend a run, report or sweep was on is a word in its own meta line or facts, not a badge. A run that stopped before its first planned action names none: its record cannot tell Jev from the LLM.
    - Narration is labelled `narration · after the fact`.
    - Jev's confidence is labelled as the model's.
 
@@ -168,7 +172,7 @@ The spacing steps (`space-1` to `space-9`, a 4 px grid), radii, layout sizes (`h
 - **One top bar:** `header-h`, with a hairline under it.
   - Wordmark left.
   - The story nav in the middle, numbered in mono: `01 Cast`, `02 Lens`, `03 Race`, `04 Report`, `05 Boundary`.
-  - `Target` and `Runs` apart on the right, then the screen's source badge and, where the screen's data names one, its backend tag, then the theme toggle.
+  - `Target` and `Runs` apart on the right, then the theme toggle. The bar is the same on every screen: nothing in it comes from a screen's data.
   - No sidebar, no command palette.
 - **One page column:** `content-max`, centred, with `space-6` gutters. Rails are `rail-w`.
 - **Radii by role:**
@@ -185,12 +189,12 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 
 | Component | What it is | Built in |
 |---|---|---|
-| TopBar | Wordmark, story nav, a slot for the screen's source badge and backend tag, theme toggle | `s3-13` |
+| TopBar | Wordmark, story nav, Target and Runs, theme toggle | `s3-13` |
 | Button | Ink primary (one per view), outlined default, ghost; 40 px, never under 32 px | `s3-13` |
 | PersonaAvatar, PersonaChip | The existing avatar in slot colours on a squircle tile; 12 px square and name | `s3-13` |
 | SegmentedControl | Two to five sibling views; mono variant for paths and ids | `s3-13` |
-| Tag | Square mono flag: provenance, rule id, backend. `folk`/`llm` dotted with "no source" | `s3-13` |
-| SourceBadge | `live` or `stored`, from the screen's own data; dashed when stored | `s3-13` |
+| Tag | Square mono flag: provenance, rule id. `folk`/`llm` dotted with "no source" | `s3-13` |
+| SourceBadge | `live` or `stored`, from the screen's own data; dashed when stored. Only in the page, beside data that can be either: the Race header | `s3-13` |
 | Banner | Stored-page notice (dashed) or fault (`fault-soft`), one action | `s3-13` |
 | Skeleton | Loading in the shape of the content | `s3-13` |
 | Working | A job under way: the wordmark's three posts in a water line, sinking and rising in turn, beside the line that says what runs | Target |

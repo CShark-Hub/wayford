@@ -1,17 +1,10 @@
 import { cn } from "cn";
-import type { ReactNode } from "react";
 
 /**
  * Where the numbers on screen come from, drawn as `.wf-source`: live is a signal dot on a solid
- * border, stored a hollow dot on a dashed one. The label defaults to the source word.
+ * border, stored a hollow dot on a dashed one. The label is the source word.
  */
-export function SourceBadge({
-  source,
-  children,
-}: {
-  source: "live" | "stored";
-  children?: ReactNode;
-}) {
+export function SourceBadge({ source }: { source: "live" | "stored" }) {
   return (
     <span
       data-source={source}
@@ -27,7 +20,7 @@ export function SourceBadge({
           source === "live" ? "bg-signal ring-3 ring-signal-soft" : "ring-2 ring-inset ring-ink-2",
         )}
       />
-      {children ?? source}
+      {source}
     </span>
   );
 }

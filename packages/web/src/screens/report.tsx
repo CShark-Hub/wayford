@@ -3,10 +3,10 @@
  * the goal and Scout's line, per persona the two numbers side by side, and the findings grouped by
  * certainty, each opening its evidence step in run detail.
  *
- * The report is stored by io's Analyst (`api/reports.ts`), so the top bar says `stored`, with the
- * backend the report read. "Analyse again" asks io to build it anew; io's `POST` is synchronous
- * with no progress, so "running" is the pending state of this goal's analysis. With no report yet,
- * the screen offers the same instead of an empty page.
+ * The report is stored by io's Analyst (`api/reports.ts`), and its meta line names the backend it
+ * read. "Analyse again" asks io to build it anew; io's `POST` is synchronous with no progress, so
+ * "running" is the pending state of this goal's analysis. With no report yet, the screen offers the
+ * same instead of an empty page.
  *
  * `?persona=` is the persona whose row was picked: the findings narrow to theirs and the page's
  * measurements, and say so, so a picked row is a link.
@@ -37,9 +37,6 @@ import { count } from "../components/outcome-words.js";
 import { personaLabel } from "../components/persona-avatar.js";
 import { SeedLegend } from "../components/seed-strip.js";
 import { Skeleton } from "../components/skeleton.js";
-import { SourceBadge } from "../components/source-badge.js";
-import { Tag } from "../components/tag.js";
-import { TopBarSlot } from "../components/top-bar.js";
 import { Button } from "../components/ui/button.js";
 import { CastTable, EXACT } from "../report/cast-table.js";
 import { Findings } from "../report/findings.js";
@@ -307,12 +304,14 @@ export function ReportScreen() {
         {stored == null ? null : (
           <div className="flex flex-wrap items-center justify-between gap-x-(--space-6) gap-y-(--space-2)">
             <p className="mono text-ink-2">
-              {[taskId, count(stored.runCount, "run"), scoutLine(stored.scout)].map((term) => (
-                <span key={term}>
-                  {term}
-                  <span className="text-ink-3"> · </span>
-                </span>
-              ))}
+              {[taskId, stored.backend, count(stored.runCount, "run"), scoutLine(stored.scout)].map(
+                (term) => (
+                  <span key={term}>
+                    {term}
+                    <span className="text-ink-3"> · </span>
+                  </span>
+                ),
+              )}
               <span>{`${costInAll(stored.cost)} in all`}</span>
             </p>
             <SeedLegend
@@ -321,13 +320,6 @@ export function ReportScreen() {
           </div>
         )}
       </header>
-      {stored == null ? null : (
-        // Taken from the report itself (docs/DESIGN.md, Principle 6): a report is stored, on its backend.
-        <TopBarSlot>
-          <SourceBadge source="stored" />
-          <Tag variant="plain">{stored.backend}</Tag>
-        </TopBarSlot>
-      )}
       {pending ? (
         <p role="status" className="body text-ink-2">
           Analysing the stored runs. This can take a few minutes.

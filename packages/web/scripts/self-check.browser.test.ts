@@ -469,19 +469,18 @@ describe("on the web app", () => {
     // `collect` measures text blocks and controls, and a badge is neither, so these read the page
     // itself once `checkScreen` has measured it. The badge's source comes from the screen's data.
 
-    /** The top bar's slot, where a screen puts its source badge. */
-    const topBarSlot = (page: Page) => page.locator('[data-slot="top-bar-slot"]');
+    /** The source badges on the page: only the Race draws one. */
+    const badges = (page: Page) => page.locator("[data-source]");
 
     test.each([
       ["run-detail", "llm"],
       ["run-detail-jev", "jev"],
-    ])("%s: the top bar says stored, and names the %s backend", async (name, backend) => {
+    ])("%s: no source badge, and the facts name the %s backend", async (name, backend) => {
       const page = await newPage();
       await checkScreen(page, app.origin, listedScreen(name), "light");
-      const slot = topBarSlot(page);
-      expect(await slot.locator('[data-source="stored"]').count()).toBe(1);
-      expect(await slot.locator('[data-source="live"]').count()).toBe(0);
-      expect(await slot.getByText(backend, { exact: true }).count()).toBe(1);
+      expect(await badges(page).count()).toBe(0);
+      const fact = page.locator("div:has(> dt:text-is('backend')) > dd");
+      expect(await fact.allTextContents()).toEqual([backend]);
     });
 
     test("run-detail-jev in Daylight: the row of labels under Jev's draw ends inside 720 px", async () => {
@@ -510,15 +509,15 @@ describe("on the web app", () => {
         ),
       ),
     )(
-      "%s in %s: the top bar says live, and three lanes fit 1280 × 720 with no scroll",
+      "%s in %s: the header says live, and three lanes fit 1280 × 720 with no scroll",
       async (_name, _theme, screen, lane, theme) => {
         // Either race can be the taller, so the fit is measured on both: padding a lane with no
         // detail line would push race-live over 720 and leave race-detail as it was.
         const page = await newPage();
         await checkScreen(page, app.origin, screen, theme);
-        const slot = topBarSlot(page);
-        expect(await slot.locator('[data-source="live"]').count()).toBe(1);
-        expect(await slot.locator('[data-source="stored"]').count()).toBe(0);
+        const header = page.locator("section[aria-labelledby='race-goal'] > header");
+        expect(await header.locator('[data-source="live"]').count()).toBe(1);
+        expect(await badges(page).count()).toBe(1);
         // Whether each lane draws a detail line, and whether its clamp cuts its narration short.
         const lanes = await page.locator("article").evaluateAll((articles) =>
           articles.map((article) => {
@@ -541,11 +540,8 @@ describe("on the web app", () => {
         const page = await newPage();
         const check = await checkScreen(page, app.origin, raceEndedScreen(), theme);
         expect(check.shortfalls).toEqual([]);
-        // The race holds nothing stored, and no stream is left to bring an event. The slot is
-        // there, so a count of 0 inside it is the badge gone, not a slot that was never drawn.
-        const slot = topBarSlot(page);
-        expect(await slot.count()).toBe(1);
-        expect(await slot.locator("[data-source]").count()).toBe(0);
+        // The race holds nothing stored, and no stream is left to bring an event.
+        expect(await badges(page).count()).toBe(0);
         const height = await page.evaluate(() => document.scrollingElement?.scrollHeight);
         expect(height).toBeLessThanOrEqual(SELF_CHECK_VIEWPORT.height);
 

@@ -261,7 +261,7 @@ describe("narration is interpretation, so it sits under narration · after the f
     expect(lineOf(sectionOf(replay(0, fixtureJevRun), NARRATION))).toBe(
       `${NARRATION} Jev writes no narration`,
     );
-    // The run decides, as the top bar's tag does: step 1 of the Jev run carries no decision.
+    // The run decides, as the run's `backend` fact does: step 1 of the Jev run carries no decision.
     expect(lineOf(sectionOf(replay(1, fixtureJevRun), NARRATION))).toBe(
       `${NARRATION} Jev writes no narration`,
     );

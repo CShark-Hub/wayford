@@ -8,7 +8,6 @@ import { runQuery } from "../api/runs.js";
 import { sweepQuery, sweepsQuery } from "../api/sweeps.js";
 import { BOUNDARY_PRESETS } from "../boundary/axis.js";
 import { fixtureSweeps, stoppedSweep } from "../boundary/fixture-sweeps.js";
-import { SweepSource } from "../boundary/sweep-view.js";
 import {
   attributesOf,
   decode,
@@ -158,9 +157,9 @@ describe("/boundary, Vera's preset", () => {
     expect(html).toMatch(/data-series="through"/);
   });
 
-  test("the meta line names the persona, goal, range, seeds and run count", async () => {
+  test("the meta line names the persona, goal, backend, range, seeds and run count", async () => {
     expect(textLine(await veraPreset())).toContain(
-      "Vera · task_past-order · contrast 1.5–4.5:1 · seeds 1–10 · 70 runs",
+      "Vera · task_past-order · jev · contrast 1.5–4.5:1 · seeds 1–10 · 70 runs",
     );
   });
 
@@ -538,7 +537,7 @@ describe("/boundary/$sweepId", () => {
     const client = new QueryClient();
     client.setQueryData(sweepQuery(guest.id).queryKey, guest);
     const html = await render(`/boundary/${guest.id}`, client);
-    expect(textLine(html)).toContain("prof_guest · task_past-order · contrast 1.5–4.5:1");
+    expect(textLine(html)).toContain("prof_guest · task_past-order · jev · contrast 1.5–4.5:1");
     expect(html).not.toMatch(/data-part="body"/);
   });
 
@@ -598,7 +597,7 @@ describe("what a sweep says, beyond a boundary", () => {
   test("an incomplete sweep says how far it got", async () => {
     const html = await veraPreset(incomplete);
     expect(textLine(html)).toContain(
-      "Vera · task_past-order · contrast 1.5–4.5:1 · seeds 1–10 · 30 runs · incomplete, 3 of 7 values",
+      "Vera · task_past-order · jev · contrast 1.5–4.5:1 · seeds 1–10 · 30 runs · incomplete, 3 of 7 values",
     );
     expect(h1Of(html)).toBe("No boundary up to 2.5:1.");
   });
@@ -681,15 +680,8 @@ describe("the states before a sweep is shown", () => {
   });
 });
 
-describe("SweepSource", () => {
-  test("reads stored and the sweep's backend", () => {
-    const html = renderToStaticMarkup(<SweepSource sweep={vera} />);
-    expect(html).toMatch(/data-source="stored"/);
-    expect(lineOf(html)).toBe("stored jev");
-  });
-
-  test("takes the backend from the data", () => {
-    const html = renderToStaticMarkup(<SweepSource sweep={{ ...vera, backend: "llm" }} />);
-    expect(lineOf(html)).toBe("stored llm");
-  });
+test("the meta line takes the backend from the data, and the page draws no source badge", async () => {
+  const html = await render("/boundary", presets({ contrast: [{ ...vera, backend: "llm" }] }));
+  expect(textLine(html)).toContain("Vera · task_past-order · llm · contrast");
+  expect(html).not.toContain("data-source");
 });

@@ -9,7 +9,7 @@
  *
  * The illustration view (s3-06) is held to the same: its picture, answered from `/api/illustration`,
  * is fetched once, slider moves fetch nothing, and a persona switch fetches the next persona's.
- * Off `/deliveries` it fetches no picture, and a failed picture is badged stored while the
+ * Off `/deliveries` it fetches no picture, and a failed picture shows its stored banner while the
  * measurement beside it is live.
  *
  * The static tests in `lens.test.tsx` cannot show this: a static render runs no effect, so
@@ -220,7 +220,6 @@ test("in the illustration view the picture is fetched once, slider moves fetch n
     name: "/deliveries on desktop under Chrome's blurredVision emulation",
   });
   await picture.waitFor();
-  await page.locator("[data-source]", { hasText: "live picture" }).waitFor();
   await page.waitForLoadState("networkidle");
   const once = [...fetchesFor("/deliveries"), pictureFetch("blurredVision")].sort();
   expect(await fetchesOf(page)).toEqual(once);
@@ -269,8 +268,8 @@ test("in the illustration view the picture is fetched once, slider moves fetch n
 });
 
 test("off /deliveries no picture is asked for; a failed picture reads stored though the page is live, and Try again brings io's back", async () => {
-  // The badge claims only the picture's source in the illustration view (s3-06, spec "the stage
-  // claims only the picture's source"), and only where a picture is asked for.
+  // The stage claims only the picture's source in the illustration view (s3-06), and only where a
+  // picture is asked for.
   const page = await spiedPage();
   // io's picture fails until the test brings it back, for Try again.
   let pictureUp = false;
@@ -284,17 +283,16 @@ test("off /deliveries no picture is asked for; a failed picture reads stored tho
           })
         : route.fulfill({ status: 502, json: { error: "the picture browser did not start" } }),
   );
-  const pictureBadge = page.locator("[data-source]", { hasText: "picture" });
 
-  // On /account the view asks io for no picture, and the top bar claims none.
+  // On /account the view asks io for no picture, and no banner is drawn.
   await page.goto(`${origin}/lens?persona=prof_vera&page=/account&illustration=true`);
   await page.getByText("The illustration is taken of /deliveries only.").waitFor();
   await page.waitForLoadState("networkidle");
   expect(await fetchesOf(page)).toEqual(fetchesFor("/account"));
-  expect(await pictureBadge.count()).toBe(0);
+  expect(await page.getByText("The live picture is unavailable").count()).toBe(0);
 
   // On /deliveries io's picture fails while its measurement is live: the stored picture shows
-  // under its banner, and the badge says so.
+  // under its banner.
   await page.getByRole("link", { name: "Open /deliveries" }).click();
   await page
     .getByText("The live picture is unavailable: the picture browser did not start.")
@@ -308,8 +306,6 @@ test("off /deliveries no picture is asked for; a failed picture reads stored tho
     name: "/deliveries on desktop under Chrome's blurredVision emulation",
   });
   expect(await picture.getAttribute("src")).toBe("/illustration/desktop-blurredVision.png");
-  expect(await pictureBadge.textContent()).toBe("stored picture");
-  expect(await pictureBadge.getAttribute("data-source")).toBe("stored");
   const failed = [...fetchesFor("/account", "/deliveries"), pictureFetch("blurredVision")].sort();
   expect(await fetchesOf(page)).toEqual(failed);
 
@@ -320,7 +316,7 @@ test("off /deliveries no picture is asked for; a failed picture reads stored tho
     .click();
   await page.getByText("The illustration is taken of /deliveries only.").waitFor();
   await page.waitForLoadState("networkidle");
-  expect(await pictureBadge.count()).toBe(0);
+  expect(await page.getByText("The live picture is unavailable").count()).toBe(0);
   expect(await fetchesOf(page)).toEqual(failed);
 
   // Back on /deliveries with io's picture up, Try again asks for it, and it replaces the stored one.
@@ -330,7 +326,7 @@ test("off /deliveries no picture is asked for; a failed picture reads stored tho
     .click();
   pictureUp = true;
   await page.getByRole("button", { name: "Try again" }).click();
-  await page.locator("[data-source]", { hasText: "live picture" }).waitFor();
+  await page.getByText("The live picture is unavailable").waitFor({ state: "detached" });
   expect(await picture.getAttribute("src")).toMatch(/^blob:/);
   expect(await page.getByText("The live picture is unavailable").count()).toBe(0);
   await page.close();

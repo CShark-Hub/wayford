@@ -2,15 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { SourceBadge } from "./source-badge.js";
 
-test("the label defaults to the source word", () => {
+test("the label is the source word", () => {
   expect(renderToStaticMarkup(<SourceBadge source="live" />)).toContain(">live<");
   expect(renderToStaticMarkup(<SourceBadge source="stored" />)).toContain(">stored<");
-});
-
-test("children replace the default label", () => {
-  const html = renderToStaticMarkup(<SourceBadge source="stored">Saved run</SourceBadge>);
-  expect(html).toContain(">Saved run<");
-  expect(html).not.toContain(">stored<");
 });
 
 test.each([

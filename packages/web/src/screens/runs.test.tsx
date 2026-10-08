@@ -4,15 +4,11 @@
  * and renders the page with `renderToStaticMarkup`, as `router.test.tsx` does, inside a query
  * client seeded with the fixture runs and tasks, so no fetch runs: what a reloaded link opens with,
  * read off the markup, with no DOM library.
- *
- * The top bar's slot is drawn in place here: a static render never fills the real one, which is a
- * portal into the bar, so the source badge the screen puts there would go unseen.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import type { RunResult, Task } from "@wayford/core";
 import { profileFixtures, taskFixtures } from "@wayford/core/fixtures";
-import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { runsQuery, tasksQuery } from "../api/runs.js";
@@ -25,11 +21,6 @@ import {
 } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import { fixtureRuns } from "../runs/fixture-runs.js";
-
-vi.mock("../components/top-bar.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../components/top-bar.js")>()),
-  TopBarSlot: ({ children }: { children: ReactNode }) => <div data-top-bar-slot="">{children}</div>,
-}));
 
 const HARD = "task_past-order";
 const EASY = "task_next-parcel";
@@ -202,11 +193,6 @@ function bannerOf(html: string): string | undefined {
   const screen = mainOf(html);
   const start = screen.indexOf('role="alert"');
   return start === -1 ? undefined : screen.slice(start);
-}
-
-/** What the top bar's slot holds, as drawn in place by the mock above; undefined when empty. */
-function topBarSlotOf(html: string): string | undefined {
-  return html.match(/<div data-top-bar-slot="">(.*?)<\/div>/s)?.[1];
 }
 
 // ---------------------------------------------------------------------------
@@ -466,12 +452,7 @@ describe("states", () => {
     expect(chipTexts(html, "Task")).toEqual(["All", EASY, HARD]);
   });
 
-  test("the stored badge shows in the top bar once io answered with runs", async () => {
-    const held = topBarSlotOf(await render("/runs"));
-    expect(held).toMatch(/data-source="stored"/);
-    expect(lineOf(held ?? "")).toBe("stored");
-    expect(topBarSlotOf(await render("/runs", {}))).toBeUndefined();
-    expect(topBarSlotOf(await render("/runs", { down: true }))).toBeUndefined();
-    expect(topBarSlotOf(await render("/runs", { runs: [], tasks: taskFixtures }))).toBeUndefined();
+  test("the screen draws no source badge: every listed run is stored", async () => {
+    expect(await render("/runs")).not.toContain("data-source");
   });
 });

@@ -42,6 +42,13 @@ import { RaceView } from "./race-view.js";
 /** Vera's fixture run, as io's `POST /runs` would have handed it back. */
 const vera: StartedRun = { id: "run_vera-hard-1", profileId: "prof_vera", seed: 424242 };
 
+/** The race's `<header>`: the goal, its meta line and the source badge. */
+function headerOf(html: string): string {
+  const header = html.match(/<header[\s>][\s\S]*?<\/header>/)?.[0];
+  if (header === undefined) throw new Error("No header");
+  return header;
+}
+
 /** The fixture's events up to and including `index`: what the stream has delivered by then. */
 function upTo(index: number): RunEvent[] {
   return runEventFixtures.slice(0, index + 1);
@@ -724,6 +731,13 @@ describe("a race drawn from its runs' records", () => {
       </RouterContextProvider>,
     );
   }
+
+  test("the header's badge reads stored here, live while the race runs, and nothing once it is over", () => {
+    const stored = renderStored([vera], () => storedLane(runResultFromEvents(runEventFixtures)));
+    expect(headerOf(stored)).toMatch(/data-source="stored"/);
+    expect(headerOf(render([]))).toMatch(/data-source="live"/);
+    expect(render(runEventFixtures, "ended")).not.toMatch(/data-source/);
+  });
 
   test("a stored run's lane reads as its live lane did at its end", () => {
     const stored = renderStored([vera], () => storedLane(runResultFromEvents(runEventFixtures)));

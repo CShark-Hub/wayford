@@ -193,8 +193,7 @@ test("a race that finished while the screen was left opens from its records on t
   await page.waitForURL(`${origin}/race/race_demo`);
   await laneOf(page, "Kai").getByText("Gave up", { exact: true }).waitFor();
   await laneOf(page, "Ada").getByText("1st", { exact: true }).waitFor();
-  const slot = page.locator('[data-slot="top-bar-slot"]');
-  await slot.locator('[data-source="stored"]').waitFor();
+  await page.locator('[data-source="stored"]').waitFor();
   // Kai's stream never ended, so his Gave up comes from his record, and no lane is lost.
   expect(await page.getByText("Stream lost", { exact: true }).count()).toBe(0);
 });
@@ -271,9 +270,8 @@ test("a finished race stays in the History, links to its report, and opens from 
   await laneOf(page, "Ada").getByText("1st", { exact: true }).waitFor();
   await laneOf(page, "Kai").getByText("Gave up", { exact: true }).waitFor();
   await laneOf(page, "Vera").getByText("Gave up", { exact: true }).waitFor();
-  // Drawn from records: the top bar says stored, and no run was streamed.
-  const slot = page.locator('[data-slot="top-bar-slot"]');
-  expect(await slot.locator('[data-source="stored"]').count()).toBe(1);
+  // Drawn from records: the race header says stored, and no run was streamed.
+  expect(await page.locator('[data-source="stored"]').count()).toBe(1);
   expect(asked.filter((key) => key.endsWith("/events"))).toStrictEqual([]);
   expect(asked).toContain(`GET /api/runs/${ada.id}`);
 });

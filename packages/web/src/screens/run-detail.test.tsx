@@ -175,12 +175,13 @@ describe("the header", () => {
     expect(h1Of(await render(`/runs/${RUN_ID}`))).toBe("Vera | 424242 | run_vera-hard-1");
   });
 
-  test("then the facts: outcome, duration, steps, cost, actor, task and start", async () => {
+  test("then the facts: outcome, duration, steps, cost, backend, actor, task and start", async () => {
     expect(detailsOf(headerOf(await render(`/runs/${RUN_ID}`)))).toEqual({
       outcome: "Gave up",
       duration: "15.5 s",
       steps: "5",
       cost: "$0.0201, 8020 tokens in, 1180 out",
+      backend: "llm",
       actor: "gpt-4o-mini",
       task: "task_past-order",
       start: "http://localhost:5174/?contrast=2&fontPx=16&targetPx=36",
@@ -207,6 +208,7 @@ describe("the header", () => {
   test("names the Jev model as the actor of a Jev run", async () => {
     const html = await render(`/runs/${fixtureJevRun.id}`, fixtureJevRun, { id: fixtureJevRun.id });
     expect(detailsOf(headerOf(html)).actor).toBe("typesafe/jev-1.13");
+    expect(detailsOf(headerOf(html)).backend).toBe("jev");
   });
 
   test("the persona's avatar beside the <h1>, and the page in the persona's slot", async () => {
@@ -272,14 +274,24 @@ describe("the header", () => {
   });
 });
 
-describe("the backend the top bar names", () => {
-  // The top bar's slot draws nothing in a static render, so the rule is read where it is made.
+describe("the backend the facts name", () => {
   test("llm for a run whose steps carry no decision", () => {
     expect(backendOf(runResultFixture)).toBe("llm");
   });
 
   test("jev for a run whose steps carry one", () => {
     expect(backendOf(fixtureJevRun)).toBe("jev");
+  });
+
+  test("none for a run that stopped before its first planned action", async () => {
+    const run = { ...fixtureJevRun, steps: [] };
+    const html = await render(`/runs/${run.id}`, run, { id: run.id });
+    expect(detailsOf(headerOf(html))).not.toHaveProperty("backend");
+    expect(detailsOf(headerOf(html)).actor).toBe("typesafe/jev-1.13");
+  });
+
+  test("the page draws no source badge", async () => {
+    expect(await render(`/runs/${RUN_ID}`)).not.toContain("data-source");
   });
 });
 

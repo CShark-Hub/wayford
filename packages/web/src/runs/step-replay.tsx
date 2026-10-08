@@ -770,7 +770,7 @@ function NarrationText({ text, jev }: { text: string; jev: boolean }) {
 
 /**
  * The step's narration, or each refused answer's on a wasted step. Whether Jev wrote it is the
- * run's backend, as the top bar names it, so a Jev run's step that was cut short before Jev was
+ * run's backend, as its `backend` fact names it, so a Jev run's step that was cut short before Jev was
  * asked still says Jev writes none.
  */
 function Narration({ run, step }: { run: RunResult; step: RunStep }) {

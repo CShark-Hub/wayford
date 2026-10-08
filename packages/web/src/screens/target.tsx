@@ -12,8 +12,7 @@
  * The rules are in `target/target-state.ts`, the calls in `target/target-calls.ts` and the views in
  * `target/target-view.tsx`. This file holds the state, the polling, the report's mutation, the
  * cache and the navigation.
- * The top bar's slot stays empty: the screen shows no measured data to badge, and its run button
- * names the backend.
+ * The screen shows no measured data to badge, and its run button names the backend.
  */
 import {
   useIsMutating,

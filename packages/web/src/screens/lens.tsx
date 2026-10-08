@@ -8,14 +8,14 @@
  * The page is measured live by io, on the persona's device, once per device and page (s3-05). A
  * slider move changes neither, so it never asks io again: it only perceives the measurement it
  * has once more. With io or the target app down, the screen draws the stored measurement under a
- * banner that says so (F2 AC5), and the top bar's source badge reads `stored page`.
+ * banner that says so (F2 AC5).
  *
  * Under the drawn page, a strip reads the observation's counts and the rules that fired, beside a
  * card with axe-core's scan of the page from io (s4-06), the same for every persona and device.
  *
  * A third view, Illustration (s3-06), puts io's picture of `/deliveries` under the persona's
  * Chrome vision emulation on the stage in place of the drawing (`src/preview/illustration.tsx`).
- * The picture follows the persona, never a slider, and the top bar's badge then reports it.
+ * The picture follows the persona, never a slider.
  *
  * Any page opens by its whole URL too (s3-16): a `url=` link, or the URL form under the header row.
  * Such a page is off the target app, whatever its host, since the link decides
@@ -26,7 +26,7 @@
  * The look is `docs/design/screens/lens.html` (s3-11): the rail and the stage fit 1280 × 720 with
  * no scroll, and the rail sets the persona's slot, `--p`, which its gauges and sliders fill with.
  */
-import { type UseQueryResult, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createRoute, Link, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   type FullObservation,
@@ -45,7 +45,6 @@ import { type Look, RULE_WORDS, StateSwatch } from "#components/filter-states";
 import { PersonaAvatar } from "#components/persona-avatar";
 import { SEGMENT_GROUP, SegmentedControl, segmentItem } from "#components/segmented-control";
 import { Skeleton } from "#components/skeleton";
-import { SourceBadge } from "#components/source-badge";
 import { ProvenanceTag, Tag } from "#components/tag";
 import {
   RANGE_HOST,
@@ -53,7 +52,6 @@ import {
   TRANSPARENT_RANGE,
   useHeldRange,
 } from "#components/threshold-gauge";
-import { TopBarSlot } from "#components/top-bar";
 import { Button } from "#components/ui/button";
 import { axeQuery } from "../api/axe.js";
 import { illustrationQuery } from "../api/illustration.js";
@@ -461,15 +459,6 @@ const VIEWS: readonly { value: LensView; label: string }[] = [
   { value: "illustration", label: "Illustration" },
 ];
 
-/** Where a query's data came from: io's answer, the stored fallback once io failed, or none yet. */
-type Settled = "live" | "stored" | undefined;
-
-/** A query's `Settled`: live when it has data, stored when it failed without any. */
-function settledOf(query: UseQueryResult<unknown, Error>): Settled {
-  if (query.data !== undefined) return "live";
-  return query.isError ? "stored" : undefined;
-}
-
 /**
  * What the stage holds, read once from the measurement's query: nothing yet while io measures, the
  * live page, the stored `/deliveries` with why once a target-app page failed, or, once a URL page
@@ -481,28 +470,6 @@ export type Stage =
   | { kind: "live"; observation: FullObservation }
   | { kind: "stored"; observation: FullObservation; failure: string }
   | { kind: "failed"; failure: string };
-
-/**
- * The stage's `Settled`, for the source badge: live or stored as its page is, and nothing while io
- * measures or once a URL page failed, since then no page was measured, live or stored.
- */
-export function stageSettled(stage: Stage): Settled {
-  return stage.kind === "live" || stage.kind === "stored" ? stage.kind : undefined;
-}
-
-/**
- * What the top bar's source badge says: where the stage's data came from, taken from that data
- * (`docs/DESIGN.md`, Principle 6). In the Illustration view the stage holds the picture, so the
- * badge is the picture's; in the other two it is the measured page's. Nothing settled, nothing.
- */
-export function sourceBadge(
-  view: LensView,
-  page: Settled,
-  picture: Settled,
-): { source: "live" | "stored"; label: string } | undefined {
-  const [settled, noun] = view === "illustration" ? [picture, "picture"] : [page, "page"];
-  return settled === undefined ? undefined : { source: settled, label: `${settled} ${noun}` };
-}
 
 /**
  * One link per Lens page, to this Lens on that page, with persona, seed, sliders and view as they
@@ -883,19 +850,8 @@ export function LensScreen() {
   // What the drawing is of. The page is keyed by it, so a persona, page, source or view switch
   // draws a fresh page, which animates nothing, while a threshold move animates what it changes.
   const scene = `${state.persona.id}|${state.page}|${stage.kind}|${state.view}`;
-  // Off /deliveries the Illustration view asks for no picture, so a cached one claims nothing.
-  const badge = sourceBadge(
-    state.view,
-    stageSettled(stage),
-    pictured ? settledOf(picture) : undefined,
-  );
   return (
     <div className="mx-auto grid h-[calc(100dvh_-_var(--header-h))] min-h-166 max-w-(--content-max) grid-cols-[var(--rail-w)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)]">
-      {badge === undefined ? null : (
-        <TopBarSlot>
-          <SourceBadge source={badge.source}>{badge.label}</SourceBadge>
-        </TopBarSlot>
-      )}
       <Rail state={state} onMove={move} onRelease={release} />
       <section
         aria-labelledby={PAGE_TITLE_ID}

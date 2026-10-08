@@ -128,11 +128,17 @@ describe("the header", () => {
     );
   });
 
-  test("the meta line: task id, runs, Scout, and the cost of runs and Analyst in all", async () => {
+  test("the meta line: task id, backend, runs, Scout, and the cost of runs and Analyst in all", async () => {
     const header = lineOf(headerOf(await render("/report/task_past-order", HARD)));
     expect(header).toContain(
-      "task_past-order · 9 runs · Scout reached it in 2 steps · $0.0049 in all",
+      "task_past-order · jev · 9 runs · Scout reached it in 2 steps · $0.0049 in all",
     );
+  });
+
+  test("the meta line takes the backend from the report, and the page draws no source badge", async () => {
+    const html = await render("/report/task_past-order", Report.parse({ ...HARD, backend: "llm" }));
+    expect(lineOf(headerOf(html))).toContain("task_past-order · llm · 9 runs");
+    expect(html).not.toContain("data-source");
   });
 
   test("Scout's line when it did not reach the goal", async () => {
@@ -151,7 +157,7 @@ describe("the header", () => {
 
   test("Scout's line on a goal with no ground truth", async () => {
     const header = lineOf(headerOf(await render("/report/task_next-parcel", EASY)));
-    expect(header).toContain("task_next-parcel · 6 runs · no ground truth · $0.0019 in all");
+    expect(header).toContain("task_next-parcel · jev · 6 runs · no ground truth · $0.0019 in all");
   });
 
   test("an Analyse again button", async () => {
