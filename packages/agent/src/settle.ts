@@ -15,7 +15,8 @@
  * progress bar. That costs a claim. An element that animates forever is measured at whatever frame
  * it is in, so on such a page the seed no longer fixes that measurement. A scroll-driven one
  * follows the scroll, which the run's own actions set. On the target app `settle` stays strict:
- * the calibration depends on it.
+ * the calibration depends on it. Off it the deadlines are longer too (#190): a heavy real page,
+ * measured beside other runs, takes longer to load, to finish its fades and to be photographed.
  */
 import { WayfordError } from "@wayford/core";
 import type { Page } from "playwright";
@@ -33,6 +34,31 @@ export const SETTLE_TIMEOUT_MS = 3000;
  * never yields cannot answer at all, so its own deadline never fires, and every call into it waits.
  */
 const ATTEMPT_TIMEOUT_MS = SETTLE_TIMEOUT_MS + 5000;
+
+/**
+ * How long a page off the target app may take to settle, where `settle` is lenient (#190). A heavy
+ * real page, measured with other runs beside it, takes longer to load and to finish its on-load
+ * fades: on cshark.com, five runs at once, the home page was still fading at 3 s, where alone it
+ * settles in about 2. A page still moving at this deadline fails the run as on the target app,
+ * only later.
+ */
+export const LENIENT_SETTLE_TIMEOUT_MS = 10_000;
+
+/**
+ * One attempt's bound off the target app (#190). On cshark.com, five runs at once, each recording
+ * its video and trace, a step's screenshot alone took 8.5 to 11.4 s. A page whose main thread
+ * never yields still ends the run, only later. A slow step still spends the persona's wall-clock
+ * budget (B3).
+ */
+const LENIENT_ATTEMPT_TIMEOUT_MS = LENIENT_SETTLE_TIMEOUT_MS + 20_000;
+
+/**
+ * The bound on one `retryOnNavigation` attempt: the strict one on the target app, which the
+ * calibration depends on, and the lenient one off it.
+ */
+export function attemptTimeoutMs(lenient: boolean): number {
+  return lenient ? LENIENT_ATTEMPT_TIMEOUT_MS : ATTEMPT_TIMEOUT_MS;
+}
 
 /**
  * Three attempts in all, so a navigation that lands during a measurement is measured on the new
@@ -71,7 +97,7 @@ export interface SettleOptions {
    * errors. Strict when absent.
    */
   lenient?: boolean;
-  /** `SETTLE_TIMEOUT_MS` when absent. */
+  /** When absent, `SETTLE_TIMEOUT_MS`, or `LENIENT_SETTLE_TIMEOUT_MS` when `lenient`. */
   timeoutMs?: number;
 }
 
@@ -87,10 +113,12 @@ export interface SettleOptions {
  * `retryOnNavigation`.
  *
  * `lenient` skips the failed faces and the endless animations instead, and returns them for the
- * caller to log. Loading and every other animation keep the deadline.
+ * caller to log. Loading and every other animation keep the deadline, the longer lenient one
+ * (#190).
  */
 export async function settle(page: Page, options: SettleOptions = {}): Promise<Skipped> {
-  const { lenient = false, timeoutMs = SETTLE_TIMEOUT_MS } = options;
+  const { lenient = false } = options;
+  const timeoutMs = options.timeoutMs ?? (lenient ? LENIENT_SETTLE_TIMEOUT_MS : SETTLE_TIMEOUT_MS);
   const settled = await page.evaluate<Unsettled | Skipped>(settleSource(timeoutMs, lenient));
   if ("code" in settled) {
     throw new WayfordError(settled.code, `the page at ${page.url()} ${settled.why}`);

@@ -88,6 +88,26 @@ export const Metrics = z
   .strict();
 export type Metrics = z.infer<typeof Metrics>;
 
+/**
+ * What the filter measured of one part of a control drawn in parts (`MeasuredElement.parts`,
+ * #124): the contrast and font size of the text one element draws. No target size: P4 is the
+ * control's own (`docs/RULES.md`, "What is measured").
+ */
+export const PartMetrics = Metrics.pick({ contrast: true, fontPx: true });
+export type PartMetrics = z.infer<typeof PartMetrics>;
+
+/**
+ * The text one part draws, as the collector reads it: whitespace collapsed to single spaces and
+ * trimmed, never empty. A control's shown name joins these with single spaces, so it is never
+ * empty and never doubles a space either.
+ */
+export const PartText = z
+  .string()
+  .refine((text) => text !== "" && text === text.replace(/\s+/g, " ").trim(), {
+    message: "a part's text is never empty, its whitespace collapsed to single spaces and trimmed",
+  });
+export type PartText = z.infer<typeof PartText>;
+
 /** The metric each perception rule compares (`docs/RULES.md`, stage 2). */
 const RULE_METRIC = { P1: "contrast", P2: "contrast", P3: "fontPx", P4: "targetPx" } as const;
 
@@ -216,12 +236,108 @@ function decisionOrder(decision: ElementDecision): number {
 }
 
 /**
+ * The part a control drawn in parts is perceived by (`docs/RULES.md`, "What is measured", #124):
+ * the one in the least severe state, the first in document order on a tie. `undefined` for no
+ * parts. `perceive` picks it with this, and `ObservedElement` checks the evidence against it.
+ */
+export function bestPart<T extends { state: PerceptionState }>(parts: readonly T[]): T | undefined {
+  let best: T | undefined;
+  for (const part of parts) {
+    if (best === undefined || STATE_RANK[part.state] < STATE_RANK[best.state]) best = part;
+  }
+  return best;
+}
+
+/**
+ * What a shown control drawn in parts reads (`docs/RULES.md`, "What is measured", #124): the text
+ * of the parts in its best part's state, in document order, joined by single spaces. A part worse
+ * off than the best, cut or degraded beside a visible one, is left out, so no text the persona
+ * would misread reaches the model as if it were clear. `undefined` when there are no parts or every
+ * part is in the best part's state. `perceive` names a shown control with this, and
+ * `ObservedElement` checks the evidence against it.
+ */
+export function shownNameOf(
+  parts: readonly { state: PerceptionState; text: string }[],
+): string | undefined {
+  const best = bestPart(parts);
+  if (best === undefined) return undefined;
+  const kept = parts.filter((part) => part.state === best.state);
+  return kept.length === parts.length ? undefined : kept.map((part) => part.text).join(" ");
+}
+
+/**
+ * What an element's and a part's decisions are both held to: pipeline order then rule id, with no
+ * repeat, and `state` the worst of them.
+ */
+function checkDecisions(
+  decisions: readonly ElementDecision[],
+  state: PerceptionState,
+  ctx: z.RefinementCtx,
+): void {
+  const worst = worstState(decisions);
+  if (state !== worst) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["state"],
+      message: `the state is the worst of the decisions: expected ${worst}, got ${state}`,
+    });
+  }
+  decisions.forEach((decision, index) => {
+    const previous = decisions[index - 1];
+    if (previous !== undefined && decisionOrder(previous) >= decisionOrder(decision)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["decisions", index],
+        message: "decisions are in pipeline order, then rule id, with no repeat",
+      });
+    }
+  });
+}
+
+/**
+ * One part of a control drawn in parts (`MeasuredElement.parts`, #124), as perception judged it:
+ * its text and metrics as measured, the P1 and P3 rules it failed, and the state they give it. A
+ * part never fails P4, which is the control's own. As on an element, only a failed rule is
+ * recorded, the decisions are listed in rule id order, and `state` is the worst of them.
+ */
+export const ObservedPart = z
+  .object({
+    text: PartText,
+    metrics: PartMetrics,
+    state: PerceptionState,
+    decisions: z.array(PerceptionDecision),
+  })
+  .strict()
+  .superRefine((part, ctx) => {
+    part.decisions.forEach((decision, index) => {
+      if (decision.rule !== "P1" && decision.rule !== "P3") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["decisions", index],
+          message: "a part fails P1 or P3 only: P4 is the control's own",
+        });
+      }
+    });
+    checkDecisions(part.decisions, part.state, ctx);
+  });
+export type ObservedPart = z.infer<typeof ObservedPart>;
+
+/**
  * One element as evidence. Invariants, enforced below:
  * - `visible` or `degraded` carries a `ref`; `invisible` carries none, so the
  *   Actor-facing refs stay contiguous and a gap cannot reveal a removal;
  * - `decisions` lists every rule the element failed, none it passed, in
  *   pipeline order then rule id, and `state` is the worst of them;
- * - every soft perception decision carries the same roll: one per element;
+ * - every soft perception decision carries the same roll: one per element,
+ *   its parts' decisions included;
+ * - a control drawn in parts (#124) carries `parts`, two or more, and its own
+ *   P1 and P3 decisions are those of its best part (`bestPart`): it is cut
+ *   only when every part is, and degraded when its best part is;
+ * - `shownName` is there exactly when the element is shown and a part of it
+ *   is worse off than its best part, and holds the text of the parts in the
+ *   best part's state, joined by single spaces. The Actor, the mask and K2
+ *   read it in place of `name`, so neither a cut part's text nor a degraded
+ *   one's beside a clear part reaches the model;
  * - `renamedName` is there exactly when a knowledge rule renamed the element;
  * - a degraded element that was not renamed says what the Actor read instead
  *   (`maskedName`); a renamed one reads `renamedName` and carries no mask;
@@ -238,6 +354,16 @@ export const ObservedElement = z
     metrics: Metrics,
     state: PerceptionState,
     decisions: z.array(ElementDecision),
+    /** Each part of a control drawn in parts, in document order, as perception judged it. */
+    parts: z
+      .array(ObservedPart)
+      .min(2, { message: "a control drawn by one element has no parts" })
+      .optional(),
+    /**
+     * What a shown control reads when a part is worse off than its best part: the text of the
+     * parts in the best part's state.
+     */
+    shownName: z.string().min(1).optional(),
     maskedName: z.string().optional(),
     /** What the Actor reads after K1, K2 or K4. Independent of `maskedName`. */
     renamedName: z.string().optional(),
@@ -250,26 +376,10 @@ export const ObservedElement = z
     if (element.state !== "invisible" && element.ref === undefined) {
       ctx.addIssue({ code: "custom", path: ["ref"], message: "a shown element needs a ref" });
     }
-    const worst = worstState(element.decisions);
-    if (element.state !== worst) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["state"],
-        message: `the state is the worst of the decisions: expected ${worst}, got ${element.state}`,
-      });
-    }
-    element.decisions.forEach((decision, index) => {
-      const previous = element.decisions[index - 1];
-      if (previous !== undefined && decisionOrder(previous) >= decisionOrder(decision)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["decisions", index],
-          message: "decisions are in pipeline order, then rule id, with no repeat",
-        });
-      }
-    });
+    checkDecisions(element.decisions, element.state, ctx);
+    const parts = element.parts ?? [];
     const rolls = new Set(
-      element.decisions.flatMap((d) =>
+      [...element.decisions, ...parts.flatMap((part) => part.decisions)].flatMap((d) =>
         d.stage === "perception" && d.rolled !== undefined ? [d.rolled] : [],
       ),
     );
@@ -277,7 +387,35 @@ export const ObservedElement = z
       ctx.addIssue({
         code: "custom",
         path: ["decisions"],
-        message: "an element is rolled once per run: every soft decision carries the same roll",
+        message:
+          "an element is rolled once per run: every soft decision, its parts' too, carries the same roll",
+      });
+    }
+    const best = bestPart(parts);
+    if (best !== undefined) {
+      const ownText = element.decisions.filter(
+        (d) => d.stage === "perception" && (d.rule === "P1" || d.rule === "P3"),
+      );
+      // Stringify is a sound equality here, as `run.ts`'s `sameAction` says: every decision is
+      // strict and flat, and parsed objects keep the schema's key order.
+      if (JSON.stringify(ownText) !== JSON.stringify(best.decisions)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["decisions"],
+          message:
+            "a control drawn in parts carries the P1 and P3 decisions of its best part: the least severe state, the first on a tie",
+        });
+      }
+    }
+    const shown = element.state === "invisible" ? undefined : shownNameOf(parts);
+    if (element.shownName !== shown) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["shownName"],
+        message:
+          shown === undefined
+            ? "a shown name exists only on a shown control with a part worse off than its best part"
+            : `a shown control with a part left out reads the parts in its best part's state: expected ${JSON.stringify(shown)}`,
       });
     }
     const renamed = element.decisions.some((d) => d.stage === "knowledge");
@@ -406,7 +544,8 @@ export type ActorPerceptionState = z.infer<typeof ActorPerceptionState>;
  * One element as the Actor sees it. No `key` (it contains the real name), no
  * `metrics`, no `decisions` (they contain the threshold). For a renamed element
  * `name` is already the renamed one and `state` is `visible`, otherwise for a
- * degraded element `name` is the masked one.
+ * degraded element `name` is the masked one, and for a visible control with a
+ * part left out it is its shown name.
  */
 export const ActorElement = z
   .object({
@@ -425,7 +564,7 @@ export type Observation = z.infer<typeof Observation>;
 
 /**
  * Project the evidence record onto what the Actor may see: drop invisible
- * elements, swap in the renamed or masked name, strip every evidence field. Element order
+ * elements, swap in the renamed, masked or shown name, strip every evidence field. Element order
  * is preserved; the filter has already sorted by salience (rule A1).
  */
 export function toActorObservation(full: FullObservation): Observation {
@@ -438,10 +577,14 @@ export function toActorObservation(full: FullObservation): Observation {
       // Never fall back to the real name: an unmasked degraded element is a schema
       // violation, and an empty name is the safe failure. A rename wins over a mask
       // because knowledge (stage 4) runs after degradation (stage 3), and a renamed
-      // element reads its replacement whole, never as "partly legible".
+      // element reads its replacement whole, never as "partly legible". A control
+      // with a part left out reads only the parts in its best part's state (#124);
+      // its mask and rename are already made from them.
       name:
         element.renamedName ??
-        (element.state === "degraded" ? (element.maskedName ?? "") : element.name),
+        (element.state === "degraded"
+          ? (element.maskedName ?? "")
+          : (element.shownName ?? element.name)),
       bbox: element.bbox,
       state: element.renamedName === undefined ? element.state : "visible",
     });

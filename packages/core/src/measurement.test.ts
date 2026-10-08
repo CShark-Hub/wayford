@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { kebabElement as kebab, measurementFixture } from "./fixtures/index.js";
-import { MeasuredElement, PageMeasurement } from "./measurement.js";
+import {
+  cardLinkElement as card,
+  kebabElement as kebab,
+  measurementFixture,
+} from "./fixtures/index.js";
+import { MeasuredElement, MeasuredPart, PageMeasurement } from "./measurement.js";
 import { elementKey, type Landmark } from "./observation.js";
 
 const banner: Landmark[] = [{ role: "banner" }];
@@ -197,6 +201,57 @@ describe("MeasuredElement (the filter's input, before any decision)", () => {
       name: "x",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("MeasuredElement parts (a control drawn in parts, #124)", () => {
+  const [title, description] = card.parts ?? [];
+  if (title === undefined || description === undefined) {
+    throw new Error("the card link fixture is drawn in two parts");
+  }
+
+  /** The issues a parse of `input` gives, each as its path and message. */
+  const issuesOf = (input: unknown) =>
+    (MeasuredElement.safeParse(input).error?.issues ?? []).map((i) => [i.path, i.message]);
+
+  test("a text block is measured whole: it has no parts", () => {
+    const block = { ...heading, metrics: { contrast: 4.542, fontPx: 14 }, parts: card.parts };
+    expect(issuesOf(block)).toEqual([[["parts"], expect.stringContaining("text block")]]);
+  });
+
+  test("the control's contrast and font size are the worst of its parts, so they cannot drift", () => {
+    for (const metrics of [
+      { ...card.metrics, fontPx: 20 },
+      { ...card.metrics, contrast: 21 },
+      { fontPx: 14, targetPx: 80 },
+      { contrast: 4.542, targetPx: 80 },
+    ]) {
+      expect(issuesOf({ ...card, metrics }), JSON.stringify(metrics)).toEqual([
+        [["metrics"], expect.stringContaining("worst")],
+      ]);
+    }
+    // A part over an unknown background has no contrast, and the worst is of the parts that do.
+    const unknown = { ...description, metrics: { fontPx: 14 } };
+    const partly = { ...card, metrics: { contrast: 21, fontPx: 14, targetPx: 80 } };
+    expect(MeasuredElement.safeParse({ ...partly, parts: [title, unknown] }).success).toBe(true);
+    // With none, the control has none either.
+    const none = [{ ...title, metrics: { fontPx: 20 } }, unknown];
+    const bare = { ...card, metrics: { fontPx: 14, targetPx: 80 }, parts: none };
+    expect(MeasuredElement.safeParse(bare).success).toBe(true);
+    expect(MeasuredElement.safeParse({ ...bare, metrics: card.metrics }).success).toBe(false);
+  });
+
+  test("a part's text is collapsed and never empty", () => {
+    expect(MeasuredPart.safeParse(title).success).toBe(true);
+    for (const part of [
+      { ...title, text: "" },
+      { ...title, text: " " },
+      { ...title, text: " Job Offers" },
+      { ...title, text: "Job  Offers" },
+      { ...title, text: "Job\nOffers" },
+    ]) {
+      expect(MeasuredPart.safeParse(part).success, JSON.stringify(part)).toBe(false);
+    }
   });
 });
 

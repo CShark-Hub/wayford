@@ -13,17 +13,23 @@
  * A test here that is about perception unsets the persona's attention cap, as #113 has the sweep
  * use Vera, so it reads measurement order. That a real cap which cuts nothing only puts the same
  * evidence in salience order is `attention.test.ts`'s, for every capped persona.
+ *
+ * A control drawn in parts (#124) is tested last, on the fixture with `cardLinkElement` added: a
+ * 20 px title and a 14 px description in one link.
  */
 import {
   FullObservation,
   hash,
+  MeasuredElement,
   type MetricName,
+  type ObservedElement,
   PageMeasurement,
   type PerceptionState,
   type Profile,
   toActorObservation,
 } from "@wayford/core";
 import {
+  cardLinkElement,
   kebabElement,
   measurementFixture,
   profileFixture,
@@ -116,25 +122,33 @@ function scrolledBy(by: number): PageMeasurement {
 const RANK: Record<PerceptionState, number> = { visible: 0, degraded: 1, invisible: 2 };
 
 /**
- * Sweep one threshold upwards, run seed outer and threshold inner. Each element's state is
- * compared with its state at the previous threshold for the same run seed, so the sweep moves the
- * threshold and nothing else. Returns every element whose state got better, and how many state
- * changes the sweep saw at all, so a sweep that changes nothing cannot pass for monotone.
+ * Sweep one threshold upwards, run seed outer and threshold inner. Each element's state, and each
+ * part's of a control drawn in parts, is compared with its state at the previous threshold for the
+ * same run seed, so the sweep moves the threshold and nothing else. Returns every element or part
+ * whose state got better, and how many state changes the sweep saw at all, so a sweep that changes
+ * nothing cannot pass for monotone.
  */
 function sweep(
   runSeeds: readonly number[],
   thresholds: readonly number[],
   profileAt: (threshold: number) => PerceiveProfile,
+  page: PageMeasurement = measurementFixture,
 ): { improved: string[]; changes: number } {
-  expect(new Set(KEYS).size, "keys are unique on the fixture").toBe(KEYS.length);
+  const keys = page.elements.map((e) => e.key);
+  expect(new Set(keys).size, "keys are unique on the page").toBe(keys.length);
   expect(thresholds.every((t, i) => i === 0 || t > (thresholds[i - 1] ?? t))).toBe(true);
   const improved: string[] = [];
   let changes = 0;
   for (const seed of runSeeds) {
     let previous: Map<string, number> | undefined;
     for (const threshold of thresholds) {
-      const full = perceive(measurementFixture, profileAt(threshold), seed);
-      const ranks = new Map(full.elements.map((e) => [e.key, RANK[e.state]]));
+      const full = perceive(page, profileAt(threshold), seed);
+      const ranks = new Map(
+        full.elements.flatMap((e) => [
+          [e.key, RANK[e.state]] as const,
+          ...(e.parts ?? []).map((part, i) => [`${e.key} part ${i}`, RANK[part.state]] as const),
+        ]),
+      );
       if (previous !== undefined) {
         for (const [key, rank] of ranks) {
           const before = previous.get(key);
@@ -173,15 +187,18 @@ function correlation(xs: readonly number[], ys: readonly number[]): number {
 
 test("same measurement, profile and run seed give the same Actor text", () => {
   expect(profileFixtures.map((p) => p.id)).toEqual(PERSONA_IDS);
-  for (const profile of profileFixtures) {
-    for (const seed of seeds(100)) {
-      const first = perceive(measurementFixture, profile, seed);
-      const second = perceive(measurementFixture, profile, seed);
-      expect(actorText(second), `${profile.id} at run seed ${seed}`).toBe(actorText(first));
-      // The evidence too, byte for byte: key order included.
-      expect(JSON.stringify(second), `${profile.id} at run seed ${seed}`).toBe(
-        JSON.stringify(first),
-      );
+  // The fixture, and the fixture with a control drawn in parts (#124).
+  for (const page of [measurementFixture, WITH_CARD]) {
+    for (const profile of profileFixtures) {
+      for (const seed of seeds(100)) {
+        const first = perceive(page, profile, seed);
+        const second = perceive(page, profile, seed);
+        expect(actorText(second), `${profile.id} at run seed ${seed}`).toBe(actorText(first));
+        // The evidence too, byte for byte: key order included.
+        expect(JSON.stringify(second), `${profile.id} at run seed ${seed}`).toBe(
+          JSON.stringify(first),
+        );
+      }
     }
   }
 });
@@ -503,10 +520,13 @@ test("the mask reads its own draw, not the roll", () => {
 
 test("every observation parses as FullObservation", () => {
   expect(profileFixtures.map((p) => p.id)).toEqual(PERSONA_IDS);
-  for (const profile of profileFixtures) {
-    for (const seed of seeds(100)) {
-      const parsed = FullObservation.safeParse(perceive(measurementFixture, profile, seed));
-      expect(parsed.success, `${profile.id} at run seed ${seed}: ${parsed.error}`).toBe(true);
+  // The fixture, and the fixture with a control drawn in parts (#124).
+  for (const page of [measurementFixture, WITH_CARD]) {
+    for (const profile of profileFixtures) {
+      for (const seed of seeds(100)) {
+        const parsed = FullObservation.safeParse(perceive(page, profile, seed));
+        expect(parsed.success, `${profile.id} at run seed ${seed}: ${parsed.error}`).toBe(true);
+      }
     }
   }
 });
@@ -871,4 +891,310 @@ test("a degraded element K2 renames reads its replacement whole", () => {
     expect(text, where).not.toContain(MASK_GLYPH);
   }
   expect(degraded, "Vera's band degrades it on some seeds").toBeGreaterThan(0);
+});
+
+// ---------------------------------------------------------------------------
+// #124: a control drawn in parts
+// ---------------------------------------------------------------------------
+
+const CARD = cardLinkElement.key;
+const TITLE = "Job Offers";
+const AT_CARD = `${cardLinkElement.bbox.x},${cardLinkElement.bbox.y}`;
+
+/** The fixture with the card link added, last in measurement order. */
+const WITH_CARD = PageMeasurement.parse({
+  ...measurementFixture,
+  elements: [...measurementFixture.elements, cardLinkElement],
+});
+
+/** The card link's two parts, as measured: its 20 px title and its 14 px description. */
+function cardParts() {
+  const [title, description] = cardLinkElement.parts ?? [];
+  if (title === undefined || description === undefined || cardLinkElement.parts?.length !== 2) {
+    throw new Error("the card link is drawn in two parts");
+  }
+  expect(title.text).toBe(TITLE);
+  return { title, description };
+}
+
+/** Vera with no attention cap, and her font cut's threshold and softness replaced. */
+function veraWithFont(fontPx: { threshold: number; softness?: number }): Profile {
+  const vera = withCap(profileFixture("prof_vera"), undefined);
+  const own = vera.perception.fontPx;
+  if (!own) throw new Error("Vera sets a font threshold");
+  return { ...vera, perception: { ...vera.perception, fontPx: { ...own, ...fontPx } } };
+}
+
+/** The P3 decision a hard font cut gives a value below it. */
+const p3Cut = (value: number | undefined, threshold: number) => ({
+  stage: "perception",
+  rule: "P3",
+  metric: "fontPx",
+  value,
+  threshold,
+  state: "invisible",
+});
+
+/** The line the Actor reads for the card link. */
+const cardLine = (card: ObservedElement, name: string, legibility = "") =>
+  `[${card.ref}] link ${JSON.stringify(name)} at ${AT_CARD}${legibility}`;
+
+test("under a 16 px font cut a card link is shown by its title, its description cut (#124)", () => {
+  const vera = withCap(profileFixture("prof_vera"), undefined);
+  const { contrast, fontPx, targetPx } = vera.perception;
+  if (!contrast || !fontPx || !targetPx) throw new Error("Vera sets all three thresholds");
+  const { title, description } = cardParts();
+  // Her hard font cut is the one rule a part fails: the description's 14 px, not the title's 20.
+  expect(fontPx.softness).toBeUndefined();
+  expect(title.metrics.fontPx).toBeGreaterThanOrEqual(fontPx.threshold);
+  expect(description.metrics.fontPx).toBeLessThan(fontPx.threshold);
+  for (const { metrics } of [title, description]) {
+    expect(metrics.contrast).toBeGreaterThanOrEqual(contrast.threshold);
+  }
+  expect(cardLinkElement.metrics.targetPx).toBeGreaterThanOrEqual(targetPx.threshold);
+  // Measured whole, by the worst of its runs, the link would fail P3 too, title included.
+  expect(cardLinkElement.metrics.fontPx).toBeLessThan(fontPx.threshold);
+  for (const seed of seeds(20)) {
+    const where = `run seed ${seed}`;
+    const full = perceive(WITH_CARD, vera, seed);
+    const card = observed(full, CARD);
+    expect(card.state, where).toBe("visible");
+    expect(card.decisions, where).toStrictEqual([]);
+    expect(card.parts, where).toStrictEqual([
+      { text: title.text, metrics: title.metrics, state: "visible", decisions: [] },
+      {
+        text: description.text,
+        metrics: description.metrics,
+        state: "invisible",
+        decisions: [p3Cut(description.metrics.fontPx, fontPx.threshold)],
+      },
+    ]);
+    expect(card.shownName, where).toBe(TITLE);
+    expect("maskedName" in card, where).toBe(false);
+    const actor = toActorObservation(full).elements.find((e) => e.ref === card.ref);
+    expect(actor?.name, where).toBe(TITLE);
+    const text = actorText(full);
+    expect(text.split("\n"), where).toContain(cardLine(card, TITLE));
+    expect(text, where).not.toContain(description.text);
+    const parsed = FullObservation.safeParse(full);
+    expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+  }
+  // The evidence holds copies: a caller cannot change the measurement through it.
+  const card = observed(perceive(WITH_CARD, vera, 1), CARD);
+  expect(card.parts?.[0]?.metrics).not.toBe(title.metrics);
+});
+
+test("a control in parts that loses no part reads its whole name", () => {
+  const ada = profileFixture("prof_ada");
+  const { title, description } = cardParts();
+  for (const seed of seeds(5)) {
+    const full = perceive(WITH_CARD, ada, seed);
+    const card = observed(full, CARD);
+    expect(card.state).toBe("visible");
+    expect(card.parts).toStrictEqual([
+      { text: title.text, metrics: title.metrics, state: "visible", decisions: [] },
+      { text: description.text, metrics: description.metrics, state: "visible", decisions: [] },
+    ]);
+    expect("shownName" in card).toBe(false);
+    expect(actorText(full).split("\n")).toContain(cardLine(card, cardLinkElement.name));
+  }
+});
+
+test("a card link is cut only when every part is cut", () => {
+  const profile = veraWithFont({ threshold: 24 });
+  const { title, description } = cardParts();
+  expect(title.metrics.fontPx).toBeLessThan(24);
+  for (const seed of seeds(20)) {
+    const where = `run seed ${seed}`;
+    const full = perceive(WITH_CARD, profile, seed);
+    const card = observed(full, CARD);
+    expect(card.state, where).toBe("invisible");
+    expect("ref" in card, where).toBe(false);
+    expect("shownName" in card, where).toBe(false);
+    expect(
+      card.parts?.map((part) => [part.state, part.decisions]),
+      where,
+    ).toStrictEqual([
+      ["invisible", [p3Cut(title.metrics.fontPx, 24)]],
+      ["invisible", [p3Cut(description.metrics.fontPx, 24)]],
+    ]);
+    // Both are cut, so the first in document order, the title, gives the link its decisions.
+    expect(card.decisions, where).toStrictEqual([p3Cut(title.metrics.fontPx, 24)]);
+    const text = actorText(full);
+    expect(text, where).not.toContain(TITLE);
+    expect(text, where).not.toContain(description.text);
+    const parsed = FullObservation.safeParse(full);
+    expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+  }
+});
+
+test("the best part decides wherever it stands in the control", () => {
+  // The same link with its description drawn first: the cut first part does not cut it.
+  const reversed = MeasuredElement.parse({
+    ...cardLinkElement,
+    parts: [...(cardLinkElement.parts ?? [])].reverse(),
+  });
+  const page = PageMeasurement.parse({
+    ...measurementFixture,
+    elements: [...measurementFixture.elements, reversed],
+  });
+  const vera = withCap(profileFixture("prof_vera"), undefined);
+  for (const seed of seeds(5)) {
+    const full = perceive(page, vera, seed);
+    const card = observed(full, CARD);
+    expect(card.parts?.map((part) => part.state)).toStrictEqual(["invisible", "visible"]);
+    expect(card.state).toBe("visible");
+    expect(card.decisions).toStrictEqual([]);
+    expect(card.shownName).toBe(TITLE);
+    expect(actorText(full).split("\n")).toContain(cardLine(card, TITLE));
+  }
+});
+
+test("every part is judged with the control's one roll, and a degraded control masks its shown name", () => {
+  // A soft 22 px cut: the band runs from 11 px, so the title sits at 9/11 of it and the
+  // description at 3/11, and the one roll decides both.
+  const profile = veraWithFont({ threshold: 22, softness: 0.5 });
+  const { title, description } = cardParts();
+  const position = (px: number | undefined) => ((px ?? 0) - 11) / 11;
+  const seen = { both: 0, title: 0, none: 0 };
+  for (const seed of seeds(300)) {
+    const where = `run seed ${seed}`;
+    const rolled = hash(seed, CARD);
+    const full = perceive(WITH_CARD, profile, seed);
+    const card = observed(full, CARD);
+    const parts = card.parts ?? [];
+    expect(
+      parts.flatMap((part) => part.decisions.map((d) => d.rolled)),
+      where,
+    ).toStrictEqual([rolled, rolled]);
+    const states = [title, description].map(({ metrics }) =>
+      rolled < position(metrics.fontPx) ? "degraded" : "invisible",
+    );
+    expect(
+      parts.map((part) => part.state),
+      where,
+    ).toStrictEqual(states);
+    // The title is never worse than the description, so it is the best part, ties included.
+    expect(card.decisions, where).toStrictEqual(parts[0]?.decisions);
+    expect(card.state, where).toBe(states[0]);
+    expect(rollOf(card), where).toBe(rolled);
+    const parsed = FullObservation.safeParse(full);
+    expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+    if (card.state === "degraded") {
+      // The mask is of what is shown: the title alone when the description is cut.
+      const read = card.shownName ?? card.name;
+      const masked = card.maskedName ?? "";
+      expect(masked, where).toBe(maskName(seed, CARD, read));
+      expect([...masked].length, where).toBe([...read].length);
+      const text = actorText(full);
+      expect(text.split("\n"), where).toContain(cardLine(card, masked, ", partly legible"));
+      if (states[1] === "invisible") {
+        expect(card.shownName, where).toBe(TITLE);
+        expect(text, where).not.toContain(description.text);
+      } else {
+        expect("shownName" in card, where).toBe(false);
+      }
+    }
+    if (states[1] === "degraded") seen.both += 1;
+    else if (states[0] === "degraded") seen.title += 1;
+    else seen.none += 1;
+  }
+  expect(seen.both, "both parts degraded on some seeds").toBeGreaterThan(0);
+  expect(seen.title, "the title alone degraded on some seeds").toBeGreaterThan(0);
+  expect(seen.none, "both parts cut on some seeds").toBeGreaterThan(0);
+});
+
+test("a degraded part beside a visible one is left out of the shown name, never read whole", () => {
+  // A soft 6:1 contrast cut and a font cut both parts pass: the band runs from 3:1, so the
+  // description's 4.542:1 is degraded or cut by the roll, and the title's 21:1 is clear.
+  const vera = veraWithFont({ threshold: 14 });
+  const contrast = vera.perception.contrast;
+  if (!contrast) throw new Error("Vera sets a contrast threshold");
+  const profile: Profile = {
+    ...vera,
+    perception: { ...vera.perception, contrast: { ...contrast, threshold: 6, softness: 0.5 } },
+  };
+  const { description } = cardParts();
+  let degraded = 0;
+  for (const seed of seeds(300)) {
+    const where = `run seed ${seed}`;
+    const full = perceive(WITH_CARD, profile, seed);
+    const card = observed(full, CARD);
+    const states = card.parts?.map((part) => part.state);
+    expect(states?.[0], where).toBe("visible");
+    if (states?.[1] === "degraded") degraded += 1;
+    // Read whole, the description would reach the model as if it were clear (#124's review).
+    expect(card.state, where).toBe("visible");
+    expect(card.decisions, where).toStrictEqual([]);
+    expect(card.shownName, where).toBe(TITLE);
+    const text = actorText(full);
+    expect(text.split("\n"), where).toContain(cardLine(card, TITLE));
+    expect(text, where).not.toContain(description.text);
+    const parsed = FullObservation.safeParse(full);
+    expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+  }
+  expect(degraded, "the description degraded on some seeds").toBeGreaterThan(0);
+});
+
+test("K2 reads a control's shown name, so a rename never puts a cut part back", () => {
+  const vera = withKnowledge(withCap(profileFixture("prof_vera"), undefined), {
+    domainVocabulary: ["job"],
+  });
+  const { description } = cardParts();
+  for (const seed of seeds(10)) {
+    const where = `run seed ${seed}`;
+    // "openings" is in the cut description, so K2 does not read it.
+    const unread = perceive(WITH_CARD, vera, seed, { jargon: ["openings"] });
+    const card = observed(unread, CARD);
+    expect(card.shownName, where).toBe(TITLE);
+    expect(knowledgeOf(unread, CARD), where).toStrictEqual([]);
+    expect("renamedName" in card, where).toBe(false);
+    expect(actorText(unread).split("\n"), where).toContain(cardLine(card, TITLE));
+
+    // "Offers" is in the title: renamed in the shown name, with the description still out.
+    const renamed = perceive(WITH_CARD, vera, seed, { jargon: ["offers"] });
+    const titled = observed(renamed, CARD);
+    expect(titled.decisions, where).toStrictEqual([
+      { stage: "knowledge", rule: "K2", terms: ["offers"] },
+    ]);
+    expect(titled.renamedName, where).toBe(`Job ${UNFAMILIAR}`);
+    const text = actorText(renamed);
+    expect(text.split("\n"), where).toContain(cardLine(titled, `Job ${UNFAMILIAR}`));
+    expect(text, where).not.toContain(description.text);
+    const parsed = FullObservation.safeParse(renamed);
+    expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+  }
+  // With no font cut no part is cut, and K2 reads the whole name.
+  const noFontCut = structuredClone(vera);
+  delete noFontCut.perception.fontPx;
+  const whole = observed(perceive(WITH_CARD, noFontCut, 1, { jargon: ["openings"] }), CARD);
+  expect(whole.decisions).toStrictEqual([{ stage: "knowledge", rule: "K2", terms: ["openings"] }]);
+  expect(whole.renamedName).toBe(`Job Offers Dive into our job ${UNFAMILIAR}`);
+  // A control whose every part is cut has no shown name: K2 reads its name, as on any element
+  // perception removed.
+  const cutVera = withKnowledge(veraWithFont({ threshold: 24 }), { domainVocabulary: ["job"] });
+  const cut = observed(perceive(WITH_CARD, cutVera, 1, { jargon: ["openings"] }), CARD);
+  expect(cut.state).toBe("invisible");
+  expect(cut.renamedName).toBe(`Job Offers Dive into our job ${UNFAMILIAR}`);
+});
+
+test("raising a threshold never improves a part's state, nor the control's (#124)", () => {
+  const vera = withCap(profileFixture("prof_vera"), undefined);
+  const { contrast, fontPx: _fontPx, ...rest } = vera.perception;
+  if (!contrast) throw new Error("Vera sets a contrast threshold");
+  const cases: [label: string, thresholds: number[], at: (threshold: number) => Profile][] = [
+    // Without her font cut, so the description's contrast decides it.
+    [
+      "contrast",
+      steps(1, 22, 0.5),
+      (threshold) => ({ ...vera, perception: { ...rest, contrast: { ...contrast, threshold } } }),
+    ],
+    ["a hard font cut", steps(8, 32, 1), (threshold) => veraWithFont({ threshold })],
+    ["a soft font cut", steps(8, 32, 1), (threshold) => veraWithFont({ threshold, softness: 0.5 })],
+  ];
+  for (const [label, thresholds, at] of cases) {
+    const { improved, changes } = sweep(seeds(50), thresholds, at, WITH_CARD);
+    expect(improved, label).toEqual([]);
+    expect(changes, label).toBeGreaterThan(0);
+  }
 });

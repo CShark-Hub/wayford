@@ -106,9 +106,10 @@ async function missedByRole(page: Page, element: MeasuredElement): Promise<strin
 }
 
 // Boxes are left out, since glyph positioning differs between operating systems (the task's box
-// 2). Target sizes are compared: they came out the same on every machine measured.
+// 2). Target sizes are compared: they came out the same on every machine measured. `parts` too,
+// so a control the target app draws in parts (#124), which it has none of, would show here.
 const comparable = ({ elements }: PageMeasurement) =>
-  elements.map(({ key, kind, role, name, metrics, hasPopup, controls }) => ({
+  elements.map(({ key, kind, role, name, metrics, parts, hasPopup, controls }) => ({
     key,
     kind,
     role,
@@ -116,6 +117,7 @@ const comparable = ({ elements }: PageMeasurement) =>
     contrast: metrics.contrast,
     fontPx: metrics.fontPx,
     targetPx: metrics.targetPx,
+    parts,
     hasPopup,
     controls,
   }));

@@ -10,6 +10,7 @@ import {
   type Bbox,
   elementKey,
   type MeasuredElement,
+  type MeasuredPart,
   PageMeasurement,
   PopupKind,
   smallerSide,
@@ -52,11 +53,18 @@ export async function collect(page: Page, options: CollectOptions = {}): Promise
 /**
  * A raw element's key and metrics. Over several runs of text, the worst contrast and the smallest
  * font count; a run whose background is unknown gives no contrast. A metric the element has no
- * source for is left out, and so are `hasPopup` and `controls` when its markup says nothing.
+ * source for is left out, and so are `hasPopup` and `controls` when its markup says nothing. A
+ * control drawn in parts carries them too (`partsOf`), and its own contrast and font size are the
+ * worst of the same numbers, so the two cannot drift.
  */
 function measured(raw: RawElement): MeasuredElement {
-  const runs = raw.texts ?? [];
-  const contrasts = runs.flatMap((run) => textContrast(run.color, run.layers) ?? []);
+  const runs = (raw.texts ?? []).map((run) => ({
+    text: run.text,
+    contrast: textContrast(run.color, run.layers),
+    fontPx: run.fontPx,
+  }));
+  const contrasts = runs.flatMap((run) => run.contrast ?? []);
+  const parts = partsOf(runs);
   const hasPopup = popupOf(raw.hasPopup);
   // A role that is not one lowercase word, such as `doc-toc`, is left out, so it cannot fail the
   // measurement.
@@ -74,9 +82,28 @@ function measured(raw: RawElement): MeasuredElement {
         ? { targetPx: smallerSide(around([raw.bbox, ...(raw.labels ?? [])])) }
         : {}),
     },
+    ...(parts === undefined ? {} : { parts }),
     ...(hasPopup === undefined ? {} : { hasPopup }),
     ...(controls.success ? { controls: controls.data } : {}),
   };
+}
+
+/**
+ * A control's parts (`docs/RULES.md`, "What is measured", #124): one per run, in the page's order,
+ * when it has two runs or more and the page said what each run's element draws itself, which it
+ * does only for a control named by its own content. A part's contrast and font size are its run's,
+ * read as the element's are. `undefined` for anything else, which is measured whole.
+ */
+function partsOf(
+  runs: readonly { text: string | undefined; contrast: number | undefined; fontPx: number }[],
+): MeasuredPart[] | undefined {
+  if (runs.length < 2) return undefined;
+  const parts: MeasuredPart[] = [];
+  for (const { text, contrast, fontPx } of runs) {
+    if (text === undefined) return undefined;
+    parts.push({ text, metrics: contrast === undefined ? { fontPx } : { contrast, fontPx } });
+  }
+  return parts;
 }
 
 /**

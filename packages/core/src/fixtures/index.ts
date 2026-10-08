@@ -18,7 +18,7 @@ import { Finding } from "../finding.js";
 import { GroundTruth } from "../ground-truth.js";
 import { JargonList } from "../jargon.js";
 import { MeasuredElement, PageMeasurement } from "../measurement.js";
-import { FullObservation } from "../observation.js";
+import { FullObservation, ObservedElement } from "../observation.js";
 import { Profile } from "../profile.js";
 import { Race } from "../race.js";
 import { Report } from "../report.js";
@@ -165,6 +165,62 @@ export const kebabElement: MeasuredElement = MeasuredElement.parse({
   metrics: { targetPx: 28 },
   hasPopup: "menu",
   controls: "menu",
+});
+
+/**
+ * A control drawn in parts (#124), which the target app has none of: the "Job Offers" card link
+ * of cshark.com's "Careers" menu (`docs/DEMO.md`, "Our pick"), cut down to a 20 px black title and
+ * a 14 px #767676 description (4.542:1) in one 300 × 80 link, as `collect-rules.browser.test.ts`
+ * measures that page. The link carries the worst of its two parts, 14 px at 4.542:1, so measured
+ * whole a 16 px font cut would remove it, title included. Placed as if it were in the menu under
+ * the fixture page's main navigation.
+ */
+export const cardLinkElement: MeasuredElement = MeasuredElement.parse({
+  key: "banner/navigation:Main//link:Job Offers Dive into our job openings",
+  kind: "control",
+  role: "link",
+  name: "Job Offers Dive into our job openings",
+  bbox: { x: 860, y: 96, width: 300, height: 80 },
+  metrics: { contrast: 4.542, fontPx: 14, targetPx: 80 },
+  parts: [
+    { text: "Job Offers", metrics: { contrast: 21, fontPx: 20 } },
+    { text: "Dive into our job openings", metrics: { contrast: 4.542, fontPx: 14 } },
+  ],
+});
+
+/**
+ * `cardLinkElement` as a 16 px hard font cut leaves it, Vera's (#124): the description's 14 px
+ * part is cut by P3, the 20 px title is not, so the link is shown and reads its title alone
+ * (`shownName`). The evidence shape of a control drawn in parts.
+ */
+const [cardTitle, cardDescription] = cardLinkElement.parts ?? [];
+export const cardLinkObservedElement: ObservedElement = ObservedElement.parse({
+  ref: "e1",
+  key: cardLinkElement.key,
+  role: cardLinkElement.role,
+  name: cardLinkElement.name,
+  bbox: cardLinkElement.bbox,
+  metrics: cardLinkElement.metrics,
+  state: "visible",
+  decisions: [],
+  parts: [
+    { ...cardTitle, state: "visible", decisions: [] },
+    {
+      ...cardDescription,
+      state: "invisible",
+      decisions: [
+        {
+          stage: "perception",
+          rule: "P3",
+          metric: "fontPx",
+          value: 14,
+          threshold: 16,
+          state: "invisible",
+        },
+      ],
+    },
+  ],
+  shownName: "Job Offers",
 });
 
 /** The two goals of the target app, easy first. See `tasks/m0-06-target-app.md`. */

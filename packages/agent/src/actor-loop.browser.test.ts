@@ -46,7 +46,7 @@ import { runActor } from "./actor-loop.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
 import { LlmError } from "./llm.js";
 import { actorMessages, llmActor } from "./llm-actor.js";
-import { SETTLE_TIMEOUT_MS } from "./settle.js";
+import { attemptTimeoutMs, SETTLE_TIMEOUT_MS } from "./settle.js";
 import { startUrlFor, TARGET_APP_DEFAULTS } from "./start-url.js";
 import {
   app,
@@ -1179,6 +1179,9 @@ describe("a listener that throws", () => {
  * parameters, no jargon list, and the lenient `settle`.
  */
 describe("on pages served for the purpose", () => {
+  // A hold of the page's main thread past the strict bound on one attempt, well inside the lenient
+  // one (#190), as a script.
+  const HOLD = `const end = performance.now() + ${attemptTimeoutMs(false) + 1000}; while (performance.now() < end) {}`;
   const HTML = (title: string, style: string, body: string) =>
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>body { margin: 0; font: 18px sans-serif; background: #ffffff; color: #000000; } ${style}</style></head><body>${body}</body></html>`;
   // One place on the screen for both links of the hover pages, so the pointer that pressed the
@@ -1235,6 +1238,22 @@ describe("on pages served for the purpose", () => {
       '<div class="spinner"></div><p><a href="/busy-done">Next</a></p>',
     ),
     "/busy-done": HTML("Busy done", BUSY, '<div class="spinner"></div><p>Done</p>'),
+    // A page that loads, then holds its main thread for nine seconds, as a heavy page does for a
+    // run with others beside it (#190): past the strict bound on one attempt, inside the lenient.
+    "/stall-from": HTML("Stall from", "", '<p><a href="/stall">Heavy page</a></p>'),
+    "/stall": HTML(
+      "Stall",
+      "",
+      `<p>Heavy</p><script>addEventListener("load", () => setTimeout(() => { ${HOLD} }, 0));</script>`,
+    ),
+    // The same hold, at the first measurement: `settle` asks the page for its animations, and the
+    // first time it does, the page holds its main thread. That is the first step's observation,
+    // after the run's start, which waits on the page too, is over.
+    "/stall-on-measure": HTML(
+      "Stall on measure",
+      "",
+      `<p>Heavy on measure</p><script>const own = Document.prototype.getAnimations; let first = true; Document.prototype.getAnimations = function () { if (first) { first = false; ${HOLD} } return own.call(this); };</script>`,
+    ),
   };
 
   let server: Server;
@@ -1271,6 +1290,12 @@ describe("on pages served for the purpose", () => {
       success: { type: "urlMatches", pattern: "**/never-reached" },
     };
   }
+
+  /** From a link into the page that holds its main thread after it loads, to that page. */
+  const stallTask = (): Task => ({
+    ...servedTask("/stall-from"),
+    success: { type: "urlMatches", pattern: "**/stall" },
+  });
 
   /** The element of step `i` named `name`, as the filter measured it. */
   function measured(result: RunResult, i: number, name: string) {
@@ -1508,6 +1533,45 @@ describe("on pages served for the purpose", () => {
         failedFonts: ['"Gone Sans"'],
         endlessAnimations: ['animation "spin" on <div>'],
       });
+    });
+
+    test("a page that holds its main thread past the strict bound still reaches the outcome (#190)", async () => {
+      const { result } = await walk({
+        profile: profileFixture("prof_ada"),
+        task: stallTask(),
+        answers: [click("link", "Heavy page")],
+        elsewhere: true,
+      });
+
+      expect(result.outcome).toBe("success");
+      expect(kinds(result)).toStrictEqual(["complete"]);
+    });
+
+    test("a page that holds its main thread past the strict bound is still observed (#190)", async () => {
+      const { result } = await walk({
+        profile: profileFixture("prof_ada"),
+        task: servedTask("/stall-on-measure"),
+        maxSteps: 1,
+        answers: [GIVE_UP],
+        elsewhere: true,
+      });
+
+      expect(result.outcome).toBe("gave_up");
+      expect(kinds(result)).toStrictEqual(["complete"]);
+    });
+  });
+
+  test("with params, the same page fails page_not_settled at the strict bound (#190)", async () => {
+    const { result, events } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: stallTask(),
+      answers: [click("link", "Heavy page")],
+    });
+
+    expect(result.outcome).toBe("error");
+    expect(events.at(-1)).toMatchObject({
+      type: "runFailed",
+      error: expect.stringContaining(`did not answer within ${attemptTimeoutMs(false)} ms`),
     });
   });
 });

@@ -433,6 +433,134 @@ describe("what an element's text and box measure", () => {
   });
 });
 
+describe("a control drawn in parts (#124)", () => {
+  /** Each element's key, and its parts when it carries the field at all. */
+  const partsOf = (measurement: { elements: MeasuredElement[] }) =>
+    measurement.elements.map((e) => (Object.hasOwn(e, "parts") ? [e.key, e.parts] : [e.key]));
+
+  test("a card link whose title and description are two runs is measured part by part", async () => {
+    // The cshark.com mega-menu card link, cut down: a 20 px black title and a 14 px #767676
+    // description (4.542:1 on white) in one link. The link keeps the worst of the two, as before.
+    // Each part carries the text its own element draws, and that text's metrics. The paragraph
+    // inside is a text block of its own, measured whole as before.
+    const measurement = await measure(`<main>
+      <a href="/careers/job-offers/"
+        style="display: block; width: 300px; height: 80px; color: #000; font-size: 20px">Job Offers
+        <p style="margin: 0; color: #767676; font-size: 14px">Dive into our job openings</p></a>
+    </main>`);
+    const parts = [
+      { text: "Job Offers", metrics: { contrast: 21, fontPx: 20 } },
+      { text: "Dive into our job openings", metrics: { contrast: 4.542, fontPx: 14 } },
+    ];
+    expect(measurement.elements.map((e) => [e.key, e.metrics])).toStrictEqual([
+      [
+        "main//link:Job Offers Dive into our job openings",
+        { contrast: 4.542, fontPx: 14, targetPx: 80 },
+      ],
+      ["main//paragraph:Dive into our job openings", { contrast: 4.542, fontPx: 14 }],
+    ]);
+    expect(partsOf(measurement)).toStrictEqual([
+      ["main//link:Job Offers Dive into our job openings", parts],
+      ["main//paragraph:Dive into our job openings"],
+    ]);
+  });
+
+  test("a part reads only the text its element draws itself, and a run on an unknown background has no contrast", async () => {
+    // The button draws "Save" itself and the span "draft", so the button's part leaves the
+    // span's word out. The span stands on a gradient: its part has no contrast, and the button's
+    // contrast is the worst of the parts that have one.
+    const measurement = await measure(`<button style="width: 200px; height: 40px; padding: 0;
+      border: 0; background: #fff; color: #000; font-size: 16px">Save
+      <span style="background-image: linear-gradient(#fff, #eee); font-size: 12px">draft</span>
+      </button>`);
+    expect(measurement.elements.map((e) => [e.key, e.metrics, e.parts])).toStrictEqual([
+      [
+        "//button:Save draft",
+        { contrast: 21, fontPx: 12, targetPx: 40 },
+        [
+          { text: "Save", metrics: { contrast: 21, fontPx: 16 } },
+          { text: "draft", metrics: { fontPx: 12 } },
+        ],
+      ],
+    ]);
+  });
+
+  test("a control whose parts do not spell its name is measured whole, by the worst of its text", async () => {
+    // Joined, these parts would read words out of order, split a word in two, or keep text
+    // nobody sees: the Actor would read a name the page does not draw (PR #193's review).
+    const measurement = await measure(`<style>a { display: block; font-size: 20px } small,
+      .small { font-size: 10px }</style>
+      <a href="/read">Read <b>more</b> about pricing <small>(PDF, 2 MB)</small></a>
+      <a href="/role">Senior <em>Perf</em>ormance Test Engineer <span class="small">B2B</span></a>
+      <a href="/split"><span class="small">Perf</span>ormance</a>
+      <a href="/zero">&#8203;<span class="small">Order archive</span></a>
+      <a href="/soft">&shy;<span class="small">Settings</span></a>
+      <a href="/filler"><span>&#x3164;</span> <span class="small">Home</span></a>
+      <a href="/braille"><span>&#x2800;</span> <span class="small">Help</span></a>
+      <a href="/size">Size <b class="small">S</b> <i>M</i> S M</a>`);
+    expect(measurement.elements.map((e) => [e.name, e.metrics.fontPx, e.parts])).toStrictEqual([
+      ["Read more about pricing (PDF, 2 MB)", 10, undefined],
+      ["Senior Performance Test Engineer B2B", 10, undefined],
+      ["Performance", 10, undefined],
+      ["​Order archive", 10, undefined],
+      ["­Settings", 10, undefined],
+      // A blank glyph that is neither whitespace nor a format character draws nothing either.
+      ["ㅤ Home", 10, undefined],
+      ["⠀ Help", 10, undefined],
+      // Spelled by coincidence: the link's own text, "Size" and "S M", is two stretches.
+      ["Size S M S M", 10, undefined],
+    ]);
+  });
+
+  test("fallback content a supported element never renders draws nothing and is no part", async () => {
+    // The video's fallback text is never on the screen, so it neither keeps the link nor names it
+    // to a persona who cannot read the heading (found by the adversarial check of PR #193).
+    const measurement = await measure(`<a href="/watch" style="display: block; width: 320px">
+      <video width="320" height="180" muted>Your browser does not support the video tag.</video>
+      <h3 style="margin: 0; font-size: 14px">How to return an order</h3></a>`);
+    const link = measurement.elements.find((e) => e.role === "link");
+    expect(link?.parts).toBeUndefined();
+    expect(link?.metrics.fontPx).toBe(14);
+  });
+
+  test.each<[claim: string, html: string, keys: string[]]>([
+    [
+      // Drawn by one element, though not by the link itself: sr-only and 0 px text draw nothing.
+      "a control drawn by one element has no parts",
+      `${SR_ONLY}
+      <a href="/one"><span>One run</span></a>
+      <a href="/more">Read more<span class="sr-only"> about deliveries</span></a>
+      <a href="/close"><span style="font-size: 0">Icon</span>Close</a>`,
+      ["//link:One run", "//link:Read more about deliveries", "//link:IconClose"],
+    ],
+    [
+      "a text block never has parts, whatever draws its own text",
+      `<p>Read <em style="font-size: 12px">this</em> now</p>
+      <ul><li>Intro <strong>bold</strong> end</li></ul>`,
+      ["//paragraph:Read this now", "//listitem:Intro bold end"],
+    ],
+    [
+      // Only a name taken from the control's own content is measured in parts. One read from a
+      // label, an aria-labelledby referent or a placeholder is measured whole where it is drawn.
+      "a control named by a label, a referent or a placeholder has no parts",
+      `<style>input::placeholder { font-size: 12px }</style>
+      <label for="sms" style="display: block; width: 200px; height: 30px">Text <b>me</b></label>
+      <input id="sms" type="checkbox" style="display: block; width: 30px; height: 30px; margin: 0">
+      <p id="hint">Order <em>archive</em></p>
+      <button aria-labelledby="hint" style="width: 120px; height: 40px">Open <b>it</b></button>
+      <input placeholder="Search" style="display: block; width: 200px; height: 40px">`,
+      [
+        "//checkbox:Text me",
+        "//paragraph:Order archive",
+        "//button:Order archive",
+        "//textbox:Search",
+      ],
+    ],
+  ])("%s", async (_claim, html, keys) => {
+    expect(partsOf(await measure(html))).toStrictEqual(keys.map((key) => [key]));
+  });
+});
+
 describe("what a control's markup says it opens, for stage 4", () => {
   // Whatever an element carries beyond its key, kind, role, name, box and metrics: `{}` when it
   // carries neither fact, so a field written as `undefined` fails too.

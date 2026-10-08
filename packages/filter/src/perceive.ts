@@ -18,16 +18,20 @@
  */
 import {
   type Behaviour,
+  bestPart,
   type ElementDecision,
   type FullObservation,
   hash,
   type Knowledge,
   type MeasuredElement,
+  type Metrics,
   type ObservedElement,
+  type ObservedPart,
   type PageMeasurement,
   type PerceptionDecision,
   type Profile,
   Seed,
+  shownNameOf,
   type Viewport,
   type ViewportDecision,
   worstState,
@@ -61,21 +65,27 @@ export interface PerceiveOptions {
 
 /**
  * The perception rules in scope, in rule id order, which is the order their decisions are listed
- * in. Each compares one metric. P4 is for controls only (`docs/RULES.md`, "What is measured").
+ * in. Each compares one metric. The text rules are judged on an element's text, or on each part of
+ * a control drawn in parts; P4 on a control's own target only (`docs/RULES.md`, "What is
+ * measured").
  */
-const PERCEPTION_RULES = [
-  { rule: "P1", metric: "contrast", controlsOnly: false },
-  { rule: "P3", metric: "fontPx", controlsOnly: false },
-  { rule: "P4", metric: "targetPx", controlsOnly: true },
+const TEXT_RULES = [
+  { rule: "P1", metric: "contrast" },
+  { rule: "P3", metric: "fontPx" },
 ] as const;
+const TARGET_RULES = [{ rule: "P4", metric: "targetPx" }] as const;
+
+type PerceptionRule = (typeof TEXT_RULES)[number] | (typeof TARGET_RULES)[number];
 
 /**
- * One element after pass 1: as measured, with the decisions stages 1 to 4 gave it, and the name
- * stage 4 gave it when K1, K4 or K2 renamed it.
+ * One element after pass 1: as measured, with the decisions stages 1 to 4 gave it, its parts as
+ * perception judged them when it is drawn in parts, and the name stage 4 gave it when K1, K4 or
+ * K2 renamed it.
  */
 interface Decided {
   element: MeasuredElement;
   decisions: ElementDecision[];
+  parts: ObservedPart[] | undefined;
   renamedName: string | undefined;
 }
 
@@ -99,15 +109,20 @@ interface Decided {
  *   is recorded". A rule applies when the profile sets its threshold and the element has its
  *   metric. They also decide the count: an element below the viewport is counted in
  *   `belowFoldCount` only when none of them is `invisible` (#118).
+ * - A control drawn in parts (#124) has P1 and P3 judged on each part instead, and a part's state
+ *   is the worst of its own outcomes. The control takes the P1 and P3 decisions of its best part
+ *   (`bestPart`: the least severe state, the first in document order on a tie), so it is cut only
+ *   when every part is, and degraded when its best part is. P4 stays the control's own.
  * - One roll per element, `hash(run seed, key)`, drawn at most once and only when a soft rule
- *   fails. Every soft decision on the element stores that same roll.
+ *   fails. Every soft decision on the element and on its parts stores that same roll.
  * - Then stage 4, on every element, those V2 or perception made invisible too: K1 and K4
  *   (`knowledgeDecisions`), and K2, through the matcher `vocabularyMatcher` builds once per call.
  *   There is one only when the profile sets `domainVocabulary` and `options.jargon` holds a term
- *   the persona does not know. K2 is listed between K1 and K4, in rule id order. They rename the
- *   element and leave its state alone. An element K1 or K4 renamed takes its bare role, K2 or
- *   not: the bare role holds no jargon, so it covers K2. One only K2 renamed takes K2's
- *   replacement.
+ *   the persona does not know. K2 reads what is left of a control drawn in parts when a part is
+ *   left out (core's `shownNameOf`), so a rename never puts that part's text back, and the name
+ *   otherwise. K2 is listed between K1 and K4, in rule id order. They rename the element and
+ *   leave its state alone. An element K1 or K4 renamed takes its bare role, K2 or not: the bare
+ *   role holds no jargon, so it covers K2. One only K2 renamed takes K2's replacement.
  *
  * Stage 5, only when the profile sets `maxElements`: every element goes into one `salienceOrder`,
  * the removed ones too. Down that order, the elements stages 1 to 3 left shown are kept up to the
@@ -120,9 +135,12 @@ interface Decided {
  *   state is the worst of them.
  * - The evidence lists the elements in the order, and a shown element gets the next ref, so refs
  *   run `e1..eN` down it over shown elements only.
+ * - A shown control with a part worse off than its best part, cut or degraded beside a visible
+ *   one, gets `shownName`: the text of the parts in its best part's state, joined by single
+ *   spaces (`shownNameOf`).
  * - A renamed element carries the name stage 4 gave it as `renamedName`. A degraded one that
- *   was not renamed carries its masked name; a renamed one never does, and neither does one A1
- *   cut.
+ *   was not renamed carries the mask of its shown name, or of its name when it has none; a
+ *   renamed one never does, and neither does one A1 cut.
  *
  * `stepIndex` is 0 because `perceive` does not know the step. The Actor loop sets it on the
  * result, `{ ...full, stepIndex }`, and `runResultFromEvents` rejects an observation whose
@@ -153,14 +171,14 @@ export function perceive(
     const decisions: ElementDecision[] = [];
     const offscreen = viewportDecision(element, viewport);
     if (offscreen !== undefined) decisions.push(offscreen);
-    const perceived = perceptionDecisions(element, profile.perception, runSeed);
+    const { decisions: perceived, parts } = perceptionOf(element, profile.perception, runSeed);
     decisions.push(...perceived);
     // "N more below" is what scrolling could bring into view, not what perception removed (#118).
     if (offscreen?.side === "below" && !perceived.some((d) => d.state === "invisible")) {
       belowFoldCount += 1;
     }
     const patterns = knowledgeDecisions(element, profile.knowledge.unknownPatterns);
-    const hit = k2?.(element.name);
+    const hit = k2?.(shownNameOf(parts ?? []) ?? element.name);
     // K1, K2, K4: rule id order, which the evidence keeps within a stage.
     decisions.push(
       ...patterns.filter((d) => d.rule === "K1"),
@@ -169,7 +187,7 @@ export function perceive(
     );
     // K1 and K4 rename to the bare role, which covers K2; K2 alone renames to its replacement.
     const renamedName = patterns.length > 0 ? element.role : hit?.renamed;
-    return { element, decisions, renamedName };
+    return { element, decisions, parts, renamedName };
   });
 
   // Stage 5: the cap keeps the most salient of what stages 1 to 3 left shown.
@@ -191,13 +209,14 @@ export function perceive(
     }
   }
 
-  // Final pass, down the order: state, ref, rename and mask.
+  // Final pass, down the order: state, ref, shown name, rename and mask.
   const elements: ObservedElement[] = [];
   let shown = 0;
-  for (const { element, decisions, renamedName } of order) {
+  for (const { element, decisions, parts, renamedName } of order) {
     const state = worstState(decisions);
     if (state !== "invisible") shown += 1;
     const renamed = renamedName !== undefined;
+    const shownName = state === "invisible" ? undefined : shownNameOf(parts ?? []);
     elements.push({
       ...(state === "invisible" ? {} : { ref: `e${shown}` }),
       key: element.key,
@@ -207,8 +226,10 @@ export function perceive(
       metrics: { ...element.metrics },
       state,
       decisions,
+      ...(parts === undefined ? {} : { parts }),
+      ...(shownName === undefined ? {} : { shownName }),
       ...(state === "degraded" && !renamed
-        ? { maskedName: maskName(runSeed, element.key, element.name) }
+        ? { maskedName: maskName(runSeed, element.key, shownName ?? element.name) }
         : {}),
       ...(renamed ? { renamedName } : {}),
     });
@@ -240,33 +261,64 @@ function viewportDecision(
   return undefined;
 }
 
-/** P1, P3 and P4: one decision per rule the element fails, none for a rule it passes. */
-function perceptionDecisions(
+/**
+ * P1, P3 and P4 on one element: one decision per rule it fails, none for a rule it passes.
+ *
+ * A control drawn in parts (#124) has P1 and P3 judged on each part instead, against the same
+ * thresholds, and each part records its own decisions and the worst of them as its state. The
+ * control takes copies of its best part's decisions (`bestPart`), then judges P4 on its own target.
+ * A part's state never improves as a threshold rises for a fixed roll, so neither does the best of
+ * them (`docs/RULES.md`, "Monotone per perception rule").
+ */
+function perceptionOf(
   element: MeasuredElement,
   perception: Profile["perception"],
   runSeed: Seed,
-): PerceptionDecision[] {
-  // Once per element per run, shared by all its soft rules (`docs/RULES.md`, "The roll").
+): { decisions: PerceptionDecision[]; parts: ObservedPart[] | undefined } {
+  // Once per element per run, shared by all its soft rules and its parts' (`docs/RULES.md`, "The
+  // roll").
   let rolled: number | undefined;
   const roll = () => {
     if (rolled === undefined) rolled = hash(runSeed, element.key);
     return rolled;
   };
-  const decisions: PerceptionDecision[] = [];
-  for (const { rule, metric, controlsOnly } of PERCEPTION_RULES) {
-    const cut = perception[metric];
-    const value = element.metrics[metric];
-    if (cut === undefined || value === undefined) continue;
-    if (controlsOnly && element.kind !== "control") continue;
-    const outcome = judgeCut(value, cut, roll);
-    if (outcome === undefined) continue;
-    // Keys in schema order, so the evidence for a seed is byte-stable. A hard cut has no roll.
-    const failed = { stage: "perception" as const, rule, metric, value, threshold: cut.threshold };
-    decisions.push(
-      outcome.rolled === undefined
-        ? { ...failed, state: outcome.state }
-        : { ...failed, rolled: outcome.rolled, state: outcome.state },
-    );
-  }
-  return decisions;
+  const judge = (rules: readonly PerceptionRule[], metrics: Metrics): PerceptionDecision[] => {
+    const decisions: PerceptionDecision[] = [];
+    for (const { rule, metric } of rules) {
+      const cut = perception[metric];
+      const value = metrics[metric];
+      if (cut === undefined || value === undefined) continue;
+      const outcome = judgeCut(value, cut, roll);
+      if (outcome === undefined) continue;
+      // Keys in schema order, so the evidence for a seed is byte-stable. A hard cut has no roll.
+      const failed = {
+        stage: "perception" as const,
+        rule,
+        metric,
+        value,
+        threshold: cut.threshold,
+      };
+      decisions.push(
+        outcome.rolled === undefined
+          ? { ...failed, state: outcome.state }
+          : { ...failed, rolled: outcome.rolled, state: outcome.state },
+      );
+    }
+    return decisions;
+  };
+  const parts = element.parts?.map((part): ObservedPart => {
+    const decisions = judge(TEXT_RULES, part.metrics);
+    return {
+      text: part.text,
+      metrics: { ...part.metrics },
+      state: worstState(decisions),
+      decisions,
+    };
+  });
+  const text =
+    parts === undefined
+      ? judge(TEXT_RULES, element.metrics)
+      : (bestPart(parts)?.decisions ?? []).map((d) => ({ ...d }));
+  const target = element.kind === "control" ? judge(TARGET_RULES, element.metrics) : [];
+  return { decisions: [...text, ...target], parts };
 }

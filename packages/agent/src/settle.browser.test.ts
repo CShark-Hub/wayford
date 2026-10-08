@@ -8,7 +8,13 @@
 import { WayfordError } from "@wayford/core";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { retryOnNavigation, SETTLE_TIMEOUT_MS, settle } from "./settle.js";
+import {
+  attemptTimeoutMs,
+  LENIENT_SETTLE_TIMEOUT_MS,
+  retryOnNavigation,
+  SETTLE_TIMEOUT_MS,
+  settle,
+} from "./settle.js";
 
 // Launching Chromium takes longer than vitest's 5 s hook default, and one test holds a page busy
 // for two seconds.
@@ -270,6 +276,49 @@ test("lenient: a finite animation still running at the deadline is not settled",
     );
     expect(error.message).toContain('animation "slide" on <div>');
   });
+});
+
+/**
+ * A page that slides one box in over four seconds, longer than the strict deadline and well inside
+ * the lenient one: an on-load fade on a heavy real page, slowed down by runs beside it (#190).
+ */
+async function slowSlide(page: Page): Promise<void> {
+  await page.setContent(`<style>
+      @keyframes slide { from { transform: translateX(-100px) } to { transform: none } }
+      .sliding { animation: slide 4s linear }
+    </style>
+    <div id="box" onanimationend="this.dataset.ended = 'yes'">Sliding in</div>`);
+  await page.evaluate(() => document.getElementById("box")?.classList.add("sliding"));
+}
+
+test("lenient: a finite animation longer than the strict deadline is waited out (#190)", async () => {
+  await withPage(async (page) => {
+    await slowSlide(page);
+    const [skipped, ms] = await timed(() => settle(page, { lenient: true }));
+    expect(await page.evaluate(() => document.getElementById("box")?.dataset.ended)).toBe("yes");
+    expect(ms).toBeGreaterThan(SETTLE_TIMEOUT_MS);
+    expect(ms).toBeLessThan(LENIENT_SETTLE_TIMEOUT_MS);
+    expect(skipped).toStrictEqual({ failedFonts: [], endlessAnimations: [] });
+  });
+});
+
+test("strict: the same animation is not settled at the strict deadline", async () => {
+  await withPage(async (page) => {
+    await slowSlide(page);
+    const error = await rejection(settle(page), "page_not_settled");
+    expect(error.message).toContain(`did not settle within ${SETTLE_TIMEOUT_MS} ms`);
+    expect(error.message).toContain('animation "slide" on <div>');
+  });
+});
+
+test("the strict bounds stay the target app's, and the lenient ones are longer (#190)", () => {
+  // The calibration depends on the strict pair (`docs/adr/0003-any-target.md`, D4).
+  expect(SETTLE_TIMEOUT_MS).toBe(3000);
+  expect(attemptTimeoutMs(false)).toBe(8000);
+  expect(LENIENT_SETTLE_TIMEOUT_MS).toBeGreaterThan(SETTLE_TIMEOUT_MS);
+  expect(attemptTimeoutMs(true)).toBeGreaterThan(attemptTimeoutMs(false));
+  // Each attempt outlasts its own settle, so Node's race never cuts a settle within its deadline.
+  expect(attemptTimeoutMs(true)).toBeGreaterThan(LENIENT_SETTLE_TIMEOUT_MS);
 });
 
 test("retryOnNavigation fails page_not_settled from Node when the page's main thread is blocked", async () => {

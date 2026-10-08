@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { BANNED_ACTOR_WORDS, observationFixture, profileFixtures } from "./fixtures/index.js";
+import {
+  BANNED_ACTOR_WORDS,
+  cardLinkObservedElement,
+  observationFixture,
+  profileFixtures,
+} from "./fixtures/index.js";
 import {
   ActorElement,
   AriaRole,
@@ -10,6 +15,7 @@ import {
   Metrics,
   Observation,
   ObservedElement,
+  ObservedPart,
   renderObservationForModel,
   toActorObservation,
   worstState,
@@ -249,6 +255,192 @@ describe("ObservedElement (evidence)", () => {
     expect(ObservedElement.safeParse({ ...baseElement, maskedName: "Ar▒▒ive" }).success).toBe(
       false,
     );
+  });
+});
+
+/**
+ * A control drawn in parts (#124), `cardLinkObservedElement`: a 20 px title and a 14 px
+ * description, as a 16 px hard font cut leaves it. The description is cut, the title is not, so
+ * the link is shown and reads its title alone.
+ */
+const cardLink = cardLinkObservedElement;
+const [titlePart, descriptionPart] = cardLink.parts ?? [];
+if (titlePart === undefined || descriptionPart === undefined) {
+  throw new Error("the card link fixture is drawn in two parts");
+}
+// The description's cut: 14 px under a 16 px hard font cut, as `p3Invisible` has it.
+const descriptionP3 = p3Invisible;
+
+/** The card link with both parts cut by a 24 px hard font cut: invisible, no ref, no shown name. */
+function cardCut(): Record<string, unknown> {
+  const { ref: _ref, shownName: _shownName, ...rest } = cardLink;
+  const titleP3 = { ...p3Invisible, value: 20, threshold: 24 };
+  return {
+    ...rest,
+    state: "invisible",
+    decisions: [titleP3],
+    parts: [
+      { ...titlePart, state: "invisible", decisions: [titleP3] },
+      { ...descriptionPart, decisions: [{ ...descriptionP3, threshold: 24 }] },
+    ],
+  };
+}
+
+/** The paths of the issues a parse of `input` gives, each once, so a test names the failed check. */
+const failedPaths = (input: unknown) => [
+  ...new Set((ObservedElement.safeParse(input).error?.issues ?? []).map((i) => i.path.join("."))),
+];
+
+describe("ObservedElement parts and shownName (#124)", () => {
+  test("a shown control with a cut part parses, and the Actor reads its shown name", () => {
+    expect(ObservedElement.safeParse(cardLink).success).toBe(true);
+    // Last in the fixture, where every element after e6 is cut: it is e7.
+    const full = FullObservation.parse({
+      ...observationFixture,
+      elements: [...observationFixture.elements, { ...cardLink, ref: "e7" }],
+    });
+    const actor = toActorObservation(full);
+    expect(actor.elements.at(-1)).toStrictEqual({
+      ref: "e7",
+      role: "link",
+      name: "Job Offers",
+      bbox: cardLink.bbox,
+      state: "visible",
+    });
+    const text = renderObservationForModel(actor);
+    expect(text).toContain('[e7] link "Job Offers" at 860,96\n');
+    expect(text).not.toContain("Dive into our job openings");
+  });
+
+  test("a control none of whose parts is cut reads its whole name, with no shown name", () => {
+    const { shownName: _shownName, ...whole } = cardLink;
+    const shown = {
+      ...whole,
+      parts: [titlePart, { ...descriptionPart, state: "visible", decisions: [] }],
+    };
+    expect(ObservedElement.safeParse(shown).success).toBe(true);
+    expect(failedPaths({ ...shown, shownName: "Job Offers" })).toEqual(["shownName"]);
+    const full = FullObservation.parse({
+      ...observationFixture,
+      elements: [...observationFixture.elements, { ...shown, ref: "e7" }],
+    });
+    expect(toActorObservation(full).elements.at(-1)?.name).toBe(cardLink.name);
+  });
+
+  test("a shown name exists exactly when a part is cut and the control is shown", () => {
+    const { shownName: _shownName, ...unnamed } = cardLink;
+    expect(failedPaths(unnamed)).toEqual(["shownName"]);
+    expect(ObservedElement.safeParse(cardCut()).success).toBe(true);
+    expect(failedPaths({ ...cardCut(), shownName: "Job Offers" })).toEqual(["shownName"]);
+    expect(failedPaths({ ...baseElement, shownName: "Archive" })).toEqual(["shownName"]);
+  });
+
+  test("a shown name is the text of the parts left, joined by single spaces", () => {
+    for (const shownName of ["Job", "Job Offers Dive into our job openings", "Job  Offers", ""]) {
+      expect(failedPaths({ ...cardLink, shownName }), shownName).toEqual(["shownName"]);
+    }
+  });
+
+  test("a degraded part beside a visible one is left out of the shown name too", () => {
+    const beside = {
+      ...cardLink,
+      parts: [titlePart, { ...descriptionPart, state: "degraded", decisions: [p1Degraded] }],
+    };
+    expect(ObservedElement.safeParse(beside).success).toBe(true);
+    const { shownName: _shownName, ...whole } = beside;
+    expect(failedPaths(whole)).toEqual(["shownName"]);
+    expect(failedPaths({ ...beside, shownName: cardLink.name })).toEqual(["shownName"]);
+  });
+
+  test("a part's state is the worst of its decisions, P1 and P3 only, in rule id order", () => {
+    expect(ObservedPart.safeParse(descriptionPart).success).toBe(true);
+    const p1 = { ...p1Degraded, value: 2.5 };
+    for (const part of [
+      { ...descriptionPart, state: "degraded" },
+      { ...titlePart, decisions: [descriptionP3] },
+      { ...descriptionPart, decisions: [descriptionP3, p1] },
+      { ...descriptionPart, decisions: [descriptionP3, descriptionP3] },
+      {
+        ...descriptionPart,
+        decisions: [{ ...p3Invisible, rule: "P4", metric: "targetPx", value: 18, threshold: 24 }],
+      },
+      { ...descriptionPart, ref: "e2" },
+    ]) {
+      expect(ObservedPart.safeParse(part).success, JSON.stringify(part)).toBe(false);
+    }
+    expect(
+      ObservedPart.safeParse({ ...descriptionPart, decisions: [p1, descriptionP3] }).success,
+    ).toBe(true);
+  });
+
+  test("the control carries the P1 and P3 decisions of its best part", () => {
+    // Its worst part's instead: the description's cut, though the title is shown.
+    const { ref: _ref, shownName: _shownName, ...rest } = cardLink;
+    expect(failedPaths({ ...rest, state: "invisible", decisions: [descriptionP3] })).toEqual([
+      "decisions",
+    ]);
+    // None, though its best part is degraded.
+    const degraded = {
+      ...titlePart,
+      state: "degraded",
+      decisions: [{ ...p1Degraded, value: 2.5 }],
+    };
+    expect(failedPaths({ ...cardLink, parts: [degraded, descriptionPart] })).toEqual(["decisions"]);
+    // On a tie, the first part's: here the second's cut, with the title cut too.
+    const tied = cardCut();
+    const parts = tied.parts as { decisions: unknown[] }[];
+    expect(failedPaths({ ...tied, decisions: parts[1]?.decisions })).toEqual(["decisions"]);
+  });
+
+  test("one roll per element: its parts' soft decisions carry the element's roll", () => {
+    // The title in a contrast band and the description under a soft font cut, one roll for both.
+    const titleP1 = { ...p1Degraded, value: 2.5 };
+    const softP3 = { ...descriptionP3, rolled: 0.37 };
+    const rolled = {
+      ...cardLink,
+      state: "degraded",
+      decisions: [titleP1],
+      maskedName: "Jo▒ Of▒ers",
+      parts: [
+        { ...titlePart, state: "degraded", decisions: [titleP1] },
+        { ...descriptionPart, decisions: [softP3] },
+      ],
+    };
+    expect(ObservedElement.safeParse(rolled).success).toBe(true);
+    const split = {
+      ...rolled,
+      parts: [rolled.parts[0], { ...descriptionPart, decisions: [{ ...softP3, rolled: 0.5 }] }],
+    };
+    expect(failedPaths(split)).toEqual(["decisions"]);
+  });
+
+  test("a degraded control with a cut part reads its mask, a renamed one its rename", () => {
+    const titleP1 = { ...p1Degraded, value: 2.5 };
+    const degraded = {
+      ...cardLink,
+      ref: "e7",
+      state: "degraded",
+      decisions: [titleP1],
+      maskedName: "Jo▒ Of▒ers",
+      parts: [{ ...titlePart, state: "degraded", decisions: [titleP1] }, descriptionPart],
+    };
+    const { maskedName: _maskedName, ...unmasked } = degraded;
+    expect(failedPaths(unmasked)).toEqual(["maskedName"]);
+    const renamed = {
+      ...unmasked,
+      decisions: [titleP1, { stage: "knowledge", rule: "K2", terms: ["offers"] }],
+      renamedName: "Job [unfamiliar term]",
+    };
+    for (const [element, name, state] of [
+      [degraded, "Jo▒ Of▒ers", "degraded"],
+      [renamed, "Job [unfamiliar term]", "visible"],
+    ] as const) {
+      const full = FullObservation.parse({
+        ...observationFixture,
+        elements: [...observationFixture.elements, element],
+      });
+      expect(toActorObservation(full).elements.at(-1)).toMatchObject({ name, state });
+    }
   });
 });
 

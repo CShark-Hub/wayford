@@ -109,7 +109,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 
 Not part of the 90 seconds. If we reach the finals, on 2026-10-14, Wayford runs on a site someone hands us (`docs/adr/0003-any-target.md`):
 
-- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its two goals, the results per persona and the gaps it hit go here as those tasks finish.
+- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its three goals, the results per persona and the gaps it hit are below, in "Our pick: cshark.com".
 - **The judges' app.** It should work more or less. If it does not, we say why in one line (a login, a cookie banner in an iframe, a bot check) and switch to our pick.
 
 The flow, from the Target screen:
@@ -125,6 +125,180 @@ What to say off the target app:
 - "There is no route-open number here. That needs a route table, which we wrote for our own app only."
 - "Kai's vocabulary rule is off: this site has no jargon list."
 - "The seed replays every perception decision and every roll on the page we measured. It cannot replay the site, which may change, and a page that was still moving when we measured it may measure differently next time."
+
+### Our pick: cshark.com
+
+Run through the API in `s1-07` (`docs/specs/2026-10-07-s1-07-our-pick-gaps.md`). Picked by the team on 2026-10-07.
+
+- **Site:** CSHARK's public site, start URL `https://www.cshark.com/` for every goal. The application form is on a second origin, `https://joboffers.cshark.com/`.
+- **Checked 2026-10-07:**
+  - `robots.txt` allows every path. No login.
+  - The cookie banner is CookieYes, a bar along the bottom of the top document, not an iframe.
+  - "Apply Now!" opens the form in the same tab. The form's reCAPTCHA is never reached: a run ends `success` on the step that loads the form.
+- **The runs:** every run is on the LLM. The Actor and the Analyst are `openai/gpt-6-luna`. Off the target app there is no route-open number and K2 is off. The report has no Scout line until `s4-10` and no axe findings until `s4-09`.
+
+| # | Story, kept as the goal (the Extractor rewrote none) | Success | What success proves |
+|---|---|---|---|
+| G1 | "Find the names of the company's board members." | `urlMatches` `https://www.cshark.com/about/**` | The run reached `/about/`, whose "Founders" section names the board about 2,300 px down. Not that the persona read the names. |
+| G2 | "Find out what the salary is for the Senior Performance Test Engineer role." | `urlMatches` `https://www.cshark.com/job-offers/senior-performance-test-engineer/**` | The run reached the job offer, which states the rate near its top. |
+| G3 | "Apply for the Senior Performance Test Engineer role." | `urlMatches` `https://joboffers.cshark.com/**/senior-performance-test-engineer,ja,*` | The run reached the application form. Nothing is filled in or sent. |
+
+#### First pass, 2026-10-07
+
+Ada, Kai and Vera on seeds 1 to 3, one goal's nine runs at a time, five slots. No run typed anything. The 27 runs cost 0.015 USD, and the three reports 0.010 USD.
+
+In the tables below:
+
+- "No answer in 8 s" means the run failed `page_not_settled` because the page did not answer within 8,000 ms.
+- "Still moving at 3 s" means it failed `page_not_settled` because the page did not settle within 3,000 ms.
+
+**G1**, `task_01m4b401gjz2nq7essvzsrmgze`
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | error, no answer in 8 s, 2 steps, 30 s | error, no answer in 8 s, 2 steps, 33 s | error, still moving at 3 s, 0 steps, 4 s |
+| Kai | error, no answer in 8 s, 1 step, 26 s | error, no answer in 8 s, 1 step, 23 s | error, still moving at 3 s, 0 steps, 5 s |
+| Vera | budget exceeded, 18 steps, 123 s | budget exceeded, 20 steps, 120 s | error, still moving at 3 s, 0 steps, 5 s |
+
+- **Runs:**
+  - Ada: `run_01m4b40fdf8yd92wan0r06mcaz`, `run_01m4b40fdf2p0gx58xyyas3hvc`, `run_01m4b40fdf42n6k55ms249hwfe`.
+  - Kai: `run_01m4b40fdf3jwct1a51v3ss6e2`, `run_01m4b40fdf272dkkzca4ghnsct`, `run_01m4b40fdf49npyxceptkrttv8`.
+  - Vera: `run_01m4b40fdfx1n2m5wcvvnzpdvw`, `run_01m4b40fdfxk0hcq0hvxj94f12`, `run_01m4b40fdf5bg2tq0tagcdv5r3`.
+- **Report:**
+  - Ada 0/3 (3 errors), Kai 0/3 (3 errors), Vera 0/3 (1 error). Route open "—", Scout "no ground truth".
+  - One hypothesis finding: Vera's search loops through the home page's case studies.
+  - Ada and Kai reached `/about/` in one or two steps, and then their runs errored.
+
+**G2**, `task_01m4b4050dwnmvdnv09dpb0vaj`
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | error, no answer in 8 s, 1 step, 20 s | error, no answer in 8 s, 1 step, 21 s | error, still moving at 3 s, 0 steps, 4 s |
+| Kai | error, no answer in 8 s, 1 step, 19 s | error, no answer in 8 s, 1 step, 20 s | budget exceeded, 12 steps, 122 s |
+| Vera | error, no answer in 8 s, 1 step, 18 s | error, still moving at 3 s, 0 steps, 4 s | budget exceeded, 17 steps, 122 s |
+
+- **Runs:**
+  - Ada: `run_01m4b45km21mhz7sf4s7vyqe7m`, `run_01m4b45km2jpj92dfenm91wmdt`, `run_01m4b45km29eggxb1ys2qxprnk`.
+  - Kai: `run_01m4b45km2mhyperaks9yvr9j9`, `run_01m4b45km2436yynm3ds1n4mkm`, `run_01m4b45km2427w1mng7108ywsf`.
+  - Vera: `run_01m4b45km20vax8ftwyagm8340`, `run_01m4b45km20z1vx0x8r7n89hn8`, `run_01m4b45km2sdj5eh1g1201j4yk`.
+- **Report:**
+  - Ada 0/3 (3 errors), Kai 0/3 (2 errors), Vera 0/3 (2 errors). Route open "—", Scout "no ground truth".
+  - One hypothesis finding: repeated "Careers" activations leave the run on `/`.
+
+**G3**, `task_01m4b407m85n1e0j1xd8r3rhv4`
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | error, no answer in 8 s, 1 step, 19 s | **success**, 6 steps, 65 s | error, still moving at 3 s, 0 steps, 5 s |
+| Kai | error, no answer in 8 s, 1 step, 20 s | error, no answer in 8 s, 1 step, 14 s | error, still moving at 3 s, 0 steps, 5 s |
+| Vera | error, no answer in 8 s, 1 step, 16 s | error, still moving at 3 s, 0 steps, 5 s | budget exceeded, 20 steps, 114 s |
+
+- **Runs:**
+  - Ada: `run_01m4b4afn2cfhmdbzh2dsztzyw`, `run_01m4b4afn20j0nkfy9gc1ps0xq`, `run_01m4b4afn27k13n8vyktrgp10q`.
+  - Kai: `run_01m4b4afn2c4h25ms6vbpj8mv9`, `run_01m4b4afn20havzzjbd2wvepkb`, `run_01m4b4afn2ybpfhy4wbb11c1d1`.
+  - Vera: `run_01m4b4afn28zkhse34ky3ztw3d`, `run_01m4b4afn26hv6764rbbsp1sem`, `run_01m4b4afn2tftkrkpejbe1ffe8`.
+- **Report:**
+  - Ada 1/3 (2 errors), median 65 s. Kai 0/3 (3 errors). Vera 0/3 (2 errors). Route open "—", Scout "no ground truth".
+  - One hypothesis finding: repeated "Careers" activations leave Vera on the home page.
+- **Ada's success, seed 2:** "Reject All" on the cookie bar, then the "Careers" menu, then "Job Offers", a scroll, "Read More" on the listing, and "Apply Now!".
+
+#### What the first pass shows about the site, not the engine
+
+Each of these was checked against the run's evidence and the live page. They are the filter working, and they are findings about the site.
+
+- **Vera and the header.** Every top-navigation link (Projects, About, Blog, Resources) is a 16 px tall box ("About" is 44.7 × 16 px), under Vera's 32 px target cut, so P4 removes them all for her. "Reach Us", the one large button in the header, stays. The cookie bar's buttons are 14 px text, under her 16 px font cut, so she cannot dismiss it either.
+- **Kai and the "Careers" menu.** "Careers" in the header is `<a>` with no `href`, so it is no link. It is measured as a listitem's text. The menu under it opens on the pointer, which stays where the click left it. Once the menu is open, Kai's attention cap (A1, 11) leaves "Job Offers" out, so Kai clicks "Careers" again and again.
+
+#### Gaps the first pass hit
+
+| Gap | Issue | Blocks | Why | Fixed |
+|---|---|---|---|---|
+| `settle`'s two deadlines do not fit a heavy page with five runs at once | #190 | yes: the Race, the Report | It ended 21 of 27 runs `error`, Ada's included (13 no answer in 8 s, 8 still moving at 3 s). Alone, the home page settles in about 2 s, and a post-action screenshot takes about 1.5 s. With five runs at once, each recording video and a trace, the screenshot takes 8.5 to 11.4 s, and on-load fades run past 3 s. The 8 s bound and the 3 s deadline are `packages/agent/src/settle.ts`'s. | In `s1-07`: off the target app `settle` waits up to 10 s and an attempt is bounded at 30 s. The target app keeps 3 s and 8 s. |
+| A card link is cut whole by its subtitle (the control half of #124) | #124 | yes: the Race, the Report, the Lens | The "Careers" menu's "Job Offers" link draws a 20 px title and a 14 px description. It is measured by the worst text it draws, 14 px, so Vera's 16 px font cut removes it, title included, from her only route to the job offers. Her G2 and G3 failures overstate her. | In `s1-07`: a control drawn in parts is perceived part by part, and a shown control with a cut part reads only the parts left (`docs/RULES.md`, "What is measured"). |
+
+Not hit: #125 (G3's evidence has no text element without a measured contrast), #126, #127, #146 and #149. No run opened a new tab, so `s2-14` waits.
+
+Not fixed, and not blocking:
+
+- **The salience size term (A1) still reads a card link's worst text.** The 14 px description gives "Job Offers" a size term of 14/24 where its title would give 20/24, and Kai's cap of 11 leaves it out once the menu is open. Which part should set a control's salience is the same kind of question as #149, which salience cannot see either.
+- **A degraded part beside a visible one is left out, not read masked.** A control reads one name, whole or masked, so its shown name keeps only the parts in its best part's state. That understates what the persona might make out, where reading the part whole would overstate. `docs/RULES.md`, "What is measured".
+- **A blind spot of the collector on one part can keep a control.** The best part decides, so a part the collector misjudges keeps the control where the worst of its text used to cut it:
+  - text pushed off the screen or clipped away (#126), such as an image-replacement link's `text-indent`;
+  - text over an unknown background, which has no contrast to fail (#125);
+  - text faded by partial opacity, a filter or a transform, which the collector does not read.
+
+  The adversarial check of PR #193 reproduced each one. On a site the judges name, check the Lens for a link that reads text the page does not show.
+- **No screen shows a cut part yet.** Run detail lists an element under "every element a rule touched" only when the element itself carries a decision. A shown control whose best part is visible carries none: its cut description is in the evidence (`parts`), but no screen draws it. For `s4-08`.
+- **A control drawn in parts must spell its name, each element's text in one stretch.** One whose parts, joined, would read words out of order or split a word (`<a>Read <b>more</b> about pricing</a>`) is measured whole, as before #124. So is one whose text is only blank glyphs, or a video's fallback text the page never draws. Found in PR #193's review and the adversarial check after it.
+
+#### Second pass, 2026-10-07, after the fixes
+
+The same three stored tasks, personas, seeds and backend, posted one goal at a time. No run typed anything. The 27 runs cost 0.032 USD and the three reports 0.013 USD. Steps took longer than alone: five runs at once on this machine spend part of each persona's 120 s budget (B3) on the heavy page.
+
+**G1**
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | **success**, 2 steps, 38 s | **success**, 2 steps, 32 s | **success**, 2 steps, 28 s |
+| Kai | **success**, 1 step, 28 s | **success**, 1 step, 28 s | **success**, 1 step, 22 s |
+| Vera | budget exceeded, 19 steps, 123 s | budget exceeded, 19 steps, 122 s | budget exceeded, 20 steps, 115 s |
+
+- **Runs:**
+  - Ada: `run_01m4b80wqtwtj4n9bwx1c3dz7a`, `run_01m4b80wqvyz00c1zxg3vpcbrq`, `run_01m4b80wqv8k7a0zkzx4dkq8eh`.
+  - Kai: `run_01m4b80wqvmve6fkr639fhsdeg`, `run_01m4b80wqvwkbbf16ckvnc4qfr`, `run_01m4b80wqv7p73mvw10g6zcbzk`.
+  - Vera: `run_01m4b80wqvscmhbg8952jzmqz8`, `run_01m4b80wqv2fhrv3g6yxfnm1tc`, `run_01m4b80wqvbsre1nnz9x3zgv7w`.
+- **Report:** Ada 3/3, median 32 s. Kai 3/3, median 28 s. Vera 0/3. One hypothesis finding: Vera's runs do not discover the home page's "About" link, which P4 removes for her.
+
+**G2**
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | gave up, 5 steps, 74 s | gave up, 5 steps, 71 s | **success**, 5 steps, 69 s |
+| Kai | budget exceeded, 8 steps, 129 s | budget exceeded, 8 steps, 124 s | budget exceeded, 12 steps, 122 s |
+| Vera | **success**, 7 steps, 86 s | **success**, 8 steps, 98 s | **success**, 19 steps, 121 s |
+
+- **Runs:**
+  - Ada: `run_01m4b85y8bq0zeb402qhawhm6t`, `run_01m4b85y8bs1jw6tm0d0n12kjr`, `run_01m4b85y8bqgwa8xdy5fhc8jwq`.
+  - Kai: `run_01m4b85y8b971y3656q1dqdgtk`, `run_01m4b85y8b4hjekk0nb0mhmkn2`, `run_01m4b85y8bzrk7w5nrdya4g872`.
+  - Vera: `run_01m4b85y8b5vdmrnvrymh622zk`, `run_01m4b85y8brsks13h100w2795j`, `run_01m4b85y8bgfmaj1hegec85456`.
+- **Report:** Ada 1/3, median 69 s. Kai 0/3. Vera 3/3, median 98 s. One hypothesis finding: Kai keeps choosing "Careers" without reaching "Job Offers".
+- **Ada's two give-ups found the answer.**
+  - The listing, `/careers/job-offers/`, already states the rate on the role's card. In both runs Ada scrolled to it, wrote "The Senior Performance Test Engineer listing shows a rate of 125–145 PLN per hour + VAT on a B2B contract", and gave up.
+  - The Actor has no action that says "found it", and G2's success counts only the offer's own page. So the record says `gave_up` where the answer was read.
+  - For `s4-08`: widen G2's success to the listing too, `https://www.cshark.com/{careers/job-offers/**,job-offers/senior-performance-test-engineer/**}`. Or pick a goal whose answer is on one page only.
+
+**G3**
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | **success**, 6 steps, 100 s | **success**, 6 steps, 100 s | **success**, 6 steps, 79 s |
+| Kai | budget exceeded, 8 steps, 125 s | budget exceeded, 8 steps, 123 s | budget exceeded, 13 steps, 122 s |
+| Vera | **success**, 10 steps, 132 s | budget exceeded, 10 steps, 122 s | budget exceeded, 16 steps, 122 s |
+
+- **Runs:**
+  - Ada: `run_01m4b8ejp1gc2bgnfddq90j9bw`, `run_01m4b8ejp131j1v1qv82w97s49`, `run_01m4b8ejp1pq388nbqxzh0mhm0`.
+  - Kai: `run_01m4b8ejp1ykvpdfsmb998d0fq`, `run_01m4b8ejp18va2hvtn53e5nshb`, `run_01m4b8ejp1j738104mrpvpmx0j`.
+  - Vera: `run_01m4b8ejp14w7d0yhpp2jqpyhk`, `run_01m4b8ejp1jrveawvmh08jjymf`, `run_01m4b8ejp19x2hy4kesqjf2p8x`.
+- **Report:** Ada 3/3, median 100 s. Kai 0/3. Vera 1/3, median 132 s. One hypothesis finding: repeated "Careers" activation leaves "Job Offers" unselected.
+- Vera's seed 1 success at 132 s is past her 120 s budget. It stands: the clock is read once a step's action is planned, and success is checked before the budget at the end of the step (`packages/agent/src/actor-loop.ts`, `runActor`). With the 30 s bound off the target app (#190), a step planned just inside the budget can land well past it.
+
+**The re-run hits neither blocking gap:**
+
+- **#190.** No run of the 27 ended `error`, against 21 in the first pass.
+- **#124.**
+  - On every seed of G2, Vera's evidence shows the open menu's "Job Offers" link as `link "Job Offers"`, with `shownName` "Job Offers". Its 20 px part is visible, and its 14 px part is cut by P3.
+  - That is step 4 of `run_01m4b85y8b5vdmrnvrymh622zk`, step 5 of `run_01m4b85y8brsks13h100w2795j` and step 16 of `run_01m4b85y8bgfmaj1hegec85456`.
+  - In the first pass the whole link was cut. With it, Vera reaches the job offer in all three runs.
+
+**What the numbers say, and what they do not:**
+
+- **Ada, the control,** succeeds 3/3 on G1 and G3 and 1/3 on G2. In her two G2 give-ups her narration quotes the rate from the listing, which G2's success condition does not count; the record is the outcome, not the narration. Off the target app the report shows no route-open number.
+- **Vera:**
+  - On G1 her target cut (P4) removes every top-navigation link, all 16 px tall boxes, so she never finds "About".
+  - On G2 she reaches the job offer through the "Careers" menu: a person at her 16 px font cut reads the 20 px "Job Offers" title.
+  - On G3 two of her three runs run out of time on the way.
+- **Kai** gets to `/about/` in one step. On G2 and G3, his attention cap (A1, 11) leaves "Job Offers" out of the open menu, so he keeps choosing "Careers".
+- **Weaker claims.** Run ids are local to the machine that ran them, and the site may change between passes. G1 and G3 succeed on reaching a page, not on reading the names or applying. Steps under load spend persona budget on the machine's time.
 
 ## The week 3 rehearsal
 

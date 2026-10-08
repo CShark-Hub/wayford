@@ -34,9 +34,10 @@ export interface RawElement {
    * backgrounds from that element out to the canvas. Under a dark colour scheme the canvas is one
    * more layer, of unknown paint (`darkCanvas`). These are the runs that draw its name, or those it
    * draws itself when its name is drawn nowhere (`nameOf`). A text block's are those of its own
-   * text only (#124).
+   * text only (#124). On a control named by its own content, each run also carries `text`, what
+   * its element draws itself, so `collect` can measure the control part by part (#124).
    */
-  texts?: { color: string; fontPx: number; layers: BackgroundLayer[] }[];
+  texts?: { color: string; fontPx: number; layers: BackgroundLayer[]; text?: string }[];
   /** Its `aria-haspopup` as written, on a control that has one. `collect` reads it as ARIA does. */
   hasPopup?: string;
   /** The role of the first element its `aria-controls` names that exists, on a control. */
@@ -269,8 +270,25 @@ export function measurePage(): RawPage {
   // Text at `font-size: 0` is drawn nowhere, as in an icon whose label is kept for the name only.
   const drawsText = (el: Element) => Number.parseFloat(getComputedStyle(el).fontSize) > 0;
 
+  // A character that draws something. Whitespace, a format character (a zero-width space, a soft
+  // hyphen), a default-ignorable one (a Hangul filler) and the blank braille pattern draw nothing.
+  const DRAWN = /[^\s\p{Cf}\p{Default_Ignorable_Code_Point}⠀]/u;
+
+  // Elements whose content is fallback, drawn only where the element itself is not supported.
+  const FALLBACK = new Set([
+    "AUDIO",
+    "CANVAS",
+    "IFRAME",
+    "NOSCRIPT",
+    "OBJECT",
+    "TEMPLATE",
+    "VIDEO",
+  ]);
+
   // The parents of the non-blank text nodes under `root` that a sighted person can see, outside
   // `skip`, each once, in document order. That passes over an sr-only span's text and a 0 px label's.
+  // Text of nothing but characters that draw nothing (`DRAWN`) is blank, and a video's or canvas's
+  // fallback content is passed over whole (`FALLBACK`).
   // Text hidden for aria is out of the name, and out of these, unless `root` is itself hidden and
   // so named whole, as `contentOf` reads it: an `aria-hidden` referent is still drawn (row 32).
   // `skip`, and with `own` every `nested` control and text block, is passed over whole.
@@ -284,13 +302,14 @@ export function measurePage(): RawPage {
       (node) =>
         node instanceof Text
           ? NodeFilter.FILTER_ACCEPT
-          : node === skip || (own && node instanceof Element && nested(node))
+          : node === skip ||
+              (node instanceof Element && (FALLBACK.has(node.tagName) || (own && nested(node))))
             ? NodeFilter.FILTER_REJECT
             : NodeFilter.FILTER_SKIP,
     );
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
       const parent = node.parentElement;
-      if (parent === null || parents.includes(parent) || !/\S/.test(node.textContent ?? ""))
+      if (parent === null || parents.includes(parent) || !DRAWN.test(node.textContent ?? ""))
         continue;
       const named = whole || !hiddenForAria(parent);
       if (named && seen(parent) && drawsText(parent)) parents.push(parent);
@@ -322,8 +341,36 @@ export function measurePage(): RawPage {
     return { color, fontPx: Number.parseFloat(style.fontSize), layers };
   }
 
-  type Run = ReturnType<typeof textOf>;
+  type Run = ReturnType<typeof textOf> & { text?: string };
   const runsOf = (drawers: Element[]): Run[] => drawers.map((drawer) => textOf(drawer));
+
+  // Whether each of `drawers` draws its text under `root` in one stretch, with no other drawer's
+  // text between two of its own: then its `drawnText` is one run of the name, in place (#124).
+  function oneStretchEach(root: Element, drawers: Element[]): boolean {
+    const done = new Set<Element>();
+    let current: Element | undefined;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const parent = node.parentElement;
+      if (parent === null || !drawers.includes(parent) || !DRAWN.test(node.textContent ?? "")) {
+        continue;
+      }
+      if (parent === current) continue;
+      if (done.has(parent)) return false;
+      if (current !== undefined) done.add(current);
+      current = parent;
+    }
+    return true;
+  }
+
+  // The text `drawer` draws itself: its own text nodes, an element inside it leaving a space, then
+  // collapsed. A comment leaves nothing, so text a framework split around one stays whole (#124).
+  const drawnText = (drawer: Element) =>
+    collapse(
+      [...drawer.childNodes]
+        .map((node) => (node instanceof Text ? node.data : node instanceof Element ? " " : ""))
+        .join(""),
+    );
 
   // The name, from the first of accname's sources that gives one, and the runs of text that draw
   // it. Its text must not reach the Actor when perception cuts a run of it, so every run counts
@@ -331,7 +378,12 @@ export function measurePage(): RawPage {
   // label or a shown placeholder, is measured there. A name drawn nowhere, such as an `aria-label`,
   // an alt, a title or a hidden referent, leaves the element measured by the text it draws itself.
   // A text block reads only its own text, for its name and for its runs, and one that draws none
-  // of it gets no name, so it is not measured, whatever names it (row 34).
+  // of it gets no name, so it is not measured, whatever names it (row 34). A control named by its
+  // own content gets each run's `text` too, so it can be measured part by part (#124), but only
+  // when those texts, joined by spaces, spell its name: each element's text in one stretch, in the
+  // page's order, set apart from the next. Otherwise a shown name could read words out of order,
+  // split a word in two or keep text nobody sees, so the control is measured whole. No other
+  // source gives a `text`.
   function nameOf(el: Element, role: string): { name: string; texts: Run[] } {
     const own = TEXT_BLOCKS.has(role);
     const drawers = own ? textParents(el, undefined, true) : undefined;
@@ -339,7 +391,7 @@ export function measurePage(): RawPage {
     const refs = referents(el);
     const labels = labelable(el) && inputButtonText(el) === undefined ? [...(el.labels ?? [])] : [];
     const field = role === "textbox" || role === "searchbox";
-    const sources: [name: () => string | null | undefined, drawn?: () => Run[]][] = [
+    const sources: [name: () => string | null | undefined, drawn?: (name: string) => Run[]][] = [
       [
         () => refs.map((ref) => contentOf(ref)).join(" "),
         () => runsOf(refs.flatMap((ref) => textParents(ref))),
@@ -351,7 +403,20 @@ export function measurePage(): RawPage {
         () => runsOf(labels.flatMap((label) => textParents(label, el))),
       ],
       [() => (el instanceof HTMLInputElement && el.type === "image" ? el.alt : "")],
-      [() => (NAMED_BY_CONTENT.has(role) ? contentOf(el, undefined, own) : "")],
+      [
+        () => (NAMED_BY_CONTENT.has(role) ? contentOf(el, undefined, own) : ""),
+        // The runs a control draws itself, each with its element's own text when those texts
+        // spell the name. None for a text block, whose runs are its own text's (`drawers`), and
+        // none for a control that draws no text, which then reads its labels' (`textDrawers`).
+        (name) => {
+          if (own) return [];
+          const parents = textParents(el);
+          const runs = parents.map((drawer) => textOf(drawer));
+          const texts = parents.map(drawnText);
+          if (collapse(texts.join(" ")) !== name || !oneStretchEach(el, parents)) return runs;
+          return runs.map((run, i) => ({ ...run, text: texts[i] }));
+        },
+      ],
       [() => el.getAttribute("title")],
       [
         () => (field ? el.getAttribute("placeholder") : ""),
@@ -365,7 +430,7 @@ export function measurePage(): RawPage {
     for (const [source, drawn] of sources) {
       const name = collapse(source() ?? "");
       if (name === "") continue;
-      const texts = drawn?.() ?? [];
+      const texts = drawn?.(name) ?? [];
       return { name, texts: texts.length > 0 ? texts : runsOf(drawers ?? textDrawers(el)) };
     }
     return { name: "", texts: runsOf(drawers ?? textDrawers(el)) };

@@ -15,9 +15,11 @@
  * that tell a person where to go are mostly text, so P1 and P3 read text
  * blocks too. P4 reads `targetPx` on controls only. A text block's own text
  * is the text outside the controls and text blocks nested in it: only that
- * counts against it, and one that draws none is not measured. A label is not
- * a text block: the control it names carries the contrast and font size of
- * the label's text.
+ * counts against it, and one that draws none is not measured. A control named
+ * by its own content, whose name more than one element draws, is measured part
+ * by part (`parts`), so perception can cut a part and keep the rest (#124). A
+ * label is not a text block: the control it names carries the contrast and font
+ * size of the label's text.
  * When the label activates the control (a wrapping `<label>`, or `label for=`),
  * `targetPx` is the smaller side of the area a click activates, taken as one
  * rectangle around the control's box and its label's box (for a label apart
@@ -34,7 +36,7 @@
  * stored step keeps viewport positions and no page position (#119).
  */
 import { z } from "zod";
-import { AriaRole, Metrics } from "./observation.js";
+import { AriaRole, Metrics, PartMetrics, PartText } from "./observation.js";
 import { Bbox, HttpUrl, Viewport } from "./primitives.js";
 
 /** A control is something a person operates (link, button, checkbox); a text block is read. */
@@ -46,6 +48,19 @@ export const PopupKind = z.enum(["menu", "listbox", "tree", "grid", "dialog"]);
 export type PopupKind = z.infer<typeof PopupKind>;
 
 /**
+ * One part of a control drawn in parts: the text one element draws itself of the control's name,
+ * and that text's contrast and font size, measured as a run of an element's text is (#124).
+ */
+export const MeasuredPart = z.object({ text: PartText, metrics: PartMetrics }).strict();
+export type MeasuredPart = z.infer<typeof MeasuredPart>;
+
+/** The worst of a metric over the parts: the lowest value, `undefined` when no part has one. */
+function worstOf(parts: readonly MeasuredPart[], metric: keyof PartMetrics): number | undefined {
+  const values = parts.flatMap((part) => part.metrics[metric] ?? []);
+  return values.length === 0 ? undefined : Math.min(...values);
+}
+
+/**
  * One element as measured. `key` is `elementKey` over the landmark ancestors,
  * the same key the filter hashes for the element's roll. `name` is a control's
  * accessible name, and a text block's too, read from its own text when it is
@@ -53,6 +68,19 @@ export type PopupKind = z.infer<typeof PopupKind>;
  * in it, each of which leaves a space (#124). `metrics` are
  * measured values, never a threshold, and each is optional: an icon has no
  * font size, and stage 4 reads a control with none as icon-only.
+ *
+ * `parts` is there only on a control whose name comes from its own content and
+ * is drawn by two elements or more (`docs/RULES.md`, "What is measured",
+ * #124): one part per element that draws a run of the name, in document order,
+ * each with the text that element draws itself, and only when those texts,
+ * joined by spaces, spell the name. Words out of order, a word split across two
+ * elements, or text no element draws (a child's `aria-label`, an `alt`,
+ * sr-only text) leave the control with no parts, measured whole.
+ * `metrics.contrast` and `metrics.fontPx` stay the worst over the
+ * parts, so a reader that does not know `parts` decides as before; that is
+ * enforced below, so the two cannot drift. A text block has none, and neither
+ * has a control named from a label, an `aria-labelledby` referent or a
+ * placeholder: each is measured whole.
  *
  * `hasPopup` and `controls` are what a control's markup says it opens and
  * operates, read for stage 4's pattern detection only (`docs/RULES.md`,
@@ -72,6 +100,10 @@ export const MeasuredElement = z
     name: z.string(),
     bbox: Bbox,
     metrics: Metrics,
+    parts: z
+      .array(MeasuredPart)
+      .min(2, { message: "a control drawn by one element has no parts" })
+      .optional(),
     hasPopup: PopupKind.optional(),
     controls: AriaRole.optional(),
   })
@@ -85,6 +117,21 @@ export const MeasuredElement = z
     path: ["kind"],
     message: "a text block carries no hasPopup or controls: stage 4 reads them on controls only",
   })
+  .refine((e) => e.kind === "control" || e.parts === undefined, {
+    path: ["parts"],
+    message: "a text block is measured whole: only a control named by its content has parts",
+  })
+  .refine(
+    (e) =>
+      e.parts === undefined ||
+      (e.metrics.contrast === worstOf(e.parts, "contrast") &&
+        e.metrics.fontPx === worstOf(e.parts, "fontPx")),
+    {
+      path: ["metrics"],
+      message:
+        "a control in parts carries the worst contrast and font size of its parts, so they cannot drift",
+    },
+  )
   .refine((e) => e.key.endsWith(`//${e.role}:${e.name}`), {
     path: ["key"],
     message: "the key ends in //role:name (elementKey), so role and name cannot drift from it",

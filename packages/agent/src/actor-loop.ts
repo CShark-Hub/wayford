@@ -64,7 +64,7 @@ import { behave } from "./behaviour.js";
 import { type HistoryStep, oneLine, repeats } from "./history.js";
 import { LlmError } from "./llm.js";
 import { openRunContext, type RunContext, type RunRecording } from "./run-context.js";
-import { retryOnNavigation, type Skipped, settle } from "./settle.js";
+import { attemptTimeoutMs, retryOnNavigation, type Skipped, settle } from "./settle.js";
 import { startUrlFor, type TargetAppParams } from "./start-url.js";
 import { checkSuccessCondition, type SuccessWatch, watchSuccess } from "./success.js";
 
@@ -462,12 +462,9 @@ async function observe(loop: Loop, k: number): Promise<Observation> {
       `step ${k} cannot observe ${url}: the filter measures only http(s) pages`,
     );
   }
-  const { measurement, skipped } = await retryOnNavigation(page, async () => {
-    // First, so the hover state measured is the one the pointer gives, on a new document too.
-    await loop.run.restorePointer();
-    const skipped = await settle(page, { lenient: loop.lenient });
-    return { measurement: await collect(page, { isMobile }), skipped };
-  });
+  const { measurement, skipped } = await settled(loop, async () => ({
+    measurement: await collect(page, { isMobile }),
+  }));
   noteSkipped(loop, k, skipped);
   // `perceive` does not know the step, and the fold rejects an observation of another one.
   const full: FullObservation = {
@@ -476,6 +473,28 @@ async function observe(loop: Loop, k: number): Promise<Observation> {
   };
   loop.emit({ type: "stepObserved", stepIndex: k, observation: full });
   return toActorObservation(full);
+}
+
+/**
+ * `read`, on the page once it holds still, inside `retryOnNavigation`: the real pointer put back on
+ * the last point an action pressed, first, so the hover state read is the one the pointer gives, on
+ * a new document too; then `settle`; then `read`. `settle`'s deadline and the attempt's bound are
+ * both chosen here from `loop.lenient` (#190), so a call site cannot pass one without the other.
+ */
+async function settled<T extends object>(
+  loop: Loop,
+  read: () => Promise<T>,
+): Promise<T & { skipped: Skipped }> {
+  const { page } = loop.run;
+  return retryOnNavigation(
+    page,
+    async () => {
+      await loop.run.restorePointer();
+      const skipped = await settle(page, { lenient: loop.lenient });
+      return { ...(await read()), skipped };
+    },
+    attemptTimeoutMs(loop.lenient),
+  );
 }
 
 /**
@@ -534,12 +553,10 @@ async function land(loop: Loop, k: number, arrival: Arrival): Promise<boolean> {
   let after: { urlAfter: string; met: boolean; screenshotPath: string; skipped: Skipped };
   try {
     await arrival.wait();
-    after = await retryOnNavigation(page, async () => {
-      await run.restorePointer();
-      const skipped = await settle(page, { lenient: loop.lenient });
+    after = await settled(loop, async () => {
       const urlAfter = page.url();
       const met = await watch.met(page, urlAfter);
-      return { urlAfter, met, screenshotPath: loop.stored(await run.screenshot(k)), skipped };
+      return { urlAfter, met, screenshotPath: loop.stored(await run.screenshot(k)) };
     });
   } catch (error) {
     try {
