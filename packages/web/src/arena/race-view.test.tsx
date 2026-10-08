@@ -212,26 +212,39 @@ describe("runView folds a run's events so far into what its lane shows", () => {
     expect(runView([])).toStrictEqual({
       state: "idle",
       stuckOn: undefined,
-      elapsedMs: undefined,
+      simulatedMs: undefined,
       narration: undefined,
       screenshotStep: undefined,
     });
   });
 
-  test("elapsed time is the latest event's timestamp less runStarted's, at every prefix", () => {
-    const start = Date.parse(fixtureEvent(0).timestamp);
-    runEventFixtures.forEach((event, i) => {
-      expect(runView(upTo(i)).elapsedMs, `after event ${i}`).toBe(
-        Date.parse(event.timestamp) - start,
-      );
-    });
+  test("the time is the simulated time of every step planned or wasted so far, none before the first, at every prefix", () => {
+    // Step 0's click costs 4182 ms, step 1's scroll 3120, step 2's double click 3774, step 3, wasted,
+    // 2700, and step 4's give-up 2700: each counts from the event that carries it, its
+    // actionPlanned or its stepWasted, to the end.
+    expect(runEventFixtures.map((_, i) => runView(upTo(i)).simulatedMs)).toStrictEqual([
+      ...Array(3).fill(undefined),
+      ...Array(4).fill(4182),
+      ...Array(4).fill(7302),
+      ...Array(3).fill(11_076),
+      ...Array(3).fill(13_776),
+      ...Array(3).fill(16_476),
+    ]);
   });
 
-  test("after step 0 lands: moving, 3 s in, the first narration and step 0's screenshot", () => {
+  test("the wall clock decides nothing: the same events with other timestamps read the same time", () => {
+    // Each event a minute after the one before it, as a slow model would stretch the run.
+    const slow = runEventFixtures.map((event, i) =>
+      RunEvent.parse({ ...event, timestamp: shifted(event.timestamp, i * 60_000) }),
+    );
+    expect(runView(slow).simulatedMs).toBe(runView(runEventFixtures).simulatedMs);
+  });
+
+  test("after step 0 lands: moving, 4.2 s in, the first narration and step 0's screenshot", () => {
     expect(runView(upTo(4))).toStrictEqual({
       state: "moving",
       stuckOn: undefined,
-      elapsedMs: 3000,
+      simulatedMs: 4182,
       narration: narrationAt(2),
       screenshotStep: 0,
     });
@@ -258,7 +271,7 @@ describe("runView folds a run's events so far into what its lane shows", () => {
     expect(runView(runEventFixtures)).toStrictEqual({
       state: "gaveUp",
       stuckOn: undefined,
-      elapsedMs: 15_500,
+      simulatedMs: 16_476,
       narration: narrationAt(16),
       screenshotStep: 4,
       ended: { outcome: "gave_up", at: "2026-09-22T10:00:15.500Z" },
@@ -281,7 +294,7 @@ describe("runView folds a run's events so far into what its lane shows", () => {
     expect(runView([...beforeEnd, failed])).toStrictEqual({
       state: "error",
       stuckOn: undefined,
-      elapsedMs: 15_500,
+      simulatedMs: 16_476,
       narration: narrationAt(16),
       screenshotStep: 4,
       ended: {
@@ -321,12 +334,13 @@ describe("a lane's narration follows the latest narration event of its run", () 
 
 describe("the state in words, with what grounds it", () => {
   test("idle is waiting, an action makes it moving", () => {
-    // Before runStarted the clock is a dash.
+    // Before the first step is planned the clock is a dash: no step has a time yet.
     expect(standingOf(render([]))).toBe("Waiting | — | 0 steps so far");
+    expect(standingOf(render(upTo(2)))).toBe("Waiting | — | 1 step so far");
     expect(avatarStateOf(render(upTo(3)), vera)).toBe("idle");
-    expect(standingOf(render(upTo(3)))).toBe("Waiting | 0:02.5 | 1 step so far");
+    expect(standingOf(render(upTo(3)))).toBe("Waiting | 0:04.2 | 1 step so far");
     expect(avatarStateOf(render(upTo(4)), vera)).toBe("moving");
-    expect(standingOf(render(upTo(4)))).toBe("Moving | 0:03.0 | 1 step so far");
+    expect(standingOf(render(upTo(4)))).toBe("Moving | 0:04.2 | 1 step so far");
     expect(detailOf(render(upTo(4)))).toBeUndefined();
   });
 
@@ -348,11 +362,11 @@ describe("the state in words, with what grounds it", () => {
   test("an ended run: its outcome word, the clock held at its end, and every step counted", () => {
     const through = render(endedBy("success"));
     expect(avatarStateOf(through, vera)).toBe("done");
-    expect(standingOf(through)).toBe("Got through | 0:15.5 | 5 steps");
+    expect(standingOf(through)).toBe("Got through | 0:16.5 | 5 steps");
 
     const gaveUp = render(runEventFixtures);
     expect(avatarStateOf(gaveUp, vera)).toBe("gaveUp");
-    expect(standingOf(gaveUp)).toBe("Gave up | 0:15.5 | 5 steps");
+    expect(standingOf(gaveUp)).toBe("Gave up | 0:16.5 | 5 steps");
     // The word alone: the stored code is not printed after it.
     expect(tileText(gaveUp)).not.toContain("gave_up");
     expect(detailOf(gaveUp)).toBeUndefined();
@@ -368,11 +382,11 @@ describe("the state in words, with what grounds it", () => {
       [undefined, "Over budget"],
     ] as const) {
       const html = render(endedBy("budget_exceeded", limit));
-      expect(standingOf(html), word).toBe(`${word} | 0:15.5 | 5 steps`);
+      expect(standingOf(html), word).toBe(`${word} | 0:16.5 | 5 steps`);
       expect(trackLabelOf(html), word).toBe(
         `5 steps: click, scroll, doubleClick, wasted, ${word.toLowerCase()}`,
       );
-      expect(finishLines(html), word).toStrictEqual([`– Vera ${word} 0:15.5`]);
+      expect(finishLines(html), word).toStrictEqual([`– Vera ${word} 0:16.5`]);
       expect(tileText(html), word).not.toContain("Gave up");
       expect(tileText(html), word).not.toContain("budget_exceeded");
     }
@@ -380,7 +394,7 @@ describe("the state in words, with what grounds it", () => {
     // A crash is the tool failing: its message, in fault.
     const error = render([...beforeEnd, failed]);
     expect(avatarStateOf(error, vera)).toBe("error");
-    expect(standingOf(error)).toBe("Error | 0:15.5 | 5 steps");
+    expect(standingOf(error)).toBe("Error | 0:16.5 | 5 steps");
     expect(detailOf(error)).toStrictEqual({
       text: "Target page, context or browser has been closed",
       classes: expect.arrayContaining(["text-fault"]),
@@ -436,7 +450,7 @@ describe("the state in words, with what grounds it", () => {
       expect(avatarStateOf(html, vera), stream).toBe("gaveUp");
       expect(standingOf(html), stream).toMatch(/^Gave up \| /);
       expect(lineOf(html), stream).not.toContain("Stream lost");
-      expect(finishLines(html), stream).toStrictEqual(["– Vera Gave up 0:15.5"]);
+      expect(finishLines(html), stream).toStrictEqual(["– Vera Gave up 0:16.5"]);
     }
   });
 });
@@ -485,17 +499,17 @@ describe("the race in progress, as demoRace holds it", () => {
   });
 
   test("Ada reached the post first, Kai moves on, Vera gave up", () => {
-    expect(standingOf(html, ada)).toBe("Got through | 0:06.5 | 2 steps");
+    expect(standingOf(html, ada)).toBe("Got through | 0:07.3 | 2 steps");
     expect(trackLabelOf(html, ada)).toBe("2 steps: click, scroll; got through, 1st");
     expect(tileOf(html, ada)).toMatch(/>1st</);
 
-    expect(standingOf(html, kai)).toBe("Moving | 0:13.0 | 5 steps so far");
+    expect(standingOf(html, kai)).toBe("Moving | 0:13.8 | 5 steps so far");
     expect(trackLabelOf(html, kai)).toBe(
       "5 steps so far: click, scroll, doubleClick, wasted, under way",
     );
     expect(tileOf(html, kai)).toContain('data-pip="now"');
 
-    expect(standingOf(html, veraRace)).toBe("Gave up | 0:15.5 | 5 steps");
+    expect(standingOf(html, veraRace)).toBe("Gave up | 0:16.5 | 5 steps");
     expect(tileOf(html, veraRace)).toContain('data-end="gaveUp"');
     expect(tileOf(html, veraRace)).not.toMatch(/>1st</);
   });
@@ -512,7 +526,7 @@ describe("the race in progress, as demoRace holds it", () => {
   });
 
   test("the finish order lists the two runs that ended, in words and the clock, the one through numbered", () => {
-    expect(finishLines(html)).toStrictEqual(["1. Ada Got through 0:06.5", "– Vera Gave up 0:15.5"]);
+    expect(finishLines(html)).toStrictEqual(["1. Ada Got through 0:07.3", "– Vera Gave up 0:16.5"]);
   });
 
   test("the two runs that ended link to their run detail; Kai's, still running, does not", () => {
@@ -659,34 +673,65 @@ describe("around the lanes", () => {
     );
   });
 
+  test("the strip says once, in the meta ink, that the clocks are simulated, not the wall clock", () => {
+    for (const [what, html] of [
+      ["before a step", render([])],
+      ["running", render(upTo(8))],
+      ["ended", render(runEventFixtures, "ended")],
+    ] as const) {
+      const strip = html.slice(0, html.indexOf("<ol"));
+      const captions = [...strip.matchAll(/<p class="([^"]*)">([^<]*simulated[^<]*)<\/p>/gi)];
+      expect(
+        captions.map(([, classes, text]) => [lineOf(text ?? ""), classes?.split(" ")]),
+        what,
+      ).toStrictEqual([
+        [
+          "Simulated time from the KLM and Fitts's law, not the wall clock",
+          expect.arrayContaining(["body", "text-ink-3"]),
+        ],
+      ]);
+      // Once on the Race: the lanes' clocks say it only in their labels.
+      expect(lineOf(html).match(/wall clock/g), what).toHaveLength(1);
+    }
+  });
+
+  test("each lane's clock is labelled simulated time, its visible text unchanged", () => {
+    const html = render(upTo(8));
+    const clock = tileOf(html, vera)
+      .match(/<span ([^>]*\breadout\b[^>]*)>(.*?)<\/span>/)
+      ?.slice(1);
+    expect(clock?.[1]).toBe("0:07.3");
+    expect(attributesOf(clock?.[0] ?? "")["aria-label"]).toBe("simulated time 0:07.3");
+  });
+
   test("the finish order is the one live region, hidden from sight, and lists a run once it ends", () => {
     const running = render(upTo(18));
     expect(running.match(/aria-live=/g)).toHaveLength(1);
     expect(running).toMatch(/<ol [^>]*aria-live="polite"[^>]*><\/ol>/);
     expect(lineOf(running)).toContain("No run has ended yet");
-    // The lanes show the places on their posts; the list is for screen readers.
+    // The lanes show the places on their posts; the list is for screen readers, and names the
+    // clock it ranks by.
     expect(running).toMatch(
-      /<section [^>]*aria-labelledby="race-finish-order"[^>]*class="sr-only"[^>]*>\s*<h3 [^>]*id="race-finish-order"[^>]*>Finish order<\/h3>/,
+      /<section [^>]*aria-labelledby="race-finish-order"[^>]*class="sr-only"[^>]*>\s*<h3 [^>]*id="race-finish-order"[^>]*>Finish order, by simulated time<\/h3>/,
     );
 
     const ended = render(runEventFixtures);
     expect(ended.match(/aria-live=/g)).toHaveLength(1);
-    expect(finishLines(ended)).toStrictEqual(["– Vera Gave up 0:15.5"]);
+    expect(finishLines(ended)).toStrictEqual(["– Vera Gave up 0:16.5"]);
     expect(lineOf(ended)).not.toContain("No run has ended yet");
   });
 
   test("the finish order numbers only the runs that got through, as their posts do: a give-up before them follows with no number", () => {
-    // Vera gives up at 0:15.5, then Ada gets through at 0:20.0: her run is the fixture's, its end a
-    // success 4.5 s later. Ada's post reads 1st, so the list must too, though Vera ended first.
+    // Vera gives up at 0:16.5, then Ada gets through at 0:20.0: her run is the fixture's, its last
+    // step 3.5 s longer and its end a success. Ada's post reads 1st, so the list must too, though
+    // Vera ended first.
     const ada: StartedRun = { id: "run_ada-hard-1", profileId: "prof_ada", seed: vera.seed };
     const adaEvents = eventsOf(ada, runEventFixtures, (event) =>
       event.type === "runFinished"
-        ? {
-            outcome: "success",
-            timestamp: shifted(event.timestamp, 4500),
-            durationMs: event.durationMs + 4500,
-          }
-        : {},
+        ? { outcome: "success" }
+        : event.type === "actionPlanned" && event.stepIndex === 4
+          ? { simulatedMs: (event.simulatedMs ?? 0) + 3500 }
+          : {},
     );
     const html = renderRace([ada, vera], {
       events: new Map([
@@ -696,9 +741,9 @@ describe("around the lanes", () => {
       streams: new Map(),
     });
     expect(standingOf(html, ada)).toBe("Got through | 0:20.0 | 5 steps");
-    expect(standingOf(html)).toBe("Gave up | 0:15.5 | 5 steps");
+    expect(standingOf(html)).toBe("Gave up | 0:16.5 | 5 steps");
 
-    expect(finishLines(html)).toStrictEqual(["1. Ada Got through 0:20.0", "– Vera Gave up 0:15.5"]);
+    expect(finishLines(html)).toStrictEqual(["1. Ada Got through 0:20.0", "– Vera Gave up 0:16.5"]);
     expect(tileOf(html, ada)).toMatch(/>1st</);
     expect(trackLabelOf(html, ada)).toMatch(/; got through, 1st$/);
     expect(tileOf(html, vera)).not.toMatch(/>1st</);

@@ -110,7 +110,7 @@ describe("analystCase: the sections", () => {
       at("Scout reached the goal in 2 steps: the feature works."),
       at("Ada (prof_ada): 1 run, 0 got through, 0 errors, a route open in 1 of 1 seed"),
       at("Findings computed from the page"),
-      at("run run_ada-1: Ada (prof_ada), seed 1, gave_up, 1 step, 1.0 s"),
+      at("run run_ada-1: Ada (prof_ada), seed 1, gave_up, 1 step, simulated time —"),
     ];
     expect(order).toEqual(order.toSorted((a, b) => a - b));
   });
@@ -139,6 +139,7 @@ describe("analystCase: the sections", () => {
         successes: 1,
         routeOpenSeeds: null,
         medianSuccessMs: 4000,
+        medianSimulatedMs: 2300,
         seeds: [{ seed: 1, runId: "run_ada-1", outcome: "success", openRoutes: null }],
       },
     ];
@@ -146,7 +147,32 @@ describe("analystCase: the sections", () => {
       .split("\n")
       .find((l) => l.startsWith("Ada (prof_ada)"));
     expect(line).toContain("route open: —");
-    expect(line).toContain("median time to success 4.0 s");
+    expect(line).toContain("median simulated time to success 2.3 s");
+  });
+
+  test("the persona line gives the simulated median, never the wall-clock one", () => {
+    const run = runOf(ada, 1, "run_ada-1", [{ observation: observationFixture }]);
+    // As a report stored before s2-09 holds it: a wall-clock median and no simulated one.
+    const older: PersonaResult = {
+      profileId: "prof_ada",
+      runs: 1,
+      errors: 0,
+      successes: 1,
+      routeOpenSeeds: 1,
+      medianSuccessMs: 4000,
+      seeds: [{ seed: 1, runId: "run_ada-1", outcome: "success", openRoutes: ["A"] }],
+    };
+    const lineOf = (result: PersonaResult) =>
+      caseOf([run], { personas: [result] })
+        .split("\n")
+        .find((l) => l.startsWith("Ada (prof_ada)"));
+    const timed = lineOf({ ...older, medianSimulatedMs: 2300 });
+    expect(timed).toMatch(/, median simulated time to success 2\.3 s$/);
+    expect(timed).not.toContain("4.0 s");
+    // A success with no simulated time: null, or absent on the older report.
+    for (const untimed of [{ ...older, medianSimulatedMs: null }, older]) {
+      expect(lineOf(untimed)).toMatch(/, median simulated time to success —$/);
+    }
   });
 
   test("every run given is in the case, under its persona's label", () => {
@@ -211,6 +237,40 @@ describe("analystCase: the findings", () => {
 });
 
 describe("analystCase: the runs", () => {
+  const header = (text: string, id: string) =>
+    text.split("\n").find((l) => l.startsWith(`run ${id}:`));
+
+  test("a run's header gives its simulated time, never the wall clock's", () => {
+    const steps = Array.from({ length: 3 }, () => ({ observation: observationFixture }));
+    // Three steps of one second each on the wall clock, 12.3 s on the simulated one.
+    const timed = storedRun({
+      profile: vera,
+      seed: 1,
+      runId: "run_vera-1",
+      steps,
+      simulatedMs: 12301,
+    });
+    expect(timed.simulatedMs).toBe(12301);
+    expect(header(caseOf([timed]), "run_vera-1")).toBe(
+      "run run_vera-1: Vera (prof_vera), seed 1, gave_up, 3 steps, simulated time 12.3 s",
+    );
+    // The recorded run: 15.5 s on the wall clock, 16.5 s simulated.
+    expect(header(caseOf([runResultFixture]), runResultFixture.id)).toMatch(
+      /, simulated time 16\.5 s$/,
+    );
+  });
+
+  test("a run stored before s2-09 has no simulated time: its header reads —", () => {
+    const untimed = runOf(vera, 1, "run_vera-1", [{ observation: observationFixture }]);
+    expect(untimed.simulatedMs).toBeUndefined();
+    expect(header(caseOf([untimed]), "run_vera-1")).toBe(
+      "run run_vera-1: Vera (prof_vera), seed 1, gave_up, 1 step, simulated time —",
+    );
+    expect(header(caseOf([untimed], { backend: "jev" }), "run_vera-1")).toBe(
+      "run run_vera-1: Vera (prof_vera), seed 1, gave_up, 1 step, simulated time —. Jev run: no narration",
+    );
+  });
+
   test("a Jev run's header says it has no narration; an LLM run's does not", () => {
     const jevRun = runOf(
       ada,
@@ -221,8 +281,6 @@ describe("analystCase: the runs", () => {
     );
     const llmRun = runOf(ada, 2, "run_llm-2", [{ observation: observationFixture }]);
     // One case per backend: a report reads the runs of one.
-    const header = (text: string, id: string) =>
-      text.split("\n").find((l) => l.startsWith(`run ${id}:`));
     expect(header(caseOf([jevRun], { backend: "jev" }), "run_jev-1")).toContain(
       "Jev run: no narration",
     );

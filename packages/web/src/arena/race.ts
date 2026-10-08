@@ -1,7 +1,8 @@
 /**
  * The race: the arena's runs of one goal, followed live, and what each run's tile shows
- * (`docs/PLAN.md` F6). The folds are pure and read the events' own timestamps, never the local
- * clock (F6 AC3), so the same events always give the same tiles and the same finish order.
+ * (`docs/PLAN.md` F6). The folds are pure. A lane's clock and the finish order read the simulated
+ * time the events carry (B3's clock, `docs/RULES.md`), never a timestamp or the local clock (F6
+ * AC3), so the same events always give the same tiles and the same finish order.
  *
  * One `EventSource` per run: io streams each run on its own `GET /runs/:id/events`, and every open
  * stream holds one of the few HTTP/1.1 connections a browser opens per origin. That caps a race
@@ -36,11 +37,14 @@ export type RunView = {
   /** The page a stuck persona stayed on, as `avatarView` names it; `undefined` when not stuck. */
   stuckOn: string | undefined;
   /**
-   * The latest event's timestamp less `runStarted`'s; `undefined` before `runStarted`. Nothing
-   * follows the terminal event, so an ended run's time stays there, and a run whose stream stalls
-   * shows when its last event came, not a clock ticking on.
+   * The run's simulated time so far: the sum of the `simulatedMs` its `actionPlanned` and
+   * `stepWasted` events carry, each step's cost to decide, point and press (B3's clock), not the
+   * time between the events' timestamps, which measures the model and the machine. `undefined`
+   * until the first of them carries one, as on a run recorded before s2-09. Nothing follows the
+   * terminal event, so an ended run's time stays there, and a run whose stream stalls shows the
+   * steps that came, not a clock ticking on.
    */
-  elapsedMs: number | undefined;
+  simulatedMs: number | undefined;
   /** The text of the latest `narration` event; `undefined` when there is none, as on a Jev run. */
   narration: string | undefined;
   /** The step of the latest `actionPerformed` that carries a `screenshotPath`. */
@@ -55,14 +59,15 @@ export type RunView = {
 
 /** `events`, one run's events so far in stream order, as its tile shows them. Pure. */
 export function runView(events: readonly RunEvent[]): RunView {
-  let startedAt: string | undefined;
+  let simulatedMs: number | undefined;
   let narration: string | undefined;
   let screenshotStep: number | undefined;
   let ended: RunView["ended"];
   for (const event of events) {
     switch (event.type) {
-      case "runStarted":
-        startedAt = event.timestamp;
+      case "actionPlanned":
+      case "stepWasted":
+        if (event.simulatedMs !== undefined) simulatedMs = (simulatedMs ?? 0) + event.simulatedMs;
         break;
       case "narration":
         narration = event.text;
@@ -83,17 +88,11 @@ export function runView(events: readonly RunEvent[]): RunView {
         break;
     }
   }
-  // Nothing follows the terminal event, so an ended run's latest event is its end.
-  const latest = events.at(-1)?.timestamp;
-  const elapsedMs =
-    startedAt === undefined || latest === undefined
-      ? undefined
-      : Date.parse(latest) - Date.parse(startedAt);
   const { state, stuckOn } = avatarView(events);
   return {
     state,
     stuckOn,
-    elapsedMs,
+    simulatedMs,
     narration,
     screenshotStep,
     ...(ended === undefined ? {} : { ended }),
@@ -103,23 +102,25 @@ export function runView(events: readonly RunEvent[]): RunView {
 /** A run that has ended, as the finish order lists it. */
 export type Finish = {
   run: StartedRun;
-  /** From 1. Runs with the same elapsed time share a place. */
+  /** From 1. Runs with the same simulated time share a place. */
   place: number;
   /** The state the run ended in, as `runView` decides it. */
   state: AvatarState;
-  /** `runView`'s: `undefined` only for a stream that never sent its `runStarted`. */
-  elapsedMs: number | undefined;
+  /** `runView`'s: `undefined` only for a run none of whose steps carries a time. */
+  simulatedMs: number | undefined;
 };
 
 /**
- * The runs that have ended, shortest elapsed time first: each run's own time from its `runStarted`
- * to its terminal event, as `runView` reads them off the event timestamps. Not the instant a run
- * ended: runs can start at different times, when io's five slots are busy, and the place must agree
- * with the time each tile shows. Runs with the same elapsed time share the lower place and keep the
- * start order, and the next place counts them all (1, 1, 3), as a dead heat is ranked. An ended run
- * with no `runStarted`, which io never sends, has no time and ranks last. A run that has not ended,
- * or has no view in `views`, is not listed. The order the terminal events arrived in decides
- * nothing: each run has its own stream, and nothing orders one stream's events against another's.
+ * The runs that have ended, shortest simulated time first: each run's own time to decide, point and
+ * press through its steps, as `runView` sums it from the events. Not the wall clock, which counts
+ * the model's latency and the machine's load, and not the instant a run ended: runs can start at
+ * different times, when io's five slots are busy, and the place must agree with the time each tile
+ * shows. Runs with the same simulated time share the lower place and keep the start order, and the
+ * next place counts them all (1, 1, 3), as a dead heat is ranked. An ended run with no timed step,
+ * one recorded before s2-09 or ended before its first plan, has no time and ranks last. A run that
+ * has not ended, or has no view in `views`, is not listed. The order the terminal events arrived in
+ * decides nothing: each run has its own stream, and nothing orders one stream's events against
+ * another's.
  */
 export function finishOrder(
   runs: readonly StartedRun[],
@@ -128,17 +129,17 @@ export function finishOrder(
   const ended = runs.flatMap((run) => {
     const view = views.get(run.id);
     if (view?.ended === undefined) return [];
-    const { state, elapsedMs } = view;
-    return [{ run, state, elapsedMs, time: elapsedMs ?? Number.POSITIVE_INFINITY }];
+    const { state, simulatedMs } = view;
+    return [{ run, state, simulatedMs, time: simulatedMs ?? Number.POSITIVE_INFINITY }];
   });
-  // `sort` is stable, so runs with one elapsed time keep the start order. Two runs with no time
+  // `sort` is stable, so runs with one simulated time keep the start order. Two runs with no time
   // compare equal, not `Infinity - Infinity`, which is no number.
   ended.sort((a, b) => (a.time === b.time ? 0 : a.time - b.time));
-  return ended.map(({ run, state, elapsedMs, time }) => ({
+  return ended.map(({ run, state, simulatedMs, time }) => ({
     run,
     place: 1 + ended.filter((other) => other.time < time).length,
     state,
-    elapsedMs,
+    simulatedMs,
   }));
 }
 
@@ -314,8 +315,9 @@ export function throughPlaces(
 }
 
 /**
- * A lane's clock: `ms` as m:ss.d, such as "0:15.5", or a dash before `runStarted`. The time is
- * rounded to tenths once, before it is split, so 59.96 s reads "1:00.0", never "0:60.0".
+ * A lane's clock: `ms` as m:ss.d, such as "0:15.5", or a dash with no time, before the run's first
+ * timed step. The time is rounded to tenths once, before it is split, so 59.96 s reads "1:00.0",
+ * never "0:60.0".
  */
 export function clockText(ms: number | undefined): string {
   if (ms === undefined) return "—";
@@ -421,8 +423,10 @@ function landed(step: RunStep): step is RunStep & { performedAction: Action } {
  * A finished run's lane, from its stored record: what its live lane showed at its end, as far as
  * the record keeps it. The fold of the stream is the record (`runResultFromEvents`), so the pips,
  * the steps, the clock, the latest screenshot and narration, and the outcome come out as the live
- * lane drew them, the limit that ended a budget run out included. The record keeps no error text
- * and no end time, so an Error lane has no detail line and `ended` no `at`. Pure.
+ * lane drew them, the limit that ended a budget run out included. The clock is the record's
+ * `simulatedMs`, the sum of its steps' as the live lane summed them, and none on a run recorded
+ * before s2-09; its `durationMs` is the wall clock, which no lane shows. The record keeps no error
+ * text and no end time, so an Error lane has no detail line and `ended` no `at`. Pure.
  */
 export function storedLane(run: RunResult): LaneFold {
   const steps = run.steps.toSorted((a, b) => a.stepIndex - b.stepIndex);
@@ -432,7 +436,7 @@ export function storedLane(run: RunResult): LaneFold {
     view: {
       state: ENDED_STATES[run.outcome],
       stuckOn: undefined,
-      elapsedMs: run.durationMs,
+      simulatedMs: run.simulatedMs,
       narration,
       screenshotStep,
       // The limit only when the record names one, as `runView` reads it off `runFinished`.

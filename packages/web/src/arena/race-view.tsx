@@ -12,9 +12,15 @@
  * live state: its avatar is plain and dimmed, its track has no step under way, and its lane says
  * what was last seen.
  *
- * The finish order stays as a list for screen readers, the page's one live region. It numbers only
- * the runs that got through, with the places their goal posts show to the eye. Every other ended
- * run follows with no number, its outcome word and its clock, and a lost run comes last.
+ * Every clock on the Race is simulated time (B3's clock): each step's cost from the KLM and
+ * Fitts's law at the persona's pace, never the wall clock, which measures the model and the
+ * machine. The goal strip says so once, in a caption over the lanes, and each lane's clock says it
+ * to a screen reader (`RaceLane`).
+ *
+ * The finish order stays as a list for screen readers, the page's one live region. It ranks by
+ * simulated time and numbers only the runs that got through, with the places their goal posts show
+ * to the eye. Every other ended run follows with no number, its outcome word and its clock, and a
+ * lost run comes last.
  *
  * Each lane links to its run detail once io holds the run's record (its fold's `stored`), and once
  * the race is `over` the goal strip leads on to a report, whatever the outcomes.
@@ -128,7 +134,7 @@ function LaneOf({
             }
       }
       outcome={laneOutcome(view, lost)}
-      clock={clockText(view.elapsedMs)}
+      clock={clockText(view.simulatedMs)}
       steps={steps}
       detail={note ?? detailOf(view, lost)}
       narration={view.narration}
@@ -222,6 +228,10 @@ export function RaceView({
             <q>{task.goal}</q>
           </h2>
           <p className="mono text-ink-3">{`success · ${successText(task.success)}`}</p>
+          {/* Last in the strip, so it sits over the lanes whose clocks it names. */}
+          <p className="body text-ink-3">
+            Simulated time from the KLM and Fitts's law, not the wall clock
+          </p>
         </div>
         <div className="flex flex-col items-end gap-(--space-1)">
           <div className="flex items-center gap-(--space-2)">
@@ -282,10 +292,10 @@ export function RaceView({
         ))}
       </ol>
       <section aria-labelledby="race-finish-order" className="sr-only">
-        <h3 id="race-finish-order">Finish order</h3>
+        <h3 id="race-finish-order">Finish order, by simulated time</h3>
         {/* The page's one live region: a screen reader hears each run end, not every step of five. */}
         <ol aria-live="polite">
-          {listed.map(({ run, elapsedMs }) => {
+          {listed.map(({ run, simulatedMs }) => {
             // `finishOrder` lists only runs `views` holds, so each has its lane, and only once they
             // ended: a listed run's stream was not lost before its end.
             const lane = laneOf.get(run.id);
@@ -293,7 +303,9 @@ export function RaceView({
             const place = places.get(run.id);
             const mark = place === undefined ? "–" : `${place}.`;
             const words = OUTCOME_WORDS[laneOutcome(lane.view, false)];
-            return <li key={run.id}>{`${mark} ${lane.name} ${words} ${clockText(elapsedMs)}`}</li>;
+            return (
+              <li key={run.id}>{`${mark} ${lane.name} ${words} ${clockText(simulatedMs)}`}</li>
+            );
           })}
           {/* Last, with no place: a lost run has no end to list. */}
           {lost.map(({ run, name }) => (

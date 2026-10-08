@@ -87,8 +87,12 @@ export const PersonaResult = z
     successes: Count,
     /** Seeds whose filtered observations left at least one route open; null without a route table. */
     routeOpenSeeds: Count.nullable(),
-    /** Median `durationMs` over the successful runs; null without a success. */
+    /** Median wall-clock `durationMs` over the successful runs, kept as evidence; null without a
+     *  success. Screens read `medianSimulatedMs`. */
     medianSuccessMs: z.number().nonnegative().nullable(),
+    /** Median `simulatedMs` over the successful runs (B3's clock); null without a success, or when
+     *  any one of them carries no time. Absent on a report stored before s2-09. */
+    medianSimulatedMs: z.number().nonnegative().nullable().optional(),
     /** One per seed, by seed. */
     seeds: z.array(ReportSeed).min(1),
   })
@@ -121,6 +125,14 @@ export const PersonaResult = z
         code: "custom",
         path: ["medianSuccessMs"],
         message: "medianSuccessMs is null exactly when there is no success",
+      });
+    }
+    // Not "exactly": a success stored before s2-09 carries no simulated time to take a median of.
+    if (result.successes === 0 && typeof result.medianSimulatedMs === "number") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["medianSimulatedMs"],
+        message: "medianSimulatedMs is null when there is no success",
       });
     }
 

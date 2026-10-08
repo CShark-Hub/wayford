@@ -1,9 +1,10 @@
 /**
  * `runActor` on the served target app, against the loop boxes of `tasks/s2-03-actor-loop.md`
  * (`docs/specs/2026-10-01-s2-03-actor-loop.md`, "Acceptance mapping"), of
- * `tasks/s2-10-memory-dice-budget.md` and of `tasks/s2-08-misclick.md` (each spec's "Acceptance
- * mapping"). The app is built and served once, one Chromium serves every run, and each test
- * writes its runs into a fresh temporary directory.
+ * `tasks/s2-10-memory-dice-budget.md`, of `tasks/s2-08-misclick.md` and of
+ * `tasks/s2-09-simulated-time.md` (each spec's "Acceptance mapping"). The app is built and served
+ * once, one Chromium serves every run, and each test writes its runs into a fresh temporary
+ * directory.
  *
  * No test reaches a model or a network: the Actor is `llmActor` on the fake adapter, and `fetch`
  * throws from the moment the app is up. The fake answers by element name, read from the turn it
@@ -41,7 +42,7 @@ import { perceive } from "@wayford/filter";
 import { TARGET_APP_DEFAULT_QUERY } from "@wayford/filter/serve-target-app";
 import pino, { type Logger } from "pino";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { actionPoint } from "./act.js";
+import { actionPoint, type Point } from "./act.js";
 import { actorTurn, providerSeedFor } from "./actor-backend.js";
 import { runActor } from "./actor-loop.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
@@ -49,6 +50,7 @@ import { LlmError } from "./llm.js";
 import { actorMessages, llmActor } from "./llm-actor.js";
 import { missProbability } from "./misclick.js";
 import { attemptTimeoutMs, SETTLE_TIMEOUT_MS } from "./settle.js";
+import { paceOf, plannedStepMs, wastedStepMs } from "./simulated-time.js";
 import { startUrlFor, TARGET_APP_DEFAULTS } from "./start-url.js";
 import {
   app,
@@ -176,7 +178,47 @@ async function walk(scripted: {
         ),
       ),
   );
+  // And the run kept B3's simulated clock: every plan and every wasted step carries its time, each
+  // step's is the one `simulated-time.ts` gives its stored evidence, its actions and the cursor
+  // the steps before it left, at the persona's pace, and the run's is their sum.
+  for (const event of events) {
+    if (event.type === "actionPlanned" || event.type === "stepWasted") {
+      expect(event.simulatedMs, `${event.type}@${event.stepIndex}`).toBeDefined();
+    }
+  }
+  const times = simulatedTimes(result, scripted.profile);
+  expect(result.steps.map((step) => step.simulatedMs)).toStrictEqual(times);
+  const timed = times.filter((ms) => ms !== undefined);
+  expect(result.simulatedMs).toBe(
+    timed.length === 0 ? undefined : timed.reduce((sum, ms) => sum + ms, 0),
+  );
   return { result, events, calls: fake.calls, runDir: join(runsDir, result.id) };
+}
+
+/**
+ * Each step's time on B3's simulated clock as `simulated-time.ts` gives it, rebuilt from the stored
+ * run at `profile`'s pace: a wasted step's one M, and a planned step's time from its evidence, its
+ * two actions and the cursor where the steps before it left it, undefined until the first press.
+ * `undefined` for a step that planned nothing.
+ */
+function simulatedTimes(result: RunResult, profile: Profile): (number | undefined)[] {
+  const pace = paceOf(profile.behaviour);
+  let cursor: Point | undefined;
+  return result.steps.map((step) => {
+    if ("wasted" in step) return wastedStepMs(pace);
+    const { proposedAction: proposed, performedAction: performed } = step;
+    if (proposed === undefined || performed === undefined) return undefined;
+    const page = step.fullObservation;
+    const timed = plannedStepMs({ proposed, performed, page, from: cursor, pace });
+    cursor = timed.cursor;
+    return timed.ms;
+  });
+}
+
+/** A run's simulated time, failing the test when it has none. */
+function simulatedOf(result: RunResult): number {
+  if (result.simulatedMs === undefined) throw new Error(`run ${result.id} has no simulated time`);
+  return result.simulatedMs;
 }
 
 /** Step `i` of a run, failing the test unless its action landed. */
@@ -302,7 +344,8 @@ test("Ada reaches the easy goal in two actions, each request the projection and 
   expect(stored).toStrictEqual(runResultFromEvents(events));
   expect(stored).toStrictEqual(result);
 
-  // The duration is the persona's time, from runStarted to the terminal event, not the teardown.
+  // The duration is the wall clock from runStarted to the terminal event, not the teardown: how
+  // long the tool took, kept as evidence. The persona's time is the simulated clock's.
   const [start, end] = [events[0], events.at(-1)];
   expect(Date.parse(end?.timestamp ?? "") - Date.parse(start?.timestamp ?? "")).toBe(
     result.durationMs,
@@ -893,66 +936,144 @@ describe("the step cap (F5 AC5)", () => {
   });
 });
 
-describe("the budget ends a run on its clock (B3)", () => {
-  // Ada's budget is 120 s. The clock is a fake one that only an answer moves, 40 s each, so the
-  // third answer lands on the budget exactly, the fourth passes it, and the test waits for none
-  // of it.
-  const START = Date.parse("2026-10-03T12:00:00.000Z");
+describe("the budget ends a run on its simulated clock (B3)", () => {
+  // Every step's time is `walk`'s to check against `simulated-time.ts`; these hold the loop to
+  // where B3 cuts a run, and pin a few times RULES' operators give by hand.
+  const ada = profileFixture("prof_ada");
+  /** The easy goal, on the app the file serves, which is up only once the tests run. */
+  const task = () => taskOf("task_next-parcel");
 
-  /** A fake clock at START, and answers that each move it 40 s on before they are given. */
-  function fakeClock() {
-    let ms = START;
-    const slow =
-      (answer: ActorResponse | ((request: Request) => ActorResponse)) =>
-      (request: Request): ActorResponse => {
-        ms += 40_000;
-        return typeof answer === "function" ? answer(request) : answer;
-      };
-    return { now: () => ms, slow };
+  /** Ada, with a budget of `budgetSeconds` on the simulated clock. */
+  const adaWithin = (budgetSeconds: number): Profile => ({
+    ...ada,
+    behaviour: { ...ada.behaviour, budgetSeconds },
+  });
+
+  /** Every event after step `k`'s plan, by type. */
+  function afterPlan(events: readonly RunEvent[], k: number): string[] {
+    const planned = events.findIndex(
+      (event) => event.type === "actionPlanned" && event.stepIndex === k,
+    );
+    expect(planned).toBeGreaterThan(-1);
+    return events.slice(planned + 1).map((event) => event.type);
   }
 
-  test("an answer that comes past the budget is planned and never performed", async () => {
-    const { now, slow } = fakeClock();
+  test("a step whose time takes the run past the budget is planned and never performed", async () => {
     const { result, events, calls } = await walk({
-      profile: profileFixture("prof_ada"),
-      task: taskOf("task_next-parcel"),
+      profile: adaWithin(5),
+      task: task(),
       maxSteps: 20,
-      now,
-      answers: Array.from({ length: 20 }, () => slow(click("link", "Home"))),
+      answers: Array.from({ length: 20 }, () => click("link", "Home")),
     });
 
     expect(result.outcome).toBe("budget_exceeded");
     // The clock, not the cap of 20, ended it (issue #196).
     expect(result.limit).toBe("clock");
-    expect(calls).toHaveLength(4);
-    // Answered at 40 s, 80 s and exactly 120 s, still within it, so performed; answered at 160 s,
-    // past it, so planned and no more.
-    expect(kinds(result)).toStrictEqual(["complete", "complete", "complete", "incomplete"]);
-    expect(stepAt(result, 3)).toMatchObject({ proposedAction: { type: "click" } });
-    expect(stepAt(result, 3)).not.toHaveProperty("urlAfter");
-    expect(result.durationMs).toBe(160_000);
-    const planned = events.findIndex(
-      (event) => event.type === "actionPlanned" && event.stepIndex === 3,
-    );
-    expect(events.slice(planned + 1).map((event) => event.type)).toStrictEqual(["runFinished"]);
+    expect(calls).toHaveLength(3);
+    expect(kinds(result)).toStrictEqual(["complete", "complete", "incomplete"]);
+    const [first = 0, second = 0, third = 0] = result.steps.map((step) => step.simulatedMs);
+    // The first click travels from the viewport's centre. Home reloads home, so the cursor rests
+    // on Home after it, and each click after it is M + 2B with no travel.
+    expect([second, third]).toStrictEqual([1550, 1550]);
+    // Two clicks land within the 5 s; the third would take the run past them, so it stays planned.
+    expect(first + second).toBeLessThanOrEqual(5000);
+    expect(first + second + third).toBeGreaterThan(5000);
+    expect(result.simulatedMs).toBe(first + second + third);
+    expect(stepAt(result, 2)).toMatchObject({ proposedAction: { type: "click" } });
+    expect(stepAt(result, 2)).not.toHaveProperty("urlAfter");
+    expect(afterPlan(events, 2)).toStrictEqual(["runFinished"]);
   });
 
   test("a run of wasted steps ends at the end of the step that passes it", async () => {
-    const { now, slow } = fakeClock();
     const { result, calls } = await walk({
-      profile: profileFixture("prof_ada"),
-      task: taskOf("task_next-parcel"),
+      profile: adaWithin(2),
+      task: task(),
       maxSteps: 20,
-      now,
-      answers: Array.from({ length: 40 }, (_, i) => slow(missing(i % 2 === 0 ? "e99" : "e98"))),
+      answers: Array.from({ length: 40 }, (_, i) => missing(i % 2 === 0 ? "e99" : "e98")),
     });
 
-    // Two answers a step, 80 s: step 0 ends at 80 s, step 1 at 160 s, past the budget.
+    // One M a wasted step: step 0 ends at 1350 ms, within the 2 s, step 1 at 2700, past them.
     expect(result.outcome).toBe("budget_exceeded");
     expect(result.limit).toBe("clock");
     expect(kinds(result)).toStrictEqual(["wasted", "wasted"]);
+    expect(result.steps.map((step) => step.simulatedMs)).toStrictEqual([1350, 1350]);
+    expect(result.simulatedMs).toBe(2700);
     expect(calls).toHaveLength(4);
-    expect(result.durationMs).toBe(160_000);
+  });
+
+  test("simulated time does not read the wall clock: two wall clocks, one outcome", async () => {
+    // Wall clocks that move on every read, 1 ms and 60 s. Before s2-09 B3 read this clock, and the
+    // 60 s one ended its run on step 0, 180 s in by its fourth read, past Ada's 120 s.
+    const START = Date.parse("2026-10-08T12:00:00.000Z");
+    const ticking = (msPerRead: number) => {
+      let ms = START;
+      return () => {
+        ms += msPerRead;
+        return ms;
+      };
+    };
+    // A wasted step, then the easy goal's two clicks.
+    const answers = [
+      missing("e99"),
+      missing("e98"),
+      click("link", "Your account"),
+      click("link", "Delivery address"),
+    ];
+    const [fast, slow] = await Promise.all([
+      walk({ profile: ada, task: task(), answers, now: ticking(1) }),
+      walk({ profile: ada, task: task(), answers, now: ticking(60_000) }),
+    ]);
+
+    for (const { result } of [fast, slow]) {
+      expect(result.outcome).toBe("success");
+      expect(kinds(result)).toStrictEqual(["wasted", "complete", "complete"]);
+    }
+    expect(slow.result.steps.map((step) => step.simulatedMs)).toStrictEqual(
+      fast.result.steps.map((step) => step.simulatedMs),
+    );
+    expect(slow.result.simulatedMs).toBe(simulatedOf(fast.result));
+    // The wall clocks did differ, and the record keeps each as evidence: the same reads, at 60 000
+    // times the pace, and the slow one far past the budget.
+    expect(slow.result.durationMs).toBe(60_000 * fast.result.durationMs);
+    expect(slow.result.durationMs).toBeGreaterThan(ada.behaviour.budgetSeconds * 1000);
+  });
+
+  test("a slower pace runs out where Ada's finishes", async () => {
+    const answers = [click("link", "Your account"), click("link", "Delivery address")];
+    // Ada's two clicks to the address, on her 120 s, set a budget in whole seconds that they meet.
+    const norm = await walk({ profile: ada, task: task(), answers });
+    expect(norm.result.outcome).toBe("success");
+    const budgetSeconds = Math.ceil(simulatedOf(norm.result) / 1000);
+    const within = adaWithin(budgetSeconds);
+    // The same profile and budget, deciding at a third of the norm's speed.
+    const slower: Profile = {
+      ...within,
+      behaviour: { ...within.behaviour, thinkingTime: { factor: 3, provenance: "folk" } },
+    };
+    const [met, ranOut] = await Promise.all([
+      walk({ profile: within, task: task(), answers }),
+      walk({ profile: slower, task: task(), answers }),
+    ]);
+
+    expect(met.result.outcome).toBe("success");
+    expect(met.result.simulatedMs).toBe(norm.result.simulatedMs);
+    expect(simulatedOf(met.result)).toBeLessThanOrEqual(budgetSeconds * 1000);
+
+    expect(ranOut.result.outcome).toBe("budget_exceeded");
+    expect(ranOut.result.limit).toBe("clock");
+    // Two more M a step, 2700 ms, than Ada's same step.
+    const adaTimes = norm.result.steps.map((step) => step.simulatedMs ?? 0);
+    expect(ranOut.result.steps.map((step) => step.simulatedMs)).toStrictEqual(
+      adaTimes.slice(0, ranOut.result.steps.length).map((ms) => ms + 2700),
+    );
+    // Its last step is planned and never performed.
+    const k = ranOut.result.steps.length - 1;
+    expect(stepAt(ranOut.result, k)).toMatchObject({
+      incomplete: true,
+      proposedAction: { type: "click" },
+    });
+    expect(stepAt(ranOut.result, k)).not.toHaveProperty("urlAfter");
+    expect(afterPlan(ranOut.events, k)).toStrictEqual(["runFinished"]);
   });
 });
 

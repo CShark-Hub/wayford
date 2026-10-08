@@ -157,8 +157,8 @@ Dice per action, from one stream of the run seed, every roll logged.
 |---|---|---|---|
 | B1 | `doubleClick` | a `click` becomes `doubleClick` | `folk` |
 | B2 | `scrollWhenStuck` | when the Actor emits `giveUp` or repeats an action, with probability p a `scroll` down is performed instead on that step, and the Actor decides again on the next step. A repeat is a proposal whose history line is the line of the Actor's previous one: the same move on the same URL, its target named by the same role and name as the Actor was shown them, on a page that did not change between the two, element for element as the Actor read it. A press or scroll that changed the page is progress, not a repeat. A ref alone never makes a repeat, since every page gives its refs out again. A wasted step proposed nothing and is skipped, and a run's first proposal is no repeat. A proposed `scroll` down is never a B2 case, since B2 would perform the same scroll. B2 rolls after B1, and not at all on a step where B1 fired: that action is then the double click B1 made, no longer the Actor's repeat | NN/g scrolling data for the anchor; the probability itself is `folk` |
-| B3 | `budgetSeconds` | run ends `budget_exceeded`. Wall-clock, so model latency counts: the one behaviour rule a seed does not reproduce, and the run records its elapsed time | Nielsen response-time and abandonment literature for the order of magnitude; the exact number is `folk` |
-| B4 | `misclick` | for a click on a control smaller than the persona's motor limit, with a control in reach, with probability `p` from the effective-width model the click lands on the nearest such control ("B4 in detail" below) | ISO 9241-9 effective width, MacKenzie 1992; error model, Wobbrock et al. 2008; the persona's limit carries its own provenance; the time penalty is s2-09's (Fitts's law) |
+| B3 | `budgetSeconds`, paced by `thinkingTime` and `motorTime` | run ends `budget_exceeded` once its simulated time passes `budgetSeconds`. B3 is decided on a simulated clock, not the wall clock: each step's time comes from the KLM and Fitts's law ("B3 in detail" below), so model latency and machine load do not count, and the run seed and the Actor's answers reproduce it. The run still records its wall-clock time, as evidence, and that decides nothing | KLM for the operators (Card, Moran and Newell 1980, 1983; Kieras 1993 for B); Fitts's law in its Shannon form for pointing (MacKenzie 1992), with MacKenzie, Sellen and Buxton 1991's mouse constants; Nielsen response-time and abandonment literature for the budget's order of magnitude; the persona's budget and pace factors are `folk` unless a profile cites a source |
+| B4 | `misclick` | for a click on a control smaller than the persona's motor limit, with a control in reach, with probability `p` from the effective-width model the click lands on the nearest such control ("B4 in detail" below) | ISO 9241-9 effective width, MacKenzie 1992; error model, Wobbrock et al. 2008; the persona's limit carries its own provenance; the time penalty is B3's (Fitts's law): the movement is timed to the target the Actor proposed, the press lands on the neighbour, and the next step's movement starts from the neighbour ("B3 in detail") |
 
 B4's error model has sources (ISO 9241-9, MacKenzie 1992, Wobbrock et al. 2008); reading a persona's limit as an effective width, the reach, the neighbour and where the press lands are Wayford's (`folk`). B1 and B2 are folk and say so.
 
@@ -173,6 +173,49 @@ B4's error model has sources (ISO 9241-9, MacKenzie 1992, Wobbrock et al. 2008);
 **The arithmetic.** B4 computes `erf` by its Maclaurin series, a fixed 40 terms: `t_0 = x`, `t_n = t_{n−1} × (−x²) / n`, each summand `t_n / (2n + 1)`, summed from `n = 39` down to `n = 0`, and the sum multiplied by `2/√π` written as the literal `1.1283791670955126`. It uses only addition, subtraction, multiplication and division, in a fixed order, so every JavaScript engine computes the same `p` to the bit and a stored roll's `fired` replays. Salience (A1) avoids a logarithm for the same reason. The difference is floored at 0: for a target a unit or two in the last place under the limit, the two sums can round a unit apart the wrong way, and a probability is never below 0. A roll at `p` 0 is still drawn and logged, and never fires. Over `[0, k]`, all that `W < L` reaches, the series is within a few units in the last place of erf.
 
 **P4 and B4.** Seeing a target and hitting it are two capabilities, but the line between P4 and B4 is an engineering division, not two capabilities measured apart. P4 removes a target below the persona's cut from the observation, or degrades it in its band. B4 adds a modelled miss rate on the targets P4 leaves shown. B4 rolls only on a control the Actor was shown, so a persona whose P4 floor (its threshold, for a hard cut) is at or above its motor limit never rolls B4. Vera's P4 cut does not change: it still closes the entrances to routes B and C, so the contrast sweep on her still measures one route ("Persona composition"). No persona sets a motor limit yet, so no row of the bundle, calibration or route tables changes and no run of the five personas rolls B4. The next step is to move a motor persona's target size from P4 into B4, Milo's 44 px first; it needs misses onto empty space modelled first.
+
+**B3 in detail.** Every run keeps a simulated clock. A step costs one decision, and the action it performs adds the motor operators of the Keystroke-Level Model (KLM), with pointing timed by Fitts's law. The run's simulated time is the sum of its steps' times, and B3 reads that sum. The wall clock decides nothing: the run records it (`durationMs`) as evidence of how long the tool took, not of how long the persona took. The clock is a model with sources, not a measurement of a person. All times are in ms.
+
+| Operator | Time | Source |
+|---|---|---|
+| M, decide | 1350 | KLM: mental preparation (Card, Moran and Newell 1980, 1983) |
+| P, point | `max(0, a + b · log2(D / W + 1))`, `a = −107` ms, `b = 223` ms per bit | Fitts's law in its Shannon form (MacKenzie 1992); `a` and `b` are MacKenzie, Sellen and Buxton 1991's fit for pointing with a mouse (r 0.990, CHI '91) |
+| B, press or release a button | 100 | KLM, as Kieras' guide (1993) gives it |
+| K, a keystroke | 280 | KLM: an average non-secretary typist, about 40 words a minute (Card, Moran and Newell 1980) |
+
+A step's operators, by the action it performs:
+
+| Step | Time |
+|---|---|
+| wasted (s2-03) | M |
+| `giveUp` | M |
+| `click` | M + P + 2B |
+| `doubleClick` | M + P + 4B |
+| `type` | M + P + 2B + K per character typed |
+| `scroll` | M + K |
+| `back` | M + K |
+| `wait` | M + the wait's `ms` |
+
+The performed action decides the operators: a click B1 turned into a double click costs 4B, and a `giveUp` B2 turned into a scroll costs M + K. A `type` presses its field and types the one line `act.ts` types, its characters counted in code points. A scroll moves 0.8 of the viewport at once, as Page Down does, so it costs one keystroke; a back costs one too, such as Alt+Left. A wait is time the persona chose to let pass. One M per step, a wasted one included, is Wayford's (`folk`): a step is one look and one decision, and the KLM's heuristics for placing M need a task analysis no run has. A keystroke for a scroll or a back is a `folk` use of a sourced operator.
+
+**The pace.** Two behaviour knobs scale the operators, each a factor of the norm, the KLM's average user, and 1 when the profile sets none. `thinkingTime` scales M; `motorTime` scales P, B and the one K of a scroll or a back. Each carries its own provenance, as a threshold does. Typed characters are timed at the norm's K, unscaled: typing speed is out of scope, so no persona types faster or slower than another. A wait is not scaled. A step's time is `round(thinking × M + motor × (P + presses × B + keys × K) + typed × K + waitMs)`, a whole number of ms, where `presses` is 2 for a click or a `type`, 4 for a double click and 0 otherwise, `keys` is 1 for a scroll or a back and 0 otherwise, `typed` is the characters a `type` types, `waitMs` is a wait's `ms`, and P is 0 for a step that points at nothing. No source gives a persona's pace, so every factor set today is `folk`. Vera sets `thinkingTime` 2 and `motorTime` 1.5: with little practice with interfaces, she decides at half the norm's speed and moves at two thirds of it. Zoya sets 3 and 2, the far end of the scale. Ada, Kai and Milo set none and run at the norm. Ada is the control, with no threshold. Kai differs from Ada only after perception, in knowledge, attention and memory (the calibration row "Kai at the target app's defaults"), and his bundle keeps that. Milo is proficient, and his hurry is already his 90 s budget.
+
+**Where a movement starts and ends.** `D` is the distance in CSS px from the cursor's last point to the aim point, and `W` is the aimed element's `targetPx`, the smaller side of the area a click activates ("What is measured"). A text block has no `targetPx`, so its `W` is the smaller side of its box. `W` is at least 1 px. The aim point is the element's action point, where every press lands (`actionPoint`, "Where a miss lands"), so the movement ends where the press lands.
+
+- **Aim and landing.** The movement is timed to the element the Actor proposed, since that is where the hand aims. After a fired B4 the press lands on the neighbour, so the cursor's next point is the neighbour's action point, and the next step's movement starts there. That is B4's time penalty.
+- **The first point** is the centre of the first observation's viewport (`folk`).
+- **Moves without a point.** A scroll, a back or a wait leaves the cursor where it was in the viewport, as a real pointer stays: the loop puts it back on the last pressed point (`restorePointer`).
+- **The floor.** `a` is negative, so a very short move computes below zero, and P is floored at 0. `a` is a regression intercept, not a time.
+
+**B3's worked example.** Computed outside our code, with Python's `math.log2`. `D = 400` and `W = 36`, the target size of the hard link "Order archive", give `log2(400/36 + 1) = 3.598259` bits and P 695.4118 ms. A click there costs Ada `round(1350 + 695.4118 + 200)` = 2245 ms, and Vera, at 2 and 1.5, `round(2700 + 1.5 × 895.4118)` = 4043 ms. More pairs of `D` and `W`: 36 and 36 give 116 ms; `D = 0` gives 0, floored from −107; 600 and 20 give 997.7858 ms; 1000 and 10 give 1377.7812 ms.
+
+**When B3 ends a run.** A planned step's time is added to the run's once its action is planned, before it is performed. A step whose time takes the run past `budgetSeconds` stays planned and is never performed, and the run ends `budget_exceeded` with `limit: "clock"`. So a success always lands inside the budget: a slow step planned inside it can no longer land past it. A wasted step's M is added when the step is wasted, and B3 checks it at the end of the step.
+
+**B3 and the seed.** The clock adds no jitter. A step's time is a pure function of the step's evidence, the actions proposed and performed, the cursor's point and the profile's knobs, so the clock draws nothing from the behaviour stream and B3 never appears in the dice log ("What is logged"). The same run seed and Actor answers give the same simulated times and the same outcome. `Math.log2` is the engine's own, and salience (A1) avoids a logarithm for that reason. B3 can use one: only the Actor's Node loop computes a step's time, and the browser reads the stored numbers. Each step is rounded to a whole ms, so a last-bit difference between engines could move a step only at an exact half millisecond, and B3 compares whole numbers.
+
+**What B3 gets wrong.** The KLM times an expert doing a routine task. It has no reading, no visual search and no waiting for the page, so for a person new to a page the clock understates, and the budget binds later than it would. The mouse's constants serve every device: Milo's touch is not timed apart from a mouse. M is one per step, not placed by the KLM's heuristics. No time is spent waiting for the page, which the KLM calls R: that time is the machine's, and leaving it out is what makes the clock reproducible.
+
+**B3 and the budgets.** The budgets did not change with the clock. At the geometry of B3's worked example a click step costs Ada about 2.2 s, Vera about 4 s and Zoya about 5.8 s, so Ada's 120 s cover about 53 such steps, Vera's about 29, and Zoya's 180 s about 30. Under a step cap of 20 the clock ends no walk of clicks and scrolls; only long waits (a `wait` is at most 10 s, core's `MAX_WAIT_MS`) or long typed text could. Under io's longer caps, up to 40 (`docs/PLAN.md` F5 AC5), it ends Vera's and Zoya's long walks. On a short goal the step cap, not the clock, ends the runs the wall clock used to end: those endings were the machine's. The budgets are `folk`, and they were not retuned to make the clock bite, since that would invent behaviour for the demo.
 
 ## Calibration: how we know the engine is not broken
 
@@ -219,8 +262,8 @@ middles.
 | Ada | none | all known | unlimited | budget 120 s |
 | Kai | none | unknown: hamburger, kebab, breadcrumb, tabs, accordion (folk), everyday shop words only (folk) | `maxElements` 11, `memorySteps` 2 (folk, set against PIAAC level 1 and Cowan 2001; 11 since `s1-03`, the smallest cap that keeps routes B and C open) | budget 120 s |
 | Milo | mobile device, target 44, no contrast rule | all known | `maxElements` 20, `memorySteps` 6 | scrollWhenStuck 0.9, budget 90 s |
-| Vera | contrast 3.0 soft, font 16, target 32, `blurredVision` | unknown: hamburger, kebab, breadcrumb | `maxElements` 20, `memorySteps` 3 | doubleClick 0.8, budget 120 s |
-| Zoya | contrast 7.0 soft, font 24, target 48, `reducedContrast` | every pattern unknown, no `domainVocabulary` (K2 off) | `maxElements` 5, `maxOptions` 4, `memorySteps` 2 | doubleClick 0.9, scrollWhenStuck 0.3, budget 180 s |
+| Vera | contrast 3.0 soft, font 16, target 32, `blurredVision` | unknown: hamburger, kebab, breadcrumb | `maxElements` 20, `memorySteps` 3 | doubleClick 0.8, budget 120 s, thinkingTime 2, motorTime 1.5 (folk) |
+| Zoya | contrast 7.0 soft, font 24, target 48, `reducedContrast` | every pattern unknown, no `domainVocabulary` (K2 off) | `maxElements` 5, `maxOptions` 4, `memorySteps` 2 | doubleClick 0.9, scrollWhenStuck 0.3, budget 180 s, thinkingTime 3, motorTime 2 (folk) |
 
 The initial is the dimension the persona is defined by: **A**ll clear,
 **K**nowledge, **M**obile and motor, **V**ision, and **Z** for the far end of the
@@ -255,9 +298,10 @@ Ids used in `provenance`. Each entry: id, what it anchors, citation.
 | `parhi2006` | touch target 9.2 mm | Parhi, Karlson, Bederson. Target size study for one-handed thumb use on small touchscreen devices. MobileHCI 2006 |
 | `hig` | 44 pt touch target | Apple Human Interface Guidelines |
 | `material` | 48 dp touch target | Google Material Design |
-| `fitts` | movement time vs distance and width | Fitts 1954; MacKenzie 1992 Shannon formulation |
+| `fitts` | movement time vs distance and width | Fitts 1954; MacKenzie 1992 Shannon formulation; MacKenzie, Sellen, Buxton. A comparison of input devices in elemental pointing and dragging tasks. CHI 1991 (the mouse's a and b) |
 | `iso9241` | effective width, error rate | ISO 9241-9 (now 9241-411) |
 | `hick` | choice time vs number of options | Hick 1952, Hyman 1953 |
+| `klm` | per-action operator times: mental preparation, keystroke, button press | Card, Moran, Newell. The keystroke-level model for user performance time with interactive systems. CACM 23(7), 1980; The Psychology of Human-Computer Interaction, 1983. Kieras. Using the Keystroke-Level Model to Estimate Execution Times, 1993 (B) |
 | `cowan2001` | working memory about four chunks | Cowan. The magical number 4 in short-term memory. BBS 2001 |
 | `nngroup` | hidden navigation, F-pattern, banner blindness, scrolling and attention, icon usability | Nielsen Norman Group articles, cited individually in the rule that uses them |
 | `benway1998` | banner blindness | Benway. Banner blindness. Proc. HFES 1998 |
@@ -274,5 +318,5 @@ Ids used in `provenance`. Each entry: id, what it anchors, citation.
 
 - Compensation: leaning in, zooming, asking someone. Real people do it, the model will not unless we add a rule. Possible later as a deterministic `zoom` factor on P3. Not for the hackathon.
 - Emotion, frustration, motivation. Hypothesis layer only, produced by the Analyst, labelled `hypothesis`.
-- Motor tremor, overshoot and the cursor's path. B4 models only where a click lands, from the effective-width error model (stage 7).
+- Motor tremor, overshoot and the cursor's path. B4 models only where a click lands, from the effective-width error model, and B3 only how long a movement takes, from its distance and the target's width (stage 7).
 - Screen readers and keyboard-only navigation. A different observation channel entirely. Strong "what next" slide, out of scope now.

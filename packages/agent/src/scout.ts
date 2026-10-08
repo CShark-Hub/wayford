@@ -46,8 +46,9 @@ import type { TargetAppParams } from "./start-url.js";
  * behaviour dice. Built here, not kept with the personas in core's fixtures: Scout is not under
  * test, and a persona there joins the persona grid and the words the Actor may not read.
  *
- * `budgetSeconds` is required, so it is set far past any attempt the 20-step cap allows: the cap
- * ends a lost attempt, and the clock (B3, s2-10) never cuts a slow model short.
+ * `budgetSeconds` is required, so it is set far past any attempt the 20-step cap allows on the
+ * simulated clock (B3): the cap ends a lost attempt, and no model latency reaches that clock, so a
+ * slow model never cuts one short.
  */
 export const SCOUT_PROFILE: Profile = {
   id: "prof_scout",

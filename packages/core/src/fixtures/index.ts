@@ -263,6 +263,12 @@ export const groundTruthFixture: GroundTruth = readJson("ground-truth.json", Gro
  * wasted: on `/settings` the Actor twice names a ref the page does not show,
  * the first time the archive link's `e3` from the page before, so no action
  * runs and step 4 observes the same page again.
+ *
+ * Each step's `simulatedMs` is B3's clock at Vera's pace, `thinkingTime` 2 and
+ * `motorTime` 1.5 (`docs/RULES.md` stage 7): the click on Deliveries from the
+ * first viewport's centre 4182 ms, the scroll 3120, the double click on
+ * Settings 3774, and the wasted step and the give-up one decision each, 2700.
+ * The run's 16476 ms is their sum; its wall-clock `durationMs` is 15500.
  */
 export const runResultFixture: RunResult = readJson("run-result.json", RunResult);
 
@@ -320,7 +326,9 @@ export const raceFixture: Race = readJson("race.json", Race);
  * - `task_next-parcel`, seeds 1 and 2, has no route table, so every route-open count is `null`,
  *   and no ground truth. One hypothesis, and one run that fell over (`error`).
  *
- * Evidence names the fixture's own run ids, which no run fixture stores.
+ * Evidence names the fixture's own run ids, which no run fixture stores. Each persona's
+ * `medianSimulatedMs` is illustrative, null where nothing got through: Ada's 4490 on the hard goal
+ * is two clicks of RULES' worked example at the norm's pace.
  */
 export const reportFixtures: Report[] = readJson("reports.json", Report.array());
 

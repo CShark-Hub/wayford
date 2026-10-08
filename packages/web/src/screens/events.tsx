@@ -34,7 +34,7 @@ function describe(event: RunEvent): string {
     case "narration":
       return event.text;
     case "runFinished":
-      return `${event.outcome} after ${event.durationMs} ms`;
+      return `${event.outcome} after ${event.durationMs} ms wall clock`;
     case "runFailed":
       return event.error;
   }

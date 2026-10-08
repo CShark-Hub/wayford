@@ -46,8 +46,9 @@ export const labelOf = (profileId: string) => LABELS.get(profileId) ?? profileId
 /** A count and its word, the word plural unless the count is one: `1 step`, `2 steps`. */
 export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/** Milliseconds as seconds, to one decimal: `10.4 s`. */
-export const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+/** Milliseconds as seconds, to one decimal: `10.4 s`; a missing time reads `NONE`. */
+export const seconds = (ms: number | null | undefined) =>
+  ms == null ? NONE : `${(ms / 1000).toFixed(1)} s`;
 
 /** Every backend but `backend`, joined with "or": the backends a report on it leaves out. */
 export const otherBackends = (backend: ReportBackend) =>
@@ -113,10 +114,14 @@ const TABLE_TITLES = [
   "errors",
   "got through",
   "route open",
-  "median time to success",
+  "median simulated time to success",
 ];
 
-/** One row per persona, in the report's order: labels read left to right, numbers line up right. */
+/**
+ * One row per persona, in the report's order: labels read left to right, numbers line up right.
+ * The median is the simulated one (B3); the wall-clock `medianSuccessMs` stays in the report as
+ * evidence and is not shown. A report stored before s2-09 has no simulated median and reads "—".
+ */
 function personaTable(personas: readonly PersonaResult[]): string {
   const rows = personas.map((result) => {
     const counted = result.runs - result.errors;
@@ -126,7 +131,7 @@ function personaTable(personas: readonly PersonaResult[]): string {
       String(result.errors),
       counted === 0 ? NONE : `${result.successes}/${counted}`,
       result.routeOpenSeeds === null ? NONE : `${result.routeOpenSeeds}/${result.runs}`,
-      result.medianSuccessMs === null ? NONE : seconds(result.medianSuccessMs),
+      seconds(result.medianSimulatedMs),
     ];
   });
   const widths = TABLE_TITLES.map((title, column) =>

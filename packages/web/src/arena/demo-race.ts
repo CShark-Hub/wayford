@@ -28,7 +28,8 @@ const DEMO_SEED = 1;
  * it, is laid over it last. Each is re-parsed, so it is an event core's contract accepts.
  *
  * Nothing else changes: `runStarted` keeps Vera's `startUrl`, her thresholds in its query, and the
- * provider seed drawn from her seed. The race draws neither.
+ * provider seed drawn from her seed. The race draws neither. Each step keeps Vera's simulated time
+ * too, her pace's, which the lane's clock sums.
  */
 export function eventsOf(
   run: StartedRun,
@@ -46,7 +47,10 @@ const demoAda: StartedRun = { id: "run_ada-race", profileId: "prof_ada", seed: D
 const demoKai: StartedRun = { id: "run_kai-race", profileId: "prof_kai", seed: DEMO_SEED };
 const demoVera: StartedRun = { id: "run_vera-race", profileId: "prof_vera", seed: DEMO_SEED };
 
-/** Steps 0 and 1 of the fixture, then the goal reached at 6.5 s, billed for those two steps. */
+/**
+ * Steps 0 and 1 of the fixture, then the goal reached at 6.5 s on the wall clock, billed for those
+ * two steps.
+ */
 const adaGetsThrough = [
   ...runEventFixtures.slice(0, 9),
   RunEvent.parse({
@@ -63,10 +67,10 @@ const adaGetsThrough = [
 /**
  * The race in progress that the self-check measures and `docs/design/screens/race.html` draws, on
  * the fixture's timeline. Ada, Kai and Vera, in the order the panel sends them, each on seed 1, all
- * started at once:
- * - Ada gets through at step 1, in 2 steps, at 0:06.5;
- * - Kai has observed step 4 and nothing more: moving, 5 steps so far, the last under way;
- * - Vera runs the whole fixture and gives up at step 4, at 0:15.5.
+ * started at once. Each lane's clock is the simulated time of its steps so far:
+ * - Ada gets through at step 1, in 2 steps, at 0:07.3;
+ * - Kai has observed step 4 and nothing more: moving, 5 steps so far, the last under way, 0:13.8;
+ * - Vera runs the whole fixture and gives up at step 4, at 0:16.5.
  */
 export const demoRace: {
   runs: StartedRun[];

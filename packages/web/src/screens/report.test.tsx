@@ -192,7 +192,7 @@ describe("the cast table", () => {
       "route open",
       "got through",
       "gap",
-      "median time",
+      "median simulated time",
     ]);
     const rows = [...html.matchAll(/<tr [^>]*data-persona="([^"]+)"/g)].map((m) => m[1] ?? "");
     expect(rows).toEqual(["prof_ada", "prof_kai", "prof_vera"]);
@@ -212,14 +212,39 @@ describe("the cast table", () => {
   });
 
   test.each([
-    ["prof_ada", "3/3", "3/3", "10.4 s"],
-    ["prof_kai", "3/3", "1/3", "31.6 s"],
+    // The simulated medians, not the wall-clock ones the report also keeps: 10.4 s and 31.6 s.
+    ["prof_ada", "3/3", "3/3", "4.5 s"],
+    ["prof_kai", "3/3", "1/3", "11.2 s"],
     ["prof_vera", "1/3", "0/3", "—no run got through"],
   ])("%s reads route open %s and got through %s, median %s", async (id, open, through, median) => {
     const cells = castRowOf(await render("/report/task_past-order", HARD), id);
     expect(figure(cells[2] ?? "")).toBe(open);
     expect(figure(cells[3] ?? "")).toBe(through);
     expect(figure(cells[5] ?? "")).toBe(median.replace(/ /g, ""));
+  });
+
+  test("a median the report has no simulated time for reads — and says why: no success, or runs stored before simulated time", async () => {
+    // Ada's median absent, as a report stored before s2-09 has it; Kai's null, as io writes it when
+    // none of his successes carries a time. Vera got through on no seed.
+    const [ada, kai, vera] = HARD.personas;
+    if (ada === undefined || kai === undefined || vera === undefined) {
+      throw new Error("the hard goal's report holds three personas");
+    }
+    const { medianSimulatedMs: _, ...adaBefore } = ada;
+    const report = Report.parse({
+      ...HARD,
+      personas: [adaBefore, { ...kai, medianSimulatedMs: null }, vera],
+    });
+    const html = await render("/report/task_past-order", report);
+    for (const [id, reason] of [
+      ["prof_ada", "not timed: runs stored before simulated time"],
+      ["prof_kai", "not timed: runs stored before simulated time"],
+      ["prof_vera", "no run got through"],
+    ] as const) {
+      const cell = castRowOf(html, id)[5] ?? "";
+      expect(figure(cell), id).toBe(`—${reason.replace(/ /g, "")}`);
+      expect(attributesOf(cell.match(/<p(\s[^>]*)>/)?.[1] ?? "").title, id).toBe(reason);
+    }
   });
 
   test("route open opens the persona's runs on the goal; got through the ones that got through", async () => {

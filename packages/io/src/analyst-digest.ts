@@ -63,15 +63,19 @@ function personaName(profileId: string): string {
   return label === profileId ? profileId : `${label} (${profileId})`;
 }
 
-/** One persona's numbers, as code counted them. No route table reads "—", never 0. */
+/**
+ * One persona's numbers, as code counted them. No route table reads "—", never 0. The median is
+ * the simulated one (B3): the wall-clock median measures the tool and the machine, not the persona,
+ * so the case leaves it out. A report stored before s2-09 has none and reads "—".
+ */
 function personaLine(result: PersonaResult): string {
-  const { runs, successes, errors, routeOpenSeeds, medianSuccessMs } = result;
+  const { runs, successes, errors, routeOpenSeeds } = result;
   const open =
     routeOpenSeeds === null
       ? `route open: ${NONE}`
       : `a route open in ${routeOpenSeeds} of ${plural(runs, "seed")}`;
-  const median = medianSuccessMs === null ? NONE : seconds(medianSuccessMs);
-  return `${personaName(result.profileId)}: ${plural(runs, "run")}, ${successes} got through, ${plural(errors, "error")}, ${open}, median time to success ${median}`;
+  const median = seconds(result.medianSimulatedMs);
+  return `${personaName(result.profileId)}: ${plural(runs, "run")}, ${successes} got through, ${plural(errors, "error")}, ${open}, median simulated time to success ${median}`;
 }
 
 /**
@@ -96,9 +100,12 @@ function findingLines(drafts: readonly Draft[]) {
   });
 }
 
-/** A run's header, then one line per step. */
+/**
+ * A run's header, then one line per step. The header's time is the run's simulated time (B3), never
+ * its wall-clock `durationMs`; a run stored before s2-09 has none and reads "—".
+ */
 function runLines(run: RunResult, backend: ReportBackend): string[] {
-  const header = `run ${run.id}: ${personaName(run.profileId)}, seed ${run.seed}, ${run.outcome}, ${plural(run.steps.length, "step")}, ${seconds(run.durationMs)}`;
+  const header = `run ${run.id}: ${personaName(run.profileId)}, seed ${run.seed}, ${run.outcome}, ${plural(run.steps.length, "step")}, simulated time ${seconds(run.simulatedMs)}`;
   const jev = backend === "jev" ? ". Jev run: no narration" : "";
   return [`${header}${jev}`, ...run.steps.map((step) => `  ${stepLine(step)}`)];
 }

@@ -71,7 +71,20 @@ function rewritten(events: readonly RunEvent[], run: StartedRun, shiftMs: number
   });
 }
 
-/** Steps 0 to 2 of the fixture, then the goal reached at 9.5 s. */
+/**
+ * `events` as a run recorded before s2-09 streamed them: no `actionPlanned` or `stepWasted`
+ * carries a simulated time.
+ */
+function untimed(events: readonly RunEvent[]): RunEvent[] {
+  return events.map((event) =>
+    RunEvent.parse(JSON.parse(JSON.stringify({ ...event, simulatedMs: undefined }))),
+  );
+}
+
+/**
+ * Steps 0 to 2 of the fixture, then the goal reached at 9.5 s on the wall clock, 11.1 s on the
+ * simulated one (4182 + 3120 + 3774 ms).
+ */
 const reachesTheGoal = [
   ...runEventFixtures.slice(0, 13),
   RunEvent.parse({
@@ -83,7 +96,10 @@ const reachesTheGoal = [
   }),
 ];
 
-/** Step 0 of the fixture and step 1's observation, then a crash at 4.5 s. */
+/**
+ * Step 0 of the fixture and step 1's observation, then a crash at 4.5 s on the wall clock, 4.2 s
+ * on the simulated one: step 1 planned nothing, so it has no time.
+ */
 const crashes = [
   ...runEventFixtures.slice(0, 6),
   RunEvent.parse({
@@ -102,10 +118,11 @@ const kai: StartedRun = { id: "run_kai-race-1", profileId: "prof_kai", seed: SEE
 const vera: StartedRun = { id: "run_vera-race-1", profileId: "prof_vera", seed: SEED };
 
 /**
- * Three runs of one race, started in the order Ada, Kai, Vera, 100 ms apart. Ada reaches the goal
- * after 9.5 s, Kai crashes after 4.5 s, and Vera, stuck on /settings after two wasted steps, gives
- * up after 18.5 s (`stuckRun`): Kai ends first, though he started second. The fixture's steps are
- * 500 ms apart, so no two runs share a timestamp.
+ * Three runs of one race, started in the order Ada, Kai, Vera, 100 ms apart. On the wall clock Ada
+ * reaches the goal after 9.5 s, Kai crashes after 4.5 s, and Vera, stuck on /settings after two
+ * wasted steps, gives up after 18.5 s (`stuckRun`): Kai ends first, though he started second. The
+ * fixture's steps are 500 ms apart, so no two runs share a timestamp. On the simulated clock, which
+ * the lanes show, the order is the same: Kai at 4.2 s, Ada at 11.1 s, Vera at 19.2 s.
  */
 const RACE: { run: StartedRun; events: RunEvent[]; outcome: RunOutcome }[] = [
   { run: ada, events: rewritten(reachesTheGoal, ada, 100), outcome: "success" },
@@ -208,7 +225,7 @@ test("each run built from the fixture is a whole run that folds to its outcome",
   }
 });
 
-test("replays the fixture events as three runs through a stubbed EventSource: three tiles, avatars change state, the finish order matches the event timestamps", () => {
+test("replays the fixture events as three runs through a stubbed EventSource: three tiles, avatars change state, the finish order follows the simulated clock", () => {
   const snapshots: RaceSnapshot[] = [];
   followRace(runs, (snapshot) => snapshots.push(snapshot));
   const latest = () => {
@@ -268,18 +285,18 @@ test("replays the fixture events as three runs through a stubbed EventSource: th
     ["idle", "moving", "stuck", "gaveUp"],
   ]);
 
-  // The finish order follows each run's elapsed time, from its own timestamps, whatever order the
+  // The finish order follows each run's simulated time, from its own events, whatever order the
   // terminal events arrived in. Only a run that got through is numbered, as its post is; the others
   // follow it with no number.
-  expect(finishLines(at(ada, 13))).toStrictEqual(["1. Ada Got through 0:09.5"]);
+  expect(finishLines(at(ada, 13))).toStrictEqual(["1. Ada Got through 0:11.1"]);
   expect(finishLines(at(vera, 21))).toStrictEqual([
-    "1. Ada Got through 0:09.5",
-    "– Vera Gave up 0:18.5",
+    "1. Ada Got through 0:11.1",
+    "– Vera Gave up 0:19.2",
   ]);
   expect(finishLines(end)).toStrictEqual([
-    "1. Ada Got through 0:09.5",
-    "– Kai Error 0:04.5",
-    "– Vera Gave up 0:18.5",
+    "1. Ada Got through 0:11.1",
+    "– Kai Error 0:04.2",
+    "– Vera Gave up 0:19.2",
   ]);
 
   // Every stream closed on its run's last event.
@@ -333,8 +350,8 @@ test("a stream lost mid-run: its tile says what was last seen, its avatar has no
   expect(avatarStateOf(html, ada)).toBe("done");
   expect(avatarStateOf(html, vera)).toBe("gaveUp");
   expect(finishLines(html)).toStrictEqual([
-    "1. Ada Got through 0:09.5",
-    "– Vera Gave up 0:18.5",
+    "1. Ada Got through 0:11.1",
+    "– Vera Gave up 0:19.2",
     "– Kai Stream lost",
   ]);
   // Nothing more will come from any stream, so the race is over.
@@ -369,11 +386,11 @@ describe("finishOrder", () => {
     );
   }
 
-  test("lists the runs that ended, shortest elapsed time first, with end state and time", () => {
+  test("lists the runs that ended, shortest simulated time first, with end state and time", () => {
     expect(finishOrder(runs, viewsOf(eventsOf()))).toStrictEqual([
-      { run: kai, place: 1, state: "error", elapsedMs: 4500 },
-      { run: ada, place: 2, state: "done", elapsedMs: 9500 },
-      { run: vera, place: 3, state: "gaveUp", elapsedMs: 18_500 },
+      { run: kai, place: 1, state: "error", simulatedMs: 4182 },
+      { run: ada, place: 2, state: "done", simulatedMs: 11_076 },
+      { run: vera, place: 3, state: "gaveUp", simulatedMs: 19_176 },
     ]);
   });
 
@@ -386,8 +403,8 @@ describe("finishOrder", () => {
   });
 
   test("a run that started late and ran shorter ranks first, though it ended later", () => {
-    // Ada starts at once and gives up after 15.5 s. Kai waits 10 s for a slot in io, then reaches
-    // the goal in 9.5 s: he ends at 19.5 s, after Ada, and still ranks first.
+    // Ada starts at once and gives up after 16.5 s of simulated time. Kai waits 10 s for a slot in
+    // io, then reaches the goal in 11.1 s: he ends after Ada, and still ranks first.
     const views = viewsOf(
       new Map([
         [ada.id, rewritten(runEventFixtures, ada, 0)],
@@ -397,21 +414,46 @@ describe("finishOrder", () => {
     const endOf = (run: StartedRun) => Date.parse(views.get(run.id)?.ended?.at ?? "");
     expect(endOf(kai)).toBeGreaterThan(endOf(ada));
     expect(finishOrder([ada, kai], views)).toStrictEqual([
-      { run: kai, place: 1, state: "done", elapsedMs: 9500 },
-      { run: ada, place: 2, state: "gaveUp", elapsedMs: 15_500 },
+      { run: kai, place: 1, state: "done", simulatedMs: 11_076 },
+      { run: ada, place: 2, state: "gaveUp", simulatedMs: 16_476 },
     ]);
   });
 
-  test("runs with the same elapsed time share the lower place, in start order; the next counts both", () => {
-    // Milo and Zoya run Vera's fixture, 15.5 s each, Zoya starting a second later, so they end at
-    // different instants. Ada ends first, and Kai crashes after 20 s.
+  test("ranks by the simulated clock, not the wall clock: a run slower on the wall but quicker to decide and point ranks first", () => {
+    // The same three steps to the goal. Ada's take 9.5 s on the wall clock and 11.1 s simulated.
+    // Kai's model answers slowly, so his run takes 59.5 s on the wall clock, but he decides and
+    // points at twice Ada's pace, 5.5 s simulated.
+    const slowModel = rewritten(reachesTheGoal, kai, 0).map((event) =>
+      event.type === "runFinished"
+        ? RunEvent.parse({ ...event, timestamp: shifted(event.timestamp, 50_000) })
+        : event.type === "actionPlanned" && event.simulatedMs !== undefined
+          ? RunEvent.parse({ ...event, simulatedMs: event.simulatedMs / 2 })
+          : event,
+    );
+    const views = viewsOf(
+      new Map([
+        [ada.id, rewritten(reachesTheGoal, ada, 0)],
+        [kai.id, slowModel],
+      ]),
+    );
+    const wallOf = (run: StartedRun) =>
+      Date.parse(views.get(run.id)?.ended?.at ?? "") - Date.parse(fixtureEvent(0).timestamp);
+    expect(wallOf(kai)).toBeGreaterThan(wallOf(ada));
+    expect(finishOrder([ada, kai], views)).toStrictEqual([
+      { run: kai, place: 1, state: "done", simulatedMs: 5538 },
+      { run: ada, place: 2, state: "done", simulatedMs: 11_076 },
+    ]);
+  });
+
+  test("runs with the same simulated time share the lower place, in start order; the next counts both", () => {
+    // Milo and Zoya run Vera's fixture, 16.5 s each, Zoya starting a second later, so they end at
+    // different instants. Ada ends first, in 11.1 s, and Kai, stuck, gives up after 19.2 s.
     const milo: StartedRun = { id: "run_milo-race-1", profileId: "prof_milo", seed: SEED };
     const zoya: StartedRun = { id: "run_zoya-race-1", profileId: "prof_zoya", seed: SEED };
-    const late = RunEvent.parse({ ...crashes.at(-1), timestamp: "2026-09-22T10:00:20.000Z" });
     const views = viewsOf(
       new Map([
         // The map's order is not the start order: the start order decides a tie.
-        [kai.id, rewritten([...crashes.slice(0, -1), late], kai, 0)],
+        [kai.id, rewritten(stuckRun, kai, 0)],
         [zoya.id, rewritten(runEventFixtures, zoya, 1000)],
         [milo.id, rewritten(runEventFixtures, milo, 0)],
         [ada.id, rewritten(reachesTheGoal, ada, 0)],
@@ -427,17 +469,17 @@ describe("finishOrder", () => {
     ]);
   });
 
-  test("an ended run with no runStarted has no time and ranks last", () => {
-    // io always opens a stream with runStarted; were it missing, Ada's 9.5 s could not be told.
+  test("an ended run with no timed step has no time and ranks last", () => {
+    // Ada's run as one recorded before s2-09 streamed it: her 11.1 s cannot be told.
     const views = viewsOf(
       new Map([
-        [ada.id, rewritten(reachesTheGoal, ada, 0).slice(1)],
+        [ada.id, untimed(rewritten(reachesTheGoal, ada, 0))],
         [vera.id, rewritten(stuckRun, vera, 0)],
       ]),
     );
     expect(finishOrder([ada, vera], views)).toStrictEqual([
-      { run: vera, place: 1, state: "gaveUp", elapsedMs: 18_500 },
-      { run: ada, place: 2, state: "done", elapsedMs: undefined },
+      { run: vera, place: 1, state: "gaveUp", simulatedMs: 19_176 },
+      { run: ada, place: 2, state: "done", simulatedMs: undefined },
     ]);
   });
 });
@@ -601,15 +643,15 @@ describe("stepPips", () => {
 describe("throughPlaces", () => {
   const milo: StartedRun = { id: "run_milo-race-1", profileId: "prof_milo", seed: SEED };
   const zoya: StartedRun = { id: "run_zoya-race-1", profileId: "prof_zoya", seed: SEED };
-  /** Vera's fixture run with the goal reached where she gave up, at 15.5 s. */
+  /** Vera's fixture run with the goal reached where she gave up, at 16.5 s. */
   const reachesItLate = [
     ...runEventFixtures.slice(0, -1),
     RunEvent.parse({ ...finished, outcome: "success" }),
   ];
 
   test("ranks the runs that got through among themselves: equal times share the lower place, and the next counts both", () => {
-    // Kai crashes after 4.5 s and Vera runs over budget after 7.5 s, before anyone gets through:
-    // neither counts. Ada and Milo get through in 9.5 s each, Zoya in 15.5 s.
+    // Kai crashes after 4.2 s and Vera runs over budget after 7.3 s, before anyone gets through:
+    // neither counts. Ada and Milo get through in 11.1 s each, Zoya in 16.5 s.
     const views = viewsOf(
       new Map([
         [kai.id, rewritten(crashes, kai, 0)],
@@ -635,7 +677,7 @@ describe("throughPlaces", () => {
 });
 
 describe("clockText", () => {
-  test("m:ss.d from the elapsed time rounded to tenths once, or a dash before runStarted", () => {
+  test("m:ss.d from the time rounded to tenths once, or a dash with no time", () => {
     const cases: [number | undefined, string][] = [
       [undefined, "—"],
       [0, "0:00.0"],
@@ -749,6 +791,19 @@ describe("storedLane: a finished run's lane from its stored record", () => {
         ended: { outcome: ended?.outcome, ...limit },
       });
     }
+  });
+
+  test("the clock is the record's simulated time, and no time on a run stored before s2-09", () => {
+    const timed = storedLane(runResultFromEvents(runEventFixtures));
+    expect(timed.view.simulatedMs).toBe(16_476);
+    expect(clockText(timed.view.simulatedMs)).toBe("0:16.5");
+    // Its wall-clock time is evidence of the model and the machine, not the persona's time.
+    expect(runResultFromEvents(runEventFixtures).durationMs).toBe(15_500);
+
+    const before = runResultFromEvents(untimed(runEventFixtures));
+    expect(before).not.toHaveProperty("simulatedMs");
+    expect(storedLane(before).view.simulatedMs).toBeUndefined();
+    expect(clockText(storedLane(before).view.simulatedMs)).toBe("—");
   });
 
   test("a crash's lane keeps its Error, but not the message the stream carried", () => {

@@ -6,7 +6,8 @@
  * sweep run (A22). Everything else stored for the task is left out and counted, so a reader knows
  * it exists. The numbers are code's, never the model's: runs, successes and errors from the runs'
  * outcomes, the route-open seeds from the filter's route table (s1-06), and the median time to
- * success over the runs that got through.
+ * success over the runs that got through: on the simulated clock (B3), which the screens and the
+ * Analyst read, and on the wall clock, kept as evidence.
  *
  * The route facts are only typed here. `@wayford/filter/routes` loads Playwright and Vite, and io's
  * barrel must load neither, so this module imports its types alone and the facts are computed
@@ -168,6 +169,7 @@ export function personaResults(
           ? null
           : seeds.filter((s) => s.openRoutes !== null && s.openRoutes.length > 0).length,
       medianSuccessMs: median(successful.map((run) => run.durationMs)) ?? null,
+      medianSimulatedMs: medianSimulated(successful),
       seeds,
     });
   });
@@ -180,6 +182,18 @@ function openIn(facts: RouteFactsOf, run: RunResult): string[] {
     throw new Error(`the route facts hold no seed ${run.seed}, the seed of run ${run.id}`);
   }
   return seed.open;
+}
+
+/**
+ * Median `simulatedMs` over every one of `successful`, on B3's clock; null with no success, and
+ * null when any success was stored before s2-09 and carries no simulated time. A median over the
+ * timed ones alone would let "got through 3/3" sit over a time that rests on one run.
+ */
+function medianSimulated(successful: readonly RunResult[]): number | null {
+  const times = successful.flatMap((run) =>
+    run.simulatedMs === undefined ? [] : [run.simulatedMs],
+  );
+  return times.length < successful.length ? null : (median(times) ?? null);
 }
 
 /**

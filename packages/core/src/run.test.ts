@@ -851,6 +851,39 @@ describe("a run that stops mid-step", () => {
     expect(last.endedAt).toBe(cut.timestamp);
     expect(last.cost).toEqual(planned.cost);
   });
+
+  test("an action planned but never performed keeps its simulated time on the incomplete step", () => {
+    const planned = upToPlanned(2);
+    const result = runResultFromEvents([
+      started,
+      ...stepEvents(0),
+      ...stepEvents(1),
+      ...planned,
+      failedAt(2),
+    ]);
+    const step = result.steps.at(-1);
+    if (!step || !("incomplete" in step)) throw new Error("step 2 must be incomplete");
+    const event = planned.find((e) => e.type === "actionPlanned");
+    if (event?.type !== "actionPlanned") throw new Error("fixture step 2 must plan an action");
+    expect(step.simulatedMs).toBe(event.simulatedMs);
+    const steps = result.steps.map((s) => s.simulatedMs ?? 0);
+    expect(result.simulatedMs).toBe(steps.reduce((a, b) => a + b, 0));
+  });
+
+  test("a step that planned nothing has no simulated time, and adds none to the run's", () => {
+    const result = runResultFromEvents([started, ...stepEvents(0), ...observed(1), failedAt(1)]);
+    const [first, last] = result.steps;
+    if (!last || !("incomplete" in last)) throw new Error("step 1 must be incomplete");
+    expect(last).not.toHaveProperty("simulatedMs");
+    expect(result.simulatedMs).toBe(first?.simulatedMs);
+  });
+
+  test("a run that failed before its first plan has no simulated time", () => {
+    expect(runResultFromEvents([started, ...observed(0), failedAt(0)])).not.toHaveProperty(
+      "simulatedMs",
+    );
+    expect(runResultFromEvents([started, failedAt(0)])).not.toHaveProperty("simulatedMs");
+  });
 });
 
 describe("a wasted step (issue #114)", () => {
@@ -1139,6 +1172,40 @@ describe("a stream that is not exactly one run", () => {
     if (said.type !== "narration") throw new Error("the fixture stream must narrate step 1");
     const result = runResultFromEvents(insertedAfter(i, { ...said, text: "Still looking." }));
     expect(result.steps[1]?.narration).toBe(`${said.text}\nStill looking.`);
+  });
+});
+
+describe("simulated time (s2-09)", () => {
+  // The incomplete-step cases sit with "a run that stops mid-step", beside its helpers.
+  const timed = (e: RunEvent): e is Extract<RunEvent, { type: "actionPlanned" | "stepWasted" }> =>
+    e.type === "actionPlanned" || e.type === "stepWasted";
+  /** The fixture stream with each timed event's `simulatedMs` set by `ms`, or dropped for undefined. */
+  const retimed = (ms: (stepIndex: number) => number | undefined): RunEvent[] =>
+    runEventFixtures.map((e) => {
+      if (!timed(e)) return e;
+      const { simulatedMs: _old, ...bare } = e;
+      const value = ms(e.stepIndex);
+      return value === undefined ? bare : { ...bare, simulatedMs: value };
+    });
+
+  test("the fold puts each event's simulatedMs on its step, complete or wasted, and sums them", () => {
+    // A different time per step, so a step carrying another step's time fails.
+    const result = runResultFromEvents(retimed((i) => 1000 * (i + 1) + 7));
+    expect(result.steps.map((s) => s.simulatedMs)).toEqual([1007, 2007, 3007, 4007, 5007]);
+    expect("wasted" in (result.steps[3] ?? {})).toBe(true);
+    expect(result.simulatedMs).toBe(1007 + 2007 + 3007 + 4007 + 5007);
+  });
+
+  test("a run recorded before s2-09 has no simulatedMs, on the run or on a step", () => {
+    const old = runResultFromEvents(retimed(() => undefined));
+    expect(old).not.toHaveProperty("simulatedMs");
+    for (const step of old.steps) expect(step).not.toHaveProperty("simulatedMs");
+    expect(RunResult.safeParse(old).success).toBe(true);
+  });
+
+  test("a time of 0 is a time: the run's sum is 0, not absent", () => {
+    const result = runResultFromEvents(retimed(() => 0));
+    expect(result.simulatedMs).toBe(0);
   });
 });
 

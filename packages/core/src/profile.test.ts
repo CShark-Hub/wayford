@@ -50,7 +50,10 @@ const TABLE_WORD: Record<string, string> = {
   budgetSeconds: "budget",
 };
 
-/** A fixture's numbers as its row would state them: a threshold with softness reads `N soft`. */
+/**
+ * A fixture's numbers as its row would state them: a threshold with softness reads `N soft`, and a
+ * pace knob of B3's clock reads its factor, `thinkingTime 2`.
+ */
 function fixtureNumbers(profile: Profile): Record<string, string> {
   const numbers: Record<string, string> = {};
   for (const metric of METRIC_NAMES) {
@@ -60,7 +63,9 @@ function fixtureNumbers(profile: Profile): Record<string, string> {
     numbers[TABLE_WORD[metric] ?? metric] = `${cut.threshold}${soft}`;
   }
   for (const [field, value] of Object.entries(profile.behaviour)) {
-    if (value !== undefined) numbers[TABLE_WORD[field] ?? field] = `${value}`;
+    if (value === undefined) continue;
+    const stated = typeof value === "object" && "factor" in value ? value.factor : value;
+    numbers[TABLE_WORD[field] ?? field] = `${stated}`;
   }
   return numbers;
 }
@@ -160,6 +165,19 @@ describe("Profile schema", () => {
     ]);
   });
 
+  test.each(["thinkingTime", "motorTime"] as const)(
+    "a %s without provenance is rejected, like a threshold without one",
+    (knob) => {
+      const result = Behaviour.safeParse({ budgetSeconds: 120, [knob]: { factor: 2 } });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues).toEqual([
+        expect.objectContaining({ path: [knob, "provenance"] }),
+      ]);
+      const unknown = { factor: 2, provenance: "vibes" };
+      expect(Behaviour.safeParse({ budgetSeconds: 120, [knob]: unknown }).success).toBe(false);
+    },
+  );
+
   test("emulation defaults to none", () => {
     expect(Perception.parse({}).emulation).toBe("none");
   });
@@ -258,11 +276,40 @@ describe("fixtures", () => {
   test("every provenance id used by a fixture exists in docs/RULES.md", () => {
     const registry = readFileSync(RULES_MD, "utf8");
     for (const fixture of profileFixtures) {
-      for (const threshold of Object.values(fixture.perception)) {
-        if (threshold === undefined || typeof threshold === "string") continue;
-        expect(registry).toContain(`\`${threshold.provenance}\``);
+      const { misclick, thinkingTime, motorTime } = fixture.behaviour;
+      for (const sourced of [
+        ...Object.values(fixture.perception),
+        misclick,
+        thinkingTime,
+        motorTime,
+      ]) {
+        if (sourced === undefined || typeof sourced === "string") continue;
+        expect(registry).toContain(`\`${sourced.provenance}\``);
       }
     }
+  });
+
+  test("Vera and Zoya set a pace for B3's clock, folk since no source gives one", () => {
+    const vera = profileFixture("prof_vera");
+    expect(vera.behaviour.thinkingTime).toEqual({ factor: 2, provenance: "folk" });
+    expect(vera.behaviour.motorTime).toEqual({ factor: 1.5, provenance: "folk" });
+    const zoya = profileFixture("prof_zoya");
+    expect(zoya.behaviour.thinkingTime).toEqual({ factor: 3, provenance: "folk" });
+    expect(zoya.behaviour.motorTime).toEqual({ factor: 2, provenance: "folk" });
+  });
+
+  test("Ada, Kai and Milo keep the norm's pace: they set no knob", () => {
+    for (const id of ["prof_ada", "prof_kai", "prof_milo"]) {
+      const { behaviour } = profileFixture(id);
+      expect(behaviour.thinkingTime, id).toBeUndefined();
+      expect(behaviour.motorTime, id).toBeUndefined();
+    }
+  });
+
+  test("a pace knob switches no filter dimension on, so the count ignores it", () => {
+    const zoya = profileFixture("prof_zoya");
+    const { thinkingTime: _thinking, motorTime: _motor, ...normPace } = zoya.behaviour;
+    expect(constraintCount(zoya)).toBe(constraintCount({ ...zoya, behaviour: normPace }));
   });
 
   test("Vera: blurredVision, and hamburger, kebab and breadcrumb unknown", () => {

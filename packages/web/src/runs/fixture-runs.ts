@@ -4,17 +4,23 @@
  * tests import this list to feed the pure functions or to seed a `QueryClient`.
  *
  * `fixtureRuns` is `runResultFixture` first, then one variant of it per row below: another id,
- * persona, task, seed, outcome and duration, re-parsed with `RunResult`. Every variant keeps the
- * fixture's five steps, cost and recording paths, so only what the table and the filters read
- * differs.
+ * persona, task, seed, outcome and wall-clock duration, re-parsed with `RunResult`. Every variant
+ * keeps the fixture's five steps, cost and recording paths, so only what the table and the filters
+ * read differs.
  *
  * The rows hold distinct cases: both tasks, all four outcomes, and a persona that is not bundled.
  * On `task_past-order`: Ada has an error beside her successes; every one of Milo's runs errored;
  * Vera and Zoya ran without arriving; `prof_guest`, not a bundled persona, got through twice.
  *
+ * Every variant but the one below keeps the fixture's simulated time too (B3's clock): its steps'
+ * times at Vera's pace and their sum, 16 476 ms, so a run's total is the sum of its steps, the one
+ * shape the fold stores. A test that needs another time builds its own run.
+ *
  * A budget run out names the limit that cut it off, as the loop records it since #196. Vera's ran
- * out of time, at her 120 s budget. Zoya's, at 120 s of her 180, hit the step cap, which is set to
- * the five steps it keeps: core holds a run the cap ended to exactly its cap.
+ * out of time at her 120 s budget on the wall clock, as every run did before s2-09, so it is stored
+ * as one: no simulated time on the run or on any step, the case where the fold gives no total.
+ * Zoya's, at 120 s of her 180, hit the step cap, which is set to the five steps it keeps: core
+ * holds a run the cap ended to exactly its cap.
  *
  * Ids read `run_<persona>-<hard|easy>-<n>`, numbered from 1 within each task and persona, and the
  * seed of a variant is its `n`. `run_vera-hard-1` keeps the fixture's seed, 424242.
@@ -66,15 +72,20 @@ const ROWS: readonly Row[] = [
 
 /**
  * The fixture run with one row's keys, parsed as io would parse a stored run. A run the step cap
- * ended has its cap set to its steps.
+ * ended has its cap set to its steps. A run the clock ended is one stored before s2-09: the
+ * fixture's steps sum to 16 476 ms, far short of Vera's 120 s, so only the wall clock could have
+ * cut them off, and core reads a `clock` run with no simulated time as just that.
  */
 function variant([id, profileId, taskId, seed, outcome, durationMs, limit]: Row): RunResult {
   const ended =
     limit === undefined
       ? {}
       : { limit, ...(limit === "steps" ? { maxSteps: runResultFixture.steps.length } : {}) };
+  const { simulatedMs: _total, ...untimed } = runResultFixture;
   return RunResult.parse({
-    ...runResultFixture,
+    ...(limit === "clock"
+      ? { ...untimed, steps: untimed.steps.map(({ simulatedMs: _time, ...step }) => step) }
+      : runResultFixture),
     id,
     profileId,
     taskId,

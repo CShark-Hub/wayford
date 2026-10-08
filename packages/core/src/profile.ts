@@ -55,6 +55,16 @@ export type PixelThreshold = z.infer<typeof PixelThreshold>;
 export const MotorThreshold = PixelThreshold.omit({ softness: true });
 export type MotorThreshold = z.infer<typeof MotorThreshold>;
 
+/**
+ * A pace knob of the simulated clock (B3, `docs/RULES.md` stage 7): how many times the norm's time
+ * the persona takes, 1 being the norm, the KLM's average user. Positive and finite. `provenance` as
+ * on a threshold: a factor no source gives says `folk`.
+ */
+export const TimeFactor = z
+  .object({ factor: z.number().positive(), provenance: ProvenanceId })
+  .strict();
+export type TimeFactor = z.infer<typeof TimeFactor>;
+
 // ---------------------------------------------------------------------------
 // Sections
 // ---------------------------------------------------------------------------
@@ -78,9 +88,10 @@ export type Perception = z.infer<typeof Perception>;
 
 /**
  * What the persona does with what reached it, plus the caps on how much reaches
- * it at all. The dice (B1, B2, B4) are rolled per action; the caps are
- * deterministic truncation applied by stages 5 and 6. They share a section
- * because a profile has three sections, not five.
+ * it at all. The dice (B1, B2, B4) are rolled per action; B3's budget is spent on
+ * a simulated clock, whose two pace knobs set how long the persona takes to
+ * decide and to move; the caps are deterministic truncation applied by stages 5
+ * and 6. They share a section because a profile has three sections, not five.
  *
  * Closed like the other sections, so a misspelt key such as `doubleclick`
  * fails instead of switching B1 off. A rule that needs a knob of its own adds
@@ -94,8 +105,12 @@ export const Behaviour = z
     scrollWhenStuck: Probability.optional(),
     /** B4: the motor limit. Absent, B4 never rolls. */
     misclick: MotorThreshold.optional(),
-    /** B3: wall-clock budget for the run, after which it ends `budget_exceeded`. */
+    /** B3: simulated seconds until the run ends `budget_exceeded` (`docs/RULES.md` stage 7). */
     budgetSeconds: z.number().int().positive(),
+    /** B3's pace to decide, a factor of the norm, 1 when absent (`docs/RULES.md`, "The pace"). */
+    thinkingTime: TimeFactor.optional(),
+    /** B3's motor pace, a factor of the norm, 1 when absent (`docs/RULES.md`, "The pace"). */
+    motorTime: TimeFactor.optional(),
     /** A1: how many elements survive the salience ordering. Absent is unlimited. */
     maxElements: z.number().int().positive().optional(),
     /** A3: how many entries of a list or menu are passed. Absent is unlimited. */
@@ -164,6 +179,8 @@ export function conflictingPatterns(profile: Pick<Profile, "knowledge">): UiPatt
 /**
  * How many dimensions of the filter a persona switches on: perception
  * thresholds, attention and memory caps, and patterns it does not recognise.
+ * No dice, budget or pace knob: they act on what the persona does, not on what
+ * reaches it.
  *
  * Not a severity score and not comparable across metrics — a 44 px target
  * threshold and a 3:1 contrast threshold constrain different things and cannot

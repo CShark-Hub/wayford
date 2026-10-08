@@ -39,6 +39,7 @@ Where that meets Wayford:
 
 - A Jev step has no narration: its `narration` is the empty string the reducer already gives it. A Jev run set has behaviour and no "why" text from the Actor. `AGENTS.md` already treats narration as interpretation after the fact, so nothing measured is lost.
 - B3 is wall-clock and counts model latency (`docs/RULES.md`). A Jev step takes a fraction of an LLM step, so the same budget allows many more steps. Budgets and time-based results are compared within one backend only.
+  - Note, 2026-10-08 (`s2-09`): B3 now runs on a simulated clock, which model latency does not reach (`docs/RULES.md`, "B3 in detail"). So budgets and time-based results compare across backends. The gate's wall time below is still `durationMs`, the wall clock.
 - A Jev run cannot fill a form. Tasks that need typing run on the LLM backend.
 - Jev is not documented as deterministic. A stored run replays exactly from its record; re-running the same seed calls Jev again and can draw differently if its probabilities moved.
 - `packages/core` gains one optional field. Everything existing stays valid. Showing the decision record in run detail and the report is week 4 work, and only if the gate passes.

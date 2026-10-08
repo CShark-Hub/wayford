@@ -175,10 +175,14 @@ describe("the header", () => {
     expect(h1Of(await render(`/runs/${RUN_ID}`))).toBe("Vera | 424242 | run_vera-hard-1");
   });
 
-  test("then the facts: outcome, duration, steps, cost, backend, actor, task and start", async () => {
-    expect(detailsOf(headerOf(await render(`/runs/${RUN_ID}`)))).toEqual({
+  test("then the facts: outcome, both clocks, steps, cost, backend, actor, task and start", async () => {
+    const facts = detailsOf(headerOf(await render(`/runs/${RUN_ID}`)));
+    // The persona's time and the tool's, each named, in that order.
+    expect(Object.keys(facts).slice(0, 3)).toEqual(["outcome", "simulated", "wall clock"]);
+    expect(facts).toEqual({
       outcome: "Gave up",
-      duration: "15.5 s",
+      simulated: "16.5 s",
+      "wall clock": "15.5 s",
       steps: "5",
       cost: "$0.0201, 8020 tokens in, 1180 out",
       backend: "llm",
@@ -204,6 +208,14 @@ describe("the header", () => {
       expect([...steps.matchAll(/data-outcome="([^"]*)"/g)].map((m) => m[1])).toEqual([kind]);
     },
   );
+
+  test("a run stored before simulated time reads — on the simulated clock, its wall clock still shown", async () => {
+    // As the fold stores one: no time on the run, and none on any step.
+    const { simulatedMs: _, steps, ...run } = runResultFixture;
+    const before = { ...run, steps: steps.map(({ simulatedMs: __, ...step }) => step) };
+    const html = await render(`/runs/${RUN_ID}`, RunResult.parse(before));
+    expect(detailsOf(headerOf(html))).toMatchObject({ simulated: "—", "wall clock": "15.5 s" });
+  });
 
   test("names the Jev model as the actor of a Jev run", async () => {
     const html = await render(`/runs/${fixtureJevRun.id}`, fixtureJevRun, { id: fixtureJevRun.id });

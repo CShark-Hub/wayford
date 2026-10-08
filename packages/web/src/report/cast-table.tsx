@@ -1,9 +1,10 @@
 /**
  * The report's cast table (`docs/design/screens/report.html`): one row per persona, in report
  * order, with its seeds, its two numbers side by side and never merged (`docs/DESIGN.md`,
- * Principle 4), the gap between them, and its median time. Route open is the filter's, counted
- * over every seed; got through is the agent's, counted over the runs that did not error, so a
- * crash never reads as the persona failing.
+ * Principle 4), the gap between them, and its median simulated time to get through (B3's clock),
+ * never the wall-clock median the report also keeps, which measures the model and the machine.
+ * Route open is the filter's, counted over every seed; got through is the agent's, counted over
+ * the runs that did not error, so a crash never reads as the persona failing.
  *
  * Every number opens the runs behind it: a seed cell its run, route open every run of the persona
  * on the goal (no runs filter selects route-open seeds), got through the runs that got through.
@@ -79,6 +80,25 @@ function PersonaCell({
   );
 }
 
+/**
+ * The median's cell: the median simulated time over the runs that got through, or "—" with why
+ * there is none: no run got through, or one that did carries no time, as runs stored before s2-09
+ * do not. `medianSimulatedMs` is absent on a report stored before it.
+ */
+function MedianCell({
+  successes,
+  median,
+}: {
+  successes: number;
+  median: number | null | undefined;
+}) {
+  if (successes === 0) return <NoValue reason="no run got through" className="mono" />;
+  if (median === null || median === undefined) {
+    return <NoValue reason="not timed: runs stored before simulated time" className="mono" />;
+  }
+  return <p className="mono text-ink">{formatSeconds(median)}</p>;
+}
+
 /** One persona's row. */
 function CastRow({
   taskId,
@@ -89,7 +109,7 @@ function CastRow({
   result: PersonaResult;
   picked: boolean;
 }) {
-  const { profileId, seeds, runs, errors, successes, routeOpenSeeds, medianSuccessMs } = result;
+  const { profileId, seeds, runs, errors, successes, routeOpenSeeds, medianSimulatedMs } = result;
   const counted = runs - errors;
   const name = personaLabel(profileId);
   return (
@@ -134,11 +154,7 @@ function CastRow({
         <GapBar seeds={seeds} />
       </td>
       <td className={cn(CELL, "text-right")}>
-        {medianSuccessMs === null ? (
-          <NoValue reason="no run got through" className="mono" />
-        ) : (
-          <p className="mono text-ink">{formatSeconds(medianSuccessMs)}</p>
-        )}
+        <MedianCell successes={successes} median={medianSimulatedMs} />
       </td>
     </tr>
   );
@@ -173,7 +189,7 @@ export function CastTable({ report, picked }: { report: Report; picked: string |
             <p>gap</p>
           </th>
           <th scope="col" className={cn(HEAD, "text-right")}>
-            <p>median time</p>
+            <p>median simulated time</p>
           </th>
         </tr>
       </thead>

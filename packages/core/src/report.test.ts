@@ -114,6 +114,16 @@ describe("fixtures", () => {
     expect(report.unevidencedClosures).toEqual([]);
   });
 
+  test("every persona carries a simulated median: null without a success, a time with one", () => {
+    for (const report of reportFixtures) {
+      for (const result of report.personas) {
+        const what = `${report.taskId} ${result.profileId}`;
+        if (result.successes === 0) expect(result.medianSimulatedMs, what).toBeNull();
+        else expect(result.medianSimulatedMs, what).toBeGreaterThan(0);
+      }
+    }
+  });
+
   test("no fixture describes a persona as impaired, or claims to predict people", () => {
     const banned = ["impaired", "disabled", "blind", "can't see", "cannot see", "predict"];
     const source = JSON.stringify(reportFixtures).toLowerCase();
@@ -175,6 +185,29 @@ describe("PersonaResult", () => {
     expect(issues(PersonaResult, { ...vera(), medianSuccessMs: 30_000 })).toEqual([
       "medianSuccessMs is null exactly when there is no success",
     ]);
+  });
+
+  test("the simulated median is null when nothing got through", () => {
+    expect(vera().successes).toBe(0);
+    expect(vera().medianSimulatedMs).toBeNull();
+    expect(issues(PersonaResult, { ...vera(), medianSimulatedMs: 9_000 })).toEqual([
+      "medianSimulatedMs is null when there is no success",
+    ]);
+    expect(issues(PersonaResult, { ...vera(), medianSimulatedMs: 0 })).toEqual([
+      "medianSimulatedMs is null when there is no success",
+    ]);
+  });
+
+  test("the simulated median may be null beside a success: no successful run carried a time", () => {
+    expect(ada().successes).toBeGreaterThan(0);
+    expect(issues(PersonaResult, { ...ada(), medianSimulatedMs: null })).toEqual([]);
+  });
+
+  test("the simulated median is absent on a report stored before s2-09", () => {
+    for (const result of [ada(), vera()]) {
+      const { medianSimulatedMs: _median, ...stored } = result;
+      expect(issues(PersonaResult, stored)).toEqual([]);
+    }
   });
 });
 

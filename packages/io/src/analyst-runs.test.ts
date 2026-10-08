@@ -34,6 +34,7 @@ function run(
     sweep?: RunSweep;
     outcome?: FinishedOutcome;
     durationMs?: number;
+    simulatedMs?: number;
   },
 ): RunResult {
   const { id, ...rest } = options;
@@ -177,7 +178,7 @@ describe("personaResults", () => {
 
   test("counts each persona's runs, successes and errors, seeds ascending", () => {
     const chosen = [
-      run(vera, 3, { id: "run_vera-3", outcome: "success", durationMs: 3000 }),
+      run(vera, 3, { id: "run_vera-3", outcome: "success", durationMs: 3000, simulatedMs: 4043 }),
       run(vera, 1, { id: "run_vera-1", outcome: "gave_up" }),
       run(vera, 2, { id: "run_vera-2", outcome: "budget_exceeded" }),
     ];
@@ -191,6 +192,7 @@ describe("personaResults", () => {
       successes: 1,
       routeOpenSeeds: null,
       medianSuccessMs: 3000,
+      medianSimulatedMs: 4043,
       seeds: [
         { seed: 1, runId: "run_vera-1", outcome: "gave_up", openRoutes: null },
         { seed: 2, runId: "run_vera-2", outcome: "budget_exceeded", openRoutes: null },
@@ -249,5 +251,40 @@ describe("personaResults", () => {
       successes: 0,
       medianSuccessMs: null,
     });
+  });
+
+  test("the simulated median is over every success's simulated time", () => {
+    const timed = (times: number[]) =>
+      times.map((simulatedMs, i) =>
+        run(vera, i + 1, { id: `run_vera-${i + 1}`, outcome: "success", simulatedMs }),
+      );
+    const median = (chosen: RunResult[]) => resultsOf(chosen)[0]?.medianSimulatedMs;
+    expect(median(timed([3000, 1000, 2000]))).toBe(2000);
+    expect(median(timed([4000, 1000, 3000, 2000]))).toBe(2500);
+    // Not over the runs that did not succeed, timed or not.
+    const stuck = run(vera, 9, { id: "run_vera-9", outcome: "budget_exceeded", simulatedMs: 9000 });
+    expect(median([...timed([1000]), stuck])).toBe(1000);
+  });
+
+  test("the simulated median is null when any success lacks a time, and with no success", () => {
+    // A success stored before s2-09 has no simulated time. A median over the rest would read
+    // "3/3, median 2.0 s" resting on two runs, so the median is null and the wall one stays.
+    const timed = [1000, 3000].map((simulatedMs, i) =>
+      run(vera, i + 1, { id: `run_vera-${i + 1}`, outcome: "success", simulatedMs }),
+    );
+    const untimed = run(vera, 8, { id: "run_vera-8", outcome: "success", durationMs: 8000 });
+    const [withUntimed] = resultsOf([...timed, untimed]);
+    expect(withUntimed).toMatchObject({ successes: 3, medianSimulatedMs: null });
+    expect(withUntimed?.medianSuccessMs).toBe(1000);
+    expect(PersonaResult.safeParse(withUntimed).success).toBe(true);
+    const [onlyUntimed] = resultsOf([
+      run(vera, 1, { id: "run_vera-1", outcome: "success", durationMs: 4000 }),
+    ]);
+    expect(onlyUntimed).toMatchObject({ medianSuccessMs: 4000, medianSimulatedMs: null });
+    expect(PersonaResult.safeParse(onlyUntimed).success).toBe(true);
+    const stuck = run(vera, 2, { id: "run_vera-2", outcome: "gave_up", simulatedMs: 6000 });
+    const [noSuccess] = resultsOf([stuck]);
+    expect(noSuccess).toMatchObject({ successes: 0, medianSimulatedMs: null });
+    expect(PersonaResult.safeParse(noSuccess).success).toBe(true);
   });
 });

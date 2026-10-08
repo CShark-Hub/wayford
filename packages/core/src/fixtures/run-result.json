@@ -125,6 +125,7 @@
       },
       "screenshotPath": "runs/run_vera-hard-1/step-0.png",
       "urlBefore": "http://localhost:5174/",
+      "simulatedMs": 4182,
       "urlAfter": "http://localhost:5174/deliveries"
     },
     {
@@ -296,6 +297,7 @@
       },
       "screenshotPath": "runs/run_vera-hard-1/step-1.png",
       "urlBefore": "http://localhost:5174/deliveries",
+      "simulatedMs": 3120,
       "urlAfter": "http://localhost:5174/deliveries"
     },
     {
@@ -428,6 +430,7 @@
       },
       "screenshotPath": "runs/run_vera-hard-1/step-2.png",
       "urlBefore": "http://localhost:5174/deliveries",
+      "simulatedMs": 3774,
       "urlAfter": "http://localhost:5174/settings"
     },
     {
@@ -489,6 +492,7 @@
       "startedAt": "2026-09-22T10:00:10.000Z",
       "endedAt": "2026-09-22T10:00:12.000Z",
       "urlBefore": "http://localhost:5174/settings",
+      "simulatedMs": 2700,
       "wasted": true,
       "rejected": [
         {
@@ -572,6 +576,7 @@
       "endedAt": "2026-09-22T10:00:15.000Z",
       "screenshotPath": "runs/run_vera-hard-1/step-4.png",
       "urlBefore": "http://localhost:5174/settings",
+      "simulatedMs": 2700,
       "proposedAction": {
         "type": "giveUp"
       },
@@ -589,6 +594,7 @@
   ],
   "outcome": "gave_up",
   "durationMs": 15500,
+  "simulatedMs": 16476,
   "videoPath": "runs/run_vera-hard-1/video.webm",
   "tracePath": "runs/run_vera-hard-1/trace.zip",
   "cost": {

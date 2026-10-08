@@ -108,19 +108,39 @@ describe("the persona rows", () => {
     );
   });
 
-  test("runs, errors, got through, route open and median on the hard goal", () => {
+  test("runs, errors, got through, route open and the simulated median on the hard goal", () => {
     expect(personaRows(reportText(hard))).toStrictEqual([
-      ["Ada", "3", "0", "3/3", "3/3", "10.4 s"],
-      ["Kai", "3", "0", "1/3", "3/3", "31.6 s"],
+      ["Ada", "3", "0", "3/3", "3/3", "4.5 s"],
+      ["Kai", "3", "0", "1/3", "3/3", "11.2 s"],
       ["Vera", "3", "0", "0/3", "1/3", "—"],
     ]);
   });
 
   test("a null route-open count reads —, and an error run is kept out of got through", () => {
     expect(personaRows(reportText(easy))).toStrictEqual([
-      ["Ada", "2", "0", "2/2", "—", "9.0 s"],
-      ["Kai", "2", "0", "1/2", "—", "27.3 s"],
-      ["Vera", "2", "1", "1/1", "—", "15.8 s"],
+      ["Ada", "2", "0", "2/2", "—", "4.4 s"],
+      ["Kai", "2", "0", "1/2", "—", "9.0 s"],
+      ["Vera", "2", "1", "1/1", "—", "12.4 s"],
+    ]);
+  });
+
+  test("the last column is the simulated median, so a report stored before s2-09 reads —", () => {
+    const text = reportText(hard);
+    expect(
+      blocksOf(text)
+        .find((block) => block.startsWith("persona"))
+        ?.split("\n")[0],
+    ).toMatch(/\s{2}median simulated time to success$/);
+    // The wall-clock median is kept in the report as evidence, and the table never shows it.
+    expect(text).not.toContain("10.4 s");
+    const older: Report = {
+      ...hard,
+      personas: hard.personas.map(({ medianSimulatedMs: _, ...result }) => result),
+    };
+    expect(personaRows(reportText(older)).map((cells) => cells.at(-1))).toStrictEqual([
+      "—",
+      "—",
+      "—",
     ]);
   });
 

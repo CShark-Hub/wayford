@@ -85,7 +85,8 @@
     "proposedAction": { "type": "click", "ref": "e3" },
     "performedAction": { "type": "click", "ref": "e3" },
     "dice": [{ "rule": "B1", "p": 0.8, "rolled": 0.91, "fired": false }],
-    "cost": { "tokensIn": 1100, "tokensOut": 210, "usd": 0.0032 }
+    "cost": { "tokensIn": 1100, "tokensOut": 210, "usd": 0.0032 },
+    "simulatedMs": 4182
   },
   {
     "type": "actionPerformed",
@@ -213,7 +214,8 @@
     "proposedAction": { "type": "scroll", "direction": "down" },
     "performedAction": { "type": "scroll", "direction": "down" },
     "dice": [],
-    "cost": { "tokensIn": 1220, "tokensOut": 230, "usd": 0.0036 }
+    "cost": { "tokensIn": 1220, "tokensOut": 230, "usd": 0.0036 },
+    "simulatedMs": 3120
   },
   {
     "type": "actionPerformed",
@@ -313,7 +315,8 @@
     "proposedAction": { "type": "click", "ref": "e2" },
     "performedAction": { "type": "doubleClick", "ref": "e2" },
     "dice": [{ "rule": "B1", "p": 0.8, "rolled": 0.62, "fired": true }],
-    "cost": { "tokensIn": 1340, "tokensOut": 220, "usd": 0.0037 }
+    "cost": { "tokensIn": 1340, "tokensOut": 220, "usd": 0.0037 },
+    "simulatedMs": 3774
   },
   {
     "type": "actionPerformed",
@@ -374,7 +377,8 @@
         "action": { "type": "click", "ref": "e5" }
       }
     ],
-    "cost": { "tokensIn": 2900, "tokensOut": 300, "usd": 0.0058 }
+    "cost": { "tokensIn": 2900, "tokensOut": 300, "usd": 0.0058 },
+    "simulatedMs": 2700
   },
   {
     "type": "stepObserved",
@@ -427,7 +431,8 @@
     "proposedAction": { "type": "giveUp" },
     "performedAction": { "type": "giveUp" },
     "dice": [],
-    "cost": { "tokensIn": 1460, "tokensOut": 220, "usd": 0.0038 }
+    "cost": { "tokensIn": 1460, "tokensOut": 220, "usd": 0.0038 },
+    "simulatedMs": 2700
   },
   {
     "type": "actionPerformed",

@@ -47,8 +47,8 @@ export const LENIENT_SETTLE_TIMEOUT_MS = 10_000;
 /**
  * One attempt's bound off the target app (#190). On cshark.com, five runs at once, each recording
  * its video and trace, a step's screenshot alone took 8.5 to 11.4 s. A page whose main thread
- * never yields still ends the run, only later. A slow step still spends the persona's wall-clock
- * budget (B3).
+ * never yields still ends the run, only later. A slow step costs only wall time (`durationMs`): the
+ * persona's budget (B3) is on the simulated clock, which no wait reaches.
  */
 const LENIENT_ATTEMPT_TIMEOUT_MS = LENIENT_SETTLE_TIMEOUT_MS + 20_000;
 

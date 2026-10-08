@@ -5,7 +5,7 @@
  * geometry alone decides where the click lands, so a seed reproduces it.
  */
 import type { Bbox, ElementRef, FullObservation } from "@wayford/core";
-import { actionPoint } from "./act.js";
+import { actionPoint, type Point } from "./act.js";
 
 /** k in p = erf(k) − erf(k · W / L): ISO 9241-9's 4.133 standard deviations, halved, over √2. */
 const MISS_SCALE = 4.133 / (2 * Math.SQRT2);
@@ -52,9 +52,6 @@ export interface Misclick {
   p: number;
   neighbour: ElementRef;
 }
-
-/** A point in the viewport, in CSS px. */
-type Point = ReturnType<typeof actionPoint>;
 
 /**
  * B4 for a click on `ref` in the step's evidence, the neighbour chosen as RULES' "Where a miss

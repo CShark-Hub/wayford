@@ -208,7 +208,7 @@ describe("the run table", () => {
     }
   });
 
-  test("a row reads persona, goal, outcome, seed, duration, steps, cost and run id", async () => {
+  test("a row reads persona, goal, outcome, seed, simulated time, steps, cost and run id", async () => {
     const html = await render("/runs");
     expect(html).toMatch(/<h1[^>]*>Runs<\/h1>/);
     expect(headRow(html)).toEqual([
@@ -216,33 +216,46 @@ describe("the run table", () => {
       "Goal",
       "Outcome",
       "Seed",
-      "Duration",
+      "Simulated",
       "Steps",
       "Cost",
       "Run",
     ]);
     const rows = bodyRows(html);
+    // The run's simulated time, 16.5 s, not its 15.5 s on the wall clock.
     expect(rows[0]).toEqual([
       "Vera",
       HARD_GOAL,
       "Gave up",
       "424242",
-      "15.5 s",
+      "16.5 s",
       "5",
       "$0.0201",
       "run_vera-hard-1",
     ]);
-    // A persona that is not bundled reads as its id.
+    // A persona that is not bundled reads as its id. 30 s on the wall clock, the fixture's 16.5 s
+    // simulated.
     expect(rows.find((row) => row.at(-1) === "run_guest-easy-1")).toEqual([
       "prof_guest",
       EASY_GOAL,
       "Gave up",
       "1",
-      "30 s",
+      "16.5 s",
       "5",
       "$0.0201",
       "run_guest-easy-1",
     ]);
+  });
+
+  test("a run stored before simulated time reads — in its time cell", async () => {
+    const rows = bodyRows(await render("/runs"));
+    const simulated = (id: string) => rows.find((row) => row.at(-1) === id)?.[4];
+    const before = fixtureRuns.find((run) => run.id === "run_vera-hard-3");
+    // Untimed through and through, the one shape the fold gives no total for.
+    expect(before).not.toHaveProperty("simulatedMs");
+    for (const step of before?.steps ?? []) expect(step).not.toHaveProperty("simulatedMs");
+    expect(simulated("run_vera-hard-3")).toBe("—");
+    expect(simulated("run_zoya-hard-1")).toBe("16.5 s");
   });
 
   test("a budget run names the limit that cut it off", async () => {

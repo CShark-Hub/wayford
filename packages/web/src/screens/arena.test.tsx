@@ -248,7 +248,8 @@ describe("/race/$raceId: one race, by the id io gave it", () => {
       client.setQueryData(runQuery(vera.id).queryKey, runResultFromEvents(runEventFixtures));
       client.setQueryData(runQuery(ada.id).queryKey, null);
     });
-    expect(lineOf(tileOf(html, vera))).toMatch(/Gave up 0:15\.5 5 steps/);
+    // Her record's simulated time, 16.5 s, not its 15.5 s on the wall clock.
+    expect(lineOf(tileOf(html, vera))).toMatch(/Gave up 0:16\.5 5 steps/);
     expect(lineOf(tileOf(html, ada))).toContain(
       "Stream lost — no steps stored No record: the run never started, or io stopped or failed to store it",
     );

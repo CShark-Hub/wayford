@@ -42,6 +42,9 @@ const NAVIGATION_QUIET_MS = 100;
  */
 const ACTION_TIMEOUT_MS = 30_000;
 
+/** A point in the viewport, in CSS px. */
+export type Point = { x: number; y: number };
+
 /**
  * Where an action on an element lands: the centre of the part of its box inside the viewport,
  * `[0, width) × [0, height)` in CSS px, unrounded, as `page.mouse` takes it. A box straddling the
@@ -51,7 +54,7 @@ const ACTION_TIMEOUT_MS = 30_000;
  * is empty only for a box of no width or height. Then the box's centre is clamped into the
  * viewport, to its last whole pixel at most, so the action still lands on the page.
  */
-export function actionPoint(box: Bbox, viewport: Viewport): { x: number; y: number } {
+export function actionPoint(box: Bbox, viewport: Viewport): Point {
   const left = Math.max(box.x, 0);
   const right = Math.min(box.x + box.width, viewport.width);
   const top = Math.max(box.y, 0);

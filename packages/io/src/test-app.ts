@@ -533,6 +533,11 @@ interface StoredRunOptions {
   runId?: RunId;
   /** One second per step when absent, as the events are stamped. */
   durationMs?: number;
+  /**
+   * The run's simulated time (B3), all of it on the last step's `actionPlanned`, so the fold sums
+   * it back. None when absent, as on a run stored before s2-09.
+   */
+  simulatedMs?: number;
 }
 
 /** When every `storedRun` starts: its events are stamped one second per step from here. */
@@ -547,10 +552,12 @@ const STORED_RUN_START = Date.parse("2026-10-05T12:00:00.000Z");
  * The run starts on the target app's defaults and ends `runFinished` with `outcome`.
  */
 export function storedRun(options: StoredRunOptions): RunResult {
-  const { profile, seed, steps } = options;
+  const { profile, seed, steps, simulatedMs } = options;
   const task = options.task ?? taskFixture("task_past-order");
   const runId = options.runId ?? newId("run");
   const at = (second: number) => new Date(STORED_RUN_START + second * 1000).toISOString();
+  const stepMs = (stepIndex: number) =>
+    simulatedMs === undefined || stepIndex !== steps.length - 1 ? {} : { simulatedMs };
   const events: RunEvent[] = [
     {
       type: "runStarted",
@@ -578,6 +585,7 @@ export function storedRun(options: StoredRunOptions): RunResult {
       performedAction: SCROLL_DOWN,
       dice: [],
       cost: NO_COST,
+      ...stepMs(stepIndex),
     });
     const urlAfter = steps[stepIndex + 1]?.observation.url ?? observation.url;
     events.push({ ...base, type: "actionPerformed", urlAfter });

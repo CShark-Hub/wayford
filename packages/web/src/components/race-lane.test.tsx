@@ -248,6 +248,17 @@ describe("the right column", () => {
     expect(words.indexOf("0:15.5")).toBeLessThan(words.indexOf("5 steps"));
   });
 
+  test("the clock reads as given, in readout, and is a timer named as simulated time", () => {
+    for (const clock of ["0:15.5", "—"]) {
+      const attributes = tagReading(lane({ clock }), "span", clock);
+      expect(classesOf(attributes), clock).toContain("readout");
+      // A timer, which may carry a name where a plain span may not; its updates are not announced.
+      expect(attributes.role, clock).toBe("timer");
+      expect(attributes["aria-live"], clock).toBeUndefined();
+      expect(attributes["aria-label"], clock).toBe(`simulated time ${clock}`);
+    }
+  });
+
   test("links to the run's detail once given its id, last, a 32 px target named by its words", () => {
     const html = lane({ outcome: "gaveUp", steps: "5 steps", runId: "run_vera-hard-1" });
     const [link, ...more] = [...html.matchAll(/(<a\s[^>]*>)(.*?)<\/a>/gs)];

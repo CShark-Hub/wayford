@@ -21,6 +21,7 @@ export const PROVENANCE_IDS = [
   "hig",
   "material",
   "fitts",
+  "klm",
   "iso9241",
   "hick",
   "cowan2001",

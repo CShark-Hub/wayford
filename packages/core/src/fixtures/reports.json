@@ -23,6 +23,7 @@
         "successes": 3,
         "routeOpenSeeds": 3,
         "medianSuccessMs": 10400,
+        "medianSimulatedMs": 4490,
         "seeds": [
           {
             "seed": 1,
@@ -51,6 +52,7 @@
         "successes": 1,
         "routeOpenSeeds": 3,
         "medianSuccessMs": 31600,
+        "medianSimulatedMs": 11230,
         "seeds": [
           {
             "seed": 1,
@@ -79,6 +81,7 @@
         "successes": 0,
         "routeOpenSeeds": 1,
         "medianSuccessMs": null,
+        "medianSimulatedMs": null,
         "seeds": [
           {
             "seed": 1,
@@ -198,6 +201,7 @@
         "successes": 2,
         "routeOpenSeeds": null,
         "medianSuccessMs": 9000,
+        "medianSimulatedMs": 4380,
         "seeds": [
           {
             "seed": 1,
@@ -220,6 +224,7 @@
         "successes": 1,
         "routeOpenSeeds": null,
         "medianSuccessMs": 27300,
+        "medianSimulatedMs": 8960,
         "seeds": [
           {
             "seed": 1,
@@ -242,6 +247,7 @@
         "successes": 1,
         "routeOpenSeeds": null,
         "medianSuccessMs": 15800,
+        "medianSimulatedMs": 12450,
         "seeds": [
           {
             "seed": 1,

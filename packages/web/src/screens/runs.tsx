@@ -161,7 +161,8 @@ const COLUMNS = [
   { name: "Goal", number: false },
   { name: "Outcome", number: false },
   { name: "Seed", number: true },
-  { name: "Duration", number: true },
+  // The persona's time, B3's clock, not the wall clock: run detail shows both.
+  { name: "Simulated", number: true },
   { name: "Steps", number: true },
   { name: "Cost", number: true },
   { name: "Run", number: false },
@@ -177,8 +178,9 @@ const TEXT_LINK =
   "inline-flex min-h-(--target-min) items-center text-ink underline underline-offset-4";
 
 /**
- * One run. The row holds the run's record, so a budget run out names its limit. The goal opens its
- * task's report, where success and median time per persona live; the run id opens the run.
+ * One run. The row holds the run's record, so a budget run out names its limit. Its time is the
+ * run's simulated time, "—" on a run stored before s2-09, which has none. The goal opens its task's
+ * report, where success and median time per persona live; the run id opens the run.
  */
 function RunRow({ run, goal }: { run: RunResult; goal: string | undefined }) {
   return (
@@ -205,7 +207,9 @@ function RunRow({ run, goal }: { run: RunResult; goal: string | undefined }) {
         <p className="mono text-ink">{run.seed}</p>
       </td>
       <td className={NUMBER}>
-        <p className="mono text-ink">{formatSeconds(run.durationMs)}</p>
+        <p className="mono text-ink">
+          {run.simulatedMs === undefined ? "—" : formatSeconds(run.simulatedMs)}
+        </p>
       </td>
       <td className={NUMBER}>
         <p className="mono text-ink">{run.steps.length}</p>

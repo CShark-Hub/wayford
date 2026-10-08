@@ -27,6 +27,12 @@ behaviour:
   doubleClick: 0.9
   scrollWhenStuck: 0.3
   budgetSeconds: 180
+  thinkingTime:
+    factor: 3
+    provenance: folk
+  motorTime:
+    factor: 2
+    provenance: folk
   maxElements: 5
   maxOptions: 4
   memorySteps: 2

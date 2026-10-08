@@ -108,8 +108,10 @@ function later(index: number, stepIndex: number, changes: object = {}): RunEvent
 
 /**
  * Vera's run with a second wasted step: step 4 is wasted on /settings as step 3 was, and her
- * give-up moves to step 5, 3 s later, at 18.5 s. Steps 3 and 4 both left the page as it was, so
- * she is stuck once step 5's observation arrives (event 17) until the run ends (event 21).
+ * give-up moves to step 5, 3 s later on the wall clock, at 18.5 s. On the simulated clock the
+ * wasted step costs what step 3's did, 2.7 s, so she gives up at 19.2 s. Steps 3 and 4 both left
+ * the page as it was, so she is stuck once step 5's observation arrives (event 17) until the run
+ * ends (event 21).
  */
 export const stuckRun: RunEvent[] = [
   // Steps 0 to 3, and step 4's observation: /settings, the page step 3 saw.

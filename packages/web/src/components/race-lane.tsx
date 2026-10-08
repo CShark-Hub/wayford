@@ -13,8 +13,8 @@
  *
  * That fit has a price. Over a detail line, one line holds about 75 characters of narration at
  * 1280, so a stuck, errored or lost lane cuts a longer narration short. A second narration line
- * there would make the lane 24 px taller. While the race is live its header is 18 px taller too, so
- * three such lanes would overflow 720 by 30 px.
+ * there would make the lane 24 px taller. Three such lanes in a live race, whose header holds the
+ * line on New race and the caption on the clocks, would end at 772 px, 52 px over 720.
  */
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
@@ -169,7 +169,10 @@ export function RaceLane({
    * never ended.
    */
   outcome: OutcomeKind;
-  /** "0:15.5", or "—" before the run started. */
+  /**
+   * The run's simulated time, "0:15.5", or "—" before its first timed step. Named "simulated
+   * time" to a screen reader; the Race's caption says it to the eye.
+   */
   clock: string;
   /** "5 steps so far" while the run is running, "5 steps" once it ended. */
   steps: string;
@@ -247,7 +250,16 @@ export function RaceLane({
       )}
       <div className="row-span-2 flex flex-col items-start gap-0.5">
         <Outcome kind={outcome} />
-        <span className="readout whitespace-nowrap text-ink">{clock}</span>
+        {/* A timer, so it may carry the name that says which clock it is, where a plain span may
+            not. A timer's updates are not announced: the finish order is what a screen reader
+            hears. */}
+        <span
+          className="readout whitespace-nowrap text-ink"
+          role="timer"
+          aria-label={`simulated time ${clock}`}
+        >
+          {clock}
+        </span>
         <span className="mono text-ink-3">{steps}</span>
         {runId === undefined ? null : (
           // The lane's heading names the run the link opens: it is the link's context.

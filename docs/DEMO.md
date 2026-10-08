@@ -280,7 +280,7 @@ The same three stored tasks, personas, seeds and backend, posted one goal at a t
   - Kai: `run_01m4b8ejp1ykvpdfsmb998d0fq`, `run_01m4b8ejp18va2hvtn53e5nshb`, `run_01m4b8ejp1j738104mrpvpmx0j`.
   - Vera: `run_01m4b8ejp14w7d0yhpp2jqpyhk`, `run_01m4b8ejp1jrveawvmh08jjymf`, `run_01m4b8ejp19x2hy4kesqjf2p8x`.
 - **Report:** Ada 3/3, median 100 s. Kai 0/3. Vera 1/3, median 132 s. One hypothesis finding: repeated "Careers" activation leaves "Job Offers" unselected.
-- Vera's seed 1 success at 132 s is past her 120 s budget. It stands: the clock is read once a step's action is planned, and success is checked before the budget at the end of the step (`packages/agent/src/actor-loop.ts`, `runActor`). With the 30 s bound off the target app (#190), a step planned just inside the budget can land well past it.
+- Vera's seed 1 success at 132 s is past her 120 s budget. It stands, under B3 as it was before `s2-09`, on the wall clock: the clock is read once a step's action is planned, and success is checked before the budget at the end of the step (`packages/agent/src/actor-loop.ts`, `runActor`). With the 30 s bound off the target app (#190), a step planned just inside the budget can land well past it.
 
 **The re-run hits neither blocking gap:**
 

@@ -14,8 +14,9 @@
  * Between the answer and the plan, stage 7's dice may rewrite the action proposed (`behaviour.ts`),
  * each roll the next draw of one behaviour stream per run, `rng(run seed)`, so a stored run replays
  * its rolls. The history the Actor reads holds only as many steps as the persona remembers (M1,
- * `history.ts`), every model call of a run is sent one provider seed (`providerSeedFor`), and the
- * persona's wall-clock budget (B3) ends a run `budget_exceeded`, read from a clock a test can move.
+ * `history.ts`), and every model call of a run is sent one provider seed (`providerSeedFor`). The
+ * persona's budget (B3) ends a run `budget_exceeded` on a simulated clock (`docs/RULES.md` stage 7,
+ * "B3 in detail"; `simulated-time.ts`), not on the wall clock, which only stamps the record.
  *
  * The loop derives all three per-run streams from the seed, here and nowhere else: the behaviour
  * stream, the provider seed, and the decision stream (`decisionDrawFor`), from which a backend that
@@ -51,7 +52,7 @@ import { collect, perceive } from "@wayford/filter";
 import type { Logger } from "pino";
 import type { Browser } from "playwright";
 import { z } from "zod";
-import { type Arrival, performAction } from "./act.js";
+import { type Arrival, type Point, performAction } from "./act.js";
 import {
   type ActorAnswer,
   type ActorBackend,
@@ -65,6 +66,7 @@ import { type HistoryStep, oneLine, repeats } from "./history.js";
 import { LlmError } from "./llm.js";
 import { openRunContext, type RunContext, type RunRecording } from "./run-context.js";
 import { attemptTimeoutMs, retryOnNavigation, type Skipped, settle } from "./settle.js";
+import { type Pace, paceOf, plannedStepMs, wastedStepMs } from "./simulated-time.js";
 import { startUrlFor, type TargetAppParams } from "./start-url.js";
 import { checkSuccessCondition, type SuccessWatch, watchSuccess } from "./success.js";
 
@@ -124,9 +126,10 @@ export interface RunActorOptions {
   /** `DEFAULT_MAX_STEPS` when absent. */
   maxSteps?: number;
   /**
-   * The clock, in milliseconds since the epoch, `Date.now` when absent. The run reads every time
-   * through it: each event's timestamp, `durationMs`, and the persona's budget (B3), the one
-   * decision a clock makes, so a test moves it and never waits.
+   * The wall clock, in milliseconds since the epoch, `Date.now` when absent. The run reads every
+   * wall time through it, each event's timestamp and `durationMs`, and it decides nothing: the
+   * persona's budget (B3) is on the simulated clock, so a run ends the same whatever pace this one
+   * keeps, and a test can run it at any.
    */
   now?: () => number;
 }
@@ -137,11 +140,12 @@ export interface RunActorOptions {
  * Each step observes the page through the persona's filter, asks the backend for one action, rolls
  * the behaviour dice on it, carries out what they leave and records it. The run ends `success`
  * when the task's condition holds after an action, `gave_up` on a performed `giveUp`, and
- * `budget_exceeded` once `maxSteps` steps have run or the persona's `budgetSeconds` have passed
- * (B3). The clock is read once a step's action is planned, and a step past the budget there stays
- * planned and never performed; the cap and the clock are read again at the end of every step,
- * wasted ones included, after the other two checks. Any failure ends it `error`, with the step in
- * progress kept as far as its events went.
+ * `budget_exceeded` once `maxSteps` steps have run or the persona's `budgetSeconds` have passed on
+ * the simulated clock (B3). A step's simulated time is added to the run's once its action is
+ * planned, and a step whose time takes the run past the budget stays planned and is never
+ * performed; a wasted step's is added when it is wasted, and the cap and the budget are checked
+ * again at the end of every step, wasted ones included, after the other two checks. Any failure
+ * ends it `error`, with the step in progress kept as far as its events went.
  *
  * What a caller, s4-03 first, can rely on:
  * - A run that emitted `runStarted` ends with exactly one terminal event, `runFinished` or
@@ -264,6 +268,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
       ...(params === undefined ? {} : { params }),
     });
     watch = watchSuccess(run.page.context(), task.success);
+    const pace = paceOf(profile.behaviour);
     const loop: Loop = {
       run,
       watch,
@@ -275,6 +280,8 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
       lenient: params === undefined,
       maxSteps,
       draw,
+      pace,
+      wastedMs: wastedStepMs(pace),
       now,
       t0,
       logger,
@@ -293,7 +300,7 @@ export async function runActor(options: RunActorOptions): Promise<RunResult> {
     if (error instanceof LlmError) cost = addCost(cost, error.cost);
     ending = { error };
   }
-  // The persona's time ends here. Closing the run is the tool's.
+  // The run's wall time, `durationMs`, ends here. Closing the run is the tool's.
   const endMs = now();
   watch?.stop();
 
@@ -368,7 +375,14 @@ interface Loop {
   maxSteps: number;
   /** The run's behaviour stream, `rng(seed)`. */
   draw: () => number;
-  /** The run's clock, and its reading when `runStarted` was stamped, where `durationMs` starts. */
+  /** The persona's pace on B3's simulated clock: its two knobs, 1 where it sets none. */
+  pace: Pace;
+  /** A wasted step's simulated time at that pace, one M: what `stepWasted` carries and B3 adds. */
+  wastedMs: number;
+  /**
+   * The run's wall clock, and its reading when `runStarted` was stamped, where `durationMs` starts.
+   * Read for the record and the log alone: B3 reads the simulated clock.
+   */
   now: () => number;
   t0: number;
   logger: Logger;
@@ -387,6 +401,10 @@ interface Loop {
 async function walk(loop: Loop): Promise<Finish> {
   const { run } = loop;
   const history: HistoryStep[] = [];
+  // B3's simulated clock: the run's time so far, in whole ms, and the cursor's last point, where
+  // the next movement starts, undefined until the first press (`plannedStepMs`).
+  let simulatedMs = 0;
+  let cursor: Point | undefined;
   for (let k = 0; ; k++) {
     // B4 reads the target's size and the controls around it off the step's evidence, `full`;
     // the model is shown `shown` alone.
@@ -394,8 +412,10 @@ async function walk(loop: Loop): Promise<Finish> {
     const shown = toActorObservation(full);
     const answer = await ask(loop, k, shown, history);
     if (answer === undefined) {
-      // Nothing to roll on, so a wasted step draws nothing from the behaviour stream.
+      // Nothing to roll on, so a wasted step draws nothing from the behaviour stream. Its one M,
+      // which `ask` emitted, joins the run's time, and B3 reads it at the end of the step.
       history.push({ observation: shown, wasted: true });
+      simulatedMs += loop.wastedMs;
     } else {
       // 3. Plan: stage 7's dice on the action proposed, and what they leave is what is performed.
       const { action: proposed, narration } = answer.response;
@@ -403,6 +423,15 @@ async function walk(loop: Loop): Promise<Finish> {
       const { performed, dice } = behave(proposed, loop.profile.behaviour, loop.draw, {
         repeated: repeats(history, { observation: shown, proposed }),
         page: full,
+      });
+      // The step's time, decided once its action is planned: from the evidence, the two actions
+      // and where the cursor stands, at the persona's pace, never off a clock.
+      const timed = plannedStepMs({
+        proposed,
+        performed,
+        page: full,
+        from: cursor,
+        pace: loop.pace,
       });
       // A backend that drew the action says how, and the record keeps it beside the dice.
       loop.emit({
@@ -413,9 +442,12 @@ async function walk(loop: Loop): Promise<Finish> {
         dice,
         cost: answer.cost,
         ...(answer.decision === undefined ? {} : { decision: answer.decision }),
+        simulatedMs: timed.ms,
       });
-      // B3 before acting, so no late success is recorded: the step stays planned.
-      if (overBudget(loop)) return ranOut(loop, k, "clock");
+      simulatedMs += timed.ms;
+      cursor = timed.cursor;
+      // B3 before acting, so a success always lands inside the budget: the step stays planned.
+      if (overBudget(loop, simulatedMs)) return ranOut(loop, k, "clock", simulatedMs);
       // 4. Act.
       const arrival = await performAction(run, performed, shown);
       const met = await land(loop, k, arrival);
@@ -427,24 +459,29 @@ async function walk(loop: Loop): Promise<Finish> {
       if (performed.type === "giveUp") return { outcome: "gave_up" };
     }
     // 6. The cap, wasted steps included, so the same seed and answers end a capped run the same.
-    if (k + 1 >= loop.maxSteps) return ranOut(loop, k, "steps");
-    // B3 again, so a run of wasted steps ends on it too and no call is billed past it.
-    if (overBudget(loop)) return ranOut(loop, k, "clock");
+    if (k + 1 >= loop.maxSteps) return ranOut(loop, k, "steps", simulatedMs);
+    // B3 again, for a wasted step's time, so a run of wasted steps ends on it too and no call is
+    // billed past it. A planned step's time was checked before it acted.
+    if (overBudget(loop, simulatedMs)) return ranOut(loop, k, "clock", simulatedMs);
   }
 }
 
-/** B3: whether more than the persona's `budgetSeconds` have passed since `runStarted`. */
-function overBudget(loop: Loop): boolean {
-  return loop.now() - loop.t0 > loop.profile.behaviour.budgetSeconds * 1000;
+/**
+ * B3: whether the run's simulated time, `simulatedMs`, has passed the persona's `budgetSeconds`.
+ * Both are whole numbers, and the wall clock is not read.
+ */
+function overBudget(loop: Loop, simulatedMs: number): boolean {
+  return simulatedMs > loop.profile.behaviour.budgetSeconds * 1000;
 }
 
 /**
  * Ends the run `budget_exceeded` at step `k`, with the limit that cut it off, which `runFinished`
- * and the record keep (issue #196).
+ * and the record keep (issue #196). The log gives both clocks: the run's simulated time, which B3
+ * reads, and the wall time since `runStarted`, which decides nothing.
  */
-function ranOut(loop: Loop, k: number, limit: RunLimit): Finish {
+function ranOut(loop: Loop, k: number, limit: RunLimit, simulatedMs: number): Finish {
   const elapsedMs = loop.now() - loop.t0;
-  loop.logger.info({ step: k, elapsedMs, limit }, "the run reached its limit");
+  loop.logger.info({ step: k, simulatedMs, elapsedMs, limit }, "the run reached its limit");
   return { outcome: "budget_exceeded", limit };
 }
 
@@ -501,7 +538,8 @@ async function settled<T extends object>(
 /**
  * 2. Ask: the backend's answer for step `k`, and what the step's calls cost. An answer naming a
  * ref the page lacks gets one retry, which carries the refused answer and its ref. `undefined`
- * when the retry misses too: the step is wasted, and emitted so, with both answers as parsed.
+ * when the retry misses too: the step is wasted, and emitted so, with both answers as parsed and
+ * the step's simulated time, one M at the persona's pace (B3).
  */
 async function ask(
   loop: Loop,
@@ -532,6 +570,7 @@ async function ask(
     stepIndex: k,
     rejected: [first.response, second.response],
     cost,
+    simulatedMs: loop.wastedMs,
   });
   return undefined;
 }

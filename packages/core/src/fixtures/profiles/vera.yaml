@@ -23,6 +23,12 @@ perception:
 behaviour:
   doubleClick: 0.8
   budgetSeconds: 120
+  thinkingTime:
+    factor: 2
+    provenance: folk
+  motorTime:
+    factor: 1.5
+    provenance: folk
   maxElements: 20
   memorySteps: 3
 

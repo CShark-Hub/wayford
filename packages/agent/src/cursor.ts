@@ -17,8 +17,9 @@ import type { BrowserContext, Page } from "playwright";
 /**
  * How long a move holds the cursor before the click: about six frames of Playwright's 25 fps
  * video, so the webm shows the cursor before the click lands. It is no seeded decision. It adds
- * 250 ms per move to the run's wall clock, which B3 budgets and `durationMs` measures, the same
- * for every persona and seed.
+ * 250 ms per move to the run's wall clock, which `durationMs` measures, the same for every persona
+ * and seed. B3 does not budget it: B3 reads the simulated clock (`simulated-time.ts`), which times
+ * the move by Fitts's law.
  */
 export const CURSOR_HOLD_MS = 250;
 

@@ -146,9 +146,11 @@ export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
 
 /**
  * Which limit cut a `budget_exceeded` run off: `steps`, the loop's step cap, or
- * `clock`, the persona's `budgetSeconds` (B3). Kept apart because "out of
- * time" and "stopped by the engine's guard" are read differently (issue #196).
- * Optional on the record: runs stored before it carry none.
+ * `clock`, the persona's `budgetSeconds` on the simulated clock (B3,
+ * `docs/RULES.md` stage 7). Kept apart because "out of time" and "stopped by
+ * the engine's guard" are read differently (issue #196). Optional on the
+ * record: runs stored before it carry none. A `clock` run with no
+ * `simulatedMs` was ended by the wall clock, as every run before s2-09 was.
  */
 export const RUN_LIMITS = ["steps", "clock"] as const;
 
@@ -158,13 +160,20 @@ export type RunLimit = z.infer<typeof RunLimit>;
 /** The step cap a run was given: a positive whole number of steps, wasted ones included. */
 export const MaxSteps = z.number().int().positive();
 
+/**
+ * Time on B3's simulated clock (`docs/RULES.md` stage 7, "B3 in detail"), in whole ms: a step's,
+ * or the sum of a run's steps. Never read off a clock.
+ */
+const SimulatedMs = z.number().int().nonnegative();
+
 // ---------------------------------------------------------------------------
 // Behaviour dice
 // ---------------------------------------------------------------------------
 
 /**
  * The behaviour rules that roll dice (`docs/RULES.md`, stage 7). B3 is a
- * wall-clock budget, not a dice, so it never appears in a step's dice log.
+ * budget on the simulated clock, not a dice, so it never appears in a step's
+ * dice log.
  */
 export const DICE_RULES = ["B1", "B2", "B4"] as const;
 export const DiceRule = RuleId.extract(DICE_RULES);
@@ -420,6 +429,9 @@ const stepBase = {
   screenshotPath: z.string().min(1).optional(),
   /** `fullObservation.url`, so an `HttpUrl`. `urlAfter` is any URL: see `actionPerformed`. */
   urlBefore: HttpUrl,
+  /** The step's simulated time, from its `actionPlanned` or its `stepWasted`. Absent on an
+   *  incomplete step that planned nothing, and on a step of a run recorded before s2-09. */
+  simulatedMs: SimulatedMs.optional(),
 };
 
 /** A step whose action landed: the audit fields and `urlAfter` all present. See `RunStep`. */
@@ -551,7 +563,13 @@ export const RunResult = z
     startUrl: HttpUrl,
     steps: z.array(RunStep),
     outcome: RunOutcome,
+    /** The wall clock, from `runFinished` or `runFailed`: how long the tool took, model and
+     *  machine included. Kept as evidence; it decides nothing. */
     durationMs: z.number().int().nonnegative(),
+    /** The run's simulated time (B3): the sum of its steps' `simulatedMs`. The fold is its producer,
+     *  and no refine ties it to the steps. Absent when no step has one: a run recorded before
+     *  s2-09, or one that stopped before its first plan. */
+    simulatedMs: SimulatedMs.optional(),
     videoPath: z.string().min(1).optional(),
     tracePath: z.string().min(1).optional(),
     cost: Cost,
@@ -696,6 +714,10 @@ export const RunEvent = z.discriminatedUnion("type", [
        *  included. Here, not on `actionPerformed`, so a run that stops before
        *  the action lands still keeps the step's bill. */
       cost: Cost,
+      /** The step's simulated time, decided once its action is planned (B3, `docs/RULES.md`
+       *  stage 7, "B3 in detail"). Optional only for runs recorded before s2-09: the loop always
+       *  sends it. */
+      simulatedMs: SimulatedMs.optional(),
     })
     .strict()
     .superRefine(checkPlanned),
@@ -729,6 +751,9 @@ export const RunEvent = z.discriminatedUnion("type", [
       rejected: z.array(ActorResponse).min(1),
       /** Every model call of the step, repairs and the retry included. */
       cost: Cost,
+      /** The wasted step's simulated time: one decision at the persona's pace (B3). Optional only
+       *  for runs recorded before s2-09: the loop always sends it. */
+      simulatedMs: SimulatedMs.optional(),
     })
     .strict(),
   /** Free text the model produced, labelled as narration — interpretation
@@ -743,6 +768,8 @@ export const RunEvent = z.discriminatedUnion("type", [
       /** Which limit ended a `budget_exceeded` run. Optional only for runs
        *  recorded before issue #196: the loop always sends it with that outcome. */
       limit: RunLimit.optional(),
+      /** The wall clock since the run started, kept as evidence; it decides nothing. B3 reads the
+       *  simulated clock, which the steps' `simulatedMs` carry. */
       durationMs: z.number().int().nonnegative(),
       cost: Cost,
       videoPath: z.string().min(1).optional(),
@@ -756,6 +783,7 @@ export const RunEvent = z.discriminatedUnion("type", [
       ...eventBase,
       type: z.literal("runFailed"),
       error: z.string().min(1),
+      /** The wall clock since the run started, kept as evidence, as on `runFinished`. */
       durationMs: z.number().int().nonnegative(),
       cost: Cost,
       videoPath: z.string().min(1).optional(),
@@ -786,6 +814,8 @@ type StepDraft = {
   urlAfter?: string;
   /** Set by `stepWasted`, its answers and its cost together. */
   wasted?: { rejected: ActorResponse[]; cost: Cost };
+  /** Set by `actionPlanned` or `stepWasted`, when the event carries one. */
+  simulatedMs?: number;
 };
 
 /**
@@ -808,6 +838,10 @@ type StepDraft = {
  * A wasted step is stored as `WastedRunStep`. Any other step missing its
  * action or `urlAfter` is stored as incomplete; `RunResult` then rejects it
  * unless it is the last step of a run that failed or ran out of budget.
+ *
+ * A step's simulated time is its `actionPlanned`'s or its `stepWasted`'s, and
+ * the run's is the sum over the steps that have one (B3). The fold is the only
+ * producer of that sum; the schema does not check it.
  *
  * A rejected stream throws a `WayfordError` with code `invalid_run_events`,
  * the original error on `cause`. Any other error is a bug and passes through
@@ -895,6 +929,7 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         draft.dice = event.dice;
         if (event.decision !== undefined) draft.decision = event.decision;
         draft.cost = event.cost;
+        if (event.simulatedMs !== undefined) draft.simulatedMs = event.simulatedMs;
         break;
       }
       case "actionPerformed": {
@@ -908,6 +943,7 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         const draft = draftFor(event.stepIndex);
         draft.wasted = { rejected: event.rejected, cost: event.cost };
         draft.endedAt = event.timestamp;
+        if (event.simulatedMs !== undefined) draft.simulatedMs = event.simulatedMs;
         break;
       }
       case "narration": {
@@ -947,6 +983,9 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
         // A step with no actionPerformed was stopped by the run's end, so it ends there.
         endedAt: draft.endedAt ?? terminal.timestamp,
         urlBefore: draft.urlBefore,
+        // From actionPlanned or stepWasted, so a complete, a wasted and a planned incomplete step
+        // carry it, and a step that planned nothing does not.
+        ...(draft.simulatedMs === undefined ? {} : { simulatedMs: draft.simulatedMs }),
       };
       // `actionPlanned` sets the three audit fields together, so one stands for all. Its
       // decision, when it has one, travels with them onto a complete or an incomplete step.
@@ -1019,6 +1058,10 @@ function foldRunEvents(events: readonly RunEvent[]): RunResult {
   if (terminal.type === "runFinished" && terminal.limit !== undefined) {
     result.limit = terminal.limit;
   }
+  // The run's simulated time is its steps', summed over those that have one: none on a run
+  // recorded before s2-09, or one that stopped before its first plan.
+  const timed = steps.flatMap((step) => (step.simulatedMs === undefined ? [] : [step.simulatedMs]));
+  if (timed.length > 0) result.simulatedMs = timed.reduce((sum, ms) => sum + ms, 0);
 
   // Parse before returning: the fold above builds the shape, this proves it.
   return RunResult.parse(result);

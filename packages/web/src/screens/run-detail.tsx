@@ -176,7 +176,11 @@ function Header({ run }: { run: RunResult }) {
           <Fact term="outcome">
             <Outcome kind={outcomeKind(run.outcome, run.limit)} />
           </Fact>
-          <Fact term="duration">{formatSeconds(run.durationMs)}</Fact>
+          {/* Both clocks, each named: the persona's, B3's, and the tool's, as evidence. */}
+          <Fact term="simulated">
+            {run.simulatedMs === undefined ? "—" : formatSeconds(run.simulatedMs)}
+          </Fact>
+          <Fact term="wall clock">{formatSeconds(run.durationMs)}</Fact>
           <Fact term="steps">{run.steps.length}</Fact>
           <Fact term="cost">{costLine(run.cost)}</Fact>
           {planned(run) ? <Fact term="backend">{backendOf(run)}</Fact> : null}

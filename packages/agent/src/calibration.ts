@@ -98,13 +98,18 @@ export function routeOf(result: RunResult): RouteId | "?" | undefined {
   return TARGET_APP_ROUTES.find((route) => route.steps.at(-1)?.page === page)?.id ?? "?";
 }
 
-/** How a run ended: the outcome, with `budget_exceeded` split into the step cap and the clock. */
+/**
+ * How a run ended: the outcome, with `budget_exceeded` split into the step cap and B3's clock.
+ * `clock` is either clock; the record tells them apart (`endOf`).
+ */
 export type End = "success" | "gave_up" | "step_cap" | "clock" | "error";
 
 /**
  * The run's end. Under `budget_exceeded`, a run recorded since issue #196 names its limit. One
  * recorded before it is read from its steps: the step cap is `maxSteps` steps with a last step
- * that is complete or wasted; anything else ran out of time (s2-10's clock), mid-step or not.
+ * that is complete or wasted; anything else ran out of time, mid-step or not. Which clock ended a
+ * `clock` run is in the record: a run with `simulatedMs` was ended by the simulated clock (B3,
+ * s2-09), one without by the wall clock (s2-10's), as every run from before #196 was.
  */
 export function endOf(result: RunResult, maxSteps: number): End {
   if (result.outcome !== "budget_exceeded") return result.outcome;
@@ -126,6 +131,7 @@ export interface RowSummary {
   runs: number;
   successes: number;
   routes: Partial<Record<RouteId | "?", number>>;
+  /** The runs that did not succeed, by end. `clock` counts B3's, on whichever clock `endOf` says. */
   ends: Record<Exclude<End, "success">, number>;
   medianSteps: number;
   /** Per step, over every step of every run. */

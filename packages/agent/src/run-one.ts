@@ -180,14 +180,20 @@ function eventLine(event: RunEvent, backend: ActorBackendName): string | undefin
   }
 }
 
-/** The run's last lines: how it ended, what it cost, and where its files are. */
+/**
+ * The run's last lines: how it ended, its time on both clocks, what it cost, and where its files
+ * are. The simulated time is the persona's, which B3 reads, "—" for a run that stopped before its
+ * first plan; the wall time is how long the tool took.
+ */
 function summary(result: RunResult, failure: string | undefined): string {
   const runDir = join(RUNS_DIR, result.id);
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
   const lines = [
     "",
     `outcome  ${result.outcome}${failure === undefined ? "" : `: ${failure}`}`,
     `steps    ${result.steps.length}`,
-    `time     ${(result.durationMs / 1000).toFixed(1)} s`,
+    `time     ${result.simulatedMs === undefined ? "—" : seconds(result.simulatedMs)} simulated`,
+    `         ${seconds(result.durationMs)} wall`,
     `cost     ${billed(result.cost)}`,
     `result   ${join(runDir, "result.json")}`,
   ];
