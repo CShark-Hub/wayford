@@ -18,6 +18,7 @@ import { PersonaAvatar } from "../components/persona-avatar.js";
 import { SegmentedControl } from "../components/segmented-control.js";
 import { Skeleton } from "../components/skeleton.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
+import { Working } from "../components/working.js";
 import {
   type FormAction,
   type FormCheck,
@@ -149,7 +150,7 @@ function CheckOutcome({ check }: { check: FormCheck }) {
     case "failed":
       return null;
     case "checking":
-      return <p>Checking…</p>;
+      return <Working>Checking…</Working>;
     case "refused":
       return (
         <>
@@ -311,7 +312,10 @@ function Section({ id, title, children }: { id: string; title: string; children:
   );
 }
 
-/** Scout's state in one line; a skeleton line while its first read is in flight. */
+/**
+ * Scout's state in one line: a skeleton line while its first read is in flight, and the working
+ * posts beside the line while it walks.
+ */
 function ScoutStatus({ scout }: { scout: ScoutState }) {
   switch (scout.status) {
     case "reading":
@@ -324,7 +328,7 @@ function ScoutStatus({ scout }: { scout: ScoutState }) {
     case "none":
       return "Not run yet";
     case "running":
-      return "Scout is walking the goal…";
+      return <Working>Scout is walking the goal…</Working>;
     case "done":
       return scoutLine(scout.truth);
     case "failed":
@@ -415,7 +419,7 @@ function RunSetStatus({
     <>
       {running ? (
         <>
-          <p className="text-ink">{progressLine(runSet)}</p>
+          <Working className="text-ink">{progressLine(runSet)}</Working>
           {/* io down, or a body that is not a run: either way the next tick asks again. */}
           {runSet.pollError === undefined ? null : (
             <p className="whitespace-pre-line text-fault">
@@ -426,7 +430,7 @@ function RunSetStatus({
         </>
       ) : null}
       {report.writing ? (
-        <p>The Analyst is writing the report. This can take a few minutes.</p>
+        <Working>The Analyst is writing the report. This can take a few minutes.</Working>
       ) : report.stored && !running ? (
         <Link
           to="/report/$taskId"

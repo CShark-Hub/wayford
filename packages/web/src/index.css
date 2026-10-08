@@ -138,13 +138,27 @@
      "Motion"). A `transition-*` utility reads these unless a `duration-*` class sets its own. */
   --default-transition-duration: 160ms;
   --default-transition-timing-function: ease-out;
-  /* The one motion besides colour: the skeleton's shimmer. It animates `translate`, the property
-     Tailwind's `-translate-x-full` sets, so the band starts off the left edge and leaves off the
-     right; animating `transform` would add to it and stop the band halfway. */
+  /* One of the two motions that run on their own: the skeleton's shimmer. It animates
+     `translate`, the property Tailwind's `-translate-x-full` sets, so the band starts off the left
+     edge and leaves off the right; animating `transform` would add to it and stop the band
+     halfway. */
   --animate-shimmer: shimmer 1.4s ease-in-out infinite;
   @keyframes shimmer {
     to {
       translate: 100%;
+    }
+  }
+  /* The other: the working posts (docs/DESIGN.md, "States"). Each post sinks to under half its
+     height and rises again from its foot, the three a third of a turn apart. It animates `scale`,
+     so with the animation `none` a post stands at its own height. */
+  --animate-working: working 1.2s ease-in-out infinite;
+  @keyframes working {
+    0%,
+    100% {
+      scale: 1 1;
+    }
+    50% {
+      scale: 1 0.4;
     }
   }
   /* The Lens's one choreographed moment, 240 ms, once per element that changes state as a
@@ -349,13 +363,14 @@
     outline: var(--stroke-rule) solid var(--focus-ring);
     outline-offset: var(--stroke-rule);
   }
-  /* Under reduced motion every duration is 0: no transition, no shimmer, no Lens moment. A
-     `transition-*` utility reads the default duration unless a `duration-*` class sets its own,
-     which docs/DESIGN.md rules out. Base outranks the theme layer that sets them all. */
+  /* Under reduced motion every duration is 0: no transition, no shimmer, no working posts, no Lens
+     moment. A `transition-*` utility reads the default duration unless a `duration-*` class sets
+     its own, which docs/DESIGN.md rules out. Base outranks the theme layer that sets them all. */
   @media (prefers-reduced-motion: reduce) {
     :root {
       --default-transition-duration: 0s;
       --animate-shimmer: none;
+      --animate-working: none;
       --animate-lens-in: none;
       --animate-lens-out: none;
       --animate-lens-flag: none;

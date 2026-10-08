@@ -321,6 +321,13 @@ button.wf-avatar:hover, a.wf-avatar:hover { transform: translateY(-2px); }
 .wf-skel { background: var(--paper-sunken); border-radius: var(--radius-xs); position: relative; overflow: hidden; }
 .wf-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 70%, transparent), transparent); animation: wf-shimmer 1.4s ease-in-out infinite; }
 @keyframes wf-shimmer { to { transform: translateX(100%); } }
+.wf-working { display: inline-flex; align-items: center; gap: var(--space-3); color: var(--ink-2); }
+.wf-working__posts { display: inline-flex; align-items: flex-end; gap: 3px; padding: 0 2px; border-bottom: var(--stroke-hair) solid var(--line-strong); }
+.wf-working__posts i { width: 3px; border-radius: var(--radius-xs) var(--radius-xs) 0 0; transform-origin: bottom; animation: wf-working 1.2s ease-in-out infinite; }
+.wf-working__posts i:nth-child(1) { height: 20px; background: var(--ink); }
+.wf-working__posts i:nth-child(2) { height: 16px; background: var(--ink-2); animation-delay: -0.8s; }
+.wf-working__posts i:nth-child(3) { height: 12px; background: var(--ink-3); animation-delay: -0.4s; }
+@keyframes wf-working { 50% { transform: scaleY(0.4); } }
 
 /* ---------- Tables (output register) ---------- */
 .wf-table { width: 100%; border-collapse: collapse; font-size: 16px; line-height: 24px; }

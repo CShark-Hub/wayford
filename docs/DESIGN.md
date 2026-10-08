@@ -193,6 +193,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | SourceBadge | `live` or `stored`, from the screen's own data; dashed when stored | `s3-13` |
 | Banner | Stored-page notice (dashed) or fault (`fault-soft`), one action | `s3-13` |
 | Skeleton | Loading in the shape of the content | `s3-13` |
+| Working | A job under way: the wordmark's three posts in a water line, sinking and rising in turn, beside the line that says what runs | Target |
 | ThresholdGauge | A ruler: persona fill to the value, signal post at the threshold, softness band below it, provenance tag. A native range input over the drawing | `s3-11` |
 | FilterStates | Visible, degraded (hatch), removed (dashed signal outline and cut flag `P1 · 2.0 < 4.5`), renamed (`[unfamiliar term]`), cut by attention (quiet flag) | `s3-11` |
 | Outcome | Glyph and word: Got through, Gave up, Out of time, Hit the step cap, Over budget, Error. The three budget endings share one hourglass | `s3-12` |
@@ -211,6 +212,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 Every data screen has three states besides its data:
 
 - **Loading:** a skeleton in the shape of its content. Never a spinner, never "Loading…" alone.
+- **Working:** a job io runs for a while, such as a goal check, Scout, a run set or the report, draws the working posts beside the line that says what runs. The line is what a screen reader hears; the posts are hidden from it. Never a spinner.
 - **Empty:** a mono label, one sentence in `display-m`, one line of body, and one action.
 - **Fault:** a fault banner with the HTTP status in mono and "Try again".
 
@@ -220,7 +222,7 @@ The Lens's stored-page fallback is the dashed stored banner, and the page still 
 
 - Colour and opacity transitions, 160 ms ease-out, on interactive elements. A pressed button moves 1 px.
 - **One choreographed moment.** When a threshold moves, each Lens element that changes state animates once, 240 ms: hatched in, or hatched to a dashed outline while its cut flag drops in. This is beat 2.
-- Nothing else animates on its own except the skeleton shimmer. Race pips append without easing. The avatars do not move.
+- Nothing else animates on its own except the skeleton shimmer and the working posts. Race pips append without easing. The avatars do not move.
 - Under `prefers-reduced-motion`, every duration is 0.
 
 ## Charts
