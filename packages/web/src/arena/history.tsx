@@ -13,7 +13,7 @@ import { Banner } from "#components/banner";
 import { Skeleton } from "#components/skeleton";
 import { Button, buttonVariants } from "#components/ui/button";
 import { type Race, racesQuery } from "../api/races.js";
-import { PersonaName } from "../runs/task-results.js";
+import { PersonaName } from "../components/persona-avatar.js";
 import { goalLabel } from "./panel-state.js";
 import { useReportTask } from "./report-task.js";
 

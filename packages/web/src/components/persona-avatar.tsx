@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { Avatar } from "../avatar/avatar.js";
 import { type PersonaSlot, slotOf, slotStyle } from "../avatar/slots.js";
 import type { AvatarState } from "../avatar/state.js";
+import { bundledProfiles } from "../bundled-fixtures.js";
 
 /**
  * The avatar on its squircle tile: slot-soft in Daylight, the fixed avatar-tile in Night. Sets the
@@ -51,5 +52,26 @@ export function PersonaChip({ slot, children }: { slot: PersonaSlot; children: R
       <span aria-hidden="true" className="size-3 shrink-0 rounded-xs bg-(--p)" />
       {children}
     </span>
+  );
+}
+
+/** Each bundled persona's label, by id. A persona that is not bundled has none. */
+const LABELS = new Map(bundledProfiles.map((profile) => [profile.id, profile.label]));
+
+/** A persona's name on a screen: the bundled profile's label, or the id itself. */
+export function personaLabel(profileId: string): string {
+  return LABELS.get(profileId) ?? profileId;
+}
+
+/**
+ * A persona as a screen names it: its chip, a square in its slot's colour, then its label. A
+ * persona that is not bundled takes the fallback slot, and its id is set in monospace.
+ */
+export function PersonaName({ profileId }: { profileId: string }) {
+  const bundled = LABELS.has(profileId);
+  return (
+    <PersonaChip slot={slotOf(profileId)}>
+      <span className={bundled ? undefined : "font-mono"}>{personaLabel(profileId)}</span>
+    </PersonaChip>
   );
 }

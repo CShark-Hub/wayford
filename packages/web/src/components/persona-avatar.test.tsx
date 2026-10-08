@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { Avatar } from "../avatar/avatar.js";
 import { attributesOf, styleOf, textOf } from "../preview/rendered-markup.js";
-import { PersonaAvatar, PersonaChip } from "./persona-avatar.js";
+import { PersonaAvatar, PersonaChip, PersonaName, personaLabel } from "./persona-avatar.js";
 
 /** The tile's own start tag, read as attributes, and what it holds. */
 function tileOf(html: string): { attributes: Record<string, string>; inner: string } {
@@ -72,4 +72,26 @@ test("the chip sets its slot's variables, then a hidden square in the slot's fil
   );
   expect(html.slice(chip.length + square.length)).toBe("Milo</span>");
   expect(textOf(html)).toBe("Milo");
+});
+
+test("a bundled persona is named by its label, in its slot's chip", () => {
+  const html = renderToStaticMarkup(<PersonaName profileId="prof_vera" />);
+  const chip = html.match(/^<span[^>]*>/)?.[0] ?? "";
+  expect(styleOf(attributesOf(chip))["--p"]).toBe("var(--persona-cobalt)");
+  expect(textOf(html)).toBe("Vera");
+  expect(html).not.toContain("font-mono");
+});
+
+test("a persona that is not bundled is named by its id, in monospace, in the fallback slot", () => {
+  const html = renderToStaticMarkup(<PersonaName profileId="prof_guest" />);
+  const chip = html.match(/^<span[^>]*>/)?.[0] ?? "";
+  expect(styleOf(attributesOf(chip))["--p"]).toBe("var(--persona-fallback)");
+  expect(html).toContain('<span class="font-mono">prof_guest</span>');
+  expect(textOf(html)).toBe("prof_guest");
+});
+
+test("a persona's label is the bundled profile's, or the id itself", () => {
+  expect(personaLabel("prof_vera")).toBe("Vera");
+  expect(personaLabel("prof_guest")).toBe("prof_guest");
+  expect(personaLabel("constructor")).toBe("constructor");
 });

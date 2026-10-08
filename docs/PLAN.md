@@ -143,7 +143,7 @@ Several personas on the same task, live.
 All runs.
 
 - AC1 Runs list filters by task, persona and outcome.
-- AC2 Per task: success rate and median time per persona.
+- AC2 Per task: success rate and median time per persona. Since `s3-14` both live on the Report's cast table, which each goal on Runs links to, and only once the task has a report: an Analyst run, a model call. The table reads got through k/n and median time over the latest run per persona and seed on the report's backend, sweep runs left out; a run stored after the report counts on "Analyse again".
 - AC3 Run detail opens a step-by-step replay with screenshots, observation and action per step.
 - AC4 Run header shows `persona | seed | run id`. The run id is the run's only number: runs carry no index (issue #94).
 

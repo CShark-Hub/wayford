@@ -3,8 +3,8 @@
  * and `outcome`, narrows the list, and an absent or invalid one means "every".
  *
  * The names are io's `GET /runs` query names, so a dashboard URL's query reads the same as the
- * API's. The screen fetches every run once and filters here, in the browser: the per-task stats
- * need every run of a task whatever the list shows, and a filter change then redraws without a
+ * API's. The screen fetches every run once and filters here, in the browser: the filters' chips
+ * are built from every run whatever the table shows, and a filter change then redraws without a
  * request.
  */
 import { ProfileId, RunOutcome, type RunResult, TaskId } from "@wayford/core";

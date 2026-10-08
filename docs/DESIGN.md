@@ -71,7 +71,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 | `/runs` | Runs | Runs | The archive table, off the story path | — | `s3-14` (optional) |
 | `/target` | Target | — | A site and a goal of your own in, every story screen on it out (`docs/adr/0003-any-target.md`, D6). Off the story path | — | `s3-15` |
 
-`/` redirects to `/cast`. `/events`, the m0-07 debug screen, keeps its route and leaves the nav. Until `s3-14` is taken, Cast and Runs keep their layouts and take the new look through the tokens.
+`/` redirects to `/cast`. `/events`, the m0-07 debug screen, keeps its route and leaves the nav.
 
 The main moment of each story screen fits 1280 × 720 with no scroll:
 
@@ -238,7 +238,7 @@ The sweep is the one chart in scope, drawn as plain SVG from the tokens:
 - **Ticks:** 16 px mono.
 - **Never:** smoothing, a fill under a line, or a gradient.
 
-The gap bar and the seed strip are HTML, not charts. Recharts stays only for the old runs bar charts, until `s3-14` removes them.
+The gap bar and the seed strip are HTML, not charts.
 
 ## Icons, wordmark, avatars
 

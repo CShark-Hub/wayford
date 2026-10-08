@@ -33,7 +33,7 @@ async function openCast(colorScheme: "light" | "dark"): Promise<Page> {
   onTestFinished(() => context.close());
   const page = await context.newPage();
   await page.goto(`${app.origin}/cast`);
-  await page.getByRole("heading", { name: "Cast", exact: true }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "01 · the cast", exact: true }).waitFor();
   return page;
 }
 
@@ -44,7 +44,7 @@ async function openCast(colorScheme: "light" | "dark"): Promise<Page> {
  */
 function shownOf(page: Page) {
   return page.evaluate(() => {
-    const avatar = document.querySelector('article svg[role="img"]');
+    const avatar = document.querySelector('[aria-labelledby="cast-prof_ada"] svg[role="img"]');
     const tuft = avatar?.querySelector('[data-part="tuft"] path');
     return {
       theme: document.documentElement.getAttribute("data-theme"),

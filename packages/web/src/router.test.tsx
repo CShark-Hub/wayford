@@ -27,10 +27,9 @@ function h2Texts(html: string): string[] {
   return [...html.matchAll(/<h2(?:\s[^>]*)?>(.*?)<\/h2>/gs)].map((heading) => heading[1] ?? "");
 }
 
-test("/cast shows the five cards in order", async () => {
+test("/cast shows the five personas in fixture order", async () => {
   const html = await render("/cast");
   expect(h2Texts(html)).toEqual(profileFixtures.map((p) => p.label));
-  expect(html.split("<article").length - 1).toBe(profileFixtures.length);
 });
 
 // The arena lists the personas too, in its start panel, and its copy says what a control cannot do

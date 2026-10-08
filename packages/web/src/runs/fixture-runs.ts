@@ -5,13 +5,12 @@
  *
  * `fixtureRuns` is `runResultFixture` first, then one variant of it per row below: another id,
  * persona, task, seed, outcome and duration, re-parsed with `RunResult`. Every variant keeps the
- * fixture's five steps, cost and recording paths, so only what the list, the filters and the
- * stats read differs.
+ * fixture's five steps, cost and recording paths, so only what the table and the filters read
+ * differs.
  *
- * The rows hold each case the stats tell apart. On `task_past-order`: Ada's error leaves her rate
- * 3/4, not 3/5, and her median 20 s over her successes, not 30 s over every run; every one of
- * Milo's runs errored; Vera and Zoya ran without arriving; `prof_guest`, not a bundled persona, has
- * an even count of successes. `stats.test.ts` holds every number.
+ * The rows hold distinct cases: both tasks, all four outcomes, and a persona that is not bundled.
+ * On `task_past-order`: Ada has an error beside her successes; every one of Milo's runs errored;
+ * Vera and Zoya ran without arriving; `prof_guest`, not a bundled persona, got through twice.
  *
  * A budget run out names the limit that cut it off, as the loop records it since #196. Vera's ran
  * out of time, at her 120 s budget. Zoya's, at 120 s of her 180, hit the step cap, which is set to
@@ -104,7 +103,7 @@ function silent(step: RunStep): RunStep {
  * The fixture run as Jev would have run it: step 0, whose proposed click on `e3` is the option
  * `decisionRecordFixture` draws, carries that record. Jev's model plays the Actor, so no step and
  * no refused answer carries a narration, and the run has no `actorSampling`, which a Jev run never
- * sends. Outside `fixtureRuns`, so the stats stay as they are.
+ * sends. Outside `fixtureRuns`, so the archive's list and its counts stay as they are.
  */
 export const fixtureJevRun: RunResult = RunResult.parse({
   ...runResultFixture,

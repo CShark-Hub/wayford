@@ -6,8 +6,8 @@
  * each persona's numbers, the findings by type, then what it left out. Scout's
  * line comes before any persona, since every finding is read against it.
  *
- * A persona's "got through" leaves its `error` runs out, as web's `stats.ts`
- * does: an error is the tool falling over, not the persona. Its route-open
+ * A persona's "got through" leaves its `error` runs out: an error is the tool
+ * falling over, not the persona. Its route-open
  * count is over every seed, since the filter decides it before any run. A
  * measurement or deterministic finding resting on a `folk` or `llm` source is
  * marked `soft` (`isHardFinding`). A hypothesis is never hard, so its heading

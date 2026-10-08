@@ -34,11 +34,6 @@ function slotColour(slot: PersonaSlot, tone: "fill" | "ink" | "soft" = "fill"): 
   return tone === "fill" ? `var(--persona-${slot})` : `var(--persona-${slot}-${tone})`;
 }
 
-/** A profile's slot colour, by id: what a screen paints a persona's border, bar or accent with. */
-export function profileColour(profileId: string): string {
-  return slotColour(slotOf(profileId));
-}
-
 /**
  * `--p`, `--p-ink` and `--p-soft` for an inline style, as `components.css`'s `.wf-p-*` classes set
  * them. Whatever sits inside reads the slot through these three, the avatar among them.

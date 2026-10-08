@@ -30,6 +30,7 @@ import {
   reportFixture,
   runResultFixture,
   taskFixture,
+  taskFixtures,
 } from "@wayford/core/fixtures";
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
@@ -37,7 +38,7 @@ import { createServer } from "vite";
 import { demoRace } from "../src/arena/demo-race.js";
 import { runView } from "../src/arena/race.js";
 import { fixtureSweep } from "../src/boundary/fixture-sweeps.js";
-import { fixtureJevRun } from "../src/runs/fixture-runs.js";
+import { fixtureJevRun, fixtureRuns } from "../src/runs/fixture-runs.js";
 import { THEME_NAMES, type Theme } from "../src/theme.js";
 
 /**
@@ -316,23 +317,33 @@ const TARGET_RUNS = [1, 2, 3].flatMap((seed) =>
 );
 
 /**
- * The Boundary is drawn once its headline shows and the top bar carries the sweep's stored badge.
- * The badge is a portal into the bar, which only a mounted shell draws, so this is where a screen
- * that drops it fails.
+ * The page once the top bar carries a stored badge. The badge is a portal into the bar, which only
+ * a mounted shell draws, so this is where a screen that drops it fails.
  */
-const BOUNDARY_READY = [
-  'body:has([data-slot="top-bar-slot"] [data-source="stored"])',
-  'main h1:has-text("Under half get through")',
-].join(" ");
+const STORED_BADGE_SHOWN = 'body:has([data-slot="top-bar-slot"] [data-source="stored"])';
+
+/** The Boundary is drawn once its headline shows and the top bar carries the sweep's stored badge. */
+const BOUNDARY_READY = `${STORED_BADGE_SHOWN} main h1:has-text("Under half get through")`;
 
 /** The screens that must pass. The shell is measured around each of them. */
 export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
   {
     name: "cast",
     path: "/cast",
-    ready: 'role=heading[name="Cast"s]',
+    ready: 'role=heading[level=1][name="01 · the cast"s]',
     // The personas come bundled with the app, so the screen asks io for nothing.
     responses: {},
+  },
+  {
+    name: "cast-card",
+    path: "/cast",
+    // Vera's spec sheet, which opens only while her tile is hovered. It renders in a portal under
+    // `<body>`, outside her column, so it is measured here, in both themes, with its own slot.
+    ready: "#cast-card-prof_vera",
+    responses: {},
+    act: async (page) => {
+      await page.locator("#cast-prof_vera").hover();
+    },
   },
   {
     name: "lens",
@@ -407,6 +418,15 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     path: "/boundary/swp_kai-max-elements",
     ready: BOUNDARY_READY,
     responses: { "/sweeps/swp_kai-max-elements": fixtureSweep("swp_kai-max-elements") },
+  },
+  {
+    name: "runs",
+    path: "/runs",
+    // Ready once the table has its rows and the top bar says stored, which a mounted shell draws.
+    ready: `${STORED_BADGE_SHOWN} main:has(table tbody tr)`,
+    // Every fixture run, with a persona that is not bundled and both limits among them, and the
+    // tasks that label their goals.
+    responses: { "/runs": fixtureRuns, "/tasks": taskFixtures },
   },
   {
     name: "target",

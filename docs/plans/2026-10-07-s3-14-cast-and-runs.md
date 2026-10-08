@@ -1,0 +1,21 @@
+# s3-14 — Cast and Runs redesigned, Recharts out: plan
+
+Task: `tasks/s3-14-cast-and-runs.md` · Spec: `docs/specs/2026-10-07-s3-14-cast-and-runs.md`
+Status: approved 2026-10-07 (auto)
+
+| # | Step | Files | Serves box | Test first | Done when | Parallel with |
+|---|---|---|---|---|---|---|
+| 1 | Move `PersonaName`, `personaLabel` to `components/persona-avatar.tsx` and `formatSeconds` beside `usd` in `runs/step-replay.tsx`; repoint every importer; `task-results.tsx` imports them back until step 5 deletes it | `components/persona-avatar.tsx`, `persona-avatar.test.tsx`, `runs/step-replay.tsx`, `runs/task-results.tsx`, `boundary/sweep-view.tsx`, `screens/boundary.tsx`, `screens/report.tsx`, `screens/run-detail.tsx`, `components/finding.tsx`, `report/findings.tsx`, `report/cast-table.tsx`, `arena/history.tsx`, `screens/runs.tsx` (import line only) | lint, typecheck, test | `persona-avatar.test.tsx`: `PersonaName` reads a bundled persona's label and an unbundled id in mono, in the fallback slot | `pnpm --filter @wayford/web typecheck` and `pnpm --filter @wayford/web test` green | 2 |
+| 2 | The dimension model and the CastCard | `cast/dimensions.ts`, `dimensions.test.ts`, `components/cast-card.tsx`, `cast-card.test.tsx` | web tests: `—`, the folk tag, Vera's 9 | `dimensions.test.ts`: unset has no value, only P1/P3/P4 carry a provenance, patterns 12 − unknown (as a set), Vera 9, `isControl` Ada alone, rulers clamp. `cast-card.test.tsx`: full description, `cast-card-<id>` heading, soft tag on `folk` with "no source", softness shown, `/12`, slot style on the root, `—` with "not set" | `pnpm --filter @wayford/web exec vitest run src/cast src/components/cast-card.test.tsx` green | 1 |
+| 3 | The Cast: lineup over the matrix, the stretched column link to the Lens, the hover card, the legend | `screens/personas.tsx`, `personas.test.tsx`, `router.test.tsx` | web tests: `—`, the folk tag, Vera's 9 | `personas.test.tsx`: `—` where a persona sets nothing (Ada P1, Milo P1, Vera K2); Vera's P4 dotted `folk` tag and no tag on any non-threshold row; Vera's patterns 9 with 9 pips on; description clamped; Ada alone carries `control`; each column links to `/lens?persona=<id>`, named "<name>, open in the Lens" | `pnpm --filter @wayford/web exec vitest run src/screens/personas.test.tsx src/router.test.tsx` green | 4 |
+| 4 | Runs as one archive table with segment-link filters and its states; delete `task-results.tsx`, `stats.ts`, `stats.test.ts`; Recharts out of `package.json` and the lockfile; doc lines on Recharts and F7 AC2 | `screens/runs.tsx`, `runs.test.tsx`, `runs/task-results.tsx` (deleted), `runs/stats.ts` and `stats.test.ts` (deleted), `runs/filter.ts`, `runs/fixture-runs.ts`, `packages/web/package.json`, `pnpm-lock.yaml`, `docs/STACK.md`, `docs/DESIGN.md`, `docs/PLAN.md` | web tests: a runs row links to its run detail; `rg recharts` | `runs.test.tsx`: each row's run id links to `/runs/<id>`; row cells in order with the limit named; goal links to `/report/<taskId>`; chips' hrefs, "All" drops its key, the picked chip `aria-current="page"`, a URL value no option holds is added and picked; outcome chips in `OUTCOME_WORDS`; empty, filtered-empty, loading and fault states | `pnpm --filter @wayford/web test` green and `rg -n "recharts" packages/web` prints nothing | 3 |
+| 5 | `check:self`: Cast's new `ready`, the `cast-card` entry hovering Vera's tile, the `runs` entry on `fixtureRuns` and `taskFixtures` | `packages/web/scripts/self-check.ts` | `check:self` with Cast and Runs, both themes | none new: `self-check.browser.test.ts` already runs every listed screen in both themes | `pnpm --filter @wayford/web check:self` prints no shortfall | — |
+| 6 | Verify: lint, typecheck, test at the root; `check:self`; `rg`; screenshots of Cast (and the open card) and Runs at 1280 × 720 in both themes beside `cast.html`; tick the boxes with evidence | `tasks/s3-14-cast-and-runs.md` | all | — | every command green and every box ticked | — |
+
+Step 1 runs before steps 3 and 4: they import the moved helpers from their new homes. Step 2 runs before step 3. Steps 3 and 4 touch disjoint files, and only step 4 changes `pnpm-lock.yaml`.
+
+Step 5 depends on 3 and 4. Its height check at 1280 × 720 can send a fix back to step 3.
+
+## Decision log
+
+In the spec.

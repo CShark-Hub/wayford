@@ -12,7 +12,7 @@
 import type { Finding, FindingType, ProfileId, Report, RunId } from "@wayford/core";
 import { CertaintyGlyph, type CertaintyLine } from "../components/certainty.js";
 import { type CitedRun, FindingCard } from "../components/finding.js";
-import { personaLabel } from "../runs/task-results.js";
+import { personaLabel } from "../components/persona-avatar.js";
 
 /** Each group's glyph, name and what it is, in the order the columns run. */
 const GROUPS: { type: FindingType; line: CertaintyLine; name: string; what: string }[] = [

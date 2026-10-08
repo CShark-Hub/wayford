@@ -34,6 +34,7 @@ import { bundledTasks } from "../bundled-fixtures.js";
 import { Banner } from "../components/banner.js";
 import { EmptyState } from "../components/empty-state.js";
 import { count } from "../components/outcome-words.js";
+import { personaLabel } from "../components/persona-avatar.js";
 import { SeedLegend } from "../components/seed-strip.js";
 import { Skeleton } from "../components/skeleton.js";
 import { SourceBadge } from "../components/source-badge.js";
@@ -43,7 +44,6 @@ import { Button } from "../components/ui/button.js";
 import { CastTable, EXACT } from "../report/cast-table.js";
 import { Findings } from "../report/findings.js";
 import { usd } from "../runs/step-replay.js";
-import { personaLabel } from "../runs/task-results.js";
 import { rootRoute } from "../shell.js";
 
 /**

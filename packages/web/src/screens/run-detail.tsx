@@ -22,7 +22,7 @@ import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { Banner } from "../components/banner.js";
 import { Outcome, outcomeKind } from "../components/outcome.js";
-import { PersonaAvatar } from "../components/persona-avatar.js";
+import { PersonaAvatar, personaLabel } from "../components/persona-avatar.js";
 import { Skeleton } from "../components/skeleton.js";
 import { SourceBadge } from "../components/source-badge.js";
 import { StepTimeline } from "../components/step-timeline.js";
@@ -35,11 +35,11 @@ import {
   backendOf,
   CROP_HEIGHT,
   costLine,
+  formatSeconds,
   REPLAY_COLUMNS,
   StepReplay,
   targetOf,
 } from "../runs/step-replay.js";
-import { formatSeconds, personaLabel } from "../runs/task-results.js";
 import { rootRoute } from "../shell.js";
 
 /** The id of the replayed step's heading. */

@@ -19,9 +19,9 @@ import { sweepQuery, sweepsQuery } from "../api/sweeps.js";
 import { AXIS_COPY, BOUNDARY_PRESETS } from "../boundary/axis.js";
 import { AxisSwitch, FRAME, SweepView } from "../boundary/sweep-view.js";
 import { Banner } from "../components/banner.js";
+import { personaLabel } from "../components/persona-avatar.js";
 import { Skeleton } from "../components/skeleton.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
-import { personaLabel } from "../runs/task-results.js";
 import { rootRoute } from "../shell.js";
 
 /**

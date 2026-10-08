@@ -6,7 +6,7 @@
  * sweep run (A22). Everything else stored for the task is left out and counted, so a reader knows
  * it exists. The numbers are code's, never the model's: runs, successes and errors from the runs'
  * outcomes, the route-open seeds from the filter's route table (s1-06), and the median time to
- * success by web's formula, so the report and the dashboard show one number.
+ * success over the runs that got through.
  *
  * The route facts are only typed here. `@wayford/filter/routes` loads Playwright and Vite, and io's
  * barrel must load neither, so this module imports its types alone and the facts are computed
@@ -184,8 +184,6 @@ function openIn(facts: RouteFactsOf, run: RunResult): string[] {
 
 /**
  * Median of a list; the mean of the two middle values for an even count; undefined when empty.
- * Web's `median` (`packages/web/src/runs/stats.ts`), copied, since io does not import web: one
- * formula for one number on two screens.
  */
 function median(values: readonly number[]): number | undefined {
   if (values.length === 0) return undefined;

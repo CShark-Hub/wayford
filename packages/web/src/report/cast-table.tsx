@@ -2,8 +2,8 @@
  * The report's cast table (`docs/design/screens/report.html`): one row per persona, in report
  * order, with its seeds, its two numbers side by side and never merged (`docs/DESIGN.md`,
  * Principle 4), the gap between them, and its median time. Route open is the filter's, counted
- * over every seed; got through is the agent's, counted over the runs that did not error, as the
- * runs screen counts it, so a crash never reads as the persona failing.
+ * over every seed; got through is the agent's, counted over the runs that did not error, so a
+ * crash never reads as the persona failing.
  *
  * Every number opens the runs behind it: a seed cell its run, route open every run of the persona
  * on the goal (no runs filter selects route-open seeds), got through the runs that got through.
@@ -19,10 +19,10 @@ import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { CertaintyGlyph } from "../components/certainty.js";
 import { count } from "../components/outcome-words.js";
-import { PersonaAvatar } from "../components/persona-avatar.js";
+import { PersonaAvatar, PersonaName, personaLabel } from "../components/persona-avatar.js";
 import { GapBar, NoValue, Readout } from "../components/readout.js";
 import { SeedStrip } from "../components/seed-strip.js";
-import { formatSeconds, PersonaName, personaLabel } from "../runs/task-results.js";
+import { formatSeconds } from "../runs/step-replay.js";
 
 /** The bundled profiles by id: a persona among them is drawn with its avatar. */
 const PROFILES = new Map(bundledProfiles.map((profile) => [profile.id, profile]));

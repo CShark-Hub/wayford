@@ -25,9 +25,9 @@ import {
 } from "@wayford/core";
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
-import { PersonaName, personaLabel } from "../runs/task-results.js";
 import type { CertaintyLine } from "./certainty.js";
 import { OUTCOME_WORDS } from "./outcome-words.js";
+import { PersonaName, personaLabel } from "./persona-avatar.js";
 import { ProvenanceTag, Tag } from "./tag.js";
 
 /**

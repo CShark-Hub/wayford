@@ -64,7 +64,7 @@
 | Icons | `lucide-react` | Comes with shadcn. Drawn at 20 px with a 1.75 stroke (`docs/DESIGN.md`, "Icons, wordmark, avatars"). Every icon-only control in our own UI gets an `aria-label`. |
 | Forms | `react-hook-form` with `@hookform/resolvers/zod` | Profile builder validates with the same `Profile` schema as the API. |
 | Animation | CSS transitions, no library | Avatar and ring motion were cut on 2026-10-01; the one animation left, a Lens element changing state, is a CSS keyframe animation played once by a keyed remount (`docs/DESIGN.md`, "Motion"; `s3-11`). Framer Motion was never installed. |
-| Charts | plain SVG, no library | One chart, the sweep, with a fixed 0–1 axis and marks a chart library fights (`docs/adr/0002-daylight-instrument-redesign.md`, D11). Recharts leaves with the old runs bar charts in `s3-14`. |
+| Charts | plain SVG, no library | One chart, the sweep, with a fixed 0–1 axis and marks a chart library fights (`docs/adr/0002-daylight-instrument-redesign.md`, D11). Recharts left with the old runs bar charts in `s3-14`. |
 | Avatars | own SVG parts, no library | DiceBear rejected: its parts do not map to capability dimensions. Ours do: glasses thickness follows contrast threshold, device follows `device`, posture follows patience. |
 | Fonts | Bricolage Grotesque for names and titles, Geist for UI, Geist Mono for seeds, measurements and evidence: `@fontsource-variable/bricolage-grotesque/opsz.css`, `@fontsource-variable/geist`, `@fontsource-variable/geist-mono` | Loaded locally, no CDN, so the demo works offline. They register the families as "… Variable", the names the font stacks lead with. Chosen in the redesign (`docs/DESIGN.md`, "Type"). |
 

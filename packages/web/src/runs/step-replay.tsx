@@ -37,11 +37,11 @@ import { Fragment, type ReactNode, useState } from "react";
 import { screenshotUrl } from "../api/runs.js";
 import { SIGNAL_FLAG } from "../components/filter-states.js";
 import { percent } from "../components/jev-draw.js";
+import { personaLabel } from "../components/persona-avatar.js";
 import { SEGMENT_GROUP, SegmentedControl, segmentItem } from "../components/segmented-control.js";
 import { ConfidenceNote, DecisionPanel } from "./decision-panel.js";
 import { Detail, Details, FACTS, Fact, Mark, NOTE, TABLE, TD, TH } from "./details.js";
 import { describeAction, observedFrom } from "./replay.js";
-import { personaLabel } from "./task-results.js";
 
 /**
  * The id of each section's `<h3>`. One replay is drawn per page, so fixed ids are unique, and the
@@ -108,6 +108,11 @@ function MetricsText({ metrics }: { metrics: Metrics }) {
 export function usd(cost: Cost): string {
   const places = cost.usd === 0 ? 4 : Math.max(4, 1 - Math.floor(Math.log10(cost.usd)));
   return `$${cost.usd.toFixed(places)}`;
+}
+
+/** Milliseconds as seconds, to a tenth at most: `15.5 s`, `20 s`. */
+export function formatSeconds(ms: number): string {
+  return `${Math.round(ms / 100) / 10} s`;
 }
 
 /** A cost as the record holds it: `$0.0037, 1340 tokens in, 220 out`. */
