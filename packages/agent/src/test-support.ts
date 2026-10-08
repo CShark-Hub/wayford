@@ -2,7 +2,9 @@
  * Test support for agent's browser tests that run `runActor` on the served target app, never
  * exported from the barrel: the app and Chromium for the file, a fresh runs folder per test, the
  * fake's fixed bill, and readers of what a run stored. `actor-loop.browser.test.ts` and
- * `jev-actor.browser.test.ts` share it, as filter's tests share its `test-support.ts`.
+ * `jev-actor.browser.test.ts` share it, as filter's tests share its `test-support.ts`. It also
+ * holds the hand-built pages B4's unit tests measure through the real filter, which
+ * `behaviour.test.ts` and `misclick.test.ts` share.
  *
  * `app`, `browser` and `runsDir` are live bindings that `useServedApp`'s hooks set. vitest loads
  * this module once per test file, so no two files share them.
@@ -12,13 +14,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type ActorResponse,
+  type Bbox,
   type Cost,
+  type ElementRef,
+  elementKey,
+  FullObservation,
+  type MeasuredElement,
+  PageMeasurement,
+  type Profile,
   type RunResult,
   type RunStep,
+  smallerSide,
   type Task,
   toActorObservation,
 } from "@wayford/core";
-import { taskFixture } from "@wayford/core/fixtures";
+import { measurementFixture, profileFixture, taskFixture } from "@wayford/core/fixtures";
+import { perceive } from "@wayford/filter";
 import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
 import pino from "pino";
 import type { Browser } from "playwright";
@@ -189,4 +200,51 @@ export function historyOf(steps: readonly RunStep[]): HistoryStep[] {
     }
     return { observation, proposed: step.proposedAction };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Hand-built pages for B4's unit tests
+// ---------------------------------------------------------------------------
+
+/** Ada has no threshold, so `perceive` shows every element, numbered e1..eN in this order. */
+export const ADA = profileFixture("prof_ada");
+
+/** A link in `main`. Its target size is its box's smaller side unless a label widens it. */
+export function link(name: string, bbox: Bbox, targetPx = smallerSide(bbox)): MeasuredElement {
+  return {
+    key: elementKey({ role: "link", name, path: [{ role: "main" }] }),
+    kind: "control",
+    role: "link",
+    name,
+    bbox,
+    metrics: { targetPx },
+  };
+}
+
+/** A paragraph in `main`: a text block, which carries no target size. */
+export function paragraph(name: string, bbox: Bbox): MeasuredElement {
+  return {
+    key: elementKey({ role: "paragraph", name, path: [{ role: "main" }] }),
+    kind: "text",
+    role: "paragraph",
+    name,
+    bbox,
+    metrics: { fontPx: 16 },
+  };
+}
+
+/**
+ * The step's evidence for a page of `elements`, as `perceive` gives it for `profile`: the
+ * measurement fixture's page, 1280 × 720 on the desktop and not scrolled, holding these elements.
+ */
+export function observe(elements: MeasuredElement[], profile: Profile = ADA): FullObservation {
+  const measurement = PageMeasurement.parse({ ...measurementFixture, elements });
+  return FullObservation.parse(perceive(measurement, profile, 7));
+}
+
+/** The ref the observation gave the element named `name`. */
+export function refOf(page: FullObservation, name: string): ElementRef {
+  const ref = page.elements.find((element) => element.name === name)?.ref;
+  if (ref === undefined) throw new Error(`no shown element is named ${name}`);
+  return ref;
 }

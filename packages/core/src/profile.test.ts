@@ -140,6 +140,26 @@ describe("Profile schema", () => {
     ]);
   });
 
+  test("misclick is B4's motor limit: a px threshold with its source", () => {
+    const limit = { threshold: 48, provenance: "material" };
+    expect(Behaviour.parse({ budgetSeconds: 120, misclick: limit }).misclick).toEqual(limit);
+  });
+
+  test("the motor limit takes no softness: the model is the band", () => {
+    const result = Behaviour.safeParse({
+      budgetSeconds: 120,
+      misclick: { threshold: 48, softness: 0.2, provenance: "material" },
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        code: "unrecognized_keys",
+        path: ["misclick"],
+        keys: ["softness"],
+      }),
+    ]);
+  });
+
   test("emulation defaults to none", () => {
     expect(Perception.parse({}).emulation).toBe("none");
   });
@@ -264,7 +284,7 @@ describe("fixtures", () => {
     expect(ada.behaviour.memorySteps).toBeUndefined();
   });
 
-  test("Milo is mobile, motor threshold only", () => {
+  test("Milo is mobile, target-size threshold only", () => {
     const milo = profileFixture("prof_milo");
     expect(milo.device).toBe("mobile");
     expect(METRIC_NAMES.filter((metric) => milo.perception[metric])).toEqual(["targetPx"]);

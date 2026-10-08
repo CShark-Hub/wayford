@@ -1,9 +1,9 @@
 /**
  * `runActor` on the served target app, against the loop boxes of `tasks/s2-03-actor-loop.md`
- * (`docs/specs/2026-10-01-s2-03-actor-loop.md`, "Acceptance mapping") and of
- * `tasks/s2-10-memory-dice-budget.md` (its spec's "Acceptance mapping"). The app is built and
- * served once, one Chromium serves every run, and each test writes its runs into a fresh
- * temporary directory.
+ * (`docs/specs/2026-10-01-s2-03-actor-loop.md`, "Acceptance mapping"), of
+ * `tasks/s2-10-memory-dice-budget.md` and of `tasks/s2-08-misclick.md` (each spec's "Acceptance
+ * mapping"). The app is built and served once, one Chromium serves every run, and each test
+ * writes its runs into a fresh temporary directory.
  *
  * No test reaches a model or a network: the Actor is `llmActor` on the fake adapter, and `fetch`
  * throws from the moment the app is up. The fake answers by element name, read from the turn it
@@ -41,11 +41,13 @@ import { perceive } from "@wayford/filter";
 import { TARGET_APP_DEFAULT_QUERY } from "@wayford/filter/serve-target-app";
 import pino, { type Logger } from "pino";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { actionPoint } from "./act.js";
 import { actorTurn, providerSeedFor } from "./actor-backend.js";
 import { runActor } from "./actor-loop.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
 import { LlmError } from "./llm.js";
 import { actorMessages, llmActor } from "./llm-actor.js";
+import { missProbability } from "./misclick.js";
 import { attemptTimeoutMs, SETTLE_TIMEOUT_MS } from "./settle.js";
 import { startUrlFor, TARGET_APP_DEFAULTS } from "./start-url.js";
 import {
@@ -186,6 +188,15 @@ function completeAt(result: RunResult, i: number): CompleteRunStep {
   return step;
 }
 
+/** The element of step `i` named `name`, of `role` when given, as the filter measured it. */
+function measured(result: RunResult, i: number, name: string, role?: string) {
+  const element = stepAt(result, i).fullObservation.elements.find(
+    (e) => e.name === name && (role === undefined || e.role === role),
+  );
+  if (element === undefined) throw new Error(`step ${i} has no ${role ?? "element"} named ${name}`);
+  return element;
+}
+
 /** Every perception decision of every step, with its element, its rule and its roll. */
 function perceptionRolls(result: RunResult) {
   return result.steps.flatMap((step) =>
@@ -206,8 +217,12 @@ function perceptionRolls(result: RunResult) {
   );
 }
 
-/** The darkest colour channel of a PNG within a box of it, read by drawing it in a page. */
-async function darkest(path: string, box: Bbox): Promise<number> {
+/**
+ * The RGBA bytes of a box of a PNG, row by row. The PNG is decoded by drawing it in a page, since
+ * no PNG library is a dependency. A step's screenshot is taken at one PNG pixel per CSS pixel, so
+ * a box of the viewport is the same box of its screenshot.
+ */
+async function pixelsIn(path: string, box: Bbox): Promise<number[]> {
   const png = (await readFile(path)).toString("base64");
   const page = await browser.newPage();
   try {
@@ -220,15 +235,19 @@ async function darkest(path: string, box: Bbox): Promise<number> {
         [canvas.width, canvas.height] = [image.width, image.height];
         const context = canvas.getContext("2d");
         context?.drawImage(image, 0, 0);
-        const pixels = context?.getImageData(box.x, box.y, box.width, box.height).data ?? [];
-        // Every channel but alpha.
-        return Math.min(...[...pixels].filter((_, i) => i % 4 !== 3));
+        return [...(context?.getImageData(box.x, box.y, box.width, box.height).data ?? [])];
       },
       { png, box },
     );
   } finally {
     await page.close();
   }
+}
+
+/** The darkest colour channel of a PNG within a box of it. */
+async function darkest(path: string, box: Bbox): Promise<number> {
+  // Every channel but alpha.
+  return Math.min(...(await pixelsIn(path, box)).filter((_, i) => i % 4 !== 3));
 }
 
 /** The text of `message` between two of its lines. */
@@ -508,6 +527,149 @@ describe("B2: scroll when stuck", () => {
     for (const i of [0, 1, 2]) {
       expect(completeAt(result, i).performedAction).toStrictEqual(SCROLLED_DOWN);
     }
+  });
+});
+
+describe("B4: misclick", () => {
+  // The targets and their neighbours on the desktop at the app's defaults (RULES stage 7, "Where a
+  // miss lands"): on /deliveries the two checkboxes are 46 px with their labels, each in reach of
+  // the other under a limit of 48; on /settings/data the links are 30 px, and under a limit of 44 a
+  // miss on the ledger ties between the links above and below it and goes to the one above.
+  const LEAVE = "Leave with a neighbour if I am out";
+  const TEXT_ME = "Text me on the day of delivery";
+  const LEDGER = "Fulfilment ledger";
+  const CONTACT = "Contact details";
+  const P_CHECKBOX = missProbability(46, 48);
+  const P_LEDGER = missProbability(30, 44);
+
+  /**
+   * Ada with a motor limit, a test profile, since no fixture sets one. She sets no threshold, so
+   * P4 shows every control, and no B1 or B2 knob, so B4 takes a run's first behaviour draw.
+   */
+  const motorAda = (limitPx: number): Profile => {
+    const ada = profileFixture("prof_ada");
+    return {
+      ...ada,
+      behaviour: { ...ada.behaviour, misclick: { threshold: limitPx, provenance: "folk" } },
+    };
+  };
+
+  /**
+   * The first run seed from 1 up whose first behaviour draw falls under `p`, so B4 fires on the
+   * run's first roll, and the first whose draw does not. Found, not written down, so they stay
+   * right if the stream or the model changes.
+   */
+  function seedsAt(p: number): { fires: number; holds: number } {
+    let fires: number | undefined;
+    let holds: number | undefined;
+    for (let seed = 1; seed <= 100_000 && (fires === undefined || holds === undefined); seed++) {
+      if (rng(seed)() < p) fires ??= seed;
+      else holds ??= seed;
+    }
+    if (fires === undefined || holds === undefined) {
+      throw new Error(`no run seed from 1 to 100000 both fires and holds at p ${p}`);
+    }
+    return { fires, holds };
+  }
+
+  /** Ada at a limit of 48 on /deliveries, clicking the checked checkbox, then giving up. */
+  const onDeliveries = (seed: number) =>
+    walk({
+      profile: motorAda(48),
+      task: { ...taskOf("task_next-parcel"), startUrl: `${app.origin}/deliveries` },
+      seed,
+      answers: [click("checkbox", LEAVE), GIVE_UP],
+    });
+
+  /** Ada at a limit of 44 on /settings/data, clicking the ledger for the archive, then giving up. */
+  const onSettingsData = (seed: number) =>
+    walk({
+      profile: motorAda(44),
+      task: { ...taskOf("task_past-order"), startUrl: `${app.origin}/settings/data` },
+      seed,
+      answers: [click("link", LEDGER), GIVE_UP],
+    });
+
+  test("a roll under p clicks the neighbouring checkbox, stored fired with its p, with the cursor there in the step's screenshot and not on the target, and the same seed and answers twice give equal rolls and performed actions on every step (F5 AC1)", async () => {
+    const seed = seedsAt(P_CHECKBOX).fires;
+    const [a, b] = await Promise.all([onDeliveries(seed), onDeliveries(seed)]);
+    const { result, runDir } = a;
+
+    // Both ended as the answers lead, so neither stored a step core's roll audit refused.
+    expect([a.result.outcome, b.result.outcome]).toStrictEqual(["gave_up", "gave_up"]);
+    expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+    const step = completeAt(result, 0);
+    const [target, neighbour] = [
+      measured(result, 0, LEAVE, "checkbox"),
+      measured(result, 0, TEXT_ME, "checkbox"),
+    ];
+    expect(step.proposedAction).toStrictEqual({ type: "click", ref: target.ref });
+    expect(step.performedAction).toStrictEqual({ type: "click", ref: neighbour.ref });
+    expect(step.dice).toStrictEqual([
+      { rule: "B4", p: P_CHECKBOX, rolled: rng(seed)(), fired: true },
+    ]);
+    // The giveUp is no click, so nothing rolls on it.
+    expect(diceOf(result)[1]).toStrictEqual([]);
+
+    // The cursor is drawn where the press landed (F5 AC7). The miss checked the neighbour, and the
+    // target was checked already, so the two boxes differ only by the cursor's translucent red
+    // fill (`cursor.ts`).
+    const screenshot = join(runDir, step.screenshotPath ?? "");
+    const { viewport } = step.fullObservation;
+    const redness = async (point: { x: number; y: number }) => {
+      // The pixel the point falls in.
+      const box = { x: Math.floor(point.x), y: Math.floor(point.y), width: 1, height: 1 };
+      const [red = 0, _green, blue = 0] = await pixelsIn(screenshot, box);
+      return red - blue;
+    };
+    const [onNeighbour, onTarget] = await Promise.all([
+      redness(actionPoint(neighbour.bbox, viewport)),
+      redness(actionPoint(target.bbox, viewport)),
+    ]);
+    expect(onNeighbour).toBeGreaterThan(onTarget);
+
+    // The second run rolled and pressed as the first did, the miss included.
+    const performed = ({ result }: Walked) =>
+      result.steps.map((step) => ("performedAction" in step ? step.performedAction : undefined));
+    expect(diceOf(b.result)).toStrictEqual(diceOf(a.result));
+    expect(performed(b)).toStrictEqual(performed(a));
+  });
+
+  test("a roll under p sends the click on the ledger to Contact details, and success is read off /account, the page reached", async () => {
+    const seed = seedsAt(P_LEDGER).fires;
+    const { result } = await onSettingsData(seed);
+
+    const step = completeAt(result, 0);
+    const target = measured(result, 0, LEDGER, "link");
+    expect(step.proposedAction).toStrictEqual({ type: "click", ref: target.ref });
+    expect(step.performedAction).toStrictEqual({
+      type: "click",
+      ref: measured(result, 0, CONTACT, "link").ref,
+    });
+    expect(step.dice).toStrictEqual([
+      { rule: "B4", p: P_LEDGER, rolled: rng(seed)(), fired: true },
+    ]);
+    expect(new URL(step.urlAfter).pathname).toBe("/account");
+    // Aimed at the archive, landed on /account: step 0 met no success, and the run gave up on
+    // step 1.
+    expect(result.outcome).toBe("gave_up");
+    expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+  });
+
+  test("a roll at or above p follows the ledger to the archive, and the run ends success", async () => {
+    const seed = seedsAt(P_LEDGER).holds;
+    const { result } = await onSettingsData(seed);
+
+    const step = completeAt(result, 0);
+    const target = measured(result, 0, LEDGER, "link");
+    expect(step.proposedAction).toStrictEqual({ type: "click", ref: target.ref });
+    expect(step.performedAction).toStrictEqual(step.proposedAction);
+    expect(step.dice).toStrictEqual([
+      { rule: "B4", p: P_LEDGER, rolled: rng(seed)(), fired: false },
+    ]);
+    expect(new URL(step.urlAfter).pathname).toBe("/deliveries/archive");
+    expect(result.outcome).toBe("success");
+    expect(kinds(result)).toStrictEqual(["complete"]);
   });
 });
 
@@ -1296,13 +1458,6 @@ describe("on pages served for the purpose", () => {
     ...servedTask("/stall-from"),
     success: { type: "urlMatches", pattern: "**/stall" },
   });
-
-  /** The element of step `i` named `name`, as the filter measured it. */
-  function measured(result: RunResult, i: number, name: string) {
-    const element = stepAt(result, i).fullObservation.elements.find((e) => e.name === name);
-    if (element === undefined) throw new Error(`step ${i} has no element named ${name}`);
-    return element;
-  }
 
   test("the page is measured once its animation has ended, not mid-way", async () => {
     const { result } = await walk({

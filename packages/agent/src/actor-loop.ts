@@ -388,7 +388,10 @@ async function walk(loop: Loop): Promise<Finish> {
   const { run } = loop;
   const history: HistoryStep[] = [];
   for (let k = 0; ; k++) {
-    const shown = await observe(loop, k);
+    // B4 reads the target's size and the controls around it off the step's evidence, `full`;
+    // the model is shown `shown` alone.
+    const full = await observe(loop, k);
+    const shown = toActorObservation(full);
     const answer = await ask(loop, k, shown, history);
     if (answer === undefined) {
       // Nothing to roll on, so a wasted step draws nothing from the behaviour stream.
@@ -397,12 +400,10 @@ async function walk(loop: Loop): Promise<Finish> {
       // 3. Plan: stage 7's dice on the action proposed, and what they leave is what is performed.
       const { action: proposed, narration } = answer.response;
       if (narration !== "") loop.emit({ type: "narration", stepIndex: k, text: narration });
-      const { performed, dice } = behave(
-        proposed,
-        loop.profile.behaviour,
-        loop.draw,
-        repeats(history, { observation: shown, proposed }),
-      );
+      const { performed, dice } = behave(proposed, loop.profile.behaviour, loop.draw, {
+        repeated: repeats(history, { observation: shown, proposed }),
+        page: full,
+      });
       // A backend that drew the action says how, and the record keeps it beside the dice.
       loop.emit({
         type: "actionPlanned",
@@ -449,9 +450,9 @@ function ranOut(loop: Loop, k: number, limit: RunLimit): Finish {
 
 /**
  * 1. Observe: the page measured once it holds still, perceived through the persona's thresholds,
- * and emitted whole as evidence. Returns the Actor-facing projection, all the model is shown.
+ * and emitted whole as evidence. Returns that evidence; the loop derives what the model is shown.
  */
-async function observe(loop: Loop, k: number): Promise<Observation> {
+async function observe(loop: Loop, k: number): Promise<FullObservation> {
   const { page, isMobile } = loop.run;
   // A browser error page or about:blank cannot be measured (`FullObservation.url` is an
   // `HttpUrl`), and the loop never steps back on the persona's behalf.
@@ -472,7 +473,7 @@ async function observe(loop: Loop, k: number): Promise<Observation> {
     stepIndex: k,
   };
   loop.emit({ type: "stepObserved", stepIndex: k, observation: full });
-  return toActorObservation(full);
+  return full;
 }
 
 /**

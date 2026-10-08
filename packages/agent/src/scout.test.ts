@@ -7,7 +7,8 @@ test("Scout's profile is full vision: no threshold, no cap, every pattern known,
 
   // Thresholds, caps and unknown patterns: every switch the filter has.
   expect(constraintCount(profile)).toBe(0);
-  // B1 and B2, the two dice a profile can switch on, which `constraintCount` does not count.
+  // B1, B2 and B4, the three dice a profile can switch on, which `constraintCount` does not count.
   expect(profile.behaviour.doubleClick).toBeUndefined();
   expect(profile.behaviour.scrollWhenStuck).toBeUndefined();
+  expect(profile.behaviour.misclick).toBeUndefined();
 });

@@ -48,6 +48,13 @@ export type ContrastThreshold = z.infer<typeof ContrastThreshold>;
 export const PixelThreshold = threshold(z.number().positive());
 export type PixelThreshold = z.infer<typeof PixelThreshold>;
 
+/**
+ * B4's motor limit, in CSS px: the target size the persona's taps land on 96% of the time, read
+ * as ISO 9241-9's effective width (`docs/RULES.md` stage 7). No softness: the model is the band.
+ */
+export const MotorThreshold = PixelThreshold.omit({ softness: true });
+export type MotorThreshold = z.infer<typeof MotorThreshold>;
+
 // ---------------------------------------------------------------------------
 // Sections
 // ---------------------------------------------------------------------------
@@ -71,7 +78,7 @@ export type Perception = z.infer<typeof Perception>;
 
 /**
  * What the persona does with what reached it, plus the caps on how much reaches
- * it at all. The dice (B1, B2; B4 is next) are rolled per action; the caps are
+ * it at all. The dice (B1, B2, B4) are rolled per action; the caps are
  * deterministic truncation applied by stages 5 and 6. They share a section
  * because a profile has three sections, not five.
  *
@@ -85,6 +92,8 @@ export const Behaviour = z
     doubleClick: Probability.optional(),
     /** B2: probability a scroll is injected when the Actor is stuck. */
     scrollWhenStuck: Probability.optional(),
+    /** B4: the motor limit. Absent, B4 never rolls. */
+    misclick: MotorThreshold.optional(),
     /** B3: wall-clock budget for the run, after which it ends `budget_exceeded`. */
     budgetSeconds: z.number().int().positive(),
     /** A1: how many elements survive the salience ordering. Absent is unlimited. */
