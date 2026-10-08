@@ -126,7 +126,7 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s4-10 | Scout over HTTP and the sweep CLI on any stored task | M | s2-13 (s4-09 for the report box) | Grzegorz | done |
 | s3-15 | Target screen: a site and a goal in, every screen out | M | s3-13 (s4-10 and s3-16 for some boxes) | Marcin | review (PR #208) |
 | s3-16 | The Lens and the Race take a target | M | s3-11, s3-12, s4-09 | Grzegorz | review (PR #210) |
-| s3-17 | The nav carries the target | M | s3-15, s3-16 | | todo |
+| s3-17 | The nav carries the target | M | s3-15, s3-16 | Grzegorz | doing |
 | s1-07 | Our pick through the API, and the gaps it hits | M | s2-13 | Dawid | review (PR #193) |
 | s2-14 | Follow a tab the action opens, only if a run on our pick hits one | S | s1-07 or s4-08 | | todo |
 | s4-08 | Rehearsal on our site: every screen, from the Target screen | M | s1-07, s4-09, s4-10, s3-15, s3-16, s3-17 | | todo |
