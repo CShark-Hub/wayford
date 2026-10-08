@@ -129,13 +129,15 @@ function tileText(html: string): string {
   return lineOf(tileOf(html, vera));
 }
 
-/** The text after a lane's narration label, which must be there even when no narration is. */
-function narrationOf(html: string, run: StartedRun = vera): string {
+/**
+ * The text after a lane's narration label, in its bubble; `undefined` when the lane draws no
+ * bubble, as before the first narration or on a Jev run (#195).
+ */
+function narrationOf(html: string, run: StartedRun = vera): string | undefined {
   const found = tileOf(html, run).match(
     /<span[^>]*>narration · after the fact<\/span>((?:(?!<\/p>).)*)<\/p>/s,
   );
-  if (found === null) throw new Error(`no narration label in ${run.id}`);
-  return lineOf(found[1] ?? "");
+  return found === null ? undefined : lineOf(found[1] ?? "");
 }
 
 /** A lane's detail line: its text and its classes, or undefined when it has none. */
@@ -292,12 +294,12 @@ describe("runView folds a run's events so far into what its lane shows", () => {
 });
 
 describe("a lane's narration follows the latest narration event of its run", () => {
-  test("Vera's line: empty, then the first narration after event 2, the second after 6, the last after 16", () => {
-    // At every prefix: the line holds the latest narration so far, and nothing before the first.
-    // Each narration shows from its own event on: 2, 6, 10 and 16.
+  test("Vera's line: no bubble, then the first narration after event 2, the second after 6, the last after 16", () => {
+    // At every prefix: the bubble holds the latest narration so far, and there is none before the
+    // first. Each narration shows from its own event on: 2, 6, 10 and 16.
     const lines = runEventFixtures.map((_, i) => narrationOf(render(upTo(i))));
     expect(lines).toStrictEqual([
-      ...Array(2).fill(""),
+      ...Array(2).fill(undefined),
       ...Array(4).fill(narrationAt(2)),
       ...Array(4).fill(narrationAt(6)),
       ...Array(6).fill(narrationAt(10)),
@@ -305,14 +307,14 @@ describe("a lane's narration follows the latest narration event of its run", () 
     ]);
   });
 
-  test("a run with no narration event, as a Jev run: the label and nothing after it", () => {
+  test("a run with no narration event, as a Jev run: no bubble and no label", () => {
     const jevRun = RunEvent.array().parse(
       runEventFixtures.filter((event) => event.type !== "narration"),
     );
     // Still a whole run: it folds, and only the narration is gone.
     expect(runResultFromEvents(jevRun).steps.every((step) => step.narration === "")).toBe(true);
     const html = render(jevRun);
-    expect(narrationOf(html)).toBe("");
+    expect(tileOf(html, vera)).not.toContain("after the fact");
     expect(runView(jevRun).narration).toBeUndefined();
   });
 });

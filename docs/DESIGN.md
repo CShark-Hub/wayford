@@ -98,8 +98,8 @@ The app follows the system preference until someone flips the one Daylight/Night
 | `paper` | Page ground. |
 | `paper-sunken` | Wells: the Lens stage, table header rows, the gauge track, skeletons. |
 | `surface` | Anything raised: cast cards, findings, race lanes, popovers. |
-| `ink` | Primary text, headings, readouts, the primary button's fill. |
-| `ink-2` | Secondary text: descriptions, table cells that are not the key value, narration. |
+| `ink` | Primary text, headings, readouts, the primary button's fill, the Race's narration in its bubble. |
+| `ink-2` | Secondary text: descriptions, table cells that are not the key value, narration on run detail. |
 | `ink-3` | Meta text: captions, units, axis titles. Never a number that is evidence. |
 | `line` | Hairlines that only decorate: panel edges, table rules, chart grid. |
 | `line-strong` | Anything that must be seen to be used: control borders, seed cells, gauge ticks, a removed element's outline. |
@@ -120,7 +120,7 @@ Text is set only in those text tokens.
 
 **Persona slots.** A persona owns a slot, not a hex. It has three tokens:
 
-- `persona-<slot>`, the fill: series, dots, the lane track, the avatar body, a slider fill.
+- `persona-<slot>`, the fill: series, dots, the lane track, the avatar body, a slider fill, the outline and tail of a race lane's narration bubble.
 - `persona-<slot>-ink`, its name set in colour.
 - `persona-<slot>-soft`, the tint behind its avatar.
 
@@ -201,7 +201,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | ThresholdGauge | A ruler: persona fill to the value, signal post at the threshold, softness band below it, provenance tag. A native range input over the drawing | `s3-11` |
 | FilterStates | Visible, degraded (hatch), removed (dashed signal outline and cut flag `P1 · 2.0 < 4.5`), renamed (`[unfamiliar term]`), cut by attention (quiet flag) | `s3-11` |
 | Outcome | Glyph and word: Got through, Gave up, Out of time, Hit the step cap, Over budget, Error. The three budget endings share one hourglass | `s3-12` |
-| RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail. A run too long for its track narrows every done pip alike, so all of them stay between the start and the post | `s3-12` |
+| RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail. A run too long for its track narrows every done pip alike, so all of them stay between the start and the post. The narration sits in a bubble on `paper`, under the avatar, its outline and its tail pointing at the avatar in the persona's fill; with no narration there is no bubble. The bubble costs the lane no height (#195) | `s3-12` |
 | StepTimeline | 40 px step buttons, ← → moves; wasted hatched, last ringed | `s3-12` |
 | JevDraw | Options laid end to end on 0–1, the rolled needle in signal, the drawn segment filled | `s3-10` |
 | SeedStrip | One 32 px cell per seed: border = route open (solid) or closed (dashed), fill = got through, slash = error | `s3-08` |

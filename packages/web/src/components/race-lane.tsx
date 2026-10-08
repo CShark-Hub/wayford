@@ -5,12 +5,13 @@
  * is given. `arena/race-view.tsx` folds the events into these props, so a test can render any
  * moment of a lane without a stream.
  *
- * The grid has two rows. Row 1 holds who and the track. Row 2 holds the detail line and the
- * narration under them, two lines in all: the narration takes both when there is no detail line,
- * and one under it. The screenshot and the right column span both rows, so row 2 costs the lane no
+ * The grid has two rows. Row 1 holds who and the track. Row 2 holds the narration's bubble, right
+ * under the avatar its tail points at, then the detail line, two lines in all: the narration takes
+ * both when there is no detail line, and one over it (#195). The bubble's ground is drawn outside
+ * its text, and the screenshot and the right column span both rows, so row 2 costs the lane no
  * height in any state, and three lanes fit 1280 by 720.
  *
- * That fit has a price. Under a detail line, one line holds about 75 characters of narration at
+ * That fit has a price. Over a detail line, one line holds about 75 characters of narration at
  * 1280, so a stuck, errored or lost lane cuts a longer narration short. A second narration line
  * there would make the lane 24 px taller. While the race is live its header is 18 px taller too, so
  * three such lanes would overflow 720 by 30 px.
@@ -131,9 +132,9 @@ function GoalPost({ reached, place }: { reached: boolean; place: number | undefi
 }
 
 /**
- * A race lane. The narration gets the second line under a detail line, and both lines without one.
- * Both are clamped in CSS alone, so the markup keeps every word. The narration's label stays when
- * there is no narration.
+ * A race lane. The narration, in a bubble in the persona's colour that points at its avatar, gets
+ * one line over a detail line, and both lines without one. Both are clamped in CSS alone, so the
+ * markup keeps every word. With no narration, as on a Jev run, there is no bubble and no label.
  */
 export function RaceLane({
   headingId,
@@ -264,6 +265,31 @@ export function RaceLane({
         )}
       </div>
       <div className="col-span-2 flex min-h-12 min-w-0 flex-col self-start">
+        {/* The bubble alone fits its text. A detail line keeps the column's width: one sized to an
+            unbreakable token, such as a URL's session token in an error, would reach over the
+            screenshot and take the clicks meant for "See the run". */}
+        {narration === undefined ? null : (
+          <div data-narration="" className="relative isolate max-w-full self-start px-2">
+            {/* The bubble's ground and outline, beside the paragraph, since the clamp's overflow
+                would clip them inside it. They reach 2 px up into the row gap and stop at the
+                text's last line, whose leading pads them, so the bubble costs the lane no height
+                and a detail line under it keeps its own leading clear. Its tail, drawn over its
+                top edge inside the row gap, sits under the 64 px avatar's centre: whose words
+                these are. */}
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-0 -top-0.5 bottom-0 -z-10 rounded-sm border-(length:--stroke-rule) border-(--p) bg-paper after:absolute after:-top-1.5 after:left-6.5 after:size-2 after:rotate-45 after:border-t-(length:--stroke-rule) after:border-l-(length:--stroke-rule) after:border-(--p) after:bg-paper"
+            />
+            <p
+              className={cn(
+                "body text-ink",
+                detail === undefined ? "line-clamp-2" : "line-clamp-1",
+              )}
+            >
+              <span className="mono-label text-ink-3">narration · after the fact</span> {narration}
+            </p>
+          </div>
+        )}
         {detail === undefined ? null : (
           <p
             data-detail=""
@@ -275,12 +301,6 @@ export function RaceLane({
             {detail}
           </p>
         )}
-        <p
-          className={cn("body text-ink-2", detail === undefined ? "line-clamp-2" : "line-clamp-1")}
-        >
-          <span className="mono-label text-ink-3">narration · after the fact</span>
-          {narration === undefined ? null : ` ${narration}`}
-        </p>
       </div>
     </article>
   );

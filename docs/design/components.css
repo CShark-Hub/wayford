@@ -278,7 +278,17 @@ button.wf-avatar:hover, a.wf-avatar:hover { transform: translateY(-2px); }
 .wf-goalpost::after { content: ""; position: absolute; left: 0; top: 0; width: 12px; height: 10px; background: var(--ink); clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .wf-goalpost--reached::after { background: var(--p); }
 .wf-shot { width: 168px; aspect-ratio: 16 / 10; border-radius: var(--radius-sm); overflow: hidden; background: var(--paper-sunken); border: var(--stroke-hair) solid var(--line); }
-.wf-narration { grid-column: 2 / -1; margin: 0; color: var(--ink-2); font-size: 16px; line-height: 24px; }
+/* The narration's bubble (#195): under the avatar, its outline and tail in the persona's fill, never its ground.
+   An outline, not a border, and no vertical padding, so the drawn bubble costs the lane no height. */
+.wf-narration {
+  grid-column: 1 / -1; justify-self: start; position: relative; margin: 0; padding: 0 8px;
+  background: var(--paper); outline: var(--stroke-rule) solid var(--p); border-radius: var(--radius-sm);
+  color: var(--ink); font-size: 16px; line-height: 24px;
+}
+.wf-narration::after {
+  content: ""; position: absolute; top: -6px; left: 26px; width: 8px; height: 8px; transform: rotate(45deg);
+  background: var(--paper); border-top: var(--stroke-rule) solid var(--p); border-left: var(--stroke-rule) solid var(--p);
+}
 .wf-narration::before { content: "narration · after the fact  "; font: 500 16px/20px var(--font-mono); color: var(--ink-3); white-space: pre; }
 
 /* ---------- Step timeline (run detail) ---------- */

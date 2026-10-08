@@ -302,13 +302,15 @@ describe("the detail line", () => {
     expect(textOf(html)).toContain(detail);
   });
 
-  test("comes before the narration", () => {
+  // Where the bubble lands, under the avatar, is measured in the self-check's lane pass.
+  test("comes after the narration's bubble in the markup (#195)", () => {
     const html = lane({
       outcome: "lost",
       detail: "Stream lost: last seen moving",
       narration: "Opening it.",
     });
-    expect(html.indexOf("data-detail")).toBeLessThan(html.indexOf("narration · after the fact"));
+    expect(html.indexOf("data-narration")).toBeGreaterThan(-1);
+    expect(html.indexOf("data-narration")).toBeLessThan(html.indexOf("data-detail"));
   });
 });
 
@@ -321,7 +323,7 @@ describe("the narration", () => {
   test.each<[string, Partial<Props>, string, string]>([
     ["two lines with no detail line", {}, "line-clamp-2", "line-clamp-1"],
     [
-      "one line under a detail line",
+      "one line over a detail line",
       { outcome: "lost", detail: "Stream lost: last seen moving" },
       "line-clamp-1",
       "line-clamp-2",
@@ -337,9 +339,32 @@ describe("the narration", () => {
     },
   );
 
-  test("keeps its label when there is no narration, as on a Jev run", () => {
+  test("is a bubble: the label first, then the words in ink", () => {
+    const html = lane({ narration: "Opening it." });
+    const bubble = elementOf(html, "div", "data-narration");
+    expect(classesOf(tagReading(bubble, "p", "narration · after the fact Opening it."))).toContain(
+      "text-ink",
+    );
+    expect(classesOf(tagReading(bubble, "span", "narration · after the fact"))).toEqual(
+      expect.arrayContaining(["mono-label", "text-ink-3"]),
+    );
+  });
+
+  // That the tail points at the avatar, and that the bubble is painted over the lane, is measured
+  // in the self-check's lane pass: classes alone cannot show either.
+  test("draws its outline and tail in the persona's fill, on paper, hidden from assistive technology", () => {
+    const bubble = elementOf(lane({ narration: "Opening it." }), "div", "data-narration");
+    const drawn = tagsWith(bubble, 'aria-hidden="true"');
+    expect(drawn).toHaveLength(1);
+    // The ground is paper, never the persona's colour: a persona colour is never behind body text.
+    expect(classesOf(drawn[0] ?? {})).toEqual(
+      expect.arrayContaining(["border-(--p)", "bg-paper", "after:border-(--p)", "after:bg-paper"]),
+    );
+  });
+
+  test("is not drawn when there is no narration, as on a Jev run: no bubble and no label", () => {
     const html = lane();
-    const paragraph = tagReading(html, "p", "narration · after the fact");
-    expect(classesOf(paragraph)).toContain("line-clamp-2");
+    expect(html).not.toContain("data-narration");
+    expect(textOf(html)).not.toContain("after the fact");
   });
 });

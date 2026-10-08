@@ -278,8 +278,12 @@ function listedScreen(name: string): SelfCheckScreen {
   return screen;
 }
 
-/** What ends Vera's run in the detail race: the tool failing, not the persona. */
-const ACTOR_ERROR = "Actor model answered 500: the upstream provider timed out after 30 s";
+/**
+ * What ends Vera's run in the detail race: the tool failing, not the persona. It quotes the page's
+ * URL, as the agent's errors do, and the URL holds a token Chrome cannot break: a detail line's box
+ * sized to fit it would reach across the screenshot and take the clicks meant for "See the run".
+ */
+const ACTOR_ERROR = `page_not_settled: the page at http://localhost:5174/account/orders?session=${"eyJhbGciOiJIUzI1NiJ9".repeat(6)} did not answer within 10000 ms`;
 
 /**
  * `eventsOf`'s `changes` for the detail race: each narration said twice over, so it runs past the
@@ -518,17 +522,51 @@ describe("on the web app", () => {
         const header = page.locator("section[aria-labelledby='race-goal'] > header");
         expect(await header.locator('[data-source="live"]').count()).toBe(1);
         expect(await badges(page).count()).toBe(1);
-        // Whether each lane draws a detail line, and whether its clamp cuts its narration short.
+        // Whether each lane draws a detail line, and whether its box stays clear of the screenshot
+        // and the link beside it, whatever its text; whether its clamp cuts its narration short;
+        // and whether its narration's bubble, its ground drawn outside its text, stays inside the
+        // lane, clear of the screenshot and above the detail line under it, is painted over the
+        // lane's own ground, and has its tail's centre under the avatar's (#195).
         const lanes = await page.locator("article").evaluateAll((articles) =>
           articles.map((article) => {
             const narration = article.querySelector("p:not([data-detail])");
+            const detail = article.querySelector("[data-detail]")?.getBoundingClientRect();
+            const box = article.getBoundingClientRect();
+            const shot = article.querySelector("img")?.getBoundingClientRect();
+            const avatar = article
+              .querySelector(":scope > div:first-child > :first-child")
+              ?.getBoundingClientRect();
+            const ground = article.querySelector("[data-narration] > [aria-hidden]");
+            const drawn = ground?.getBoundingClientRect();
+            const tail = ground === null ? undefined : getComputedStyle(ground, "::after");
+            const tailCentre =
+              ground === null || drawn === undefined || tail === undefined
+                ? Number.NaN
+                : drawn.left +
+                  Number.parseFloat(getComputedStyle(ground).borderLeftWidth) +
+                  Number.parseFloat(tail.left) +
+                  Number.parseFloat(tail.width) / 2;
             return {
-              detail: article.querySelector("[data-detail]") !== null,
+              detail: detail !== undefined,
+              clear: detail === undefined || (shot !== undefined && detail.right <= shot.left),
               cut: narration !== null && narration.scrollHeight > narration.clientHeight,
+              bubble:
+                drawn !== undefined &&
+                shot !== undefined &&
+                drawn.top >= box.top &&
+                drawn.bottom <= (detail?.top ?? box.bottom) &&
+                drawn.left >= box.left &&
+                drawn.right <= shot.left &&
+                document.elementFromPoint(drawn.left + 4, drawn.top + drawn.height / 2) === ground,
+              pointed:
+                avatar !== undefined &&
+                Math.abs(tailCentre - (avatar.left + avatar.width / 2)) <= 1,
             };
           }),
         );
-        expect(lanes).toEqual([1, 2, 3].map(() => lane));
+        expect(lanes).toEqual(
+          [1, 2, 3].map(() => ({ ...lane, clear: true, bubble: true, pointed: true })),
+        );
         const height = await page.evaluate(() => document.scrollingElement?.scrollHeight);
         expect(height).toBeLessThanOrEqual(SELF_CHECK_VIEWPORT.height);
       },
