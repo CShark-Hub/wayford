@@ -111,7 +111,7 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s4-07 | `seed:demo`: the demo's data in one command | M | s4-04, s4-05, s2-12 | Marcin | done |
 | s3-18 | The source badge moves into the page | S | s3-12, s3-14 | Tomasz | done |
 | demo-1 | Agree the 90-second script, `docs/DEMO.md`, and rehearse beats 1 to 4 | — | by Friday 2026-10-09 | team | todo |
-| demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task | team | todo |
+| demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task, #224 | team | todo |
 
 **Any target, for the finals on 2026-10-14** (`docs/adr/0003-any-target.md`).
 
@@ -148,10 +148,15 @@ Optional, taken only once every task above is taken:
 1. Monday: `s3-07`, `s1-06`, `s4-06`, `s2-12`, `s3-10`. `s1-05` merged in PR #162.
 2. After `s1-06`: `s4-04` and `s4-05`. Now: `s3-13`. After `s3-13`: `s3-11` and `s3-12`.
 3. After `s4-04` and `s3-13`: `s3-08`. After `s4-05` and `s3-13`: `s3-09`. After `s4-04`, `s4-05` and `s2-12`: `s4-07`. Optional, after `s3-08`: `s3-14`.
-4. After `s4-07`: `demo-2`.
+4. After `s4-07` and #224: `demo-2`. `s4-07` and every other must task are merged. #224 makes the Lens's drawn page large enough for beat 2, and the backup video should show beat 2 as it will be presented.
 5. Any target: now `s2-13` and `s3-15`'s form. After `s2-13`: `s1-07`, `s4-09` and `s4-10`. After `s3-11`, `s3-12` and `s4-09`: `s3-16`. After `s3-16`: `s3-17`. After those: `s4-08`, then `demo-3`. `s2-14` only if a run hits a new tab.
 
-**Critical path:** `s3-13` → `s3-08` and `s3-09` → `demo-2`, with `s4-07` beside them. `s1-06` and `s4-05`, which led it until 2026-10-06, are done. `s3-13` sets the look every screen task builds on: take it first and review it the day it opens.
+**Critical path, from 2026-10-08:**
+
+- **The demo:** `demo-1` is due Friday 2026-10-09. Then #224 → `demo-2`.
+- **The finals:** `s3-17` (PR #216) → `s4-08` → `demo-3`.
+- `s3-13`, `s3-08`, `s3-09` and `s4-07`, which led it until 2026-10-08, are done.
+- #224 is the one fix the demo still waits on: beat 2's "Order archive" has to read on the Lens at 1280 × 720. Review it the day it opens.
 
 **Screens before data.** `s3-08` and `s3-09` build on the `Report` and `Sweep` fixtures their engines add. `seed:demo --fake` (`s4-07`) fills every screen with no key, and is the way to check the week's screens together.
 
