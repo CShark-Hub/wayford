@@ -1,18 +1,32 @@
 /**
  * The preview's way to io's `GET /measure` (`packages/io/src/routes/measure.ts`), through the dev
- * server's `/api` proxy: a target-app page measured live on a device, parsed with core's
- * `PageMeasurement` before the screen perceives it (s3-05). `api/axe.ts` asks io through
- * `getFromIo` and caches with `IO_CACHE` too.
+ * server's `/api` proxy: a page measured live on a device, parsed with core's `PageMeasurement`
+ * before the screen perceives it (s3-05). The page is a target-app page by its path or any page by
+ * its whole URL (s3-16). `api/axe.ts` asks io through `getFromIo` and `pageParams`, and caches with
+ * `IO_CACHE` too.
  */
 import { queryOptions } from "@tanstack/react-query";
 import { type DeviceKind, PageMeasurement } from "@wayford/core";
 import { type ZodType, z } from "zod";
 
-/** `GET /api/measure?device=…&page=…`, parsed with `PageMeasurement` as `getFromIo` parses. */
+/**
+ * How io's `/measure` and `/axe` are asked for `page`, named as the preview names it
+ * (`preview/search.ts`): `{ page }` for a target-app path, which starts with `/`, and `{ url }` for
+ * any other page, by its whole URL, which never does. io keys both routes by the whole URL
+ * (`docs/adr/0003-any-target.md`, D5), so the query's key and io's agree.
+ */
+export function pageParams(page: string): { page: string } | { url: string } {
+  return page.startsWith("/") ? { page } : { url: page };
+}
+
+/**
+ * `GET /api/measure?device=…&page=…`, or `&url=…` for a URL page, parsed with `PageMeasurement` as
+ * `getFromIo` parses.
+ */
 export function fetchMeasurement(device: DeviceKind, page: string): Promise<PageMeasurement> {
   return getFromIo(
     "measure",
-    new URLSearchParams({ device, page }),
+    new URLSearchParams({ device, ...pageParams(page) }),
     PageMeasurement,
     "a measurement",
   );
@@ -73,13 +87,15 @@ export const IO_CACHE = {
 
 /**
  * The page measured on the device, under the key `["measure", device, page]`, cached with
- * `IO_CACHE`. The key holds nothing a slider writes, and io keeps a measurement until it restarts,
- * so a measurement once there never goes stale: a slider move, a remount or a refocus never asks
- * io for it again (`tasks/s3-05-live-preview.md`, Constraints). A failure is not retried at once,
- * so the stored page and its banner show without a wait. It holds no data, though, so TanStack
- * counts it stale: a refocus, a return to that page or device, or the screen's Try again asks io
- * again, which is how the preview finds a target app started later. A measurement is never
- * dropped from the cache either: there are at most two devices times three pages.
+ * `IO_CACHE`. A URL page's key holds its whole URL, as io's does. The key holds nothing a slider
+ * writes, and io keeps a measurement until it restarts, so a measurement once there never goes
+ * stale: a slider move, a remount or a refocus never asks io for it again
+ * (`tasks/s3-05-live-preview.md`, Constraints). A failure is not retried at once, so the stored
+ * page and its banner show without a wait. It holds no data, though, so TanStack counts it stale:
+ * a refocus, a return to that page or device, or the screen's Try again asks io again, which is how
+ * the preview finds a target app started later. A measurement is never dropped from the cache
+ * either: there are two devices times the three pages, and the few URLs a person opens in one
+ * session.
  */
 export function measurementQuery(device: DeviceKind, page: string) {
   return queryOptions({

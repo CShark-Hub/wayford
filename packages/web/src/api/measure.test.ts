@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { measurementFixture } from "@wayford/core/fixtures";
 import { afterEach, expect, test, vi } from "vitest";
-import { fetchMeasurement, measurementQuery } from "./measure.js";
+import { fetchMeasurement, measurementQuery, pageParams } from "./measure.js";
 
 /** Make every `fetch` answer with a copy of `response`, and hand back the stub to inspect calls. */
 function answer(response: Response) {
@@ -57,4 +57,24 @@ test("a failed measurement is not retried", async () => {
     "error",
   );
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+test("a URL page asks io with url=, keyed by the whole URL", async () => {
+  // io keys a measurement by the whole URL (`docs/adr/0003-any-target.md`, D5), and so does web.
+  const fetch = answer(Response.json(measurementFixture));
+  const page = "https://example.com/shop?a=1#top";
+  await expect(fetchMeasurement("desktop", page)).resolves.toStrictEqual(measurementFixture);
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/measure?device=desktop&url=https%3A%2F%2Fexample.com%2Fshop%3Fa%3D1%23top",
+  );
+  expect(measurementQuery("mobile", page).queryKey).toEqual(["measure", "mobile", page]);
+  // Through the query too, so its key and its request name the same page.
+  const client = new QueryClient();
+  await client.fetchQuery(measurementQuery("mobile", page));
+  expect(fetch).toHaveBeenLastCalledWith(
+    "/api/measure?device=mobile&url=https%3A%2F%2Fexample.com%2Fshop%3Fa%3D1%23top",
+  );
+  // A target-app page is still asked for by its path.
+  expect(pageParams("/settings/data")).toStrictEqual({ page: "/settings/data" });
+  expect(pageParams(page)).toStrictEqual({ url: page });
 });

@@ -20,9 +20,10 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Ask io to check `state`'s sentence with its success and its preset's start URL. What was asked,
- * the preset, the sentence and the success, is read before the call and tags the answer, so the
- * reducer drops an answer to a sentence or a success edited while io was checking.
+ * Ask io to check `state`'s sentence with its success and its goal's start URL. What was asked,
+ * the goal, the sentence and the success, is read before the call and tags the answer, so the
+ * reducer drops an answer to a sentence or a success edited, or a goal changed, while io was
+ * checking.
  */
 export async function checkGoal(
   state: PanelState,

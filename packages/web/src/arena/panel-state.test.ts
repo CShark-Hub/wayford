@@ -2,9 +2,10 @@ import type { Task } from "@wayford/core";
 import { expect, test } from "vitest";
 import type { Extraction } from "../api/runs.js";
 import { bundledProfiles, bundledTasks } from "../bundled-fixtures.js";
-import { dispatched, sixProfiles, withPersonas } from "./fixture-race.js";
+import { dispatched, foreignTask, hardTask, sixProfiles, withPersonas } from "./fixture-race.js";
 import {
   checkedFor,
+  fixedSuccess,
   GOAL_PRESETS,
   goalLabel,
   initialPanel,
@@ -17,11 +18,13 @@ import {
   runsRequestOf,
   seedOf,
   startBlocker,
+  storedGoalOf,
+  storedGoals,
   successBlocker,
   successOf,
   taskRequestOf,
   UNMATCHABLE_SUCCESS,
-  usesPresetSuccess,
+  usesGoalSuccess,
 } from "./panel-state.js";
 
 const [easy, hard] = GOAL_PRESETS;
@@ -79,9 +82,9 @@ test("every goal has a label of its own, so a renamed task id in tasks.json fail
 });
 
 test("the panel starts on the hard goal's sentence and success, with no persona, seed 1 and no check", () => {
-  expect(GOAL_PRESETS.find(({ id }) => id === initialPanel().presetId)?.label).toBe("Hard goal");
+  expect(initialPanel().goal.label).toBe("Hard goal");
   expect(initialPanel()).toStrictEqual({
-    presetId: hard.id,
+    goal: hard,
     sentence: hard.sentence,
     success: "**/deliveries/archive",
     profileIds: [],
@@ -93,7 +96,7 @@ test("the panel starts on the hard goal's sentence and success, with no persona,
 
 test("every preset's success is one the panel can type and check: a URL pattern a page can match", () => {
   for (const preset of GOAL_PRESETS) {
-    const state = dispatched(initialPanel(), { type: "presetChosen", presetId: preset.id });
+    const state = dispatched(initialPanel(), { type: "goalChosen", goal: preset });
     expect(successOf(state.success), preset.id).toStrictEqual(preset.success);
     expect(successBlocker(state.success), preset.id).toBeUndefined();
   }
@@ -105,13 +108,13 @@ test("choosing a preset takes its sentence and its success, and drops the check"
     { type: "sentenceEdited", sentence: "something else" },
     { type: "successEdited", success: "**/something" },
   );
-  const state = dispatched(edited, { type: "presetChosen", presetId: easy.id });
-  expect(state.presetId).toBe(easy.id);
+  const state = dispatched(edited, { type: "goalChosen", goal: easy });
+  expect(state.goal).toBe(easy);
   expect(state.sentence).toBe(easy.sentence);
   expect(state.success).toBe("**/account/address");
   expect(state.check).toStrictEqual({ status: "unchecked" });
   // An accepted check goes too, even when the preset is the one already chosen.
-  expect(dispatched(ready(), { type: "presetChosen", presetId: hard.id }).check).toStrictEqual({
+  expect(dispatched(ready(), { type: "goalChosen", goal: hard }).check).toStrictEqual({
     status: "unchecked",
   });
 });
@@ -119,7 +122,7 @@ test("choosing a preset takes its sentence and its success, and drops the check"
 test("editing the sentence keeps it and drops the check", () => {
   const state = dispatched(ready(), { type: "sentenceEdited", sentence: "find my last order" });
   expect(state.sentence).toBe("find my last order");
-  expect(state.presetId).toBe(hard.id);
+  expect(state.goal).toBe(hard);
   expect(state.check).toStrictEqual({ status: "unchecked" });
 });
 
@@ -129,7 +132,7 @@ test("editing the sentence away from the preset's empties the preset's success",
     sentence: "you want to verify your delivery address",
   });
   expect(state.success).toBe("");
-  expect(usesPresetSuccess(state)).toBe(false);
+  expect(usesGoalSuccess(state)).toBe(false);
   // Every keystroke is an edit: the next one leaves the emptied field as it is.
   expect(
     dispatched(state, { type: "sentenceEdited", sentence: "you want to verify your address" })
@@ -142,7 +145,7 @@ test("editing the sentence back to the preset's refills an empty success from th
   expect(away.success).toBe("");
   const back = dispatched(away, { type: "sentenceEdited", sentence: hard.sentence });
   expect(back.success).toBe(initialPanel().success);
-  expect(usesPresetSuccess(back)).toBe(true);
+  expect(usesGoalSuccess(back)).toBe(true);
   // A field of blanks is as empty as an empty one.
   const blanks = dispatched(
     away,
@@ -179,9 +182,9 @@ test("Use the preset's sets the preset's success, and a later sentence edit keep
     type: "sentenceEdited",
     sentence: "you want to find an order from the spring",
   });
-  const used = dispatched(edited, { type: "presetSuccessUsed" });
+  const used = dispatched(edited, { type: "goalSuccessUsed" });
   expect(used.success).toBe(initialPanel().success);
-  expect(usesPresetSuccess(used)).toBe(true);
+  expect(usesGoalSuccess(used)).toBe(true);
   // The person chose it for this sentence: editing the sentence further never empties it again.
   expect(
     dispatched(used, { type: "sentenceEdited", sentence: "you want to find a spring order" })
@@ -189,7 +192,7 @@ test("Use the preset's sets the preset's success, and a later sentence edit keep
   ).toBe(initialPanel().success);
   // It drops the check, as an accepted task was stored with the success before it.
   const typed = dispatched(ready(), { type: "successEdited", success: "**/archive" });
-  expect(dispatched(typed, { type: "presetSuccessUsed" }).check).toStrictEqual({
+  expect(dispatched(typed, { type: "goalSuccessUsed" }).check).toStrictEqual({
     status: "unchecked",
   });
 });
@@ -198,7 +201,7 @@ test("editing the success keeps its pattern as typed and drops the check", () =>
   const text = dispatched(ready(), { type: "successEdited", success: "**/deliveries/archive " });
   expect(text.success).toBe("**/deliveries/archive ");
   expect(text.check).toStrictEqual({ status: "unchecked" });
-  expect(usesPresetSuccess(text)).toBe(false);
+  expect(usesGoalSuccess(text)).toBe(false);
   expect(text.sentence).toBe(hard.sentence);
 });
 
@@ -267,7 +270,7 @@ test("an answer for an older sentence or another preset is dropped: the same sta
   expect(panelReducer(edited, { type: "checkFailed", for: askedFor, message: "late" })).toBe(
     edited,
   );
-  const otherPreset = dispatched(asked, { type: "presetChosen", presetId: easy.id });
+  const otherPreset = dispatched(asked, { type: "goalChosen", goal: easy });
   expect(
     panelReducer(otherPreset, { type: "checkAnswered", for: askedFor, extraction: accepted }),
   ).toBe(otherPreset);
@@ -277,7 +280,7 @@ test("an answer asked with another success is dropped: the same state comes back
   const asked = dispatched(initialPanel(), { type: "checkStarted" });
   const askedFor = checkedFor(asked);
   expect(askedFor).toStrictEqual({
-    presetId: hard.id,
+    goalId: hard.id,
     sentence: hard.sentence,
     success: "**/deliveries/archive",
   });
@@ -370,6 +373,137 @@ test("a start goes starting, then clears it on success and keeps io's reason on 
   expect(startBlocker(raced)).toMatch(/^Check the goal first/);
 });
 
+test("a stored goal opens checked, and an edit of its sentence asks a check with its start URL and success", () => {
+  const stored = storedGoalOf(foreignTask);
+  expect(stored).toStrictEqual({
+    id: foreignTask.id,
+    label: "Stored goal",
+    sentence: foreignTask.goal,
+    startUrl: "https://example.com/",
+    success: foreignTask.success,
+    stored: foreignTask,
+  });
+  // Chosen, it takes its sentence and its own success, and its check is the stored task, accepted
+  // as io stored it.
+  const chosen = dispatched(initialPanel(), { type: "goalChosen", goal: stored });
+  expect(chosen.goal).toBe(stored);
+  expect(chosen.sentence).toBe(foreignTask.goal);
+  expect(chosen.success).toBe("**/orders/history");
+  expect(usesGoalSuccess(chosen)).toBe(true);
+  expect(chosen.check).toStrictEqual({ status: "accepted", task: foreignTask, rewritten: false });
+  // So Start waits on the personas and the seed only.
+  expect(
+    startBlocker(withPersonas(chosen, bundledProfiles.slice(0, MIN_PERSONAS))),
+  ).toBeUndefined();
+  // Issue #196 holds for a stored goal too: an edit away from its sentence drops the check and
+  // empties its success, so the person says what counts as arriving.
+  const edited = dispatched(chosen, { type: "sentenceEdited", sentence: "find my last order" });
+  expect(edited.check).toStrictEqual({ status: "unchecked" });
+  expect(edited.success).toBe("");
+  expect(usesGoalSuccess(edited)).toBe(false);
+  expect(startBlocker(edited)).toBe(NO_SUCCESS);
+  // "Use the stored goal's" brings it back, and the check carries the stored start URL with it.
+  expect(taskRequestOf(dispatched(edited, { type: "goalSuccessUsed" }))).toStrictEqual({
+    story: "find my last order",
+    startUrl: "https://example.com/",
+    success: foreignTask.success,
+  });
+  // A success typed instead goes as typed, still from the stored start URL.
+  expect(
+    taskRequestOf(dispatched(edited, { type: "successEdited", success: "**/account/orders" })),
+  ).toStrictEqual({
+    story: "find my last order",
+    startUrl: "https://example.com/",
+    success: { type: "urlMatches", pattern: "**/account/orders" },
+  });
+  // Back on a preset, the check goes and the preset's start and success come back.
+  const preset = dispatched(edited, { type: "goalChosen", goal: hard });
+  expect(preset.check).toStrictEqual({ status: "unchecked" });
+  expect(taskRequestOf(preset)).toStrictEqual({
+    story: hard.sentence,
+    startUrl: hard.startUrl,
+    success: hard.success,
+  });
+});
+
+test("storedGoals keeps io's order and leaves a preset's id out", () => {
+  const second: Task = {
+    ...foreignTask,
+    id: "task_01k70f8x2m4n6p8q0r2s4t6v8x",
+    goal: "you want to know what you paid last time",
+  };
+  expect(storedGoals([second, hardTask, foreignTask])).toStrictEqual([
+    storedGoalOf(second),
+    storedGoalOf(foreignTask),
+  ]);
+  expect(storedGoals(bundledTasks)).toStrictEqual([]);
+  expect(storedGoals([])).toStrictEqual([]);
+});
+
+test("a stored goal's element success is fixed: a sentence edit keeps it and the check sends it", () => {
+  // The Target screen stores goals that wait for an element; the panel types URL patterns only.
+  const element = { type: "selectorPresent" as const, selector: "#order-history" };
+  const goal = storedGoalOf({
+    ...foreignTask,
+    id: "task_01k70f8x2m4n6p8q0r2s4t6v8y",
+    success: element,
+  });
+  expect(fixedSuccess(goal)).toStrictEqual(element);
+  expect(fixedSuccess(storedGoalOf(foreignTask))).toBeUndefined();
+  for (const preset of GOAL_PRESETS) expect(fixedSuccess(preset), preset.id).toBeUndefined();
+  // Chosen, there is nothing to type and nothing to bring back: Start waits on the cast alone.
+  const chosen = withPersonas(
+    dispatched(initialPanel(), { type: "goalChosen", goal }),
+    bundledProfiles.slice(0, MIN_PERSONAS),
+  );
+  expect(chosen.success).toBe("");
+  expect(usesGoalSuccess(chosen)).toBe(true);
+  expect(startBlocker(chosen)).toBeUndefined();
+  // A sentence edit drops the check and keeps the element: the check is next, not a pattern.
+  const edited = dispatched(chosen, { type: "sentenceEdited", sentence: "find my last order" });
+  expect(edited.check).toStrictEqual({ status: "unchecked" });
+  expect(usesGoalSuccess(edited)).toBe(true);
+  expect(startBlocker(edited)).toMatch(/^Check the goal first/);
+  expect(panelReducer(edited, { type: "goalSuccessUsed" })).toBe(edited);
+  expect(taskRequestOf(edited)).toStrictEqual({
+    story: "find my last order",
+    startUrl: "https://example.com/",
+    success: element,
+  });
+  // Back to its own sentence, it is the element still.
+  const back = dispatched(edited, { type: "sentenceEdited", sentence: foreignTask.goal });
+  expect(taskRequestOf(back).success).toStrictEqual(element);
+});
+
+test("a race on a stored goal spends its check, and choosing it back after another goal accepts it", () => {
+  const stored = storedGoalOf(foreignTask);
+  const chosen = withPersonas(
+    dispatched(initialPanel(), { type: "goalChosen", goal: stored }),
+    bundledProfiles.slice(0, MIN_PERSONAS),
+  );
+  const raced = dispatched(chosen, { type: "startStarted" }, { type: "startSucceeded" });
+  // As for a preset: the next race is checked again, and io mints it a task of its own from the
+  // stored start URL and success.
+  expect(raced.goal).toBe(stored);
+  expect(raced.check).toStrictEqual({ status: "unchecked" });
+  expect(startBlocker(raced)).toMatch(/^Check the goal first/);
+  expect(taskRequestOf(raced)).toStrictEqual({
+    story: foreignTask.goal,
+    startUrl: "https://example.com/",
+    success: foreignTask.success,
+  });
+  // The select holds it and fires no change on the option it holds, so the way to race the stored
+  // task itself again is another goal, then this one back.
+  const again = dispatched(
+    raced,
+    { type: "goalChosen", goal: hard },
+    { type: "goalChosen", goal: stored },
+  );
+  expect(again.check).toStrictEqual({ status: "accepted", task: foreignTask, rewritten: false });
+  expect(again.profileIds).toStrictEqual(chosen.profileIds);
+  expect(startBlocker(again)).toBeUndefined();
+});
+
 test("seedOf reads digits only, within a 32-bit seed", () => {
   expect(seedOf("0")).toBe(0);
   expect(seedOf("1")).toBe(1);
@@ -383,7 +517,7 @@ test("seedOf reads digits only, within a 32-bit seed", () => {
 test("startBlocker gives a reason for each thing missing, and none when the panel is ready", () => {
   expect(startBlocker(ready())).toBeUndefined();
   const reasons: [string, PanelState][] = [
-    ["no check", dispatched(ready(), { type: "presetChosen", presetId: hard.id })],
+    ["no check", dispatched(ready(), { type: "goalChosen", goal: hard })],
     ["no success", dispatched(ready(), { type: "successEdited", success: "" })],
     [
       "a relative pattern",

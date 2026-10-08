@@ -1,7 +1,7 @@
 import type { StartedRun, Task } from "@wayford/core";
 import { afterEach, expect, test, vi } from "vitest";
 import { bundledProfiles } from "../bundled-fixtures.js";
-import { dispatched, withPersonas } from "./fixture-race.js";
+import { dispatched, foreignTask, withPersonas } from "./fixture-race.js";
 import { checkGoal, startRace } from "./panel-calls.js";
 import {
   checkedFor,
@@ -12,6 +12,7 @@ import {
   type PanelState,
   panelReducer,
   startBlocker,
+  storedGoalOf,
 } from "./panel-state.js";
 
 const hard = GOAL_PRESETS.find(({ label }) => label === "Hard goal");
@@ -87,7 +88,7 @@ test("checkGoal: a sentence edited while io checks the old one drops the late an
     { type: "sentenceEdited", sentence: "find my last order" },
     {
       type: "checkAnswered",
-      for: { presetId: asked.presetId, sentence: asked.sentence, success: asked.success },
+      for: { goalId: asked.goal.id, sentence: asked.sentence, success: asked.success },
       extraction: { ok: true, task: acceptedTask, rewritten: false },
     },
   ]);
@@ -121,6 +122,34 @@ test("startRace: io's 202 starts the race, and spends the check, so the next rac
   // and gets a task of its own: its report then reads its runs alone.
   expect(screen.state().starting).toBe(false);
   expect(startBlocker(screen.state())).toMatch(/^Check the goal first/);
+});
+
+test("a stored goal starts with POST /runs alone, no POST /tasks", async () => {
+  const started: StartedRun[] = bundledProfiles.slice(0, MIN_PERSONAS).map((profile, i) => ({
+    id: `run_stored-${i + 1}`,
+    profileId: profile.id,
+    seed: 1,
+  }));
+  const fetch = answer(Response.json({ raceId: "race_stored-1", runs: started }, { status: 202 }));
+  const opened = dispatched(initialPanel(), {
+    type: "goalChosen",
+    goal: storedGoalOf(foreignTask),
+  });
+  const screen = panel(withPersonas(opened, bundledProfiles.slice(0, MIN_PERSONAS)));
+
+  const race = await startRace(screen.state(), bundledProfiles, screen.dispatch);
+
+  // One call, to /runs, on the stored task's id: io checked its goal when it stored it.
+  expect(fetch).toHaveBeenCalledOnce();
+  const [url, init] = fetch.mock.calls[0] ?? [];
+  expect(url).toBe("/api/runs");
+  expect(JSON.parse(String(init?.body))).toStrictEqual({
+    taskId: foreignTask.id,
+    profileIds: bundledProfiles.slice(0, MIN_PERSONAS).map((profile) => profile.id),
+    seeds: [1],
+  });
+  expect(screen.actions.map(({ type }) => type)).toStrictEqual(["startStarted", "startSucceeded"]);
+  expect(race).toBe("race_stored-1");
 });
 
 test("startRace: io's refusal is the panel's alert, and no race starts", async () => {

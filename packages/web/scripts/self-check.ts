@@ -20,6 +20,7 @@ import {
   type RunId,
   type RunResult,
   runResultFromEvents,
+  Task,
   WayfordError,
 } from "@wayford/core";
 import {
@@ -122,6 +123,16 @@ export interface SelfCheckScreen {
   act?: (page: Page) => Promise<void>;
 }
 
+/**
+ * A task io has stored off the target app: the hard goal moved to https://example.com/, under a
+ * ULID id as io's `newId` gives one. The Race lists it as a stored goal, already checked.
+ */
+const FOREIGN_TASK: Task = Task.parse({
+  ...taskFixture("task_past-order"),
+  id: "task_01k70f8x2m4n6p8q0r2s4t6v8w",
+  startUrl: "https://example.com/",
+});
+
 /** The race lane of the persona called `name`: an `<article>` its heading names. */
 function laneOf(page: Page, name: string) {
   return page.getByRole("article", { name, exact: true });
@@ -157,11 +168,12 @@ const DEMO_HISTORY = [
 /**
  * The Race with `demoRace`'s three runs started, each streaming its `events`. `act` checks the hard
  * goal, picks Ada, Kai and Vera, starts the race and waits for each lane's `waits`. io answers the
- * panel's History empty, the goal accepted as it stands (201), the three runs started as one race
- * (202), the race running when the screen opens it by its id, the hard goal's stored report, each
- * run's events as its stream, and every screenshot up to the latest of each, read off `runView`. A
- * lane shows only the latest once its stream has delivered, but a stream that arrived in two chunks
- * would draw an earlier one first, and an unlisted request fails the check.
+ * panel's History empty, its stored goals with `FOREIGN_TASK`, the goal accepted as it stands
+ * (201), the three runs started as one race (202), the race running when the screen opens it by
+ * its id, the hard goal's stored report, each run's events as its stream, and every screenshot up
+ * to the latest of each, read off `runView`. A lane shows only the latest once its stream has
+ * delivered, but a stream that arrived in two chunks would draw an earlier one first, and an
+ * unlisted request fails the check.
  */
 export function raceScreen({
   name,
@@ -187,7 +199,8 @@ export function raceScreen({
     ready,
     responses: {
       "/races": [],
-      "/tasks": jsonAnswer({ task: taskFixture("task_past-order"), rewritten: false }, 201),
+      "/tasks": [FOREIGN_TASK],
+      "POST /tasks": jsonAnswer({ task: taskFixture("task_past-order"), rewritten: false }, 201),
       "/runs": jsonAnswer({ raceId: DEMO_RACE_ID, runs: demoRace.runs }, 202),
       [`/races/${DEMO_RACE_ID}`]: demoRaceRecord("running"),
       // The hard goal's stored report, which the race reads as it opens, to lead to once over.
@@ -359,6 +372,23 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     exclude: "[data-lens-stage]",
   },
   {
+    name: "lens · url",
+    // A page off the target app, by its whole URL: the URL row filled, the live line naming it.
+    // Ready on the URL page's own copy, so a refused url= that fell back to /deliveries would
+    // not pass as this entry.
+    path: "/lens?url=https://example.com/",
+    ready:
+      'main:has([data-state]):has(section[aria-label="axe-core"] li):has-text("https://example.com/ on desktop, opened as given")',
+    // The lens entry's measurement and scan, the measurement at the URL asked for, asked for with
+    // url= rather than page=; responses are keyed by path, so the query is not. The drawn page is
+    // skipped as the lens entry skips it.
+    responses: {
+      "/measure": { ...measurementFixture, url: "https://example.com/" },
+      "/axe": axeScanFixture("/deliveries"),
+    },
+    exclude: "[data-lens-stage]",
+  },
+  {
     name: "lens-illustration",
     path: "/lens?illustration=true",
     // Ready once io's picture is on the stage, the strip has its counts and the axe-core card
@@ -383,13 +413,25 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
   {
     name: "race",
     path: "/race",
-    ready: 'role=heading[name="finished · 2"s]',
-    // The setup strip: the goals and the personas come bundled with the app. The History under it,
-    // whose finished rows link the hard goal's stored report.
+    // Ready once io's stored goals are listed and the History is drawn, so the select is measured,
+    // not its skeleton, and so are the History's rows.
+    ready: 'main:has(#arena-stored-goal) >> role=heading[name="finished · 2"s]',
+    // The setup strip: the presets and the personas come bundled with the app, and io lists one
+    // stored goal beside them. The History under it, whose finished rows link the hard goal's
+    // stored report.
     responses: {
+      "/tasks": [FOREIGN_TASK],
       "/races": DEMO_HISTORY,
       "/reports/task_past-order": reportFixture("task_past-order"),
     },
+  },
+  {
+    name: "race · stored goal",
+    // A link from the Target screen: the panel opens on the stored goal, checked, its start shown.
+    // The History under it lists no race.
+    path: `/race?task=${FOREIGN_TASK.id}`,
+    ready: "text=/^start · /",
+    responses: { "/tasks": [FOREIGN_TASK], "/races": [] },
   },
   raceScreen({
     name: "race-live",

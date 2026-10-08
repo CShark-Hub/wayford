@@ -54,10 +54,10 @@ function captionOf(device: DeviceKind, emulation: VisionDeficiency): string {
 }
 
 /**
- * The stage in the Illustration view. It depends on the picture alone: off `/deliveries` a line
- * and a link there, while io takes the picture a status line over a skeleton in its shape, and
- * then io's picture, or the stored one under a banner once io's failed. `picture` is the screen's
- * `illustrationQuery`, which it enables only here, on `/deliveries`.
+ * The stage in the Illustration view. It depends on the picture alone: off the target app's
+ * `/deliveries` a line and a link there, while io takes the picture a status line over a skeleton
+ * in its shape, and then io's picture, or the stored one under a banner once io's failed.
+ * `picture` is the screen's `illustrationQuery`, which it enables only here, on `/deliveries`.
  */
 export function IllustrationStage({
   device,
@@ -68,7 +68,11 @@ export function IllustrationStage({
 }: {
   device: DeviceKind;
   emulation: VisionDeficiency;
-  page: PreviewPage;
+  /**
+   * The page on the stage: a target-app path, or a whole URL off the target app (s3-16), which is
+   * never the path `/deliveries`, so it is never pictured.
+   */
+  page: string;
   /** The URL's search, so the link to `/deliveries` keeps the rest of it. */
   search: PreviewSearch;
   picture: UseQueryResult<string, Error>;
@@ -77,6 +81,7 @@ export function IllustrationStage({
     return (
       <div className="flex flex-wrap items-center gap-3">
         <p className="body text-ink-2">{`The illustration is taken of ${ILLUSTRATED_PAGE} only.`}</p>
+        {/* `pageSearch` drops `url=`, so from a URL page this leaves for the target app's page. */}
         <Link
           to="/lens"
           search={pageSearch(search, ILLUSTRATED_PAGE)}

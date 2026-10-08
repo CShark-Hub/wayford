@@ -7,26 +7,42 @@
  *
  * Every control is one a sighted person sees. The self-check measures only what is drawn, so a
  * visually hidden radio or checkbox under a drawn look would escape it: the goal is a segmented
- * control and each persona a pressed or unpressed button.
+ * control for the presets and a native select for the stored goals, and each persona a pressed or
+ * unpressed button.
  */
 import type { Profile, ProfileId, SuccessCondition } from "@wayford/core";
 import { cn } from "cn";
 import { PersonaAvatar } from "#components/persona-avatar";
 import { SegmentedControl } from "#components/segmented-control";
+import { Skeleton } from "#components/skeleton";
 import { Button } from "#components/ui/button";
 import {
+  fixedSuccess,
   GOAL_PRESETS,
+  type Goal,
   type GoalCheck,
+  goalSuccessBlocker,
   MAX_PERSONAS,
   type PanelAction,
   type PanelState,
+  presetOf,
   startBlocker,
   successBlocker,
   tooFewPersonas,
-  usesPresetSuccess,
+  usesGoalSuccess,
 } from "./panel-state.js";
 
+/**
+ * io's stored goals as the panel gets them: still loading, failed with io's reason, or listed in
+ * io's order (`storedGoals`).
+ */
+export type StoredGoals =
+  | { status: "loading" }
+  | { status: "failed"; reason: string }
+  | { status: "listed"; goals: readonly Goal[] };
+
 const HEADING_ID = "arena-start";
+const STORED_GOAL_ID = "arena-stored-goal";
 const SENTENCE_ID = "arena-sentence";
 const SUCCESS_ID = "arena-success";
 const SUCCESS_HINT_ID = "arena-success-hint";
@@ -92,18 +108,21 @@ function CheckOutcome({ check }: { check: GoalCheck }) {
 /**
  * What counts as arriving, under the sentence: a URL pattern in mono, after "URL matches" as
  * `successText` words it, since a pattern is the one kind the field takes. An empty field shows
- * the form one takes. "Use the preset's" brings back the preset's condition while the field holds
- * anything else, so taking it is a choice the person makes, never one made for them. While the
- * pattern is blank, or one no page's URL could match, a line says what to do; it describes the
- * field, and Check the goal, which it holds back.
+ * the form one takes. "Use the preset's", or "Use the stored goal's", brings back the goal's
+ * condition while the field holds anything else, so taking it is a choice the person makes, never
+ * one made for them. While the pattern is blank, or one no page's URL could match, a line says what
+ * to do; it describes the field, and Check the goal, which it holds back.
  */
 function SuccessField({
   success,
-  usesPreset,
+  usesGoal,
+  useLabel,
   onAction,
 }: {
   success: string;
-  usesPreset: boolean;
+  usesGoal: boolean;
+  /** The button's words: "Use the preset's" or "Use the stored goal's". */
+  useLabel: string;
   onAction: (action: PanelAction) => void;
 }) {
   const blocker = successBlocker(success);
@@ -124,14 +143,14 @@ function SuccessField({
           aria-describedby={blocker === undefined ? undefined : SUCCESS_HINT_ID}
           className="h-(--control-h) w-80 min-w-0 rounded-sm border border-line-strong bg-surface px-3 mono text-ink placeholder:text-ink-3"
         />
-        {usesPreset ? null : (
+        {usesGoal ? null : (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => onAction({ type: "presetSuccessUsed" })}
+            onClick={() => onAction({ type: "goalSuccessUsed" })}
           >
-            Use the preset's
+            {useLabel}
           </Button>
         )}
       </div>
@@ -144,25 +163,122 @@ function SuccessField({
   );
 }
 
+/** A stored goal as its option reads: the host it starts on, then its goal. */
+export function storedGoalText(goal: Goal): string {
+  return `${new URL(goal.startUrl).host} · ${goal.sentence}`;
+}
+
+/** The select's value while a preset is the goal: its prompt, "Choose a stored goal". */
+const NO_STORED_GOAL = "";
+
 /**
- * The goal: the presets as one segmented control, then only the chosen one's sentence, editable
- * and set large, with what counts as arriving under it. Then the button that checks the sentence
- * and its success, and what the check said.
+ * io's stored goals beside the presets: a native select, its width capped and its text truncated,
+ * since every accepted check stores a task and a rehearsal database lists many. Its prompt is
+ * selected while a preset is the goal. While io's list loads a skeleton stands in its place; a
+ * failed or empty list is a line instead.
+ */
+function StoredGoalChoice({
+  goal,
+  stored,
+  onAction,
+}: {
+  goal: Goal;
+  stored: StoredGoals;
+  onAction: (action: PanelAction) => void;
+}) {
+  switch (stored.status) {
+    case "loading":
+      return <Skeleton className="h-(--control-h) w-60 rounded-sm" />;
+    case "failed":
+      return (
+        <p className="body text-ink-3">
+          {`Stored goals are unavailable: ${stored.reason}. The two target-app goals still work.`}
+        </p>
+      );
+    case "listed":
+      if (stored.goals.length === 0) return <p className="body text-ink-3">No stored goals yet</p>;
+      return (
+        <div className="flex min-w-0 items-center gap-(--space-3)">
+          <label htmlFor={STORED_GOAL_ID} className={cn(LABEL, "shrink-0")}>
+            stored goal
+          </label>
+          <select
+            id={STORED_GOAL_ID}
+            value={goal.stored === undefined ? NO_STORED_GOAL : goal.id}
+            onChange={(event) => {
+              const chosen = stored.goals.find((option) => option.id === event.target.value);
+              if (chosen !== undefined) onAction({ type: "goalChosen", goal: chosen });
+            }}
+            className="h-(--control-h) min-w-0 max-w-100 truncate rounded-sm border border-line-strong bg-surface px-3 body text-ink"
+          >
+            <option value={NO_STORED_GOAL}>Choose a stored goal</option>
+            {stored.goals.map((option) => (
+              <option key={option.id} value={option.id}>
+                {storedGoalText(option)}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+  }
+}
+
+/**
+ * What counts as arriving for the goal: the field, or a line for a stored goal's condition the
+ * panel cannot type (`fixedSuccess`), which it shows and sends as stored. A stored goal says where
+ * it starts first, in mono, on the same row, so the setup still fits 1280 × 720; a preset says
+ * nothing more, as beat 4 shows it.
+ */
+function GoalSuccess({
+  state,
+  onAction,
+}: {
+  state: PanelState;
+  onAction: (action: PanelAction) => void;
+}) {
+  const { goal } = state;
+  const fixed = fixedSuccess(goal);
+  return (
+    <div className="flex flex-wrap items-start gap-x-(--space-6) gap-y-(--space-2)">
+      {goal.stored === undefined ? null : (
+        <p className="flex h-(--control-h) items-center mono text-ink-3">{`start · ${goal.startUrl}`}</p>
+      )}
+      {fixed === undefined ? (
+        <SuccessField
+          success={state.success}
+          usesGoal={usesGoalSuccess(state)}
+          useLabel={goal.stored === undefined ? "Use the preset's" : "Use the stored goal's"}
+          onAction={onAction}
+        />
+      ) : (
+        <p className="flex h-(--control-h) items-center mono text-ink-3">{`success · ${successText(fixed)}`}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The goal: the presets as one segmented control and the stored goals as a select beside it, then
+ * only the chosen goal's sentence, editable and set large, with what counts as arriving under it.
+ * Then the button that checks the sentence and its success, and what the check said. On a stored
+ * goal no preset is checked.
  */
 function GoalBlock({
   state,
+  stored,
   onAction,
   onCheck,
 }: {
   state: PanelState;
+  stored: StoredGoals;
   onAction: (action: PanelAction) => void;
   onCheck: () => void;
 }) {
-  const { presetId, sentence, success, check } = state;
-  const successHeld = successBlocker(success) !== undefined;
+  const { goal, sentence, check } = state;
+  const successHeld = goalSuccessBlocker(state) !== undefined;
   return (
     <div className="flex flex-col gap-(--space-2)">
-      <div className="flex items-center gap-(--space-3)">
+      <div className="flex min-w-0 items-center gap-(--space-3)">
         {/* The group's own label says it to a screen reader; this is the same word, drawn. */}
         <span aria-hidden="true" className={LABEL}>
           goal
@@ -170,9 +286,16 @@ function GoalBlock({
         <SegmentedControl
           label="goal"
           options={GOAL_PRESETS.map((option) => ({ value: option.id, label: option.label }))}
-          value={presetId}
-          onValueChange={(id) => onAction({ type: "presetChosen", presetId: id })}
+          // No preset's id, so none is checked while a stored goal is the goal.
+          value={goal.stored === undefined ? goal.id : NO_STORED_GOAL}
+          onValueChange={(id) => {
+            const preset = presetOf(id);
+            if (preset !== undefined) onAction({ type: "goalChosen", goal: preset });
+          }}
         />
+        <div className="ml-(--space-4) flex min-w-0 items-center">
+          <StoredGoalChoice goal={goal} stored={stored} onAction={onAction} />
+        </div>
       </div>
       <label htmlFor={SENTENCE_ID} className={cn(LABEL, "mt-(--space-2)")}>
         sentence
@@ -185,7 +308,7 @@ function GoalBlock({
         className="w-full resize-none border-0 border-b-(length:--stroke-rule) border-line-strong bg-paper pb-(--space-1) display-m text-balance text-ink"
       />
       {/* The deterministic condition under the sentence: what counts as arriving. */}
-      <SuccessField success={success} usesPreset={usesPresetSuccess(state)} onAction={onAction} />
+      <GoalSuccess state={state} onAction={onAction} />
       <div className="mt-(--space-2) flex items-start gap-(--space-4)">
         <Button
           type="button"
@@ -282,18 +405,21 @@ function CastPicker({
 }
 
 /**
- * The setup strip at `state`. `onAction` takes every edit, `onCheck` asks io to check the sentence
- * and `onStart` starts the race; the screen does both calls, and dispatches what they answer.
+ * The setup strip at `state`, offering `stored`, io's stored goals, beside the presets. `onAction`
+ * takes every edit, `onCheck` asks io to check the sentence and `onStart` starts the race; the
+ * screen does both calls, and dispatches what they answer.
  */
 export function StartPanel({
   state,
   profiles,
+  stored,
   onAction,
   onCheck,
   onStart,
 }: {
   state: PanelState;
   profiles: readonly Profile[];
+  stored: StoredGoals;
   onAction: (action: PanelAction) => void;
   onCheck: () => void;
   onStart: () => void;
@@ -305,7 +431,7 @@ export function StartPanel({
       <h2 id={HEADING_ID} className="sr-only">
         Start a race
       </h2>
-      <GoalBlock state={state} onAction={onAction} onCheck={onCheck} />
+      <GoalBlock state={state} stored={stored} onAction={onAction} onCheck={onCheck} />
       <div className="mt-(--space-5) grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-(--space-6) border-t border-line pt-(--space-4)">
         <CastPicker profiles={profiles} chosen={state.profileIds} onAction={onAction} />
         <div className="flex flex-col items-end gap-(--space-2)">

@@ -1,15 +1,15 @@
 /**
  * Test data, Node only: this file imports `@wayford/core/fixtures`, which reads its files with
  * `node:fs`, so no screen may import it. The arena's tests share it: synthetic personas and the
- * panel's actions for the start panel's tests, the hard goal's task, Vera's fixture run, its ends
- * and a variant where she gets stuck for the race's, and how a race test finds a run's lane in the
- * markup.
+ * panel's actions for the start panel's tests, the hard goal's task and a stored task off the
+ * target app, Vera's fixture run, its ends and a variant where she gets stuck for the race's, and
+ * how a race test finds a run's lane in the markup.
  *
  * It loads only through Vite, as vitest does: `./panel-state.js` reads the bundled fixtures with
  * Vite's `import.meta.glob`, so plain `tsx`, which runs `check:self`, cannot import this file. The
  * race the self-check serves lives in `./demo-race.js` for that reason.
  */
-import { Profile, RunEvent, type StartedRun, type Task } from "@wayford/core";
+import { Profile, RunEvent, type StartedRun, Task } from "@wayford/core";
 import { profileFixture, runEventFixtures, taskFixture } from "@wayford/core/fixtures";
 import { type PanelAction, type PanelState, panelReducer } from "./panel-state.js";
 
@@ -37,6 +37,18 @@ export const GOAL = "you want to see what you ordered three months ago";
 
 /** The hard goal's task, as io's check accepts it unchanged: the race's goal strip reads it. */
 export const hardTask: Task = taskFixture("task_past-order");
+
+/**
+ * A task io has stored off the target app: the hard goal moved to https://example.com/, under a
+ * ULID id as io's `newId` gives one, with a success no preset has, so a test can tell the stored
+ * task's apart from a preset's. The panel offers it as a stored goal, already checked.
+ */
+export const foreignTask: Task = Task.parse({
+  ...hardTask,
+  id: "task_01k70f8x2m4n6p8q0r2s4t6v8w",
+  startUrl: "https://example.com/",
+  success: { type: "urlMatches", pattern: "**/orders/history" },
+});
 
 /** The fixture's event at `index`: Vera's run on the hard goal, which she gives up on. */
 export function fixtureEvent(index: number): RunEvent {

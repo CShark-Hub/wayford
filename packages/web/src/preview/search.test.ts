@@ -16,6 +16,7 @@ import {
   personaSearch,
   resolvePreview,
   softnessKey,
+  urlSearch,
 } from "./search.js";
 
 /** What the router hands `validateSearch`: the query as its parser read it, any key with any value. */
@@ -334,5 +335,100 @@ test("a page link back to /deliveries leaves the page param out", () => {
   expect(pageSearch(onData, "/deliveries")).toStrictEqual({
     persona: "prof_vera",
     page: undefined,
+  });
+});
+
+test("a url= link resolves to that page off the target app, and wins over page=", () => {
+  // Read as io's `pageUrlParam` reads it: trimmed and spelled as `new URL(…).href`, so the key web
+  // caches under is the one io stores under, its query and its hash kept.
+  expect(validate({ url: "  HTTPS://Example.COM:443 " }).url).toBe("https://example.com/");
+  expect(validate({ url: "https://example.com/a?b=1#top" }).url).toBe(
+    "https://example.com/a?b=1#top",
+  );
+  const state = stateOf({ persona: "prof_ada", url: "https://example.com/" });
+  expect(state.page).toBe("https://example.com/");
+  expect(state.onTargetApp).toBe(false);
+  // A link holding both names one page exactly by its URL, whatever the picker left.
+  const both = stateOf({ page: "/settings/data", url: "https://example.com/" });
+  expect(both.page).toBe("https://example.com/");
+  expect(both.onTargetApp).toBe(false);
+  // A URL on the target app's own origin is still a URL page: the link decides, not the host.
+  expect(stateOf({ url: "http://localhost:5174/deliveries" }).onTargetApp).toBe(false);
+  // Without one, the page is the target app's: the picker's, or the default.
+  expect(stateOf({ page: "/account" })).toMatchObject({ page: "/account", onTargetApp: true });
+  expect(stateOf({})).toMatchObject({ page: "/deliveries", onTargetApp: true });
+});
+
+test("a refused url= reads as absent: nope, file:///etc/passwd and 123 open /deliveries, and none throws", () => {
+  // Each comes back as undefined, so it overrides the raw query as every other bad key does.
+  const refused = [
+    "nope",
+    "file:///etc/passwd",
+    123,
+    "",
+    "https://user:secret@example.com/",
+    "http://intranet/",
+    null,
+  ];
+  for (const url of refused) {
+    const label = String(url);
+    expect(() => validate({ url }), label).not.toThrow();
+    expect({ url, ...validate({ url }) }, label).toStrictEqual({ url: undefined });
+    expect(stateOf({ url }), label).toMatchObject({ page: "/deliveries", onTargetApp: true });
+  }
+  // A refused URL leaves a valid page= as it is.
+  expect(stateOf({ page: "/account", url: "nope" }).page).toBe("/account");
+});
+
+test("a page link drops url=, a URL link drops page=, a persona link keeps either", () => {
+  const onUrl = validate({
+    persona: "prof_vera",
+    seed: 7,
+    contrast: 2,
+    url: "https://example.com/",
+  });
+  // The picker always leaves a URL page, with the sliders and the seed kept.
+  expect(pageSearch(onUrl, "/account")).toStrictEqual({
+    persona: "prof_vera",
+    seed: 7,
+    contrast: 2,
+    page: "/account",
+  });
+  expect(pageSearch(onUrl, "/deliveries")).toStrictEqual({
+    persona: "prof_vera",
+    seed: 7,
+    contrast: 2,
+    page: undefined,
+  });
+  // The URL form always leaves a picker page, with everything else kept.
+  const onData = validate({ persona: "prof_kai", evidence: true, page: "/settings/data" });
+  expect(urlSearch(onData, "https://example.org/shop")).toStrictEqual({
+    persona: "prof_kai",
+    evidence: true,
+    url: "https://example.org/shop",
+  });
+  // A persona link keeps the page as the link named it: url= for a URL page, page= for the app's.
+  expect(personaSearch(resolvePreview(onUrl), "prof_zoya")).toStrictEqual({
+    persona: "prof_zoya",
+    seed: 7,
+    evidence: undefined,
+    illustration: undefined,
+    url: "https://example.com/",
+  });
+  expect(personaSearch(resolvePreview(onData), "prof_zoya")).toStrictEqual({
+    persona: "prof_zoya",
+    seed: 1,
+    evidence: true,
+    illustration: undefined,
+    page: "/settings/data",
+  });
+  // Each link resolves back to the page it was made on.
+  expect(resolvePreview(personaSearch(resolvePreview(onUrl), "prof_zoya"))).toMatchObject({
+    page: "https://example.com/",
+    onTargetApp: false,
+  });
+  expect(resolvePreview(urlSearch(onData, "https://example.org/shop"))).toMatchObject({
+    page: "https://example.org/shop",
+    onTargetApp: false,
   });
 });

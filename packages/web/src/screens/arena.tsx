@@ -9,6 +9,10 @@
  * back, or a reload, opens the same race from io. The Race tab leads back to the race last opened
  * (`arena/shown-race.ts`), and "New race" to the panel.
  *
+ * A link may name the goal the panel opens on, `/race?task=<id>`, as the Target screen does for a
+ * task io stored (`OpeningGoal`). Only the panel's route reads it, and only the panel asks io for
+ * the stored goals; choosing another goal does not write the URL.
+ *
  * A race io still runs is followed live, one stream per run (`arena/race.ts`): io streams a run's
  * events from its first, so a race reopened midway shows its lanes as they stand. A finished race
  * is drawn from its runs' stored records, which outlive io's process, as its streams do not. Once
@@ -19,8 +23,9 @@
  * `arena/start-panel.tsx`; the race's folds and its one stream per run in `arena/race.ts`, its view
  * in `arena/race-view.tsx`.
  */
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { createRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
+import { type RaceId, type Task, TaskId } from "@wayford/core";
 import {
   createContext,
   type Dispatch,
@@ -30,20 +35,26 @@ import {
   useReducer,
   useState,
 } from "react";
+import { z } from "zod";
 import { Banner } from "#components/banner";
 import { Skeleton } from "#components/skeleton";
 import { Button, buttonVariants } from "#components/ui/button";
 import { type Race, raceQuery } from "../api/races.js";
-import { runQuery } from "../api/runs.js";
+import { runQuery, tasksQuery } from "../api/runs.js";
 import { RaceHistory } from "../arena/history.js";
 import { checkGoal, startRace } from "../arena/panel-calls.js";
 import {
+  DEMO_GOAL,
+  type Goal,
   goalLabel,
   initialPanel,
   MAX_PERSONAS,
   type PanelAction,
   type PanelState,
   panelReducer,
+  presetOf,
+  storedGoalOf,
+  storedGoals,
 } from "../arena/panel-state.js";
 import {
   EMPTY_SNAPSHOT,
@@ -56,9 +67,21 @@ import {
 import { RaceView } from "../arena/race-view.js";
 import { useReportTask } from "../arena/report-task.js";
 import { forgetRace, showRace } from "../arena/shown-race.js";
-import { StartPanel } from "../arena/start-panel.js";
+import { StartPanel, type StoredGoals } from "../arena/start-panel.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { rootRoute } from "../shell.js";
+
+/** The panel's search: the goal to open on. An id that is no task id reads as absent. */
+const ArenaSearch = z.object({ task: TaskId.optional().catch(undefined) });
+
+/**
+ * io's stored tasks, as the Race reads them: never retried, so a failure shows at once instead of
+ * holding the opening goal for the seconds three retries take. `api/runs.ts`'s `tasksQuery` keeps
+ * its key, so the Runs screen and the Race share one cache.
+ */
+export function storedTasksQuery() {
+  return { ...tasksQuery(), retry: false } as const;
+}
 
 /** The start panel's state and its dispatch, held by the Race's layout. */
 const PanelContext = createContext<{ panel: PanelState; dispatch: Dispatch<PanelAction> } | null>(
@@ -97,24 +120,128 @@ export function ArenaScreen() {
   );
 }
 
-/** `/race/`: the start panel, which opens the race io started, and the History under it. */
-export function StartScreen() {
+/** The goal a link opens the panel on (none for no goal named), and a line saying why, if any. */
+type Opening = { goal?: Goal; notice?: string };
+
+/** Why a failed query failed, in io's words where it gave them. */
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * The goal `/race?task=` opens on, or `undefined` while it cannot be told yet. No `task`, or a
+ * preset's id, opens at once. Another id is a stored task: it opens once io's list holds it, or
+ * once the list is neither pending nor fetching, so a cached list fetched before the task was
+ * created is not read until its refetch ends. When io holds no such task, or the list failed, no
+ * goal opens, under a line naming the id.
+ */
+function openingOf(task: TaskId | undefined, tasks: UseQueryResult<Task[]>): Opening | undefined {
+  if (task === undefined) return {};
+  const preset = presetOf(task);
+  if (preset !== undefined) return { goal: preset };
+  const found = tasks.data?.find((candidate) => candidate.id === task);
+  if (found !== undefined) return { goal: storedGoalOf(found) };
+  if (tasks.isPending || tasks.isFetching) return undefined;
+  const reason = tasks.isError ? reasonOf(tasks.error) : "io holds none";
+  return { notice: `No stored goal ${task}: ${reason}` };
+}
+
+/** io's list as the panel offers it. */
+function storedOf(tasks: UseQueryResult<Task[]>): StoredGoals {
+  if (tasks.data !== undefined) return { status: "listed", goals: storedGoals(tasks.data) };
+  if (tasks.isError) return { status: "failed", reason: reasonOf(tasks.error) };
+  return { status: "loading" };
+}
+
+/** While the goal a link names is looked up: a status line over the strip's place. */
+function OpeningSkeleton({ task }: { task: TaskId }) {
+  return (
+    <div className="flex flex-col gap-(--space-4) pt-(--space-5) pb-(--space-6)">
+      <p role="status" className="body text-ink-2">
+        {`Loading the goal ${task}…`}
+      </p>
+      <Skeleton className="h-(--control-h) w-120 rounded-sm" />
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-28 w-full" />
+    </div>
+  );
+}
+
+/**
+ * The start panel for one link: `StartScreen` keys it by the link's `task`, so a link to another
+ * task mounts it afresh, and its query refetches a stale list on mount. The opening goal is settled
+ * once per mount: a later refetch (the window regaining focus) never reopens it. Once settled, a
+ * goal is drawn at once, the panel reduced on `goalChosen`, so no frame shows the goal before it,
+ * and an effect then hands the layout's reducer the same action, once, for the panel to keep. With
+ * no goal to open, the panel stands as the layout holds it, under the line saying why, if any.
+ */
+function OpeningGoal({
+  task,
+  onStarted,
+}: {
+  task: TaskId | undefined;
+  onStarted: (raceId: RaceId) => void;
+}) {
   const { panel, dispatch } = usePanel();
+  const tasks = useQuery(storedTasksQuery());
+  const [settled, setSettled] = useState<Opening>();
+  let opening = settled;
+  if (opening === undefined) {
+    opening = openingOf(task, tasks);
+    // A render-phase update of this component's own state: React renders again at once.
+    if (opening !== undefined) setSettled(opening);
+  }
+  const goal = opening?.goal;
+  const [applied, setApplied] = useState(false);
+  useEffect(() => {
+    if (goal === undefined || applied) return;
+    dispatch({ type: "goalChosen", goal });
+    setApplied(true);
+  }, [goal, applied, dispatch]);
+
+  // `openingOf` waits only on a link that names a task.
+  if (opening === undefined) return <OpeningSkeleton task={task ?? DEMO_GOAL} />;
+  const shown =
+    goal === undefined || applied ? panel : panelReducer(panel, { type: "goalChosen", goal });
+  return (
+    <>
+      {opening.notice === undefined ? null : (
+        <p role="status" className="pt-(--space-5) body text-ink-2">
+          {opening.notice}
+        </p>
+      )}
+      <StartPanel
+        state={shown}
+        profiles={bundledProfiles}
+        stored={storedOf(tasks)}
+        onAction={dispatch}
+        onCheck={() => void checkGoal(shown, dispatch)}
+        onStart={() =>
+          void startRace(shown, bundledProfiles, dispatch).then((raceId) => {
+            if (raceId !== undefined) onStarted(raceId);
+          })
+        }
+      />
+    </>
+  );
+}
+
+/**
+ * `/race/`: the start panel, which opens the race io started, and the History under it. A link's
+ * `?task=` names the goal the panel opens on (`OpeningGoal`).
+ */
+export function StartScreen() {
+  const { task } = startRoute.useSearch();
   const navigate = useNavigate();
   // The panel is open, so the Race tab leads here again.
   useEffect(() => forgetRace(), []);
   return (
     <>
-      <StartPanel
-        state={panel}
-        profiles={bundledProfiles}
-        onAction={dispatch}
-        onCheck={() => void checkGoal(panel, dispatch)}
-        onStart={() =>
-          void startRace(panel, bundledProfiles, dispatch).then((raceId) => {
-            if (raceId !== undefined) void navigate({ to: "/race/$raceId", params: { raceId } });
-          })
-        }
+      {/* Keyed by the link as given: `/race` and each `?task=` open afresh. */}
+      <OpeningGoal
+        key={task ?? ""}
+        task={task}
+        onStarted={(raceId) => void navigate({ to: "/race/$raceId", params: { raceId } })}
       />
       <RaceHistory />
     </>
@@ -320,6 +447,7 @@ export const arenaRoute = createRoute({
 export const startRoute = createRoute({
   getParentRoute: () => arenaRoute,
   path: "/",
+  validateSearch: ArenaSearch,
   component: StartScreen,
 });
 

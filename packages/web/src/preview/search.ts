@@ -14,6 +14,9 @@
  *   wins over it, so an s3-01 evidence link keeps its meaning.
  * - `page`: one of `PREVIEW_PAGES`, the target-app page the preview perceives. Absent or invalid,
  *   `/deliveries`.
+ * - `url`: any page by its whole URL, as `LensUrl` reads it (s3-16), perceived off the target app
+ *   (`docs/adr/0003-any-target.md`, D2). It wins over `page`. Absent or refused, the page is
+ *   `page`'s.
  *
  * Every param is optional in the URL and defaulted in `resolvePreview`, so a short link is as
  * canonical as a long one.
@@ -21,7 +24,14 @@
  * Nothing here decides visibility. A threshold is passed on or left out, and `perceive` decides
  * every element from what it is passed.
  */
-import { METRIC_NAMES, type MetricName, Probability, type Profile, Seed } from "@wayford/core";
+import {
+  AxeUrl,
+  METRIC_NAMES,
+  type MetricName,
+  Probability,
+  type Profile,
+  Seed,
+} from "@wayford/core";
 import { z } from "zod";
 import { bundledProfiles } from "../bundled-fixtures.js";
 
@@ -83,6 +93,33 @@ function thresholdParam(metric: MetricName) {
 const softnessParam = Probability.optional().catch(undefined);
 
 /**
+ * A `url=` value: trimmed, spelled as `new URL(…).href`, then core's `AxeUrl`, as io's
+ * `pageUrlParam` reads it, so the key web caches a page under is the one io stores it under
+ * (`docs/adr/0003-any-target.md`, D5). Its query and its hash are kept. `AxeUrl` refuses what is
+ * not http or https, such as `file:`, a single-label host, and a user or a password. web may not
+ * import io, so this is web's copy of that rule.
+ *
+ * What `new URL` cannot parse adds a zod issue and never throws: a throw inside a transform escapes
+ * `.catch` and would send the route to its error screen. The URL form reads its value through it
+ * too.
+ */
+export const LensUrl = z
+  .string()
+  .trim()
+  .transform((raw, ctx) => {
+    try {
+      return new URL(raw).href;
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "url must be a whole URL, such as https://example.com/",
+      });
+      return z.NEVER;
+    }
+  })
+  .pipe(AxeUrl);
+
+/**
  * The preview's search params, validated. Every field is optional and ends in `.catch`, so a
  * broken link degrades to the defaults and the persona's values instead of an error screen.
  *
@@ -106,6 +143,7 @@ export const PreviewSearch = z.object({
   evidence: z.literal(true).optional().catch(undefined),
   illustration: z.literal(true).optional().catch(undefined),
   page: z.enum(PREVIEW_PAGES).optional().catch(undefined),
+  url: LensUrl.optional().catch(undefined),
 });
 export type PreviewSearch = z.infer<typeof PreviewSearch>;
 
@@ -141,8 +179,17 @@ export type PreviewState = {
    */
   edited: boolean;
   view: LensView;
-  /** The target-app page perceived. */
-  page: PreviewPage;
+  /**
+   * The page perceived, named as io's messages name it: a `PREVIEW_PAGES` path (`page=`), or a
+   * whole URL (`url=`). A path starts with `/` and a whole URL never does, so the two never collide
+   * in a query key.
+   */
+  page: string;
+  /**
+   * Whether `page` is a target-app page: true for `page=` or no page at all, false for `url=`, even
+   * one on the target app's own origin. The link decides, not the host (ADR 0003, D2).
+   */
+  onTargetApp: boolean;
 };
 
 /**
@@ -183,7 +230,10 @@ export function resolvePreview(search: PreviewSearch): PreviewState {
     profile: { ...persona, perception },
     edited,
     view: viewOf(search),
-    page: search.page ?? DEFAULT_PAGE,
+    // A link holding both is read as the URL: it names one page exactly, while `page=` may be a
+    // picker value left behind.
+    page: search.url ?? search.page ?? DEFAULT_PAGE,
+    onTargetApp: search.url === undefined,
   };
 }
 
@@ -198,10 +248,11 @@ function viewOf(search: PreviewSearch): LensView {
  * The search a persona link navigates to: the new persona on the same seed, view and page. The
  * thresholds and softness are dropped, so they fall back to the new persona's own. The seed stays,
  * because it stands in for a run seed, and a run set compares personas on the same seeds
- * (`docs/PLAN.md`, A20). The page is left out at its default, so a short link stays short.
+ * (`docs/PLAN.md`, A20). The page stays as the link named it, `page=` for a target-app page and
+ * `url=` for any other, and `page=` is left out at its default, so a short link stays short.
  */
 export function personaSearch(
-  state: Pick<PreviewState, "seed" | "view" | "page">,
+  state: Pick<PreviewState, "seed" | "view" | "page" | "onTargetApp">,
   personaId: string,
 ): PreviewSearch {
   return {
@@ -209,21 +260,35 @@ export function personaSearch(
     seed: state.seed,
     evidence: state.view === "evidence" ? true : undefined,
     illustration: state.view === "illustration" ? true : undefined,
-    page: pageParam(state.page),
+    ...(state.onTargetApp ? { page: pageParam(state.page) } : { url: state.page }),
   };
 }
 
 /**
  * The search a page link navigates to: everything as it is, on `page`. The sliders stay, since
- * they are the persona's, not the page's.
+ * they are the persona's, not the page's. `url=` is dropped, so a picker link always leaves a URL
+ * page.
  */
 export function pageSearch(search: PreviewSearch, page: PreviewPage): PreviewSearch {
-  return { ...search, page: pageParam(page) };
+  const { url: _left, ...kept } = search;
+  return { ...kept, page: pageParam(page) };
 }
 
-/** A page as the URL holds it: absent at the default. */
-function pageParam(page: PreviewPage): PreviewPage | undefined {
-  return page === DEFAULT_PAGE ? undefined : page;
+/**
+ * The search the Lens's URL form navigates to: everything as it is, on `url`, a whole URL as
+ * `LensUrl` reads it. `page=` is dropped, so the link names one page.
+ */
+export function urlSearch(search: PreviewSearch, url: AxeUrl): PreviewSearch {
+  const { page: _left, ...kept } = search;
+  return { ...kept, url };
+}
+
+/**
+ * A target-app page as the URL holds it: absent at the default. A path that is no preview page is
+ * absent too, though `resolvePreview` names only preview pages on the target app.
+ */
+function pageParam(page: string): PreviewPage | undefined {
+  return PREVIEW_PAGES.find((own) => own === page && own !== DEFAULT_PAGE);
 }
 
 /** What a metric's sliders show: the URL's value, else the persona's own, else `off` and 0. */

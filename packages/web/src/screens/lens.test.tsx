@@ -1,7 +1,8 @@
 /**
  * The Lens through the app's own router, against "Screen" and "Acceptance mapping" in
  * `docs/specs/2026-10-01-s3-01-preview.md`, `docs/specs/2026-10-06-s3-11-lens-redesign.md` and
- * `docs/specs/2026-10-07-s3-06-illustration-view.md`.
+ * `docs/specs/2026-10-07-s3-06-illustration-view.md`, and §3 of
+ * `docs/specs/2026-10-07-s3-16-lens-race-take-target.md` for a page by URL.
  * Each test loads a URL into a memory history and renders the page with `renderToStaticMarkup`, as
  * `router.test.tsx` does: what a copied link opens with, read off the markup, with no DOM library.
  *
@@ -56,7 +57,15 @@ import {
 } from "../preview/rendered-markup.js";
 import { PREVIEW_PAGES } from "../preview/search.js";
 import { createAppRouter } from "../router.js";
-import { lensCounts, rulesFired, sourceBadge } from "./lens.js";
+import {
+  lensCounts,
+  openedSearch,
+  openUrl,
+  rulesFired,
+  sourceBadge,
+  stageSettled,
+  UrlForm,
+} from "./lens.js";
 
 vi.mock("@wayford/filter/perceive", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@wayford/filter/perceive")>();
@@ -1154,4 +1163,249 @@ test("the top bar's badge reports the stage's data: the picture in the illustrat
   });
   // No picture yet, or none asked for off /deliveries: the badge claims nothing.
   expect(sourceBadge("illustration", "live", undefined)).toBeUndefined();
+});
+
+// ---------------------------------------------------------------------------
+// A page by URL (s3-16)
+// ---------------------------------------------------------------------------
+
+/** A page off the target app, as `LensUrl` spells it. */
+const EXAMPLE = "https://example.com/";
+
+/** `EXAMPLE` as a `url=` value, as the Target screen writes it (`s3-15`). */
+const EXAMPLE_PARAM = `url=${encodeURIComponent(EXAMPLE)}`;
+
+/** Vera at seed 1 on `EXAMPLE`. */
+const VERA_AT_EXAMPLE = `${VERA}&${EXAMPLE_PARAM}`;
+
+/** `measurementFixture` measured at `url` under its own title, with fewer elements. */
+function foreignOf(url: string): PageMeasurement {
+  return {
+    ...measurementFixture,
+    url,
+    title: "Example Domain",
+    elements: measurementFixture.elements.slice(0, 6),
+  };
+}
+
+/**
+ * `liveClient`'s answers, plus io's measurement of `EXAMPLE` on the desktop and its axe-core scan,
+ * which found nothing, so a render of the URL page fetches nothing.
+ */
+function exampleClient(measurement: PageMeasurement = foreignOf(EXAMPLE)): QueryClient {
+  const client = liveClient([...FIXTURE_EVERYWHERE, ["desktop", EXAMPLE, measurement]]);
+  client.setQueryData(axeQuery(EXAMPLE).queryKey, {
+    ...axeScanFixture("/deliveries"),
+    url: EXAMPLE,
+    violations: [],
+  });
+  return client;
+}
+
+/** Every `role="alert"` banner or line's text, in page order. */
+function alertsOf(html: string): string[] {
+  return [...html.matchAll(/<(div|p)(?=[^>]*\srole="alert")[^>]*>(.*?)<\/\1>/gs)].map((alert) =>
+    textOf(withoutHidden(alert[2] ?? "")),
+  );
+}
+
+/** The URL form's start tag and its one input's, by their attributes. */
+function urlFormOf(html: string) {
+  const form = html.match(/<form(\s[^>]*)>/)?.[1];
+  const input = html.match(/<input(?=[^>]*\sname="url")(\s[^>]*?)\/?>/)?.[1];
+  if (form === undefined || input === undefined) throw new Error("No URL form");
+  return { form: attributesOf(form), input: attributesOf(input) };
+}
+
+test("a url= link measures and draws that page, live, opened as given", async () => {
+  const foreign = foreignOf(EXAMPLE);
+  const html = await render(VERA_AT_EXAMPLE, exampleClient(foreign));
+  expect(titleOf(html)).toBe("Example Domain");
+  expect(drawnBoxes(html)).toEqual(shownElements(realPerceive(foreign, vera, 1)));
+  expect(perceiveSpy.mock.calls.length).toBeGreaterThan(0);
+  for (const call of perceiveSpy.mock.calls) expect(call[0]).toBe(foreign);
+  // The copy names the page's URL, never the target app's default parameters.
+  expect(statusOf(html)).toBeUndefined();
+  expect(textOf(html)).toContain("Live: https://example.com/ on desktop, opened as given.");
+  expect(textOf(html)).not.toContain("default parameters");
+  expect(lineOf(axeCardOf(html))).toBe(
+    "axe-core, WCAG 2.2 A and AA: 0 violations Scanned once per page on desktop, opened as given.",
+  );
+  // While io measures it, the status line names the URL.
+  const fresh = await render(VERA_AT_EXAMPLE, new QueryClient());
+  expect(statusOf(fresh)).toBe("Measuring https://example.com/ on desktop…");
+  expect(lineOf(axeCardOf(fresh))).toBe("axe-core is scanning https://example.com/…");
+});
+
+test("a failed URL page draws no page, never the stored /deliveries, and says why", async () => {
+  const html = await render(VERA_AT_EXAMPLE, await failedClient("desktop", EXAMPLE));
+  expect(drawnBoxes(html)).toEqual([]);
+  expect(html).not.toContain("data-lens-stage");
+  expect(perceiveSpy).not.toHaveBeenCalled();
+  expect(alertsOf(html)).toEqual([
+    `The page could not be measured: ${UNAVAILABLE}. ` +
+      "The Lens draws a page only from its own measurement.Try again",
+  ]);
+  // No stored banner, no "Live:" and no "Measuring": nothing was measured, and nothing loads.
+  expect(statusOf(html)).toBeUndefined();
+  expect(textOf(html)).not.toContain("Showing the stored");
+  expect(textOf(html)).not.toContain("Live: ");
+  expect(titleOf(html)).toBe(EXAMPLE);
+  // The strip reads no count and no rule, never skeletons, which would mean "still loading".
+  expect(stripOf(html)).toEqual({
+    visible: "—",
+    degraded: "—",
+    removed: "—",
+    "rules fired": "none",
+  });
+  expect(skeletonsOf(html)).toEqual([]);
+  // The source badge claims nothing: no page was measured, live or stored.
+  expect(stageSettled({ kind: "failed", failure: UNAVAILABLE })).toBeUndefined();
+  expect(stageSettled({ kind: "measuring" })).toBeUndefined();
+  expect(stageSettled({ kind: "live", observation: observationFixture })).toBe("live");
+  expect(
+    stageSettled({ kind: "stored", observation: observationFixture, failure: UNAVAILABLE }),
+  ).toBe("stored");
+});
+
+test("a url= link round-trips as a plain anchor writes it and as encodeURIComponent does", async () => {
+  // A plain anchor leaves the URL's own `:` and `/` as they are; `s3-15` encodes them.
+  for (const path of [`${VERA}&url=${EXAMPLE}`, VERA_AT_EXAMPLE]) {
+    const router = await routerAt(path);
+    expect(searchAt(router), path).toStrictEqual({ persona: "prof_vera", seed: 1, url: EXAMPLE });
+    perceiveSpy.mockClear();
+    const html = renderRouter(router, exampleClient());
+    expect(titleOf(html), path).toBe("Example Domain");
+    expect(urlFormOf(html).input.value, path).toBe(EXAMPLE);
+  }
+});
+
+test("Kai on a url= page gets no jargon list: Fulfilment ledger is masked on page= and not on url=", async () => {
+  // The fixture with its Deliveries link renamed to the target app's one jargon term, at a place
+  // inside Kai's attention cap.
+  const ledger: PageMeasurement = {
+    ...measurementFixture,
+    elements: measurementFixture.elements.map((element) =>
+      element.name === "Deliveries" && element.role === "link"
+        ? { ...element, name: "Fulfilment ledger" }
+        : element,
+    ),
+  };
+  expect(targetAppJargon).toContain("Fulfilment ledger");
+  // On the target app, by page=, K2 masks it for Kai.
+  const onApp = await render(
+    "/lens?persona=prof_kai",
+    liveClient([["desktop", "/deliveries", ledger]]),
+  );
+  expect(perceiveSpy.mock.calls.length).toBeGreaterThan(0);
+  for (const call of perceiveSpy.mock.calls) expect(call[3]).toEqual({ jargon: targetAppJargon });
+  const masked = shownElements(realPerceive(ledger, kai, 1, { jargon: targetAppJargon }));
+  expect(drawnBoxes(onApp)).toEqual(masked);
+  expect(masked.map((box) => box.name)).toContain("[unfamiliar term]");
+  expect(masked.map((box) => box.name)).not.toContain("Fulfilment ledger");
+  // By url=, even at the target app's own address, perceive gets no jargon list, as a run off
+  // the target app gets none.
+  const byUrl = await render(
+    `/lens?persona=prof_kai&url=${encodeURIComponent(ledger.url)}`,
+    liveClient([["desktop", ledger.url, ledger]]),
+  );
+  expect(perceiveSpy.mock.calls.length).toBeGreaterThan(0);
+  for (const call of perceiveSpy.mock.calls) expect(call[3]).toEqual({});
+  const plain = shownElements(realPerceive(ledger, kai, 1, {}));
+  expect(drawnBoxes(byUrl)).toEqual(plain);
+  expect(plain.map((box) => box.name)).toContain("Fulfilment ledger");
+  expect(plain.map((box) => box.name)).not.toContain("[unfamiliar term]");
+});
+
+test("the URL form shows the page's URL, is noValidate, reads a value as LensUrl does, and shows the alert under a refused one", async () => {
+  // On a URL page the field holds its URL; on a target-app page it is empty.
+  const atExample = urlFormOf(await render(VERA_AT_EXAMPLE, exampleClient()));
+  // React's server markup keeps the prop's camel case, `noValidate=""`.
+  expect(atExample.form).toMatchObject({ "aria-label": "Open a page by URL", noValidate: "" });
+  expect(atExample.input).toMatchObject({ type: "url", name: "url", value: EXAMPLE });
+  const html = await render(VERA);
+  expect(urlFormOf(html).input.value).toBe("");
+  expect(textOf(elementOf(html, "form", 'aria-label="Open a page by URL"'))).toBe("urlOpen");
+  expect(alertsOf(html)).toEqual([]);
+  // A whole URL opens on it, trimmed and spelled as io reads it, with page= dropped and the rest
+  // kept; a refused one opens nothing.
+  const search = { persona: "prof_vera", seed: 7, contrast: 2.5, page: "/account" } as const;
+  expect(openedSearch(search, "  https://Example.com/a?b=1  ")).toEqual({
+    persona: "prof_vera",
+    seed: 7,
+    contrast: 2.5,
+    url: "https://example.com/a?b=1",
+  });
+  for (const refused of ["example.com", "nope", "file:///etc/passwd", "", "   "]) {
+    expect(openedSearch(search, refused), refused).toBeUndefined();
+  }
+  // A refused value shows the one alert under the row, tied to the field.
+  const shown = renderToStaticMarkup(<UrlForm value="example.com" refused onOpen={() => {}} />);
+  expect(alertsOf(shown)).toEqual(["Enter a whole http(s) URL, such as https://example.com/"]);
+  const field = urlFormOf(shown).input;
+  expect(field["aria-invalid"]).toBe("true");
+  const alertId = shown.match(/<p(?=[^>]*\srole="alert")[^>]*\sid="([^"]+)"/)?.[1];
+  expect(alertId).toBeDefined();
+  expect(field["aria-describedby"]).toBe(alertId);
+  const quiet = renderToStaticMarkup(<UrlForm value="" refused={false} onOpen={() => {}} />);
+  expect(alertsOf(quiet)).toEqual([]);
+  expect(urlFormOf(quiet).input["aria-invalid"]).toBeUndefined();
+});
+
+test("a submitted URL opens by a push and clears the alert; a refused one shows it and navigates nowhere", () => {
+  const search = { persona: "prof_vera", seed: 7, page: "/account" } as const;
+  const navigate = vi.fn();
+  const refuse = vi.fn();
+  const open = (raw: string) =>
+    openUrl(search, raw, navigate as unknown as Parameters<typeof openUrl>[2], refuse);
+  open("https://example.com/a");
+  expect(refuse.mock.calls).toEqual([[false]]);
+  // A push, never `replace`, so Back returns to the page before.
+  expect(navigate.mock.calls).toEqual([
+    [
+      {
+        search: { persona: "prof_vera", seed: 7, url: "https://example.com/a" },
+        resetScroll: false,
+      },
+    ],
+  ]);
+  navigate.mockClear();
+  refuse.mockClear();
+  open("example.com");
+  expect(refuse.mock.calls).toEqual([[true]]);
+  expect(navigate).not.toHaveBeenCalled();
+});
+
+test("on a URL page the picker marks no page, and the illustration view links to /deliveries", async () => {
+  const html = await render(`/lens?persona=prof_vera&seed=7&${EXAMPLE_PARAM}`, exampleClient());
+  // Each page link leaves the URL page for that page, and none is current.
+  expect(pageLinks(html)).toEqual([
+    { name: "/deliveries", href: "/lens?persona=prof_vera&seed=7", current: undefined },
+    {
+      name: "/account",
+      href: "/lens?persona=prof_vera&seed=7&page=%2Faccount",
+      current: undefined,
+    },
+    {
+      name: "/settings/data",
+      href: "/lens?persona=prof_vera&seed=7&page=%2Fsettings%2Fdata",
+      current: undefined,
+    },
+  ]);
+  // A persona link stays on the URL page.
+  expect(searchOf(personaLink(html, "prof_kai").attributes.href).get("url")).toBe(EXAMPLE);
+  // The illustration view pictures /deliveries only: no picture, no skeleton, no status, and a
+  // link to /deliveries with the rest kept.
+  const pictured = await render(
+    `/lens?persona=prof_vera&seed=7&contrast=2.5&${EXAMPLE_PARAM}&illustration=true`,
+    exampleClient(),
+  );
+  expect(imgOf(pictured)).toBeUndefined();
+  expect(skeletonsOf(pictured)).toEqual([]);
+  expect(statusOf(pictured)).toBeUndefined();
+  expect(textOf(pictured)).toContain("The illustration is taken of /deliveries only.");
+  const link = pictured.match(/<a(\s[^>]*)>Open \/deliveries<\/a>/)?.[1];
+  expect(attributesOf(link ?? "").href).toBe(
+    "/lens?persona=prof_vera&seed=7&contrast=2.5&illustration=true",
+  );
 });

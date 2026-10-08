@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { axeScanFixture } from "@wayford/core/fixtures";
 import { afterEach, expect, test, vi } from "vitest";
 import { axeQuery, fetchAxeScan } from "./axe.js";
@@ -37,4 +38,20 @@ test("a 200 that is not a scan rejects, with zod's issues on one line", async ()
 
 test("the scan is keyed by the page alone", () => {
   expect(axeQuery("/settings/data").queryKey).toEqual(["axe", "/settings/data"]);
+});
+
+test("a URL page asks io with url=, keyed by the whole URL", async () => {
+  // io keys a scan by the whole URL (`docs/adr/0003-any-target.md`, D5), and so does web.
+  const fetch = answer(Response.json(deliveries));
+  const page = "https://example.com/shop?a=1#top";
+  await expect(fetchAxeScan(page)).resolves.toStrictEqual(deliveries);
+  expect(fetch).toHaveBeenCalledWith("/api/axe?url=https%3A%2F%2Fexample.com%2Fshop%3Fa%3D1%23top");
+  expect(axeQuery(page).queryKey).toEqual(["axe", page]);
+  // Through the query too, so its key and its request name the same page.
+  const client = new QueryClient();
+  await client.fetchQuery(axeQuery(page));
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(fetch).toHaveBeenLastCalledWith(
+    "/api/axe?url=https%3A%2F%2Fexample.com%2Fshop%3Fa%3D1%23top",
+  );
 });

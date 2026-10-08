@@ -4,7 +4,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { type Extraction, extractTask } from "../api/runs.js";
 import { bundledProfiles, bundledTasks } from "../bundled-fixtures.js";
 import { attributesOf, decode, lineOf } from "../preview/rendered-markup.js";
-import { dispatched, sixProfiles, withPersonas } from "./fixture-race.js";
+import { dispatched, foreignTask, sixProfiles, withPersonas } from "./fixture-race.js";
 import {
   checkedFor,
   GOAL_PRESETS,
@@ -12,21 +12,33 @@ import {
   MIN_PERSONAS,
   NO_SUCCESS,
   type PanelState,
+  storedGoalOf,
   taskRequestOf,
   UNMATCHABLE_SUCCESS,
 } from "./panel-state.js";
-import { StartPanel, successText } from "./start-panel.js";
+import { StartPanel, type StoredGoals, successText } from "./start-panel.js";
 
 const [easy, hard] = GOAL_PRESETS;
 if (!easy || !hard) throw new Error("the arena has two goal presets, easy then hard");
 
-/** The panel at `state`, its callbacks inert: a static render runs none of them. */
-function render(state: PanelState, profiles: readonly Profile[] = bundledProfiles): string {
+/** io's list of stored goals, read and empty. */
+const NONE_STORED: StoredGoals = { status: "listed", goals: [] };
+
+/**
+ * The panel at `state`, with io's stored goals as `stored` (none unless a test says otherwise), its
+ * callbacks inert: a static render runs none of them.
+ */
+function render(
+  state: PanelState,
+  profiles: readonly Profile[] = bundledProfiles,
+  stored: StoredGoals = NONE_STORED,
+): string {
   const inert = () => {};
   return renderToStaticMarkup(
     <StartPanel
       state={state}
       profiles={profiles}
+      stored={stored}
       onAction={inert}
       onCheck={inert}
       onStart={inert}
@@ -183,7 +195,7 @@ test("below three personas the line says how many more a race needs", () => {
 test.each(GOAL_PRESETS)(
   "POST /tasks carries the $label preset's sentence, start URL and success while the sentence is its own",
   async (preset) => {
-    const state = dispatched(initialPanel(), { type: "presetChosen", presetId: preset.id });
+    const state = dispatched(initialPanel(), { type: "goalChosen", goal: preset });
     // The goal choice shows the preset chosen.
     expect(choiceItem(render(state), preset.label)["aria-checked"]).toBe("true");
     const task = bundledTasks.find((candidate) => candidate.id === preset.id);
@@ -236,7 +248,7 @@ function pathLadenPanel(): PanelState {
   return dispatched(
     withPersonas(initialPanel(), bundledProfiles.slice(0, MIN_PERSONAS)),
     { type: "sentenceEdited", sentence: PATH_LADEN },
-    { type: "presetSuccessUsed" },
+    { type: "goalSuccessUsed" },
     { type: "seedEdited", seed: "1" },
   );
 }
@@ -390,7 +402,7 @@ test("Use the preset's shows only while the success is not the preset's, and is 
       dispatched(
         initialPanel(),
         { type: "sentenceEdited", sentence: "find my order from the spring" },
-        { type: "presetSuccessUsed" },
+        { type: "goalSuccessUsed" },
       ),
     ],
     [
@@ -401,7 +413,7 @@ test("Use the preset's shows only while the success is not the preset's, and is 
         { type: "sentenceEdited", sentence: hard.sentence },
       ),
     ],
-    ["the easy preset", dispatched(initialPanel(), { type: "presetChosen", presetId: easy.id })],
+    ["the easy preset", dispatched(initialPanel(), { type: "goalChosen", goal: easy })],
   ];
   for (const [what, state] of hidden) {
     expect(buttonNames(render(state)), what).not.toContain("Use the preset's");
@@ -434,7 +446,7 @@ test.each(GOAL_PRESETS)(
   "the $label choice draws its own sentence and its success's pattern in the field, and not the other's",
   (preset) => {
     const other = preset === easy ? hard : easy;
-    const html = render(dispatched(initialPanel(), { type: "presetChosen", presetId: preset.id }));
+    const html = render(dispatched(initialPanel(), { type: "goalChosen", goal: preset }));
     expect(choiceItem(html, preset.label)["aria-checked"]).toBe("true");
     expect(choiceItem(html, other.label)["aria-checked"]).toBe("false");
     expect(sentenceOf(html)).toBe(preset.sentence);
@@ -540,4 +552,124 @@ test("every control is drawn, named and described, and the panel never says disa
     ].join(" ");
     expect(said.toLowerCase()).not.toContain("disabled");
   }
+});
+
+/** The stored-goal `<select>`, start tag to end tag, or `undefined` when none is drawn. */
+function storedSelect(html: string): string | undefined {
+  return html.match(/<select[^>]*\sid="arena-stored-goal"[^>]*>.*?<\/select>/s)?.[0];
+}
+
+/** A `<select>`'s options in order: each its value, its text and whether it is selected. */
+function optionsOf(select: string) {
+  return [...select.matchAll(/<option([^>]*)>(.*?)<\/option>/gs)].map(([, tag, inner]) => {
+    const attributes = attributesOf(tag ?? "");
+    return {
+      value: attributes.value,
+      text: lineOf(inner ?? ""),
+      selected: "selected" in attributes,
+    };
+  });
+}
+
+/** The foreign task as a stored goal: the hard goal, started on https://example.com/. */
+const foreign = storedGoalOf(foreignTask);
+
+test("stored goals are listed by host and goal; loading is a skeleton, a failure a line", () => {
+  // Listed: a native select its label names, its first option the prompt, selected on a preset.
+  const listed = render(initialPanel(), bundledProfiles, { status: "listed", goals: [foreign] });
+  const select = storedSelect(listed);
+  if (select === undefined) throw new Error("no stored-goal select");
+  expect(listed).toMatch(/<label[^>]*\sfor="arena-stored-goal"[^>]*>stored goal<\/label>/);
+  expect(optionsOf(select)).toStrictEqual([
+    { value: "", text: "Choose a stored goal", selected: true },
+    {
+      value: foreignTask.id,
+      text: "example.com · you want to see what you ordered three months ago",
+      selected: false,
+    },
+  ]);
+  // Its width is capped and its text truncates: a rehearsal database lists many goals.
+  const classes = (attributesOf(select.match(/<select[^>]*>/)?.[0] ?? "").class ?? "").split(" ");
+  expect(classes).toEqual(expect.arrayContaining(["max-w-100", "truncate"]));
+
+  // Loading: a skeleton in the select's place, and no select yet.
+  const loading = render(initialPanel(), bundledProfiles, { status: "loading" });
+  expect(storedSelect(loading)).toBeUndefined();
+  expect(loading).toContain('data-slot="skeleton"');
+
+  // Failed: a line naming io's reason, and the presets still offered.
+  const failed = render(initialPanel(), bundledProfiles, {
+    status: "failed",
+    reason: "io answered 502",
+  });
+  expect(storedSelect(failed)).toBeUndefined();
+  expect(lineOf(failed)).toContain(
+    "Stored goals are unavailable: io answered 502. The two target-app goals still work.",
+  );
+  expect(choiceItem(failed, hard.label)["aria-checked"]).toBe("true");
+
+  // None stored: a line, no select.
+  const none = render(initialPanel());
+  expect(storedSelect(none)).toBeUndefined();
+  expect(lineOf(none)).toContain("No stored goals yet");
+});
+
+test("a preset draws no start line; a stored goal shows start · <url>, its option selected, no preset checked, and Use the stored goal's", () => {
+  const stored: StoredGoals = { status: "listed", goals: [foreign] };
+  // A preset: the success field alone under the sentence, as beat 4 shows it.
+  const preset = render(initialPanel(), bundledProfiles, stored);
+  expect(lineOf(preset)).not.toContain("start ·");
+
+  const chosen = dispatched(initialPanel(), { type: "goalChosen", goal: foreign });
+  const html = render(chosen, bundledProfiles, stored);
+  // Where it starts, in mono, above the field that holds its own success.
+  const start = html.match(/<p class="[^"]*\bmono text-ink-3">(start · [^<]*)<\/p>/);
+  expect(start?.[1]).toBe("start · https://example.com/");
+  expect(html.indexOf("start · ")).toBeLessThan(html.indexOf('id="arena-success"'));
+  expect(attributesOf(input(html, "arena-success")).value).toBe("**/orders/history");
+  expect(sentenceOf(html)).toBe(foreignTask.goal);
+  const selected = optionsOf(storedSelect(html) ?? "").filter((option) => option.selected);
+  expect(selected.map((option) => option.value)).toStrictEqual([foreignTask.id]);
+  expect(choiceItem(html, easy.label)["aria-checked"]).toBe("false");
+  expect(choiceItem(html, hard.label)["aria-checked"]).toBe("false");
+  // Checked already, so Start waits on the personas alone, and the check's line names its success.
+  const text = lineOf(html);
+  expect(text).toContain(`The personas get: ${foreignTask.goal}`);
+  expect(text).toContain(`success · ${successText(foreignTask.success)}`);
+  expect(text).toContain("Choose 3 more personas");
+  expect(text).not.toContain("Check the goal first");
+  expect(buttonNames(html)).not.toContain("Use the stored goal's");
+  // Its sentence edited, its success empties, and the button that brings it back names the goal.
+  const edited = render(
+    dispatched(chosen, { type: "sentenceEdited", sentence: "find my last order" }),
+    bundledProfiles,
+    stored,
+  );
+  expect(buttonNames(edited)).toContain("Use the stored goal's");
+  expect(buttonNames(edited)).not.toContain("Use the preset's");
+});
+
+test("a stored goal's element success is a line, not a field: an edited sentence waits on a check, never on a success", () => {
+  const element = storedGoalOf({
+    ...foreignTask,
+    id: "task_01k70f8x2m4n6p8q0r2s4t6v8y",
+    success: { type: "selectorPresent", selector: "#order-history" },
+  });
+  const stored: StoredGoals = { status: "listed", goals: [element] };
+  const edited = dispatched(
+    withPersonas(
+      dispatched(initialPanel(), { type: "goalChosen", goal: element }),
+      bundledProfiles.slice(0, MIN_PERSONAS),
+    ),
+    { type: "sentenceEdited", sentence: "find my last order" },
+  );
+  const html = render(edited, bundledProfiles, stored);
+  expect(html).not.toMatch(/<input[^>]*\sid="arena-success"/);
+  expect(html).toMatch(
+    /<p class="[^"]*\bmono text-ink-3">success · Element present: #order-history<\/p>/,
+  );
+  expect(buttonNames(html)).not.toContain("Use the stored goal's");
+  expect(attributesOf(button(html, "Check the goal"))).not.toHaveProperty("disabled");
+  expect(lineOf(html)).not.toContain(NO_SUCCESS);
+  expect(lineOf(html)).toContain("Check the goal first");
 });

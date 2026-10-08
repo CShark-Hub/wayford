@@ -513,13 +513,11 @@ export function GoalView({
       <Section id={OPEN_ID} title="Open it">
         <p className={LINE}>
           The Lens shows the start page as each persona's filter leaves it. The Race runs three to
-          five personas on the goal, live. Until the Lens and the Race take a goal of their own,
-          each opens on its own default.
+          five personas on the goal, live.
         </p>
         <div className="flex flex-wrap gap-(--space-3)">
-          {/* Plain anchors, not typed `Link`s: the Lens's `url` and the Race's `task` search params
-              are `s3-16`'s to add, and a typed `Link` to a param its route does not declare fails
-              the typecheck. */}
+          {/* Plain anchors, written before `s3-16` gave the Lens its `url` and the Race its `task`
+              search params. Both routes declare them now, so these can become typed `Link`s. */}
           <a
             href={`/lens?url=${encodeURIComponent(task.startUrl)}`}
             className={buttonVariants({ variant: "outline" })}
