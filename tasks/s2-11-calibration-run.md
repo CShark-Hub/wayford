@@ -85,7 +85,7 @@ One command runs the calibration set on the real model and prints a table that s
     seed:demo  about 0.1160 USD for its 60 runs (3 personas × 2 tasks × 10 seeds); the sweeps are extra
     report     runs/calibration/2026-10-03T11-14-19.610Z.json
     ```
-- [ ] Needs s1-03 and s2-10. The table rerun with Kai's row, in a comment on the PR or in the s1-03 PR
+- [x] Needs s1-03 and s2-10. The table rerun with Kai's row, in a comment on the PR or in the s1-03 PR Rerun on 2026-10-08 at `main` `b77a10e`, with s2-10 (#154) and s1-03 (#148) in, posted on PR #145 ([comment](https://github.com/CShark-Hub/promptozaury/pull/145#issuecomment-6068958860)). The set is still **go** at 0.0416 USD. Kai, hard is still 0/5, every run on the step cap: A1 cut "Order archive" on `/deliveries` on every visit, the kebab on `/account` was shown renamed by K1 and K4 and never clicked, and Settings was never opened, so every run bounced between `/deliveries` and `/account` until the cap. s2-10's memory and clock did not change his path.
 - [x] `--max-usd 0.01` stops before any run starts `calibration-run.browser.test.ts` "maxUsd 0.01 starts no run": the factory is never called and `runsDir` stays empty. By hand on Luna, `calibrate -- --max-usd 0.01` printed `calibration_over_budget: the estimate for 25 runs of at most 20 steps is 0.9000 USD, over the limit of 0.0100 USD` and exit 1, with no app served and no browser launched. After the branch review lowered the per-step figures, the same command prints `0.2250 USD` and still stops.
 - [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root 79 files, 1270 tests, rebased on `main` at `5bea085` (#147 and s1-03 merged).
 
@@ -93,7 +93,7 @@ One command runs the calibration set on the real model and prints a table that s
 
 Built as `docs/specs/2026-10-02-s2-11-calibration-run.md` says. Its decision log has every choice, the ones taken during the build marked "(build)". What a reader of this file should know:
 
-- **Kai's box stays open.** It needs `s1-03` and `s2-10`. s1-03 has landed: K1, K4 and A1 now shape what Kai is shown, and the run in box 2 has Kai at 0/5 (A1 cuts route A; the renamed kebab goes unclicked). The rerun the box asks for waits on s2-10's memory and clock.
+- **Kai's box was closed after merge.** It needed `s1-03` and `s2-10`. s1-03 had landed by the merge: K1, K4 and A1 shaped what Kai was shown, and the run in box 2 had Kai at 0/5 (A1 cut route A, and the renamed kebab went unclicked). The rerun waited on s2-10's memory and clock. It was run on 2026-10-08, once s2-10 had merged, and Kai stayed at 0/5 for the same reasons (box 3).
 - **The modules.**
   - `calibration.ts` holds the pure parts: the set, the route lookup, ends, medians, go/no-go, the estimate and the table.
   - `calibration-run.ts` is `calibrate()`: the runs, the model time per step, both cost guards and the report.
