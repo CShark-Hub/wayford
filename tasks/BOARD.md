@@ -141,7 +141,7 @@ Optional, taken only once every task above is taken:
 | s3-06 | Illustration view: the page under the persona's vision emulation | M | s3-05, s2-02, s3-11 | Grzegorz | done |
 | s2-07 | B2: scroll when stuck | S | s2-10 | Grzegorz | done |
 | s2-08 | B4: misclick on small targets | M | s2-10 | Dawid | done |
-| s2-09 | Simulated time: click speed and the budget | L | s2-10, after s2-08 | | todo |
+| s2-09 | Simulated time: click speed and the budget | L | s2-10, after s2-08 | Dawid | doing |
 
 **What can start after what.** The dependency map in `docs/ROADMAP.md` shows the same as a graph.
 
