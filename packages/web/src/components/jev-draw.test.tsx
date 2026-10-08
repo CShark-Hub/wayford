@@ -208,6 +208,19 @@ test("a full-precision roll is flagged to three places and kept whole in the lab
   );
 });
 
+// Three digits would flag 0.5, the end of e1's segment, though the roll drew e1, below it.
+test("the flag never puts a roll across the edge of the segment it drew", () => {
+  const html = draw(record([0.5, 0.5], 0.49996));
+  expect(flagOf(html).text).toBe("rolled 0.49996");
+  expect(segments(html).map((bar) => "data-drawn" in bar.attributes)).toEqual([true, false]);
+});
+
+test("a probability stored to 17 digits reads short under the bar, and whole in its title", () => {
+  const html = draw(record([0.9, 0.0999999999999999], 0.2));
+  expect(labelsOf(html)).toBe("0 click e1 0.9 · click e2 0.1 1");
+  expect(segments(html)[1]?.attributes.title).toContain(" · 0.0999999999999999 · ");
+});
+
 test("one option is said in the singular", () => {
   expect(startTag(draw(record([1], 0.2)), 'role="img"')["aria-label"]).toBe(
     "1 option, rolled 0.2, drew click e1",

@@ -10,6 +10,7 @@ import { describe, expect, test } from "vitest";
 import { screenshotUrl } from "../api/runs.js";
 import {
   attributesOf,
+  classesOf,
   decode,
   detailsOf,
   divsWith,
@@ -307,6 +308,19 @@ test("a billed cost never reads as $0.0000", () => {
   expect(dollars).toEqual(["$0.0201", "$0.0037", "$0.00024", "$0.000020", "$0.0000"]);
 });
 
+// A real roll runs to 17 digits. Three would print this one as 0.8, not below the p it fired under.
+test("a full-precision roll reads short in Dice, on its side of p, and whole in its title", () => {
+  const step = completeStep(2);
+  const dice = (step.dice ?? []).map((roll) => ({ ...roll, rolled: 0.7999612 }));
+  const run = RunResult.parse({
+    ...runResultFixture,
+    steps: runResultFixture.steps.map((s) => (s.stepIndex === 2 ? { ...step, dice } : s)),
+  });
+  const html = sectionOf(replay(2, run), "Dice");
+  expect(recordsOf(html)).toEqual([{ Rule: "B1", p: "0.8", Rolled: "0.79996", Fired: "fired" }]);
+  expect(html).toContain('title="0.7999612"');
+});
+
 test("a roll that did not fire reads so, and a step with no roll says none was rolled", () => {
   expect(recordsOf(sectionOf(replay(0), "Dice"))).toEqual([
     { Rule: "B1", p: "0.8", Rolled: "0.91", Fired: "not fired" },
@@ -316,37 +330,73 @@ test("a roll that did not fire reads so, and a step with no roll says none was r
   expect(lineOf(scroll)).toContain("No dice rolled");
 });
 
+/**
+ * Each row of Filtered out's table, its cells taken apart: the ref, the role, the name, what the
+ * Actor read and the state, and the decisions with the metrics measured.
+ */
+function filteredRowsOf(html: string) {
+  return [...html.matchAll(/<tr(?:\s[^>]*)?>(.*?)<\/tr>/gs)].flatMap((row) => {
+    const cells = [...(row[1] ?? "").matchAll(/<td(?:\s[^>]*)?>(.*?)<\/td>/gs)].map((c) => c[1]);
+    const [ref = "", role = "", name = "", read = "", decisions = ""] = cells;
+    if (cells.length === 0) return [];
+    const paragraphs = (cell: string) =>
+      [...cell.matchAll(/<p(?:\s[^>]*)?>(.*?)<\/p>/gs)].map((p) => lineOf(p[1] ?? ""));
+    const [shown, state] = paragraphs(read);
+    return [
+      {
+        ref: lineOf(ref),
+        role: lineOf(role),
+        name: lineOf(name),
+        read: shown,
+        state,
+        decisions: [...decisions.matchAll(/<li(?:\s[^>]*)?>(.*?)<\/li>/gs)].map((li) =>
+          lineOf(li[1] ?? ""),
+        ),
+        metrics: paragraphs(decisions)[0],
+      },
+    ];
+  });
+}
+
 describe("step 1: Filtered out has the real name, the model's text the masked one", () => {
   const html = replay(1);
   const filtered = sectionOf(html, "Filtered out");
-  const rows = recordsOf(filtered);
+  const rows = filteredRowsOf(filtered);
   const byName = (name: string) => {
-    const row = rows.find((r) => r.Name === name);
+    const row = rows.find((r) => r.name === name);
     if (row === undefined) throw new Error(`no Filtered out row names ${name}`);
     return row;
   };
 
+  test("five columns, so the table fits under the screenshot", () => {
+    expect(rowsOf(filtered)[0]).toEqual(["Ref", "Role", "Name", "Actor read", "Decisions"]);
+  });
+
   test("Archive: degraded, read as Ar▒▒ive, by P1 and its roll", () => {
     expect(byName("Archive")).toEqual({
-      Ref: "e4",
-      Role: "link",
-      Name: "Archive",
-      State: "degraded",
-      "Actor read": "Ar▒▒ive",
-      Metrics: "contrast 2.1, fontPx 16, targetPx 36",
-      Decisions: "P1 contrast 2.1 < 3, rolled 0.37: degraded",
+      ref: "e4",
+      role: "link",
+      name: "Archive",
+      read: "Ar▒▒ive",
+      state: "degraded",
+      decisions: ["P1 contrast 2.1 < 3, rolled 0.37: degraded"],
+      metrics: "contrast 2.1, fontPx 16, targetPx 36",
     });
   });
 
   test("every element some rule touched is a row, in stored order, removed ones not shown", () => {
-    expect(rows.map((r) => r.Name)).toEqual(["Sort by date", "Archive", "Privacy", "Terms"]);
+    expect(rows.map((r) => r.name)).toEqual(["Sort by date", "Archive", "Privacy", "Terms"]);
     expect(byName("Sort by date")).toMatchObject({
-      Ref: "none",
-      State: "invisible",
-      "Actor read": "not shown",
-      Decisions: "P3 fontPx 11 < 16: invisible",
+      ref: "none",
+      read: "not shown",
+      state: "invisible",
+      decisions: ["P3 fontPx 11 < 16: invisible"],
     });
-    expect(byName("Privacy")).toMatchObject({ Ref: "none", Decisions: "V2 below" });
+    expect(byName("Privacy")).toMatchObject({ ref: "none", decisions: ["V2 below"] });
+  });
+
+  test("a decision's line carries its roll as stored in its title", () => {
+    expect(filtered).toContain('title="rolled 0.37"');
   });
 
   test("above the table, both counts", () => {
@@ -377,6 +427,27 @@ test("a step no rule touched says so in Filtered out", () => {
   const filtered = sectionOf(replay(0), "Filtered out");
   expect(rowsOf(filtered)).toEqual([]);
   expect(lineOf(filtered)).toContain("No rule filtered an element of this page");
+});
+
+test("the model's text and the Filtered out panel each scroll down, in a named box the keyboard reaches", () => {
+  const html = replay(1);
+  const text = html.match(/<ol([^>]*aria-label="The model[^>]*)>/)?.[1];
+  const panel = html.match(
+    /<div([^>]*role="tabpanel"[^>]*)>\s*<section [^>]*aria-labelledby="step-filtered"/,
+  )?.[1];
+  expect(attributesOf(text ?? "")["aria-label"]).toBe("The model's text, line by line");
+  // Radix names a tab panel by its tab.
+  expect(attributesOf(panel ?? "")["aria-labelledby"]).toMatch(/.+/);
+  for (const box of [text, panel]) {
+    const attributes = attributesOf(box ?? "");
+    expect(attributes.tabindex).toBe("0");
+    expect(classesOf(attributes)).toContain("overflow-y-auto");
+  }
+  // The header row stays over the rows it names while they scroll.
+  const filtered = sectionOf(html, "Filtered out");
+  const headers = [...filtered.matchAll(/<th(\s[^>]*)>/g)];
+  expect(headers).toHaveLength(5);
+  for (const th of headers) expect(classesOf(attributesOf(th[1] ?? ""))).toContain("sticky");
 });
 
 test("the model's text is the stored text, byte for byte, one numbered line each, never a fresh render", () => {

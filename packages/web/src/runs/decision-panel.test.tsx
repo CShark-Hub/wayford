@@ -37,7 +37,7 @@ describe("on the decision record fixture", () => {
     expect(bar).toBeLessThan(html.indexOf("<ol"));
   });
 
-  test("every option in offer order: its action, its description and its probability as stored", () => {
+  test("every option in offer order: its action, its description and its probability", () => {
     expect(items.map((item) => lineOf(item.inner))).toEqual([
       'click e1 0.02 Click [e1], the link "Home"',
       'click e2 0.05 Click [e2], the link "Account"',
@@ -86,6 +86,24 @@ test("a roll of 0.9 on the fixture marks scroll down drawn, not the top pick, e3
   );
   expect(lineOf(items[6]?.inner ?? "")).toBe("scroll down drawn 0.08 Scroll the page down");
   expect(lineOf(items[2]?.inner ?? "")).not.toContain("drawn");
+});
+
+// The fake Jev works its probabilities out, so a stored one can run to 17 digits.
+test("a probability stored to 17 digits reads short, and whole in its title", () => {
+  const probabilities = decisionRecordFixture.probabilities.map((p, i) =>
+    i === 0 ? 0.006249999999999999 : p,
+  );
+  const { items } = optionList(panel({ ...decisionRecordFixture, probabilities }));
+  expect(lineOf(items[0]?.inner ?? "")).toBe('click e1 0.00625 Click [e1], the link "Home"');
+  expect(items[0]?.inner).toContain('title="0.006249999999999999"');
+});
+
+test("a confidence stored to 17 digits reads short, and whole in its title", () => {
+  const html = renderToStaticMarkup(
+    <ConfidenceNote confidence={0.8999999999999999} persona="Vera" />,
+  );
+  expect(lineOf(html)).toBe("confidence 0.9 · the model's, not Vera's");
+  expect(html).toContain('title="0.8999999999999999"');
 });
 
 describe("the confidence note", () => {

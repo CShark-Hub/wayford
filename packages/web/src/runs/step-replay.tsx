@@ -33,14 +33,14 @@ import {
 } from "@wayford/core";
 import { cn } from "cn";
 import { Tabs } from "radix-ui";
-import { Fragment, type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { screenshotUrl } from "../api/runs.js";
 import { SIGNAL_FLAG } from "../components/filter-states.js";
 import { percent } from "../components/jev-draw.js";
 import { personaLabel } from "../components/persona-avatar.js";
 import { SEGMENT_GROUP, SegmentedControl, segmentItem } from "../components/segmented-control.js";
 import { ConfidenceNote, DecisionPanel } from "./decision-panel.js";
-import { Detail, Details, FACTS, Fact, Mark, NOTE, TABLE, TD, TH } from "./details.js";
+import { Detail, Details, FACTS, Fact, Mark, NOTE, shortNumber, TABLE, TD, TH } from "./details.js";
 import { describeAction, observedFrom } from "./replay.js";
 
 /**
@@ -59,12 +59,14 @@ const HEADING = {
 /**
  * One decision as a line of the evidence: `P1 contrast 2.1 < 3, rolled 0.42: degraded`,
  * `V2 below`, `K1 hamburger`, `K2 Fulfilment ledger`, `A1`. The rule is printed from the data,
- * never from the stage, so a rule a later filter emits shows by its own id.
+ * never from the stage, so a rule a later filter emits shows by its own id. A roll is printed
+ * short (`shortNumber`); `rollTitle` holds it as stored.
  */
 export function decisionLine(decision: ElementDecision): string {
   switch (decision.stage) {
     case "perception": {
-      const rolled = decision.rolled === undefined ? "" : `, rolled ${decision.rolled}`;
+      const rolled =
+        decision.rolled === undefined ? "" : `, rolled ${shortNumber(decision.rolled, 1)}`;
       return `${decision.rule} ${decision.metric} ${decision.value} < ${decision.threshold}${rolled}: ${decision.state}`;
     }
     case "viewport":
@@ -78,6 +80,13 @@ export function decisionLine(decision: ElementDecision): string {
     case "attention":
       return decision.rule;
   }
+}
+
+/** A decision's roll as stored, for the title of its line, when it has one. */
+function rollTitle(decision: ElementDecision): string | undefined {
+  return decision.stage === "perception" && decision.rolled !== undefined
+    ? `rolled ${decision.rolled}`
+    : undefined;
 }
 
 /**
@@ -411,6 +420,31 @@ function Screenshots({ run, step }: { run: RunResult; step: RunStep }) {
 }
 
 // ---------------------------------------------------------------------------
+// The two long lists: the model's text and the filtered elements
+// ---------------------------------------------------------------------------
+
+/**
+ * The model's panel at most a screen high: the viewport under the top bar, less a gutter. A real
+ * page reads to a hundred lines and more, so its text scrolls inside the panel, not the page.
+ */
+const SCREEN_HIGH = "max-h-[calc(100dvh_-_var(--header-h)_-_var(--space-6))]";
+
+/**
+ * The Filtered out panel, the same screen less the screenshot, its caption and the tabs over the
+ * panel, about 330 px, so the left column ends near where the model's panel does. Never under
+ * 240 px, so a short window still shows a few rows.
+ */
+const FILTERED_HIGH =
+  "max-h-[max(--spacing(60),calc(100dvh_-_var(--header-h)_-_var(--space-6)_-_--spacing(82)))]";
+
+/**
+ * A box that scrolls on its own, down only, since its lines wrap: named and in the tab order, so
+ * the keyboard scrolls it too (axe's `scrollable-region-focusable`), and its scrolling stops at its
+ * ends, not in the page.
+ */
+const SCROLL_BOX = "overflow-y-auto overscroll-contain";
+
+// ---------------------------------------------------------------------------
 // The tabs: Filtered out, Dice, Jev
 // ---------------------------------------------------------------------------
 
@@ -430,20 +464,26 @@ function TabName({ name, count }: { name: string; count: number }) {
   );
 }
 
-/** One tab's panel: a section labelled by its own `<h3>`, which the tab already shows. */
+/**
+ * One tab's panel: a section labelled by its own `<h3>`, which the tab already shows. Radix puts
+ * the panel in the tab order and names it by its tab, so a panel `className` makes scroll is one
+ * the keyboard reaches.
+ */
 function Panel({
   value,
   id,
   title,
+  className,
   children,
 }: {
   value: Tab;
   id: string;
   title: string;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <Tabs.Content value={value} forceMount className={PANEL}>
+    <Tabs.Content value={value} forceMount className={cn(PANEL, className)}>
       <section aria-labelledby={id} className="grid min-w-0 gap-3">
         <h3 id={id} className="sr-only">
           {title}
@@ -478,52 +518,69 @@ function FilteredOut({ observation }: { observation: FullObservation }) {
       {elements.length === 0 ? (
         <p className={NOTE}>No rule filtered an element of this page.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className={TABLE}>
-            <caption className="sr-only">
-              Every element a rule touched on the observed page, in stored order, with each rule.
-            </caption>
-            <thead>
-              <tr>
-                {["Ref", "Role", "Name", "State", "Actor read", "Metrics", "Decisions"].map((h) => (
-                  <th key={h} scope="col" className={TH}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {elements.map((element, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: the stored order is fixed, so its index is the element's identity
-                <tr key={index}>
-                  <td className={cn(TD, "mono")}>
-                    {element.ref ?? <span className="text-ink-3">none</span>}
-                  </td>
-                  <td className={cn(TD, "whitespace-nowrap")}>{element.role}</td>
-                  <td className={TD}>{element.name}</td>
-                  <td className={cn(TD, "whitespace-nowrap")}>{element.state}</td>
-                  <td className={TD}>
+        // Fixed columns whose text wraps, so the table fits the column and never scrolls sideways.
+        // Separate borders, so the sticky header keeps its rule: a collapsed border belongs to the
+        // table and scrolls away with the rows.
+        <table className={cn(TABLE, "table-fixed border-separate border-spacing-0")}>
+          <caption className="sr-only">
+            Every element a rule touched on the observed page, in stored order, with each rule.
+          </caption>
+          {/* Ref, Role and Actor read sized to what they hold; Name takes the rest. */}
+          <colgroup>
+            <col className="w-14" />
+            <col className="w-24" />
+            <col />
+            <col className="w-26" />
+            <col className="w-52" />
+          </colgroup>
+          <thead>
+            <tr>
+              {["Ref", "Role", "Name", "Actor read", "Decisions"].map((h) => (
+                <th key={h} scope="col" className={cn(TH, "sticky top-0 bg-paper")}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="wrap-anywhere">
+            {elements.map((element, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the stored order is fixed, so its index is the element's identity
+              <tr key={index}>
+                <td className={cn(TD, "mono")}>
+                  {element.ref ?? <span className="text-ink-3">none</span>}
+                </td>
+                <td className={TD}>{element.role}</td>
+                <td className={TD}>{element.name}</td>
+                {/* What the Actor read, then the state it read it in. */}
+                <td className={TD}>
+                  <p>
                     {element.ref === undefined ? (
                       <span className="text-ink-3">not shown</span>
                     ) : (
                       read.get(element.ref)
                     )}
-                  </td>
-                  <td className={cn(TD, "mono")}>
+                  </p>
+                  <p className="mono text-ink-3">{element.state}</p>
+                </td>
+                {/* The rules, each with the metric it read, then every metric measured. Most rows
+                    of a long page hold one short V2 line, so the metrics sit here, not under a
+                    name that already wraps. */}
+                <td className={cn(TD, "mono")}>
+                  <ul>
+                    {element.decisions.map((decision) => (
+                      <li key={decision.rule} title={rollTitle(decision)}>
+                        {decisionLine(decision)}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-ink-3">
                     <MetricsText metrics={element.metrics} />
-                  </td>
-                  <td className={cn(TD, "mono")}>
-                    <ul>
-                      {element.decisions.map((decision) => (
-                        <li key={decision.rule}>{decisionLine(decision)}</li>
-                      ))}
-                    </ul>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </p>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </>
   );
@@ -556,7 +613,10 @@ function Rolls({ dice }: { dice: readonly DiceRoll[] }) {
           <tr key={roll.rule}>
             <td className={TD}>{roll.rule}</td>
             <td className={TD}>{roll.p}</td>
-            <td className={TD}>{roll.rolled}</td>
+            {/* Short, and on the side of p it fell, so the row still says why it fired. */}
+            <td className={TD} title={String(roll.rolled)}>
+              {shortNumber(roll.rolled, roll.p, 1)}
+            </td>
             <td className={TD}>{roll.fired ? "fired" : "not fired"}</td>
           </tr>
         ))}
@@ -664,7 +724,15 @@ function Evidence({ run, step }: { run: RunResult; step: RunStep }) {
           </div>
         )}
       </div>
-      <Panel value="filtered" id={HEADING.filtered} title="Filtered out">
+      {/* Keyed by step, as the model's text is, so each step's table opens at its top and not
+          where the last step's was scrolled to. The tab picked lives on the root, so it stays. */}
+      <Panel
+        key={step.stepIndex}
+        value="filtered"
+        id={HEADING.filtered}
+        title="Filtered out"
+        className={cn(FILTERED_HIGH, SCROLL_BOX)}
+      >
         <FilteredOut observation={step.fullObservation} />
       </Panel>
       <Panel value="dice" id={HEADING.dice} title="Dice">
@@ -711,6 +779,11 @@ export function modelReadMeta(
  * The line of the element the step's action landed on carries a mark, found as the click point is:
  * "drawn" when Jev drew that element, the performed action's type otherwise, so a click a B4
  * misclick moved to a neighbour reads "click".
+ *
+ * The panel is at most `SCREEN_HIGH`, its title and closing note fixed and the text scrolling
+ * between them. The text opens on the marked line, centred, since that line is what the step did,
+ * or at its top when no line is marked. The replay draws a new panel for each step, so each step
+ * opens this way.
  */
 function ModelRead({ step }: { step: RunStep }) {
   const { fullObservation: observation, actorObservationText: text } = step;
@@ -723,10 +796,21 @@ function ModelRead({ step }: { step: RunStep }) {
         ? "drawn"
         : landed.action.type;
   const opening = landed === undefined ? undefined : `[${landed.element.ref}]`;
+  const scroller = useRef<HTMLOListElement>(null);
+  // Before the first paint, so the text never shows at its top and then jumps. The box is the
+  // marked line's offset parent, so the line's `offsetTop` is its place in the text.
+  useLayoutEffect(() => {
+    const box = scroller.current;
+    const line = box?.querySelector<HTMLElement>("[data-marked]");
+    if (box && line) box.scrollTop = line.offsetTop - (box.clientHeight - line.offsetHeight) / 2;
+  }, []);
   return (
     <section
       aria-labelledby={HEADING.modelRead}
-      className="min-w-0 overflow-hidden rounded-md border border-line bg-surface"
+      className={cn(
+        "flex min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface",
+        SCREEN_HIGH,
+      )}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2">
         <h3 id={HEADING.modelRead} className="title text-ink">
@@ -734,7 +818,17 @@ function ModelRead({ step }: { step: RunStep }) {
         </h3>
         <p className="ml-auto mono text-ink-3">{modelReadMeta(shown, observation)}</p>
       </div>
-      <ol className="bg-paper-sunken py-2 mono">
+      <ol
+        ref={scroller}
+        aria-label="The model's text, line by line"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: a scroll box takes focus, so the keyboard scrolls it too
+        tabIndex={0}
+        // The panel clips its corners, so the focus ring is drawn inside the box.
+        className={cn(
+          "relative min-h-0 bg-paper-sunken py-2 mono focus-visible:-outline-offset-2",
+          SCROLL_BOX,
+        )}
+      >
         {text.split("\n").map((line, index) => {
           const marked = opening !== undefined && line.startsWith(opening);
           return (
@@ -819,7 +913,8 @@ export function StepReplay({ run, step }: { run: RunResult; step: RunStep }) {
         <Evidence run={run} step={step} />
       </div>
       <div className="grid min-w-0 content-start gap-(--space-4)">
-        <ModelRead step={step} />
+        {/* Keyed by step, so each step's text opens on its own marked line. */}
+        <ModelRead key={step.stepIndex} step={step} />
         <Narration run={run} step={step} />
       </div>
     </div>

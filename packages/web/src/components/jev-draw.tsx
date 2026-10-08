@@ -5,11 +5,13 @@
  * `drawOption`, the draw the run made, never worked out again here and never the top pick.
  *
  * Jev rounds each probability, so they need not sum to 1: a segment is the option's share of the
- * total, the scale `drawOption` draws on, and the probability printed is as stored. A stored roll
- * can run to 17 digits, so the flag shows three places and the roll as stored is in its title.
+ * total, the scale `drawOption` draws on. A probability under the bar is printed short, and a
+ * segment's title holds it as stored. A stored roll can run to 17 digits, so the flag shows it
+ * short too, never across the edge of the segment it drew, and its title holds it as stored.
  */
 import { type DecisionRecord, drawOption } from "@wayford/core";
 import { cn } from "cn";
+import { shortNumber } from "../runs/details.js";
 import { describeAction } from "../runs/replay.js";
 import { SIGNAL_FLAG } from "./filter-states.js";
 
@@ -138,7 +140,7 @@ export function JevDraw({ decision }: { decision: DecisionRecord }) {
             title={`rolled ${rolled}`}
             className={cn("absolute bottom-full left-1/2 mb-0.5", SIGNAL_FLAG, hang(rolled))}
           >
-            {`rolled ${point(rolled)}`}
+            {`rolled ${shortNumber(rolled, 1, ...ranges.map((range) => range.to))}`}
           </span>
         </div>
       </div>
@@ -161,7 +163,7 @@ export function JevDraw({ decision }: { decision: DecisionRecord }) {
                   data-drawn={index === drawn ? "" : undefined}
                   className={cn(index === drawn && "text-ink")}
                 >
-                  {`${describeAction(option.action)} ${probabilities[index]}`}
+                  {`${describeAction(option.action)} ${shortNumber(probabilities[index] ?? 0)}`}
                 </span>
               </span>
             );

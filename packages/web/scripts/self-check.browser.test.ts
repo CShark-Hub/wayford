@@ -916,6 +916,24 @@ describe("on the web app", () => {
       expect(await stepIn(page)).toBe("0");
     });
 
+    // At 300 px high the Filtered out panel is its 240 px floor, which steps 1 and 2 both overflow,
+    // with four rows and three: a panel kept across the move would open step 2 scrolled.
+    test("→ opens the next step's Filtered out at its top, wherever the last one was scrolled", async () => {
+      const page = await runDetailAt(1);
+      await page.setViewportSize({ width: 1280, height: 300 });
+      const filtered = page.getByRole("tabpanel", { name: /^Filtered out/ });
+      const scrolledTo = (to?: number) =>
+        filtered.evaluate((panel, top) => {
+          if (top !== undefined) panel.scrollTop = top;
+          return { top: panel.scrollTop, overflows: panel.scrollHeight > panel.clientHeight };
+        }, to);
+      expect((await scrolledTo(10_000)).top).toBeGreaterThan(0);
+      await blur(page);
+      await page.keyboard.press("ArrowRight");
+      await shown(page, 2);
+      expect(await scrolledTo()).toEqual({ top: 0, overflows: true });
+    });
+
     test("← and → on the focused video leave ?step as it was", async () => {
       const page = await runDetailAt(1);
       await page.locator("video").focus();
