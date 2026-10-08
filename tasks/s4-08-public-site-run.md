@@ -3,7 +3,7 @@
 Stream: s4
 Milestone: week 4, any target (finals). Rewritten on 2026-10-06 (`docs/adr/0003-any-target.md`). It was "Credibility run on a public site", one recorded run set for the Q&A.
 Size: M
-Depends on: s1-07, s4-09, s4-10, s3-15, s3-16
+Depends on: s1-07, s4-09, s4-10, s3-15, s3-16, s3-17
 
 ## Context
 

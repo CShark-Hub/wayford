@@ -133,7 +133,7 @@ Scope, agreed 2026-10-04 (`docs/PLAN.md`, "Hackathon scope"): what `docs/DEMO.md
 - Any target, for the finals (`docs/adr/0003-any-target.md`, added 2026-10-06): runs, the Lens, Scout and the report on a site entered on a new Target screen, and a sweep on it prepared with the CLI. Our pick goes through the API first, then a rehearsal through the UI. Taken after the demo tasks and before the optional ones; the 90-second demo does not wait on it.
 - The demo: the script agreed by Friday 2026-10-09, two rehearsals and the backup video by Tuesday 2026-10-13.
 
-Any target, for the finals, once every must task is taken: `s2-13`, then `s1-07` (our pick through the API), `s4-09`, `s4-10`, `s3-15` and `s3-16`, then the rehearsal `s4-08` and the drill `demo-3`. `s2-14` only if a run hits a new tab (`tasks/BOARD.md`).
+Any target, for the finals, once every must task is taken: `s2-13`, then `s1-07` (our pick through the API), `s4-09`, `s4-10`, `s3-15`, `s3-16` and `s3-17`, then the rehearsal `s4-08` and the drill `demo-3`. `s2-14` only if a run hits a new tab (`tasks/BOARD.md`).
 
 Optional, once every must task and every any-target task is taken: `s3-14` (Cast and Runs redesigned), `s3-06` (illustration view), and the behaviour rules `s2-07` (B2), `s2-08` (B4) and `s2-09` (a simulated clock), in that order.
 
@@ -186,6 +186,7 @@ flowchart LR
   s4_10["s4-10 Scout, sweep<br/>on any task"]
   s3_15["s3-15 Target screen"]
   s3_16["s3-16 Lens, Race<br/>take a target"]
+  s3_17["s3-17 The nav<br/>carries the target"]
   s4_08["s4-08 Rehearsal<br/>on our site"]
   s1_07["s1-07 Our pick<br/>through the API"]
   demo3["demo-3 Drill on an<br/>unseen site"]
@@ -221,6 +222,8 @@ flowchart LR
   s3_11 --> s3_16
   s3_12 --> s3_16
   s4_09 --> s3_16
+  s3_15 --> s3_17
+  s3_16 --> s3_17
   s2_13 --> s1_07
   s1_07 -. a new tab .-> s2_14
   s1_07 --> s4_08
@@ -228,6 +231,7 @@ flowchart LR
   s4_10 --> s4_08
   s3_15 --> s4_08
   s3_16 --> s4_08
+  s3_17 --> s4_08
   s4_08 --> demo3
 
   class s3_07,s3_13,s1_06,s4_06,s2_12,s3_10,demo1,s2_13,s3_15 ready
@@ -251,7 +255,7 @@ Cut from the bottom, never from the top.
 9. Jev: io on Jev and its decisions in run detail (`s2-12`, `s3-10`). Without them `seed:demo` and the sweeps run on the LLM, slower and dearer.
 10. axe-core sidecar (`s4-06`). Without it, beat 3 cites the filter's own measurement from `s1-04`.
 11. Sweep on `maxElements`.
-12. Any target, for the finals (`docs/adr/0003-any-target.md`): the drill (`demo-3`) first, then the sweep on a foreign goal. The Lens, the Race and a report on our own pick are its floor.
+12. Any target, for the finals (`docs/adr/0003-any-target.md`): the drill (`demo-3`) first, then the sweep on a foreign goal, then the nav carrying the target (`s3-17`). The Lens, the Race and a report on our own pick are its floor.
 13. Lens illustration view (`s3-06`).
 14. Behaviour beyond B1 (`s2-07`, `s2-08`, `s2-09`).
 15. Cast and Runs redesigned (`s3-14`). Without it both keep their week 3 layouts under the new tokens.

@@ -126,9 +126,10 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s4-10 | Scout over HTTP and the sweep CLI on any stored task | M | s2-13 (s4-09 for the report box) | Grzegorz | done |
 | s3-15 | Target screen: a site and a goal in, every screen out | M | s3-13 (s4-10 and s3-16 for some boxes) | Marcin | review (PR #208) |
 | s3-16 | The Lens and the Race take a target | M | s3-11, s3-12, s4-09 | Grzegorz | review (PR #210) |
+| s3-17 | The nav carries the target | M | s3-15, s3-16 | | todo |
 | s1-07 | Our pick through the API, and the gaps it hits | M | s2-13 | Dawid | review (PR #193) |
 | s2-14 | Follow a tab the action opens, only if a run on our pick hits one | S | s1-07 or s4-08 | | todo |
-| s4-08 | Rehearsal on our site: every screen, from the Target screen | M | s1-07, s4-09, s4-10, s3-15, s3-16 | | todo |
+| s4-08 | Rehearsal on our site: every screen, from the Target screen | M | s1-07, s4-09, s4-10, s3-15, s3-16, s3-17 | | todo |
 | demo-3 | Drill: someone picks a site the presenter has not seen; the presenter takes it from URL to a three-seed report, timed | — | s4-08 | team | todo |
 
 Optional, taken only once every task above is taken:
@@ -147,10 +148,10 @@ Optional, taken only once every task above is taken:
 2. After `s1-06`: `s4-04` and `s4-05`. Now: `s3-13`. After `s3-13`: `s3-11` and `s3-12`.
 3. After `s4-04` and `s3-13`: `s3-08`. After `s4-05` and `s3-13`: `s3-09`. After `s4-04`, `s4-05` and `s2-12`: `s4-07`. Optional, after `s3-08`: `s3-14`.
 4. After `s4-07`: `demo-2`.
-5. Any target: now `s2-13` and `s3-15`'s form. After `s2-13`: `s1-07`, `s4-09` and `s4-10`. After `s3-11`, `s3-12` and `s4-09`: `s3-16`. After those: `s4-08`, then `demo-3`. `s2-14` only if a run hits a new tab.
+5. Any target: now `s2-13` and `s3-15`'s form. After `s2-13`: `s1-07`, `s4-09` and `s4-10`. After `s3-11`, `s3-12` and `s4-09`: `s3-16`. After `s3-16`: `s3-17`. After those: `s4-08`, then `demo-3`. `s2-14` only if a run hits a new tab.
 
 **Critical path:** `s3-13` → `s3-08` and `s3-09` → `demo-2`, with `s4-07` beside them. `s1-06` and `s4-05`, which led it until 2026-10-06, are done. `s3-13` sets the look every screen task builds on: take it first and review it the day it opens.
 
 **Screens before data.** `s3-08` and `s3-09` build on the `Report` and `Sweep` fixtures their engines add. `seed:demo --fake` (`s4-07`) fills every screen with no key, and is the way to check the week's screens together.
 
-**Cut order**, from `docs/ROADMAP.md`: the optional table first, from its bottom up. Then the any-target table: `demo-3` first, then the sweep on a foreign goal, with the Lens, the Race and a report on our own pick as its floor. Then the sweep on `maxElements`, then axe. The report, the contrast sweep and `seed:demo` are not on the list.
+**Cut order**, from `docs/ROADMAP.md`: the optional table first, from its bottom up. Then the any-target table: `demo-3` first, then the sweep on a foreign goal, then `s3-17`, with the Lens, the Race and a report on our own pick as its floor. Then the sweep on `maxElements`, then axe. The report, the contrast sweep and `seed:demo` are not on the list.
