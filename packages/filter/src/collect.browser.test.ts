@@ -70,6 +70,9 @@ type Role = Parameters<Page["getByRole"]>[0];
 /** Roles Playwright gives no name from content: matched by their rendered text (spec, row 1). */
 const MATCHED_BY_TEXT = new Set(["paragraph", "listitem"]);
 
+/** The role `collect` gives a box of text, which is no ARIA role (#219). */
+const BOX_OF_TEXT = "text";
+
 /**
  * Nothing when Playwright finds `element` by role, name and landmark chain at its measured box,
  * read at the scroll it was measured at; otherwise what it found instead. The chain is read back
@@ -82,10 +85,20 @@ async function missedByRole(page: Page, element: MeasuredElement): Promise<strin
     const [role = "", ...name] = part.split(":");
     return outer.getByRole(role as Role, { name: name.join(":"), exact: true });
   }, page);
-  const byText = MATCHED_BY_TEXT.has(element.role);
-  const matches = await scope
-    .getByRole(element.role as Role, byText ? undefined : { name: element.name, exact: true })
-    .all();
+  // A box of text is matched by its rendered text too, so a landmark box found as its own scope
+  // is held to its name, not only to its box.
+  const byText = MATCHED_BY_TEXT.has(element.role) || element.role === BOX_OF_TEXT;
+  // A box of text has no ARIA role to find it by (#219), so its own text finds it: inside its
+  // landmark chain, or as the chain's last landmark when the box is that landmark itself.
+  const matches =
+    element.role === BOX_OF_TEXT
+      ? [
+          ...(scope === page ? [] : [scope as Locator]),
+          ...(await scope.getByText(element.name, { exact: true }).all()),
+        ]
+      : await scope
+          .getByRole(element.role as Role, byText ? undefined : { name: element.name, exact: true })
+          .all();
   const found: { text?: string; box: Bbox | null }[] = await Promise.all(
     matches.map(async (match) => {
       const box = await match.boundingBox();

@@ -433,6 +433,90 @@ describe("what an element's text and box measure", () => {
   });
 });
 
+describe("boxes of text (#219)", () => {
+  test.each<{ claim: string; html: string; keys: string[] }>([
+    {
+      // filmweb.pl's cast list draws each character's name as a bare span, in a flex row.
+      claim: "a bare span is its div's box, and a span its flex parent blockifies is a box itself",
+      html: `<meta charset="utf-8"><div><span>Ignacy Rzecki</span></div>
+        <div style="display: flex"><span>Stanisław Wokulski</span><span>Izabela Łęcka</span></div>`,
+      keys: ["//text:Ignacy Rzecki", "//text:Stanisław Wokulski", "//text:Izabela Łęcka"],
+    },
+    {
+      claim: "text run across inline elements is one box, read in the page's order",
+      html: `<meta charset="utf-8"><div>Rate: <strong>125–145 PLN</strong> per hour</div>`,
+      keys: ["//text:Rate: 125–145 PLN per hour"],
+    },
+    {
+      claim: "a box's own text leaves out the boxes, text blocks and controls inside it",
+      html: `<div>Order 1042 <div>Shipped</div><p>Arrives Friday</p><a href="/track">Track</a></div>`,
+      keys: ["//text:Order 1042", "//text:Shipped", "//paragraph:Arrives Friday", "//link:Track"],
+    },
+    {
+      claim: "text inside a text block or a control stays theirs, as before",
+      html: `<p>Total <span style="display: inline-block">125 PLN</span></p>
+        <a href="/offer"><div>Senior engineer</div><div>Remote</div></a>
+        <ul><li><div>Card text</div></li></ul>`,
+      keys: ["//paragraph:Total 125 PLN", "//link:Senior engineer Remote", "//listitem:Card text"],
+    },
+    {
+      // The target app's delivery preferences: a wrapping label in a plain div (#117).
+      claim: "a control's label and aria-labelledby referent stay the control's, in no box",
+      html: `<div><label><input type="checkbox"> Leave with a neighbour</label></div>
+        <div><span id="q">Search the shop</span> <input aria-labelledby="q"></div>`,
+      keys: ["//checkbox:Leave with a neighbour", "//textbox:Search the shop"],
+    },
+    {
+      claim: "a box that is a landmark ends its path with itself",
+      html: `<main><div>Inside main</div></main><footer>A fictional shop.</footer>`,
+      keys: ["main//text:Inside main", "contentinfo//text:A fictional shop."],
+    },
+    {
+      claim: "table cells and a description list's terms and details are boxes",
+      html: `<table><tr><td>Rate</td><td>125 PLN</td></tr></table>
+        <dl><dt>Board</dt><dd>Jane Doe</dd></dl>`,
+      keys: ["//text:Rate", "//text:125 PLN", "//text:Board", "//text:Jane Doe"],
+    },
+    {
+      claim: "a box with no letter or digit, hidden text and content drawn nowhere make no box",
+      html: `${SR_ONLY}
+        <div><a href="/a">Terms</a> | <a href="/b">Privacy</a></div>
+        <div style="display: none">Display none</div>
+        <div class="sr-only">Screen readers only</div>
+        <div aria-hidden="true">Decoration</div>
+        <div><progress value="70" max="100">70 percent</progress></div>
+        <div>Upload <meter value="0.7">70 percent</meter></div>`,
+      keys: ["//link:Terms", "//link:Privacy", "//text:Upload"],
+    },
+    {
+      // A custom checkbox: the input hidden, the label drawn, so the label names nothing measured.
+      claim: "the label of a control nobody sees is read where it is drawn",
+      html: `<div><label><input type="checkbox" style="position: absolute; opacity: 0">
+        Accept cookies</label></div>
+        <div><label for="hidden">Remember me</label><input id="hidden" style="display: none"></div>`,
+      keys: ["//text:Accept cookies", "//text:Remember me"],
+    },
+  ])("$claim", async ({ html, keys }) => {
+    const measurement = await measure(html);
+    expect(measurement.elements.map((e) => e.key)).toStrictEqual(keys);
+  });
+
+  test("a box of text is a text block with the role text, measured by every run that draws it", async () => {
+    // #767676 on white is 4.5422:1, truncated to 4.542; black on white is 21:1. Each run is the
+    // worse on one axis, so the box reads both: the div's grey and the strong's 12 px.
+    const measurement = await measure(
+      `<div style="color: #767676; font-size: 14px">Rate: <strong
+        style="color: #000; font-size: 12px">125 PLN</strong></div>`,
+    );
+    expect(measurement.elements).toHaveLength(1);
+    const [box] = measurement.elements;
+    expect(box?.key).toBe("//text:Rate: 125 PLN");
+    expect(box?.kind).toBe("text");
+    expect(box?.role).toBe("text");
+    expect(box?.metrics).toStrictEqual({ contrast: 4.542, fontPx: 12 });
+  });
+});
+
 describe("a control drawn in parts (#124)", () => {
   /** Each element's key, and its parts when it carries the field at all. */
   const partsOf = (measurement: { elements: MeasuredElement[] }) =>
@@ -609,7 +693,10 @@ describe("what a control's markup says it opens, for stage 4", () => {
       [
         ["//button:Missing", {}],
         ["//button:Plain", {}],
+        // The panels' text is measured as boxes of text (#219), which never carry either.
+        ["//text:Plain panel", {}],
         ["//button:Contents", {}],
+        ["//text:Table of contents", {}],
       ],
     ],
     [

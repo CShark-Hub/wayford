@@ -57,6 +57,8 @@ import { UNFAMILIAR } from "./vocabulary.js";
 
 const ARCHIVE = "main//link:Order archive";
 const BRAND = "banner//link:Quillmere";
+/** The footer's box of text (#219), the fixture's last element, below Order archive. */
+const FOOTER = "contentinfo//text:Quillmere is a fictional demo shop. Not a real service.";
 const CHECKBOXES = [
   "main//checkbox:Leave with a neighbour if I am out",
   "main//checkbox:Text me on the day of delivery",
@@ -391,7 +393,7 @@ test("an element below the viewport is cut by V2 and counted", () => {
     viewport: { ...measurementFixture.viewport, height },
   });
   const below = short.elements.filter((e) => e.bbox.y >= height).map((e) => e.key);
-  expect(below, "only Order archive starts below 600 px").toEqual([ARCHIVE]);
+  expect(below, "only Order archive and the footer start below 600 px").toEqual([ARCHIVE, FOOTER]);
 
   const ada = profileFixture("prof_ada");
   for (const seed of seeds(5)) {
@@ -400,12 +402,13 @@ test("an element below the viewport is cut by V2 and counted", () => {
     expect(archive.state).toBe("invisible");
     expect("ref" in archive).toBe(false);
     expect(archive.decisions).toStrictEqual([{ stage: "viewport", rule: "V2", side: "below" }]);
-    expect(full.belowFoldCount).toBe(1);
-    const others = full.elements.filter((e) => e.key !== ARCHIVE);
+    expect(observed(full, FOOTER).decisions).toStrictEqual(archive.decisions);
+    expect(full.belowFoldCount).toBe(2);
+    const others = full.elements.filter((e) => !below.includes(e.key));
     expect(others.every((e) => e.state === "visible" && e.decisions.length === 0)).toBe(true);
     const text = actorText(full);
     expect(text).not.toContain("Order archive");
-    expect(text.endsWith("1 more below, scroll to see them")).toBe(true);
+    expect(text.endsWith("2 more below, scroll to see them")).toBe(true);
   }
 
   // Every rule it fails is recorded: V2, then the P1 it fails whatever the viewport.
@@ -432,7 +435,8 @@ test("an element below the viewport is cut by V2 and counted", () => {
   expect(observed(edge, ARCHIVE).decisions).toStrictEqual([
     { stage: "viewport", rule: "V2", side: "below" },
   ]);
-  expect(edge.belowFoldCount).toBe(1);
+  // It and the footer under it.
+  expect(edge.belowFoldCount).toBe(2);
 });
 
 test("an element above the viewport is cut by V2 and not counted", () => {
@@ -532,7 +536,7 @@ test("every observation parses as FullObservation", () => {
 });
 
 test("what perception removes below the viewport is not counted (#118)", () => {
-  // The fixture at viewport height 600, as in the V2 box: only Order archive is below.
+  // The fixture at viewport height 600, as in the V2 box: Order archive and the footer are below.
   const short = PageMeasurement.parse({
     ...measurementFixture,
     viewport: { ...measurementFixture.viewport, height: 600 },
@@ -543,19 +547,24 @@ test("what perception removes below the viewport is not counted (#118)", () => {
     for (const seed of seeds(50)) {
       const where = `${profile.id} at run seed ${seed}`;
       const full = perceive(short, profile, seed);
-      const onScreen = observed(perceive(measurementFixture, profile, seed), ARCHIVE);
-      // On screen it is the least salient element, and Kai's cap cuts it. Below the viewport
-      // A1 never reaches it: V2 removed it first, and A1 cuts only what stages 1 to 3 left shown.
-      const before = onScreen.decisions.filter((d) => d.stage !== "attention");
-      // Every element below keeps its V2 decision, whatever perception did to it.
-      expect(observed(full, ARCHIVE).decisions, where).toStrictEqual([
-        { stage: "viewport", rule: "V2", side: "below" },
-        ...before,
-      ]);
+      const onScreen = perceive(measurementFixture, profile, seed);
       // Counted only when perception alone leaves it shown: scrolling could bring it into view.
-      const shown = !before.some((d) => d.stage === "perception" && d.state === "invisible");
-      expect(full.belowFoldCount, where).toBe(shown ? 1 : 0);
-      expect(actorText(full).includes("more below"), where).toBe(shown);
+      const shownBelow = (key: string) => {
+        // On screen Order archive is the least salient element and the footer the next, and
+        // Kai's cap cuts both. Below the viewport A1 never reaches them: V2 removed them first,
+        // and A1 cuts only what stages 1 to 3 left shown.
+        const before = observed(onScreen, key).decisions.filter((d) => d.stage !== "attention");
+        // Every element below keeps its V2 decision, whatever perception did to it.
+        expect(observed(full, key).decisions, `${where}: ${key}`).toStrictEqual([
+          { stage: "viewport", rule: "V2", side: "below" },
+          ...before,
+        ]);
+        return !before.some((d) => d.stage === "perception" && d.state === "invisible");
+      };
+      const shown = shownBelow(ARCHIVE);
+      const count = [shown, shownBelow(FOOTER)].filter(Boolean).length;
+      expect(full.belowFoldCount, where).toBe(count);
+      expect(actorText(full).includes("more below"), where).toBe(count > 0);
       const parsed = FullObservation.safeParse(full);
       expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
       if (shown) seedsCounted += 1;
@@ -635,7 +644,7 @@ test("Milo loses the brand link and Order archive to P4", () => {
   }
   const lost = [BRAND, ARCHIVE];
   const kept = KEYS.filter((key) => !lost.includes(key));
-  expect(kept).toHaveLength(12);
+  expect(kept).toHaveLength(13);
   for (const seed of seeds(10)) {
     const full = perceive(measurementFixture, milo, seed);
     expect(shownKeys(full)).toEqual(kept);
@@ -668,7 +677,7 @@ test("Vera loses the brand link to P4", () => {
   const lost = [BRAND];
   // Order archive is in her contrast band: shown or not by the roll, the test above.
   const kept = KEYS.filter((key) => !lost.includes(key) && key !== ARCHIVE);
-  expect(kept).toHaveLength(12);
+  expect(kept).toHaveLength(13);
   for (const seed of seeds(10)) {
     const full = perceive(measurementFixture, vera, seed);
     expect(shownKeys(full).filter((key) => key !== ARCHIVE)).toEqual(kept);

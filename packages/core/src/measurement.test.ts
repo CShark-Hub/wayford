@@ -10,6 +10,7 @@ import { elementKey, type Landmark } from "./observation.js";
 const banner: Landmark[] = [{ role: "banner" }];
 const nav: Landmark[] = [{ role: "banner" }, { role: "navigation", name: "Main" }];
 const main: Landmark[] = [{ role: "main" }];
+const contentinfo: Landmark[] = [{ role: "contentinfo" }];
 
 /** `/deliveries` as the spec's table lists it: kind, role, name, landmark path. */
 const DELIVERIES: [kind: "control" | "text", role: string, name: string, path: Landmark[]][] = [
@@ -27,6 +28,8 @@ const DELIVERIES: [kind: "control" | "text", role: string, name: string, path: L
   ["control", "checkbox", "Leave with a neighbour if I am out", main],
   ["control", "checkbox", "Text me on the day of delivery", main],
   ["control", "link", "Order archive", main],
+  // A box of text (#219): the footer holds its sentence directly, with no paragraph around it.
+  ["text", "text", "Quillmere is a fictional demo shop. Not a real service.", contentinfo],
 ];
 
 /** The "Order archive" link, the element the calibration in `docs/RULES.md` is about. */
@@ -65,9 +68,9 @@ describe("measurementFixture", () => {
     expect(measurementFixture.scroll).toEqual({ x: 0, y: 0 });
   });
 
-  test("the 14 elements come in measurement order, each keyed by elementKey", () => {
+  test("the 15 elements come in measurement order, each keyed by elementKey", () => {
     const elements = measurementFixture.elements;
-    expect(elements).toHaveLength(14);
+    expect(elements).toHaveLength(15);
     expect(elements.map((e) => e.key)).toEqual(
       DELIVERIES.map(([, role, name, path]) => elementKey({ role, name, path })),
     );
@@ -103,13 +106,15 @@ describe("measurementFixture", () => {
     }
   });
 
-  test("every element sits inside the viewport, so nothing on it is below the fold", () => {
+  test("every element starts inside the viewport, so nothing on it is below the fold", () => {
     const { width, height } = measurementFixture.viewport;
     for (const { key, bbox } of measurementFixture.elements) {
       expect(bbox.x, key).toBeGreaterThanOrEqual(0);
       expect(bbox.y, key).toBeGreaterThanOrEqual(0);
       expect(bbox.x + bbox.width, key).toBeLessThanOrEqual(width);
-      expect(bbox.y + bbox.height, key).toBeLessThanOrEqual(height);
+      // V2 cuts only an element wholly past the fold. The footer (#219) starts at 663 and runs
+      // 16.5 px past it; every other element ends inside.
+      expect(bbox.y, key).toBeLessThan(height);
     }
   });
 });

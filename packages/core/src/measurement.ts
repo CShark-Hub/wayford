@@ -10,8 +10,10 @@
  * `e1..eN` in that order, or, when the profile sets `maxElements`, in salience
  * order (A1, `docs/RULES.md` stage 5), so the refs follow one of the two.
  *
- * Controls and text blocks (headings, paragraphs, list items) are measured
- * (`docs/RULES.md`, "What is measured", issues #49, #117 and #124). The cues
+ * Controls and text blocks (headings, paragraphs, list items, and boxes of
+ * text, role `text`, for text drawn outside every control and text block) are
+ * measured (`docs/RULES.md`, "What is measured", issues #49, #117, #124 and
+ * #219). The cues
  * that tell a person where to go are mostly text, so P1 and P3 read text
  * blocks too. P4 reads `targetPx` on controls only. A text block's own text
  * is the text outside the controls and text blocks nested in it: only that

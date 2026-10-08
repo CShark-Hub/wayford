@@ -40,7 +40,8 @@ import {
  * Actor's text. A collector maps to these names; an exotic accessibility-tree
  * role (`RootWebArea`, `doc-toc`) fails to parse, which is intended. Any later
  * schema that carries a role (the filter's page measurement) reuses this one
- * instead of a free string.
+ * instead of a free string. One role is not ARIA's: `text`, which the collector
+ * gives a box of text (#219), and which `getByRole` cannot find.
  */
 export const AriaRole = z.string().regex(/^[a-z]+$/, "a role is one lowercase ARIA role word");
 export type AriaRole = z.infer<typeof AriaRole>;

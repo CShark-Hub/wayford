@@ -115,6 +115,14 @@
       "name": "Order archive",
       "bbox": { "x": 224, "y": 603.0625, "width": 102.875, "height": 36 },
       "metrics": { "contrast": 2.005, "fontPx": 16, "targetPx": 36 }
+    },
+    {
+      "key": "contentinfo//text:Quillmere is a fictional demo shop. Not a real service.",
+      "kind": "text",
+      "role": "text",
+      "name": "Quillmere is a fictional demo shop. Not a real service.",
+      "bbox": { "x": 200, "y": 663.0625, "width": 880, "height": 73.5 },
+      "metrics": { "contrast": 6.389, "fontPx": 17 }
     }
   ]
 }

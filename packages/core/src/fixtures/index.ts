@@ -130,10 +130,12 @@ export const observationFixture: FullObservation = readJson("observation.json", 
  * Regenerated on Windows for #124, which dropped five text blocks and
  * changed no kept key, name or metric. One link's box came out 1/64 px
  * narrower, as it does on unchanged code there, so the macOS boxes are kept.
+ * The footer's box of text (#219) was added by hand from a live measurement on
+ * Linux; it is as wide as its block, so no glyph width is in it.
  *
  * An element's contrast and font size are the worst over the runs of text it
- * draws, a text block's own text only (#124). Everything is inside the 720 px
- * viewport.
+ * draws, a text block's own text only (#124). Every element starts inside the
+ * 720 px viewport; the footer's box of text runs 16.5 px past it.
  *
  * Each checkbox carries the contrast and font size of its label's text
  * (`docs/RULES.md`, "What is measured", #117). Its label wraps it, so its
@@ -145,8 +147,10 @@ export const observationFixture: FullObservation = readJson("observation.json", 
  * - the two `label`s, as separate text blocks: a label's text is measured on
  *   the checkbox it names;
  * - the four nav `li`s and the `p` around the "Delivery address" link: a text
- *   block that draws no text of its own is not measured (#124);
- * - the footer's bare text: it is not a heading, paragraph or list item.
+ *   block that draws no text of its own is not measured (#124).
+ *
+ * The footer's sentence, held by the `footer` directly, is a box of text
+ * (#219), `contentinfo//text:…`, the 15th element.
  */
 export const measurementFixture: PageMeasurement = readJson("measurement.json", PageMeasurement);
 

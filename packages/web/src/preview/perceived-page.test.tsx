@@ -46,6 +46,8 @@ import {
 
 const ARCHIVE = "main//link:Order archive";
 const BRAND = "banner//link:Quillmere";
+/** The footer's box of text (#219), the fixture's lowest element, reaching past the fold. */
+const FOOTER = "contentinfo//text:Quillmere is a fictional demo shop. Not a real service.";
 /** In Zoya's contrast band, and under her hard font cut. */
 const LEAD = "main//paragraph:Parcels on the way and how you like to receive them.";
 
@@ -402,7 +404,12 @@ test("an invisible element is not drawn, and its name appears nowhere in the per
     }
   }
   expect(checked).toBeGreaterThan(0);
-  expect(decode(render(veraDegrading(), { evidence: false }))).not.toContain(measured(BRAND).name);
+  // The footer's box of text (#219) names the shop inside a sentence, which is taken out first.
+  const withoutFooter = decode(render(veraDegrading(), { evidence: false })).replaceAll(
+    measured(FOOTER).name,
+    "",
+  );
+  expect(withoutFooter).not.toContain(measured(BRAND).name);
 });
 
 test("with evidence, exactly the invisible elements are outlined, tagged with what removed them", () => {
@@ -540,13 +547,20 @@ function frameAndCanvas(html: string) {
 }
 
 test("the canvas ends 24 px under the lowest element in the viewport, whatever its state", () => {
-  // The fixture's elements end at Order archive's bottom edge.
+  // Without the footer, whose box of text (#219) runs past the fold, so the viewport alone would
+  // bound the canvas (the next test), the fixture's elements end at Order archive's bottom edge.
+  const page = PageMeasurement.parse({
+    ...measurementFixture,
+    elements: measurementFixture.elements.filter((e) => e.key !== FOOTER),
+  });
   const lowest = 639.0625;
   expect(measured(ARCHIVE).bbox.y + measured(ARCHIVE).bbox.height).toBe(lowest);
-  const full = observe(measurementFixture, ada, 1);
+  expect(Math.max(...page.elements.map((e) => e.bbox.y + e.bbox.height))).toBe(lowest);
+  const full = observe(page, ada, 1);
   expect(croppedHeight(full)).toBe(lowest + 24);
   // Removed, Order archive still sets the crop, so a slider never moves the canvas's edge.
-  expect(croppedHeight(veraRemoving())).toBe(lowest + 24);
+  const removing = atFirstSeed(page, vera, (f) => observed(f, ARCHIVE).state === "invisible");
+  expect(croppedHeight(removing)).toBe(lowest + 24);
   // The canvas is that tall, and the frame fits it to the height it is given.
   const { frame, canvas } = frameAndCanvas(render(full, { evidence: false }));
   expect(canvas.height).toBe(`calc(${lowest + 24} * var(--px))`);

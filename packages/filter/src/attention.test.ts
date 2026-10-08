@@ -187,7 +187,8 @@ describe("salienceOrder", () => {
       if (n > 0) expect(value).toBeLessThanOrEqual(values[n - 1] as number);
     }
     // The page's h1 leads, and "Order archive", low on the page in a faint grey, is the least
-    // salient of the 14, as the spec's results on `/deliveries` give it.
+    // salient of the 15, as the spec's results on `/deliveries` give it for the 14 before the
+    // footer's box of text (#219).
     expect(elements[order[0] as number]?.key).toBe("main//heading:Deliveries");
     expect(elements[order.at(-1) as number]?.key).toBe(ARCHIVE);
   });
@@ -267,19 +268,19 @@ describe("perceive with stages 4 and 5", () => {
     expect(cuts).toBeGreaterThan(0);
   });
 
-  test("Kai at cap 11: A1 hides the last 3 of the fixture's 14, Order archive last", () => {
+  test("Kai at cap 11: A1 hides the last 4 of the fixture's 15, Order archive last", () => {
     const kai = profileFixture("prof_kai");
     expect(kai.behaviour.maxElements).toBe(11);
     for (const seed of seeds(20)) {
       const full = FullObservation.parse(perceive(measurementFixture, kai, seed));
       // No perception threshold and nothing off screen: every element is a candidate.
-      expect(full.elements).toHaveLength(14);
+      expect(full.elements).toHaveLength(15);
       expect(full.elements.every((e) => e.decisions.every((d) => d.stage === "attention"))).toBe(
         true,
       );
       const hidden = full.elements.filter((e) => e.decisions.length > 0);
-      expect(hidden).toHaveLength(3);
-      expect(full.hiddenCount).toBe(3);
+      expect(hidden).toHaveLength(4);
+      expect(full.hiddenCount).toBe(4);
       expect(full.elements.slice(11)).toStrictEqual(hidden);
       for (const element of hidden) {
         expect(element.decisions, element.key).toStrictEqual([A1]);
@@ -287,7 +288,7 @@ describe("perceive with stages 4 and 5", () => {
       expect(full.elements.at(-1)?.key).toBe(ARCHIVE);
       const text = actorText(full);
       expect(text).not.toContain("Order archive");
-      expect(text.endsWith("3 more elements not shown")).toBe(true);
+      expect(text.endsWith("4 more elements not shown")).toBe(true);
     }
   });
 
@@ -368,9 +369,10 @@ describe("perceive with stages 4 and 5", () => {
     }
   });
 
-  test("Kai's cap of 11 cuts the kebab, 12th of 15, and keeps its rename in the evidence", () => {
+  test("Kai's cap of 11 cuts the kebab, 12th of 16, and keeps its rename in the evidence", () => {
     // The kebab's 0.822 falls just under "Delivery address" on this page. On the real `/account`
-    // it is 10th of 15, inside his cap (the `s1-03` spec, "Results on the target app").
+    // it is 10th of 16, inside his cap (the `s1-03` spec, "Results on the target app", which
+    // counted 15 before the footer's box of text, #219).
     const kai = profileFixture("prof_kai");
     for (const seed of seeds(20)) {
       const full = FullObservation.parse(perceive(WITH_KEBAB, kai, seed));
@@ -378,7 +380,7 @@ describe("perceive with stages 4 and 5", () => {
       expect(full.elements.indexOf(kebab)).toBe(11);
       expect(kebab.decisions).toStrictEqual([...K1_K4, A1]);
       expect(kebab.renamedName).toBe("button");
-      expect(full.hiddenCount).toBe(4);
+      expect(full.hiddenCount).toBe(5);
       expect(actorText(full)).not.toContain("button");
     }
   });

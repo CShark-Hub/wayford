@@ -304,7 +304,7 @@ const cutByA1 = (full: FullObservation) =>
 /** A box's position as the Actor text gives it: its top-left corner, rounded. */
 const position = ({ x, y }: Bbox) => `${Math.round(x)},${Math.round(y)}`;
 
-test('Kai reads the kebab on /account as button "button", 10th of 15 inside his cap of 11', () => {
+test('Kai reads the kebab on /account as button "button", 10th of 16 inside his cap of 11', () => {
   const kai = profileFixture("prof_kai");
   const ada = profileFixture("prof_ada");
   expect(kai.knowledge.unknownPatterns).toContain("kebab");
@@ -314,10 +314,10 @@ test('Kai reads the kebab on /account as button "button", 10th of 15 inside his 
   for (const seed of SEEDS) {
     const full = perceive(measurement("/account"), kai, seed);
     const kebab = observed(full, KEBAB);
-    // Salience order puts it 10th of the page's 15, so A1 keeps it: shown, under its bare role.
-    expect(full.elements, `seed ${seed}`).toHaveLength(15);
+    // Salience order puts it 10th of the page's 16, so A1 keeps it: shown, under its bare role.
+    expect(full.elements, `seed ${seed}`).toHaveLength(16);
     expect(full.elements.indexOf(kebab), `seed ${seed}`).toBe(9);
-    expect(full.hiddenCount, `seed ${seed}`).toBe(4);
+    expect(full.hiddenCount, `seed ${seed}`).toBe(5);
     expect(kebab.decisions, `seed ${seed}`).toStrictEqual(K1_K4);
     expect(kebab.state, `seed ${seed}`).toBe("visible");
     expect(kebab.ref, `seed ${seed}`).toBe("e10");
@@ -389,7 +389,7 @@ test("Zoya on /: P3 leaves her 1, so her cap of 5 cuts nothing, seeds 1 to 100",
   }
 });
 
-test("Zoya on / with her perception thresholds removed: 5 shown, 11 cut by A1, seeds 1 to 100", () => {
+test("Zoya on / with her perception thresholds removed: 5 shown, 12 cut by A1, seeds 1 to 100", () => {
   // Her real profile leaves her cap nothing to cut (above). With no thresholds every element of
   // `/` is a candidate, so the cap alone decides what she reads first.
   const zoya = profileFixture("prof_zoya");
@@ -399,7 +399,7 @@ test("Zoya on / with her perception thresholds removed: 5 shown, 11 cut by A1, s
     const at = `seed ${seed}`;
     const full = FullObservation.parse(perceive(measurement("/"), unfiltered, seed));
     expect(shown(full), at).toHaveLength(5);
-    expect(full.hiddenCount, at).toBe(11);
+    expect(full.hiddenCount, at).toBe(12);
   }
 });
 

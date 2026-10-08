@@ -15,7 +15,9 @@
  * (`docs/specs/2026-09-29-s1-02-metrics-collector.md`, "measure-page.ts" and Decision log rows 1
  * to 4). One exception: a text block is named by its own text, outside the controls and text
  * blocks nested in it (row 34), so a heading that holds a link is not named as Playwright names
- * it. Light DOM of the top document only, no shadow roots or iframes (row 13).
+ * it. Text drawn by an element with no role of either kind, outside every control and text block,
+ * is measured as a box of text, a text block with the role `text` that `getByRole` cannot find
+ * (#219). Light DOM of the top document only, no shadow roots or iframes (row 13).
  */
 import type { Bbox, ElementKind, Landmark, ScrollOffset, Viewport } from "@wayford/core";
 import type { BackgroundLayer } from "./contrast.js";
@@ -164,10 +166,35 @@ export function measurePage(): RawPage {
   const kindOf = (role: string): ElementKind | undefined =>
     CONTROLS.has(role) ? "control" : TEXT_BLOCKS.has(role) ? "text" : undefined;
 
-  // A control or text block a sighted person can see, in the accessibility tree, so inside a text
-  // block its text is not the block's (#124). The text of an `a` with no `href`, or of a link
-  // nobody sees, stays the block's.
-  const nested = (el: Element) => kindOf(roleOf(el) ?? "") !== undefined && measurable(el);
+  // A control or text block by its role, that a sighted person can see, in the accessibility tree.
+  const measuredByRole = (el: Element) => kindOf(roleOf(el) ?? "") !== undefined && measurable(el);
+
+  // A control, text block or box of text (`textBox`, #219) a sighted person can see, so inside a
+  // text block or a box its text is not theirs (#124). The text of an `a` with no `href` drawn in
+  // the block's line, or of a link nobody sees, stays the block's. Outside every control and text
+  // block, a measured control's label or `aria-labelledby` referent is nested too, so its text
+  // stays the control's and no box reads it (#117), and so is fallback content, which is drawn
+  // nowhere. Inside a text block both stay the block's, as before.
+  const nested = (el: Element) =>
+    measuredByRole(el) ||
+    textBox(el) ||
+    ((namesControl(el) || FALLBACK.has(el.tagName)) && !insideMeasured(el));
+
+  // Each answer kept per element: `textBox` is asked again for every box its ancestors read.
+  function memo<T>(answer: (el: Element) => T): (el: Element) => T {
+    const answers = new Map<Element, T>();
+    return (el) => {
+      if (!answers.has(el)) answers.set(el, answer(el));
+      return answers.get(el) as T;
+    };
+  }
+
+  // Whether `el` sits inside a control or text block, whose text its own text then is: a control's
+  // name, or a text block's own text.
+  const insideMeasured: (el: Element) => boolean = memo((el) => {
+    const parent = el.parentElement;
+    return parent !== null && (measuredByRole(parent) || insideMeasured(parent));
+  });
 
   // An explicit role wins, by its first token, so an unknown token leaves the element unmeasured.
   function roleOf(el: Element): string | undefined {
@@ -255,10 +282,12 @@ export function measurePage(): RawPage {
     return target === undefined ? undefined : roleOf(target);
   }
 
-  // Outermost first, each named from its label when it has one.
-  function pathOf(el: Element): Landmark[] {
+  // Outermost first, each named from its label when it has one. A box of text that is a landmark
+  // itself, as a `<footer>` holding its text directly is, ends its path with itself (`self`), so it
+  // reads `contentinfo//text:…` as a paragraph in that footer reads `contentinfo//paragraph:…`.
+  function pathOf(el: Element, self = false): Landmark[] {
     const path: Landmark[] = [];
-    for (let node = el.parentElement; node !== null; node = node.parentElement) {
+    for (let node = self ? el : el.parentElement; node !== null; node = node.parentElement) {
       const role = roleOf(node);
       if (role === undefined || !LANDMARKS.has(role)) continue;
       const name = labelOf(node);
@@ -274,16 +303,59 @@ export function measurePage(): RawPage {
   // hyphen), a default-ignorable one (a Hangul filler) and the blank braille pattern draw nothing.
   const DRAWN = /[^\s\p{Cf}\p{Default_Ignorable_Code_Point}⠀]/u;
 
-  // Elements whose content is fallback, drawn only where the element itself is not supported.
+  // Elements whose content is fallback, drawn only where the element itself is not supported. A
+  // `progress` or `meter` draws its bar, never its content (#219).
   const FALLBACK = new Set([
     "AUDIO",
     "CANVAS",
     "IFRAME",
+    "METER",
     "NOSCRIPT",
     "OBJECT",
+    "PROGRESS",
     "TEMPLATE",
     "VIDEO",
   ]);
+  const IN_FALLBACK = [...FALLBACK].map((tag) => tag.toLowerCase()).join(", ");
+
+  // The role the observation gives a box of text (#219). Not an ARIA role: `getByRole` finds none.
+  const TEXT_ROLE = "text";
+
+  // A box of text says something only when it holds a letter or a digit: a lone "|" or "·" between
+  // links does not.
+  const WORDS = /[\p{L}\p{N}]/u;
+
+  // The elements a measured control names itself by through `aria-labelledby`. Their text is
+  // measured on the control, as a label's is (#117).
+  const controlNamers = [...document.querySelectorAll("[aria-labelledby]")]
+    .filter((el) => kindOf(roleOf(el) ?? "") === "control" && measurable(el))
+    .flatMap((el) => referents(el));
+
+  // A label that names a measured control, or an `aria-labelledby` referent of one: its text is the
+  // control's (#117), so neither it nor anything in it is a box of text. The label of a control
+  // nobody sees, such as a custom checkbox's hidden input, names nothing measured, so its text is
+  // read where it is drawn, as any other text.
+  const namesControl = (el: Element) =>
+    (el instanceof HTMLLabelElement && el.control !== null && measurable(el.control)) ||
+    controlNamers.some((namer) => namer === el);
+  const inControlName: (el: Element) => boolean = memo(
+    (el) => namesControl(el) || (el.parentElement !== null && inControlName(el.parentElement)),
+  );
+
+  // A box of text (#219): an element with no role it is measured by, drawn as a box of its own,
+  // not as a run in its parent's line (`display` is neither `inline` nor `contents`), that a
+  // sighted person can see, in the accessibility tree. Outside every control and text block, whose
+  // text it would otherwise take, every measured control's label and `aria-labelledby` referent,
+  // whose text is the control's, and fallback content. Its own text is what it draws outside the
+  // boxes, text blocks, controls, control names and fallback content inside it, as a text block's
+  // is, so a run of text a box reads is read by nothing else.
+  const textBox: (el: Element) => boolean = memo((el) => {
+    if (!(el instanceof HTMLElement) || kindOf(roleOf(el) ?? "") !== undefined) return false;
+    const display = getComputedStyle(el).display;
+    if (display === "inline" || display === "contents") return false;
+    if (el.closest(IN_FALLBACK) !== null || inControlName(el)) return false;
+    return measurable(el) && !insideMeasured(el);
+  });
 
   // The parents of the non-blank text nodes under `root` that a sighted person can see, outside
   // `skip`, each once, in document order. That passes over an sr-only span's text and a 0 px label's.
@@ -436,12 +508,36 @@ export function measurePage(): RawPage {
     return { name: "", texts: runsOf(drawers ?? textDrawers(el)) };
   }
 
+  // A box of text as a text block (#219): named by its own text and measured by the runs that
+  // draw it. One whose own text holds no word, or draws none of it, is not measured.
+  function boxOfText(el: Element): RawElement | undefined {
+    if (!textBox(el)) return undefined;
+    const name = collapse(contentOf(el, undefined, true));
+    if (!WORDS.test(name)) return undefined;
+    const texts = runsOf(textParents(el, undefined, true));
+    if (texts.length === 0) return undefined;
+    const { x, y, width, height } = el.getBoundingClientRect();
+    return {
+      kind: "text",
+      role: TEXT_ROLE,
+      name,
+      path: pathOf(el, true),
+      bbox: { x, y, width, height },
+      texts,
+    };
+  }
+
   const elements: RawElement[] = [];
   // A document with no `<body>`, such as an SVG file, has nothing to measure.
   for (const el of document.querySelectorAll("body *")) {
     const role = roleOf(el) ?? "";
     const kind = kindOf(role);
-    if (kind === undefined || !measurable(el)) continue;
+    if (kind === undefined) {
+      const box = boxOfText(el);
+      if (box !== undefined) elements.push(box);
+      continue;
+    }
+    if (!measurable(el)) continue;
     const { name, texts } = nameOf(el, role);
     // A text block with no name, as one that draws none of its own text has (row 34), is skipped.
     if (kind === "text" && name === "") continue;
