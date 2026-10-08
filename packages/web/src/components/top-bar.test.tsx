@@ -119,6 +119,16 @@ test("Runs sits outside the story nav, Events has no link, and the slot is empty
   expect(bar).toMatch(/<div data-slot="top-bar-slot"[^>]*><\/div>/);
 });
 
+test("Target sits outside the story nav, before Runs, and is current on its screen", async () => {
+  const bar = topBarOf(await render("/target"));
+  const nav = elementOf(bar, "nav", 'aria-label="Story"');
+  // The story nav still holds the five screens and nothing else.
+  expect(linksOf(nav).map((link) => link.name)).toEqual(STORY_NAV.map((entry) => entry.label));
+  const apart = linksOf(bar.slice(bar.indexOf("</nav>")));
+  expect(apart.map((link) => link.name)).toEqual(["Target", "Runs"]);
+  expect(apart[0]?.attributes).toMatchObject({ href: "/target", "aria-current": "page" });
+});
+
 test("the wordmark reads Wayford and opens the Cast", async () => {
   const wordmark = linksOf(topBarOf(await render("/race")))[0];
   expect(wordmark).toMatchObject({ name: "Wayford", attributes: { href: "/cast" } });

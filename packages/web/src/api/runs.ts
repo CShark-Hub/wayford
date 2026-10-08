@@ -2,20 +2,23 @@
  * The web's way to io's tasks and runs API (`packages/io/src/routes/tasks.ts`, `routes/runs.ts`),
  * through the dev server's `/api` proxy: the dashboard reads runs back, the arena checks a goal and
  * starts runs. Every io path and every response parse of `/tasks`, `/runs` and `/runs/$runId`
- * lives in this file, so a change to io's shapes is a change here alone.
+ * lives in this file, so a change to io's shapes is a change here alone; Scout's
+ * `/tasks/$taskId/scout` lives in `api/scout.ts`.
  *
  * Responses are parsed before a screen sees them: bare core shapes with core's schemas, io's own
  * bodies with schemas built from core's here, since web may not import io. A body that fails its
  * schema rejects with zod's account of why, so a screen says io sent something that is not a run
  * instead of drawing half of one. Screenshots, the video and the trace are files the browser
- * fetches itself, so for those this file only builds the URL. `api/reports.ts` reads its answers
- * through this file's `parseResponse` and `postJson`, so a refusal reads the same there.
+ * fetches itself, so for those this file only builds the URL. `api/reports.ts` and `api/scout.ts`
+ * read their answers through this file's `parseResponse`, `postJson` and `refusal`, and Scout's
+ * 502 through `ioReason`, so a refusal reads the same there.
  */
 import { queryOptions } from "@tanstack/react-query";
 import {
   type HttpUrl,
   type ProfileId,
   RaceId,
+  type ReportBackend,
   type RunId,
   RunResult,
   type Seed,
@@ -39,16 +42,25 @@ async function parseBody<T>(response: Response, schema: ZodType<T>, what: string
 const IoError = z.object({ error: z.string() });
 
 /**
- * The rejection for an answer the caller does not accept: its status, and io's `error` when the
- * body carries one. Vite's proxy answers 502 with no JSON while io is down, so a body that is not
- * io's names the status alone.
+ * io's `error` from `response`'s body, or `undefined` when the body is not io's, as Vite's proxy's
+ * 502 with no JSON is not while io is down. It reads the body: a second read finds it used and
+ * reads it as not io's, which is what `refusal` words after it.
  */
-async function refusal(response: Response): Promise<Error> {
+export async function ioReason(response: Response): Promise<string | undefined> {
   const body = IoError.safeParse(await response.json().catch(() => undefined));
+  return body.success ? body.data.error : undefined;
+}
+
+/**
+ * The rejection for an answer the caller does not accept: its status, and io's `error` when the
+ * body carries one. A body that is not io's names the status alone.
+ */
+export async function refusal(response: Response): Promise<Error> {
+  const reason = await ioReason(response);
   return new Error(
-    body.success
-      ? `io answered ${response.status}: ${body.data.error}`
-      : `io answered ${response.status}`,
+    reason === undefined
+      ? `io answered ${response.status}`
+      : `io answered ${response.status}: ${reason}`,
   );
 }
 
@@ -140,14 +152,24 @@ const StartedRace = z.object({ raceId: RaceId, runs: StartedRun.array() }).stric
 export type StartedRace = z.infer<typeof StartedRace>;
 
 /**
- * `POST /api/runs` with `{ taskId, profileIds, seeds }`. io's 202 parses `{ raceId, runs }`; a
- * non-OK answer rejects with io's `error` text (a 404 names the unknown task or profile).
+ * The body of io's `POST /runs` (`RunsRequest` in `packages/io/src/routes/runs.ts`): the task, the
+ * personas and the seeds, and the Actor backend, one of the names agent's `ActorBackendName`
+ * holds, as core's `ReportBackend` spells them.
  */
-export async function startRuns(request: {
+export type RunsRequest = {
   taskId: TaskId;
   profileIds: ProfileId[];
   seeds: Seed[];
-}): Promise<StartedRace> {
+  backend?: ReportBackend;
+};
+
+/**
+ * `POST /api/runs` with `{ taskId, profileIds, seeds }`, and `backend` only when it is given: with
+ * none, io runs the set on its default Actor backend, so the Race's body is unchanged. io's 202
+ * parses `{ raceId, runs }`; a non-OK answer rejects with io's `error` text (a 404 names the
+ * unknown task or profile).
+ */
+export async function startRuns(request: RunsRequest): Promise<StartedRace> {
   return parseResponse(await postJson("/api/runs", request), StartedRace, "a started race");
 }
 
@@ -167,6 +189,22 @@ export function runQuery(id: string) {
 /** Every stored task, under the key `["tasks"]`. */
 export function tasksQuery() {
   return queryOptions({ queryKey: ["tasks"], queryFn: fetchTasks });
+}
+
+/**
+ * The stored task under `id`, or `null` when io holds none, under the key `["tasks", id]`. io has
+ * no route for one task, so it is found in `GET /tasks`. A failure is not retried, as
+ * `reportQuery` does it, so the screen's fault shows at once while io is down. A goal just checked
+ * is written here with `setQueryData`. A stored task is never edited, and io stores one only under
+ * an id it has just minted, so an answer never goes stale: a goal just checked is not read back.
+ */
+export function storedTaskQuery(id: TaskId) {
+  return queryOptions({
+    queryKey: ["tasks", id],
+    queryFn: async () => (await fetchTasks()).find((task) => task.id === id) ?? null,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 }
 
 /** The screenshot taken after step `stepIndex`'s action landed, for an `<img>`. */

@@ -24,6 +24,7 @@ import {
 } from "@wayford/core";
 import {
   axeScanFixture,
+  groundTruthFixture,
   measurementFixture,
   profileFixture,
   reportFixture,
@@ -105,9 +106,10 @@ export interface SelfCheckScreen {
   /** Shown once the screen has its data; the check measures after it is visible. */
   ready: string;
   /**
-   * Each keyed by its path under `/api`, such as `/runs`: a plain value is a 200 JSON body, and a
-   * `SelfCheckAnswer` is sent as it says, such as the bytes of a PNG, as io's `/illustration`
-   * answers.
+   * Each keyed by its path under `/api`, such as `/runs`, which answers any method, or by a method
+   * and that path, such as `POST /tasks`, which answers that method alone and comes first. A plain
+   * value is a 200 JSON body, and a `SelfCheckAnswer` is sent as it says, such as the bytes of a
+   * PNG, as io's `/illustration` answers.
    */
   responses: Record<string, unknown>;
   /**
@@ -279,6 +281,41 @@ export function runDetailResponses(
 }
 
 /**
+ * The Target screen's form, filled as a person would, a start URL, the goal sentence and a URL
+ * pattern, and then checked. Found by id: the pattern's input shares its name, "URL pattern", with
+ * the kind's radio.
+ */
+async function checkTarget(page: Page): Promise<void> {
+  await page.locator("#target-start-url").fill("https://example.com/");
+  await page.locator("#target-goal").fill("you want to see what you ordered three months ago");
+  await page.locator("#target-success").fill("**/deliveries/archive");
+  await page.getByRole("button", { name: "Check the goal", exact: true }).click();
+}
+
+/** The goal the Target screen's goal view entries open: the hard goal, stored, with its Scout. */
+const TARGET_TASK = taskFixture("task_past-order");
+
+/** io's answer about the hard goal's Scout: its ground truth. */
+const TARGET_SCOUT_RESPONSES = { [`/tasks/${TARGET_TASK.id}/scout`]: groundTruthFixture };
+
+/** io's answer for the hard goal's stored report, which the goal view reads for its link: none. */
+const TARGET_NO_REPORT = {
+  [`GET /reports/${TARGET_TASK.id}`]: jsonAnswer({ error: `no report on ${TARGET_TASK.id}` }, 404),
+};
+
+/** The goal view, drawn once Scout's line has replaced its skeleton. */
+const TARGET_GOAL_READY = 'main:has(section:has-text("Scout reached it in"))';
+
+/** Ada and Vera on seeds 1 to 3, as io's `POST /runs` starts them, seed-major. */
+const TARGET_RUNS = [1, 2, 3].flatMap((seed) =>
+  ["ada", "vera"].map((persona) => ({
+    id: `run_target-${persona}-${seed}`,
+    profileId: `prof_${persona}`,
+    seed,
+  })),
+);
+
+/**
  * The Boundary is drawn once its headline shows and the top bar carries the sweep's stored badge.
  * The badge is a portal into the bar, which only a mounted shell draws, so this is where a screen
  * that drops it fails.
@@ -372,6 +409,73 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     responses: { "/sweeps/swp_kai-max-elements": fixtureSweep("swp_kai-max-elements") },
   },
   {
+    name: "target",
+    path: "/target",
+    ready: 'role=button[name="Check the goal"s]',
+    // The empty form asks io for nothing.
+    responses: {},
+  },
+  {
+    name: "target · refused",
+    path: "/target",
+    ready: 'text="The goal still names the way after a repair round"',
+    // The form filled and checked, and the goal refused with what still names the way.
+    responses: {
+      "POST /tasks": jsonAnswer(
+        {
+          error: "the goal still names a screen: Order archive",
+          goal: "you want to open the order archive",
+          survived: ["Order archive"],
+        },
+        422,
+      ),
+    },
+    act: checkTarget,
+  },
+  {
+    name: "target · accepted",
+    // The form filled and checked, the goal accepted, and the goal view drawn from the task the
+    // check cached under its id. Only `POST /tasks` is listed, so a goal view that read the goal
+    // back with `GET /tasks` would make an unlisted request and fail the entry at once.
+    path: "/target",
+    ready: TARGET_GOAL_READY,
+    responses: {
+      "POST /tasks": jsonAnswer({ task: TARGET_TASK, rewritten: false }, 201),
+      ...TARGET_SCOUT_RESPONSES,
+      ...TARGET_NO_REPORT,
+    },
+    act: async (page) => {
+      await checkTarget(page);
+      await page.waitForURL(`**/target?task=${TARGET_TASK.id}`);
+      // The goal's heading takes focus, so a screen reader reads the accepted goal out.
+      await page.locator("main h1:focus").waitFor();
+    },
+  },
+  {
+    name: "target · report",
+    // A reload of an accepted goal, the task read back from io, then a set run to its report.
+    path: `/target?task=${TARGET_TASK.id}`,
+    // The set has ended and the report is written: its link, the progress gone, the button back.
+    ready: 'role=link[name="Open the report"s]',
+    // Ada and Vera on three seeds: six runs, each stored at the first poll, then the report, which
+    // io holds none of until the Analyst's POST answers.
+    responses: {
+      "/tasks": [TARGET_TASK],
+      ...TARGET_SCOUT_RESPONSES,
+      ...TARGET_NO_REPORT,
+      "POST /runs": jsonAnswer({ raceId: "race_target", runs: TARGET_RUNS }, 202),
+      ...Object.fromEntries(TARGET_RUNS.map((run) => [`/runs/${run.id}`, runResultFixture])),
+      [`POST /reports/${TARGET_TASK.id}`]: jsonAnswer(reportFixture(TARGET_TASK.id), 201),
+    },
+    act: async (page) => {
+      await page.locator(TARGET_GOAL_READY).waitFor();
+      for (const persona of ["Ada", "Vera"]) {
+        await page.getByRole("button", { name: persona, exact: true }).click();
+      }
+      await page.getByRole("button", { name: "Start 6 runs on the LLM", exact: true }).click();
+    },
+  },
+  {
     name: "run-detail",
     // Step 1 was observed on the page step 0's action left, so both screenshots are drawn.
     path: `/runs/${runResultFixture.id}?step=1`,
@@ -453,6 +557,11 @@ export interface ScreenCheck {
  * the same viewport coordinates as each `bbox`, and what lies inside them is skipped. An `exclude`
  * that matches nothing throws a `WayfordError` with code `self_check_exclude`: the entry is broken,
  * and the screen would be checked whole without anyone seeing why.
+ *
+ * The page prefers reduced motion, which sets every duration to 0 (`docs/DESIGN.md`, "Motion"), so
+ * what is measured is the state a screen settles in, never a colour halfway through its 160 ms
+ * transition: a button `act` just enabled would otherwise be measured on its way from the disabled
+ * look, and a browser that draws no animation frames would leave it there.
  */
 export async function checkScreen(
   page: Page,
@@ -461,7 +570,7 @@ export async function checkScreen(
   theme?: Theme,
 ): Promise<ScreenCheck> {
   await page.setViewportSize(SELF_CHECK_VIEWPORT);
-  if (theme !== undefined) await page.emulateMedia({ colorScheme: theme });
+  await page.emulateMedia({ reducedMotion: "reduce", ...(theme && { colorScheme: theme }) });
   let unlisted: WayfordError | undefined;
   let reject: (error: WayfordError) => void = () => {};
   const firstUnlisted = new Promise<never>((_, onUnlisted) => {
@@ -473,16 +582,21 @@ export async function checkScreen(
   // Anchored on the path: the glob `**/api/**` would catch Vite's modules under `src/api/` too.
   // A RegExp, unlike a function, lets Playwright pass every other request without asking Node.
   await page.route(/^https?:\/\/[^/]+\/api\//, (route) => {
-    const path = new URL(route.request().url()).pathname.slice("/api".length);
-    if (Object.hasOwn(screen.responses, path)) {
-      const answer = screen.responses[path];
+    const request = route.request();
+    const path = new URL(request.url()).pathname.slice("/api".length);
+    // The method's own answer first, then the path's, which answers any method.
+    const key = [`${request.method()} ${path}`, path].find((k) =>
+      Object.hasOwn(screen.responses, k),
+    );
+    if (key !== undefined) {
+      const answer = screen.responses[key];
       if (answer instanceof SelfCheckAnswer) {
         const { status, contentType, body } = answer;
         return route.fulfill({ status, contentType, body });
       }
       return route.fulfill({ json: answer });
     }
-    unlisted ??= notListed(screen, path);
+    unlisted ??= notListed(screen, `${request.method()} /api${path}`);
     reject(unlisted);
     return route.fulfill({ status: 404, json: { error: "not listed for the self-check" } });
   });
@@ -530,10 +644,11 @@ function regions(page: Page, selector: string): Promise<Bbox[]> {
   );
 }
 
-function notListed(screen: SelfCheckScreen, path: string): WayfordError {
+/** The failure for `request`, a method and a path such as `GET /api/tasks`, which no answer of `screen` takes. */
+function notListed(screen: SelfCheckScreen, request: string): WayfordError {
   return new WayfordError(
     "self_check_unanswered",
-    `the ${screen.name} screen requested /api${path}, which its responses do not list`,
+    `the ${screen.name} screen requested ${request}, which its responses do not list`,
   );
 }
 

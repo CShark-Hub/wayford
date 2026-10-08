@@ -7,6 +7,7 @@ import { personasRoute } from "./screens/personas.js";
 import { reportRoute } from "./screens/report.js";
 import { runDetailRoute } from "./screens/run-detail.js";
 import { runsRoute } from "./screens/runs.js";
+import { targetRoute } from "./screens/target.js";
 import { rootRoute } from "./shell.js";
 
 /** `/` has no screen of its own: the app opens where the story starts, the Cast. */
@@ -30,6 +31,7 @@ const routeTree = rootRoute.addChildren([
   reportRoute,
   runsRoute,
   runDetailRoute,
+  targetRoute,
 ]);
 
 /**

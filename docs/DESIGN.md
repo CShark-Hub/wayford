@@ -69,6 +69,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 | `/runs/$runId` | Run detail | Run detail | One run step by step: screenshot beside what the model read | `screens/run-detail.html` | `s3-12` |
 | `/boundary` | Boundary | Sweep | The first threshold where fewer than half of a persona's runs get through. Beat 6 | `screens/boundary.html` | `s3-09` |
 | `/runs` | Runs | Runs | The archive table, off the story path | — | `s3-14` (optional) |
+| `/target` | Target | — | A site and a goal of your own in, every story screen on it out (`docs/adr/0003-any-target.md`, D6). Off the story path | — | `s3-15` |
 
 `/` redirects to `/cast`. `/events`, the m0-07 debug screen, keeps its route and leaves the nav. Until `s3-14` is taken, Cast and Runs keep their layouts and take the new look through the tokens.
 
@@ -167,7 +168,7 @@ The spacing steps (`space-1` to `space-9`, a 4 px grid), radii, layout sizes (`h
 - **One top bar:** `header-h`, with a hairline under it.
   - Wordmark left.
   - The story nav in the middle, numbered in mono: `01 Cast`, `02 Lens`, `03 Race`, `04 Report`, `05 Boundary`.
-  - `Runs` apart on the right, then the screen's source badge and, where the screen's data names one, its backend tag, then the theme toggle.
+  - `Target` and `Runs` apart on the right, then the screen's source badge and, where the screen's data names one, its backend tag, then the theme toggle.
   - No sidebar, no command palette.
 - **One page column:** `content-max`, centred, with `space-6` gutters. Rails are `rail-w`.
 - **Radii by role:**

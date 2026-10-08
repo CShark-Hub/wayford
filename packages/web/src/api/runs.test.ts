@@ -12,6 +12,7 @@ import {
   runsQuery,
   screenshotUrl,
   startRuns,
+  storedTaskQuery,
   type TaskRequest,
   tasksQuery,
   traceUrl,
@@ -143,6 +144,25 @@ test("each query fetches what its key names", async () => {
   await expect(client.fetchQuery(tasksQuery())).resolves.toStrictEqual(taskFixtures);
 });
 
+test("storedTaskQuery keys one task by its id, never goes stale, and does not retry a failure", () => {
+  const query = storedTaskQuery("task_past-order");
+  expect(query.queryKey).toStrictEqual(["tasks", "task_past-order"]);
+  // A stored task is never edited: a goal just checked and written here is not read back.
+  expect(query.staleTime).toBe(Number.POSITIVE_INFINITY);
+  expect(query.retry).toBe(false);
+});
+
+test("storedTaskQuery finds the task among the stored ones, or answers null", async () => {
+  const fetch = answer(Response.json(taskFixtures));
+  await expect(new QueryClient().fetchQuery(storedTaskQuery(hardTask.id))).resolves.toStrictEqual(
+    hardTask,
+  );
+  expect(fetch).toHaveBeenCalledWith("/api/tasks");
+
+  answer(Response.json(taskFixtures));
+  await expect(new QueryClient().fetchQuery(storedTaskQuery("task_x"))).resolves.toBeNull();
+});
+
 test("extractTask posts the story, start URL and success condition to /api/tasks as JSON", async () => {
   const fetch = answer(Response.json({ task: hardTask, rewritten: true }, { status: 201 }));
   await extractTask(pathLaden);
@@ -224,6 +244,18 @@ test("startRuns posts the task, personas and seeds to /api/runs as JSON and read
     contentType: "application/json",
     body: { taskId: "task_past-order", profileIds: ["prof_ada", "prof_vera"], seeds: [1] },
   });
+});
+
+test("startRuns sends the backend only when it is given, so the Race's body is unchanged", async () => {
+  const request = { taskId: "task_past-order", profileIds: ["prof_ada"], seeds: [1] };
+  const started = { raceId: "race_ada", runs: startedRuns.slice(0, 1) };
+  const without = answer(Response.json(started, { status: 202 }));
+  await startRuns(request);
+  expect(sent(without).body).toStrictEqual(request);
+
+  const onLlm = answer(Response.json(started, { status: 202 }));
+  await startRuns({ ...request, backend: "llm" });
+  expect(sent(onLlm).body).toStrictEqual({ ...request, backend: "llm" });
 });
 
 test("startRuns rejects a non-OK answer with its status, and io's reason when it sent one", async () => {

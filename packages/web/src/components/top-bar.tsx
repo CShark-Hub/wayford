@@ -111,6 +111,10 @@ export function TopBar() {
         </ul>
       </nav>
       <div className="flex items-center gap-2">
+        {/* A site and a goal of your own (`docs/adr/0003-any-target.md`, D6): off the story path. */}
+        <Link to="/target" className={buttonVariants({ variant: "ghost" })}>
+          Target
+        </Link>
         <Link to="/runs" className={buttonVariants({ variant: "ghost" })}>
           Runs
         </Link>

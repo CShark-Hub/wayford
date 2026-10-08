@@ -13,7 +13,7 @@
  * screenshot crop is measured against the click point and the flag that names the action.
  */
 import { RunEvent, RunResult, type StartedRun } from "@wayford/core";
-import { runEventFixtures, runResultFixture } from "@wayford/core/fixtures";
+import { runEventFixtures, runResultFixture, taskFixture } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from "vitest";
 import { demoRace, eventsOf } from "../src/arena/demo-race.js";
@@ -130,6 +130,21 @@ describe("checkScreen on a page built to fail", () => {
       name: "WayfordError",
       code: "self_check_unanswered",
       message: expect.stringContaining("/api/runs"),
+    });
+  });
+
+  test("an answer keyed by a method takes that method alone: a GET of its path rejects", async () => {
+    // As `target · accepted` lists only `POST /tasks`, so a goal view reading `GET /tasks` fails.
+    const page = await fakePage(`
+      <script>
+        fetch("/api/runs").then((response) => {
+          if (response.ok) document.body.innerHTML = "<h1>Self-check</h1>";
+        });
+      </script>`);
+    const screen = { ...FAKE_SCREEN, responses: { "POST /runs": { runs: [] } } };
+    await expect(checkScreen(page, FAKE_ORIGIN, screen)).rejects.toMatchObject({
+      code: "self_check_unanswered",
+      message: expect.stringContaining("requested GET /api/runs"),
     });
   });
 
@@ -615,6 +630,61 @@ describe("on the web app", () => {
       await page.goBack();
       await start.waitFor();
       expect(await page.getByRole("article", { name: "Ada", exact: true }).count()).toBe(0);
+    });
+  });
+
+  describe("the Target screen, as the self-check opens it", () => {
+    test("target · report asks the Analyst once, after every run of the set is stored", async () => {
+      const page = await newPage();
+      const asked: string[] = [];
+      page.on("request", (request) => {
+        const path = new URL(request.url()).pathname;
+        if (/^\/api\/(runs|reports)\//.test(path)) asked.push(`${request.method()} ${path}`);
+      });
+      await checkScreen(page, app.origin, listedScreen("target · report"), "light");
+      const posts = asked.flatMap((request, index) =>
+        request.startsWith("POST /api/reports/") ? [index] : [],
+      );
+      expect(posts).toHaveLength(1);
+      const polls = asked.filter((request) => request.startsWith("GET /api/runs/"));
+      expect(polls).toHaveLength(6);
+      expect(posts[0]).toBeGreaterThan(
+        asked.findLastIndex((request) => request.startsWith("GET /api/runs/")),
+      );
+    });
+
+    test("a check answered after the person left the form leaves them where they went", async () => {
+      const page = await newPage();
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const task = taskFixture("task_past-order");
+      await page.route(/^https?:\/\/[^/]+\/api\//, async (route) => {
+        const request = route.request();
+        if (request.method() === "POST" && new URL(request.url()).pathname === "/api/tasks") {
+          await held;
+          return route.fulfill({ status: 201, json: { task, rewritten: false } });
+        }
+        // The Runs screen's lists, empty.
+        return route.fulfill({ json: [] });
+      });
+      await page.goto(`${app.origin}/target`);
+      await page.locator("#target-start-url").fill("https://example.com/");
+      await page.locator("#target-goal").fill(task.goal);
+      await page.locator("#target-success").fill("**/deliveries/archive");
+      await page.getByRole("button", { name: "Check the goal", exact: true }).click();
+      await page.getByRole("link", { name: "Runs", exact: true }).click();
+      await page.waitForURL("**/runs");
+      const answered = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" && response.url().endsWith("/api/tasks"),
+      );
+      release();
+      await answered;
+      // The check's own `then` runs as the answer lands; a navigation it made would show by now.
+      await page.waitForTimeout(1000);
+      expect(new URL(page.url()).pathname).toBe("/runs");
     });
   });
 
