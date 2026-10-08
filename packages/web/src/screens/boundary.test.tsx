@@ -469,6 +469,24 @@ describe("the runs behind a value", () => {
     ]);
   });
 
+  test("a cell whose run id was minted says it opens the run's label, and links to the whole id", async () => {
+    // A run id as `newId("run")` mints it (#200), in place of seed 1's fixture id at 3.
+    const id = "run_01m4bbcm8s1a0mcqac4v3fr6hk";
+    const sweep = Sweep.parse({
+      ...vera,
+      values: vera.values.map((row) =>
+        row.value === 3 ? { ...row, runIds: [id, ...row.runIds.slice(1)] } : row,
+      ),
+    });
+    const client = presets({ contrast: [sweep] });
+    client.setQueryData(runQuery(id).queryKey, storedRun(id, "gave_up"));
+    const [first] = seedCells(await render("/boundary?axis=contrast&value=3", client));
+    expect(first?.attributes["aria-label"]).toBe(
+      "seed 1: gave up, every route closed. Opens run …3fr6hk",
+    );
+    expect(first?.attributes.href).toBe(`/runs/${id}`);
+  });
+
   test("without a route table, a cell has the Report's one border and its label says so", async () => {
     const client = presets({ contrast: [noRoutes] });
     const id = noRoutes.values.find((value) => value.value === 3)?.runIds[0];

@@ -23,6 +23,7 @@ import { count } from "../components/outcome-words.js";
 import { type RouteState, SeedCell, SeedLegend } from "../components/seed-strip.js";
 import { Skeleton } from "../components/skeleton.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
+import { runLabel } from "../runs/run-label.js";
 import { gridValue } from "./axis.js";
 import { ValueLink } from "./value-table.js";
 
@@ -70,7 +71,7 @@ function cellLabel(seed: number, runId: string, route: RouteState, state: RunSta
     state.kind === "read"
       ? OUTCOME_WORDS[outcomeKind(state.run.outcome, state.run.limit)].toLowerCase()
       : UNREAD_WORDS[state.kind];
-  return `seed ${seed}: ${outcome}, ${ROUTE_WORDS[route]}. Opens ${runId}`;
+  return `seed ${seed}: ${outcome}, ${ROUTE_WORDS[route]}. Opens ${runLabel(runId)}`;
 }
 
 /** A cell with no outcome to draw: a skeleton while its run loads, blank once it failed to. */

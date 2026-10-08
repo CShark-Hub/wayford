@@ -29,6 +29,7 @@ import { TopBarSlot } from "../components/top-bar.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
 import { EXACT } from "../report/cast-table.js";
 import { filterRuns, type RunFilter, RunsSearch } from "../runs/filter.js";
+import { runLabel } from "../runs/run-label.js";
 import { formatSeconds, usd } from "../runs/step-replay.js";
 import { rootRoute } from "../shell.js";
 
@@ -216,8 +217,10 @@ function RunRow({ run, goal }: { run: RunResult; goal: string | undefined }) {
       </td>
       <td className={CELL}>
         <p className="mono whitespace-nowrap">
+          {/* The label a person reads; the link carries the whole id, and run detail shows and
+              copies it. No `title`: it would be every row's accessible description, read whole. */}
           <Link to="/runs/$runId" params={{ runId: run.id }} className={TEXT_LINK}>
-            {run.id}
+            {runLabel(run.id)}
           </Link>
         </p>
       </td>

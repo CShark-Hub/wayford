@@ -73,6 +73,18 @@ test("each cell says its seed, its outcome word, its open routes and the run it 
   ]);
 });
 
+test("a seed whose run id was minted says it opens the run's label, not its whole id", () => {
+  // A run id as `newId("run")` mints it (#200); the link still goes to the whole id.
+  const id = "run_01m4bbcm8s1a0mcqac4v3fr6hk";
+  const [first] = seedsOf("task_past-order", "prof_kai");
+  if (first === undefined) throw new Error("Kai has no seeds");
+  const [cell] = cellsOf(render(<SeedStrip seeds={[{ ...first, runId: id }]} label="Kai" />));
+  expect(cell?.attributes["aria-label"]).toBe(
+    "seed 1: Gave up, routes open: B, C. Opens run …3fr6hk",
+  );
+  expect(cell?.attributes.href).toBe(`/runs/${id}`);
+});
+
 test("the border says the route: solid ink when open, dashed when closed, a hairline with no table", () => {
   const [open, closed] = cellsOf(
     render(<SeedStrip seeds={seedsOf("task_past-order", "prof_vera")} label="Vera" />),

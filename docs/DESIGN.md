@@ -268,7 +268,7 @@ The gap bar and the seed strip are HTML, not charts.
   - **Over budget** is `budget_exceeded` where the limit is not at hand: a run recorded before the limit was, and a view that holds only the outcome, such as the Report's seeds or a count of outcomes.
   - A screen that holds a run's record or its `runFinished` names the limit: run detail, the Race, the Boundary's runs. The Report's seeds hold only the outcome, so a run read there as Over budget opens as Out of time or Hit the step cap.
 - The two numbers are **route open** (the filter) and **got through** (the agent).
-- Rule ids, seeds, run ids, thresholds, URLs and costs are set in `mono` exactly as the code spells them.
+- Rule ids, seeds, run ids, thresholds, URLs and costs are set in `mono` exactly as the code spells them. One exception: a minted run id (`run_` and a ULID, about 30 characters) reads as `run …` and its last six characters (`runLabel`, #200). The whole id is in the URL, on hover in run detail, and on run detail's copy button.
 - The list under "Words we do not use" in `docs/DEMO.md` stays off every screen.
 
 ## In code

@@ -15,8 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 import type { RunResult, RunStep } from "@wayford/core";
 import { cn } from "cn";
-import { Download } from "lucide-react";
-import type { ReactNode } from "react";
+import { Copy, Download } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { runQuery, traceUrl, videoUrl } from "../api/runs.js";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
@@ -31,6 +31,7 @@ import { TopBarSlot } from "../components/top-bar.js";
 import { Button } from "../components/ui/button.js";
 import { Detail, Details, FACTS, Fact } from "../runs/details.js";
 import { describeAction, RunDetailSearch } from "../runs/replay.js";
+import { runLabel } from "../runs/run-label.js";
 import {
   backendOf,
   CROP_HEIGHT,
@@ -57,11 +58,51 @@ function pathOf(url: string): string {
   return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.pathname : url;
 }
 
+/**
+ * The whole run id to the clipboard (#200): the screens show `runLabel`'s short form, and a person
+ * who needs the id itself, for an issue or the API, copies it here. A polite status says what
+ * happened, and stays until the next press, so nothing changes on its own. The status keeps the
+ * room of its longest message, so the button never moves under the pointer, and each press
+ * replaces its text, so a second "Copied" is announced as the first was.
+ */
+function CopyRunId({ runId }: { runId: string }) {
+  const [copy, setCopy] = useState<{ outcome: "copied" | "failed"; press: number }>();
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Copy the run id"
+        title={`Copy ${runId}`}
+        onClick={() => {
+          // Inside a promise, so a page with no clipboard, served over plain http on another
+          // host, says it could not copy rather than throwing.
+          Promise.resolve()
+            .then(() => navigator.clipboard.writeText(runId))
+            .then(
+              () => "copied" as const,
+              () => "failed" as const,
+            )
+            .then((outcome) => setCopy((last) => ({ outcome, press: (last?.press ?? 0) + 1 })));
+        }}
+      >
+        <Copy aria-hidden="true" className="size-5" strokeWidth={1.75} />
+      </Button>
+      <p role="status" className="body min-w-28 text-ink-2">
+        {copy === undefined ? null : (
+          <span key={copy.press}>{copy.outcome === "copied" ? "Copied" : "Could not copy"}</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
 /** The screen before a run is shown: its id as the heading, and what stands in for the run. */
 function Placeholder({ runId, children }: { runId: string; children: ReactNode }) {
   return (
     <div className={PAGE}>
-      <h1 className="readout wrap-anywhere text-ink">{runId}</h1>
+      <h1 className="readout wrap-anywhere text-ink">{runLabel(runId)}</h1>
       {children}
     </div>
   );
@@ -73,7 +114,7 @@ function Loading({ runId }: { runId: string }) {
     <div className={PAGE}>
       <div className="flex items-center gap-4">
         <Skeleton className="size-12 shrink-0 rounded-lg" />
-        <h1 className="readout wrap-anywhere text-ink">{runId}</h1>
+        <h1 className="readout wrap-anywhere text-ink">{runLabel(runId)}</h1>
       </div>
       <p role="status" className="sr-only">
         Loading run
@@ -102,11 +143,12 @@ function DownloadLink({ href, children }: { href: string; children: string }) {
 }
 
 /**
- * The run's header, in two rows. First the avatar beside `persona | seed | run id` in `readout`,
- * the pipes and the id in the meta ink: the two never wrap apart, so a ULID run id wraps inside
- * the `<h1>`, never under the avatar. Then the facts in mono, and to their right the downloads of
- * the files the run recorded. The reference puts the downloads in the first row, but only its short
- * fixture id leaves them room there at 1280. A persona that is not bundled has no avatar to draw.
+ * The run's header, in two rows. First the avatar beside `persona | seed | run …3fr6hk` in
+ * `readout`, the pipes and the label in the meta ink, the whole id on hover (`runLabel`, #200), then
+ * right after it the button that copies the whole id. They never wrap apart. Then the facts in
+ * mono, and to their right the downloads of the files the run recorded. The reference puts the
+ * downloads in the first row, but the copy button and its status take that room, and at 960 the
+ * heading already takes two lines. A persona that is not bundled has no avatar to draw.
  */
 function Header({ run }: { run: RunResult }) {
   const profile = bundledProfiles.find((bundled) => bundled.id === run.profileId);
@@ -116,12 +158,13 @@ function Header({ run }: { run: RunResult }) {
         {profile === undefined ? null : (
           <PersonaAvatar profile={profile} className="size-12 shrink-0" />
         )}
-        <h1 className="min-w-0 flex-1 readout wrap-anywhere text-ink">
+        <h1 className="min-w-0 readout wrap-anywhere text-ink">
           {personaLabel(run.profileId)}
           <span className="text-ink-3"> | </span>
           {String(run.seed)}
-          <span className="text-ink-3">{` | ${run.id}`}</span>
+          <span className="text-ink-3" title={run.id}>{` | ${runLabel(run.id)}`}</span>
         </h1>
+        <CopyRunId runId={run.id} />
       </div>
       <div className="flex items-center gap-4">
         <dl className={cn(FACTS, "min-w-0 flex-1")}>

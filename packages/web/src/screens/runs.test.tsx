@@ -283,6 +283,20 @@ describe("the run table", () => {
     );
     expect(links[0]?.text).toBe(HARD_GOAL);
   });
+
+  test("a minted run id reads as its label, the whole id in the link's href alone", async () => {
+    // A run id as `newId("run")` mints it (#200): fixture ids such as run_vera-hard-1 read whole.
+    const id = "run_01m4bbcm8s1a0mcqac4v3fr6hk";
+    const [first, ...rest] = fixtureRuns;
+    if (first === undefined) throw new Error("no fixture runs");
+    const html = await render("/runs", { runs: [{ ...first, id }, ...rest], tasks: taskFixtures });
+    expect(bodyRows(html)[0]?.at(-1)).toBe("run …3fr6hk");
+    const link = linksOf(runTable(html)).find((l) => l.text === "run …3fr6hk");
+    expect(link?.href).toBe(`/runs/${id}`);
+    // Nowhere else in the row's markup: a title or an aria-label would have a screen reader read
+    // the whole id out on every row.
+    expect(bodyCells(html)[0]?.join("").replace(`href="/runs/${id}"`, "")).not.toContain(id);
+  });
 });
 
 // ---------------------------------------------------------------------------

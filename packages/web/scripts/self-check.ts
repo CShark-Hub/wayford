@@ -40,6 +40,7 @@ import { demoRace } from "../src/arena/demo-race.js";
 import { runView } from "../src/arena/race.js";
 import { fixtureSweep } from "../src/boundary/fixture-sweeps.js";
 import { fixtureJevRun, fixtureRuns } from "../src/runs/fixture-runs.js";
+import { runLabel } from "../src/runs/run-label.js";
 import { THEME_NAMES, type Theme } from "../src/theme.js";
 
 /**
@@ -272,7 +273,7 @@ function raceStoredScreen(): SelfCheckScreen {
  */
 export function runHeading(run: RunResult): string {
   const persona = profileFixture(run.profileId).label;
-  return `role=heading[level=1][name="${persona} | ${run.seed} | ${run.id}"s]`;
+  return `role=heading[level=1][name="${persona} | ${run.seed} | ${runLabel(run.id)}"s]`;
 }
 
 /**

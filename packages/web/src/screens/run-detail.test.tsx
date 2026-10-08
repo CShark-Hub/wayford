@@ -20,6 +20,10 @@ import { backendOf } from "../runs/step-replay.js";
 
 const RUN_ID = runResultFixture.id;
 
+/** A run id as `newId("run")` mints it, and the label a person reads for it (#200). */
+const MINTED = "run_01m4bbcm8s1a0mcqac4v3fr6hk";
+const MINTED_LABEL = "run …3fr6hk";
+
 /**
  * `path` through the app's own router, with the query client seeded so no fetch runs: `run` under
  * `id`'s key, or `null` as io's answer for a run it does not have.
@@ -62,6 +66,13 @@ async function ioDown(id: string, before?: RunResult | null): Promise<QueryClien
 /** The text of the page's `<h1>`. */
 function h1Of(html: string): string {
   return lineOf(html.match(/<h1(?:\s[^>]*)?>(.*?)<\/h1>/s)?.[1] ?? "");
+}
+
+/** The text of each `<p role="status">`, in order: empty for one that says nothing yet. */
+function statusesOf(html: string): string[] {
+  return [...html.matchAll(/<p [^>]*role="status"[^>]*>(.*?)<\/p>/gs)].map((p) =>
+    lineOf(p[1] ?? ""),
+  );
 }
 
 /** The run's header: from its `<h1>` to the end of the `<header>` holding it. */
@@ -207,19 +218,30 @@ describe("the header", () => {
     expect(attributesOf(root ?? "").style).toContain("--p:var(--persona-cobalt)");
   });
 
-  test("a ULID run id: the avatar and the <h1> alone in a row that does not wrap, the downloads after the facts", async () => {
-    const id = "run_01m47w76p695vy4dhemjpne0ak";
-    const html = await render(`/runs/${id}`, RunResult.parse({ ...runResultFixture, id }), { id });
-    expect(h1Of(html)).toBe(`Vera | 424242 | ${id}`);
-    // Row 1: the avatar's tile and the <h1>, which wraps the id inside itself.
+  test("a ULID run id: the avatar, the <h1> and the copy button in a row that does not wrap, the downloads after the facts", async () => {
+    const run = RunResult.parse({ ...runResultFixture, id: MINTED });
+    const html = await render(`/runs/${MINTED}`, run, { id: MINTED });
+    expect(h1Of(html)).toBe(`Vera | 424242 | ${MINTED_LABEL}`);
+    expect(lineOf(headerOf(html))).not.toContain(MINTED);
+    const label = html.match(/<h1(?:\s[^>]*)?>.*?<span([^>]*)> \| run …/s)?.[1];
+    expect(attributesOf(label ?? "").title).toBe(MINTED);
+    // Row 1: the avatar's tile, the <h1>, which wraps inside itself, and the copy button after it,
+    // naming the whole id, its status empty before a press.
     const row = parentOf(html, "h1");
-    expect(row.children.map(nameOf)).toEqual(["div", "h1"]);
+    expect(row.children.map(nameOf)).toEqual(["div", "h1", "div"]);
+    const button = row.inner
+      .slice(row.inner.indexOf("</h1>"))
+      .match(/<button(\s[^>]*aria-label="Copy the run id"[^>]*)>/)?.[1];
+    expect(attributesOf(button ?? "")).toMatchObject({ type: "button", title: `Copy ${MINTED}` });
+    expect(statusesOf(headerOf(html))).toEqual([""]);
     expect(row.inner.slice(0, row.inner.indexOf("<h1"))).toMatch(/<svg[^>]*viewBox="0 0 160 160"/);
     expect(classesOf(attributesOf(row.start))).toContain("flex");
     expect(classesOf(attributesOf(row.start))).not.toContain("flex-wrap");
+    // No flex-1: the copy button sits right after the label, not at the row's far end.
     expect(classesOf(attributesOf(row.children[1] ?? ""))).toEqual(
-      expect.arrayContaining(["min-w-0", "flex-1", "wrap-anywhere"]),
+      expect.arrayContaining(["min-w-0", "wrap-anywhere"]),
     );
+    expect(classesOf(attributesOf(row.children[1] ?? ""))).not.toContain("flex-1");
     // Row 2: the facts, then the downloads beside them.
     const facts = parentOf(html, "dl");
     expect(facts.children.map(nameOf)).toEqual(["dl", "div"]);
@@ -364,8 +386,7 @@ describe("the steps", () => {
 
   test("?step=9 says the run has no such step, in the steps strip, and replays none", async () => {
     const html = await render(`/runs/${RUN_ID}?step=9`);
-    const notice = html.match(/<p [^>]*role="status"[^>]*>(.*?)<\/p>/s)?.[1];
-    expect(lineOf(notice ?? "")).toBe("This run has no step 9");
+    expect(statusesOf(html)).toContain("This run has no step 9");
     const strip = html.indexOf('aria-label="Steps"');
     expect(strip).toBeGreaterThan(-1);
     expect(html.indexOf("This run has no step 9")).toBeGreaterThan(strip);
@@ -393,6 +414,19 @@ describe("the states before a run is shown", () => {
     expect(lineOf(html)).toContain("Loading run");
     expect(h1Of(html)).toBe("run_loading");
     expect(html.match(/data-slot="skeleton"/g)?.length).toBeGreaterThan(2);
+  });
+
+  test("a minted run io does not have: the label as the heading, the whole id in the sentence", async () => {
+    const html = await render(`/runs/${MINTED}`, null, { id: MINTED });
+    expect(h1Of(html)).toBe(MINTED_LABEL);
+    expect(lineOf(html)).toContain(`No run ${MINTED} is stored. A run is stored when it ends`);
+  });
+
+  test("a minted run still loading: the label as the heading, the whole id nowhere in the text", async () => {
+    const html = await render(`/runs/${MINTED}`, null, { id: "run_other" });
+    expect(lineOf(html)).toContain("Loading run");
+    expect(h1Of(html)).toBe(MINTED_LABEL);
+    expect(lineOf(html)).not.toContain(MINTED);
   });
 
   test("io down: a fault banner with the error, its message and Try again", async () => {

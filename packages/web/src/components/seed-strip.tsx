@@ -11,6 +11,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReportSeed } from "@wayford/core";
 import { cn } from "cn";
 import type { ReactNode } from "react";
+import { runLabel } from "../runs/run-label.js";
 import { OUTCOME_WORDS } from "./outcome-words.js";
 
 /** Whether the filter left a route open in a seed, closed every one, or had no route table. */
@@ -33,7 +34,7 @@ function seedLabel(seed: ReportSeed): string {
     seed.openRoutes === null
       ? "no route table"
       : `routes open: ${seed.openRoutes.length > 0 ? seed.openRoutes.join(", ") : "none"}`;
-  return `seed ${seed.seed}: ${OUTCOME_WORDS[seed.outcome]}, ${routes}. Opens ${seed.runId}`;
+  return `seed ${seed.seed}: ${OUTCOME_WORDS[seed.outcome]}, ${routes}. Opens ${runLabel(seed.runId)}`;
 }
 
 /** The strip, a fieldset named by `label`: a group, as the runs screen's filters are. */
