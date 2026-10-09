@@ -30,6 +30,7 @@ import {
 import { type ReactNode, useEffect, useRef } from "react";
 import { z } from "zod";
 import { analyse, reportQuery } from "../api/reports.js";
+import { storedTaskQuery } from "../api/runs.js";
 import { bundledTasks } from "../bundled-fixtures.js";
 import { Banner } from "../components/banner.js";
 import { EmptyState } from "../components/empty-state.js";
@@ -233,7 +234,12 @@ export function ReportScreen() {
     // The report names its task; storing by that id holds even if the key above were ever lost.
     onSuccess: (report) => client.setQueryData(reportQuery(report.taskId).queryKey, report),
   });
-  const goal = bundledTasks.find((task) => task.id === taskId)?.goal;
+  const bundled = bundledTasks.find((task) => task.id === taskId);
+  // A goal checked on the Target screen is stored in io alone, and cached under its id by the
+  // check, so it is read for a goal the bundled ones lack: its id heads the page until io answers,
+  // or when io holds none.
+  const storedTask = useQuery({ ...storedTaskQuery(taskId), enabled: bundled === undefined });
+  const goal = (bundled ?? storedTask.data)?.goal;
   const stored = query.data;
   // This goal's analyses still running: this screen's own, or one an earlier visit started.
   const pending = useIsMutating({ mutationKey: ["analyse", taskId] }) > 0;

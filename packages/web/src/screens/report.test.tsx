@@ -1,28 +1,40 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { type FindingType, Report } from "@wayford/core";
+import { type FindingType, Report, Task } from "@wayford/core";
 import { reportFixture } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { reportQuery } from "../api/reports.js";
+import { storedTaskQuery } from "../api/runs.js";
 import { attributesOf, lineOf, rowsOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 
 const HARD = reportFixture("task_past-order");
 const EASY = reportFixture("task_next-parcel");
 
+/** A goal checked on the Target screen: stored in io, and in none of the bundled tasks. */
+const CHECKED = Task.parse({
+  id: "task_01m4fn3h6zeaek4sp5me256cyz",
+  goal: "Find the names of the company's board members.",
+  startUrl: "https://example.com/",
+  success: { type: "urlMatches", pattern: "**/about/board" },
+});
+
 /**
  * `path` through the app's own router, with the query client seeded so no fetch runs: `report`
- * under its task's key, `null` as io's answer for a task with no report. With no `report` the
- * query is left pending.
+ * under its task's key, `null` as io's answer for a task with no report, and `task` under its id
+ * as the Target screen's check caches it, `null` as io holding no task under the id. With no
+ * `report`, or no `task`, that query is left pending.
  */
 async function render(
   path: string,
   report?: Report | null,
   taskId = report?.taskId ?? HARD.taskId,
+  task?: Task | null,
 ): Promise<string> {
   const client = new QueryClient();
   if (report !== undefined) client.setQueryData(reportQuery(taskId).queryKey, report);
+  if (task !== undefined) client.setQueryData(storedTaskQuery(taskId).queryKey, task);
   return renderWith(path, client);
 }
 
@@ -460,8 +472,18 @@ describe("the states before a report is shown", () => {
     expect(html).not.toMatch(/<table/);
   });
 
-  test("a task the bundled goals lack is headed by its id", async () => {
+  test("a task the bundled goals lack is headed by its id while io's task is read", async () => {
     expect(h1Of(await render("/report/task_other", null, "task_other"))).toBe("task_other");
+  });
+
+  test("a goal checked on the Target screen: its sentence, as the check cached it, in the <h1>", async () => {
+    const html = await render(`/report/${CHECKED.id}`, null, CHECKED.id, CHECKED);
+    expect(h1Of(html)).toBe("“Find the names of the company's board members.”");
+  });
+
+  test("a task neither the bundled goals nor io hold is headed by its id", async () => {
+    const html = await render("/report/task_other", null, "task_other", null);
+    expect(h1Of(html)).toBe("task_other");
   });
 
   test("no report: the empty state, offering to analyse the runs", async () => {
