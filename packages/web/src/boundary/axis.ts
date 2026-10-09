@@ -1,18 +1,29 @@
 /**
  * How the Boundary screen names a sweep's axis and writes its values: the two demo presets, Vera on
- * `contrast` and Kai on `maxElements` (`docs/DEMO.md` beat 6), the value formats, the axis copy and
- * the meta line's range and seeds.
+ * `contrast` and Kai on `maxElements`, both on the hard goal (`docs/DEMO.md` beat 6), the value
+ * formats, the axis copy and the meta line's range and seeds.
  *
  * Prose drops a trailing `.0` ("3:1"); the chart and the table keep the grid's precision ("3.0:1"),
  * as `docs/design/screens/boundary.html` writes them. A cap is a plain integer everywhere.
  */
-import { type ProfileId, type Sweep, type SweepAxis, sweepValues } from "@wayford/core";
+import {
+  type ProfileId,
+  type Sweep,
+  type SweepAxis,
+  sweepValues,
+  type TaskId,
+} from "@wayford/core";
+import { DEMO_GOAL } from "../arena/panel-state.js";
 
-/** The two demo presets, by axis: each opens the latest stored sweep of its persona on its axis. */
+/**
+ * The two demo presets, by axis: each opens the latest stored sweep of its persona on its axis on
+ * the hard goal, where `seed:demo` stores both. A sweep of the pair on another task, the finals'
+ * pick say, opens by its id alone (#228).
+ */
 export const BOUNDARY_PRESETS = {
-  contrast: { profileId: "prof_vera", axis: "contrast" },
-  maxElements: { profileId: "prof_kai", axis: "maxElements" },
-} as const satisfies Record<SweepAxis, { profileId: ProfileId; axis: SweepAxis }>;
+  contrast: { profileId: "prof_vera", axis: "contrast", taskId: DEMO_GOAL },
+  maxElements: { profileId: "prof_kai", axis: "maxElements", taskId: DEMO_GOAL },
+} as const satisfies Record<SweepAxis, { profileId: ProfileId; axis: SweepAxis; taskId: TaskId }>;
 
 /** A value in prose: contrast in its shortest form with `:1` ("3:1", "2.5:1"), a cap as is ("10"). */
 export function proseValue(axis: SweepAxis, value: number): string {

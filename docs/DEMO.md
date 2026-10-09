@@ -109,7 +109,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 
 Not part of the 90 seconds. If we reach the finals, on 2026-10-14, Wayford runs on a site someone hands us (`docs/adr/0003-any-target.md`):
 
-- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its three goals, the results per persona and the gaps it hit are below, in "Our pick: cshark.com".
+- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its goals, the results per persona and the gaps it hit are below, in "Our pick: cshark.com". The finals use G1 and G2.
 - **The judges' app.** It should work more or less. If it does not, we say why in one line (a login, a cookie banner in an iframe, a bot check) and switch to our pick.
 
 The flow, from the Target screen:
@@ -228,7 +228,7 @@ Not fixed, and not blocking:
   - text faded by partial opacity, a filter or a transform, which the collector does not read.
 
   The adversarial check of PR #193 reproduced each one. On a site the judges name, check the Lens for a link that reads text the page does not show.
-- **No screen shows a cut part yet.** Run detail lists an element under "every element a rule touched" only when the element itself carries a decision. A shown control whose best part is visible carries none: its cut description is in the evidence (`parts`), but no screen draws it. For `s4-08`.
+- **No screen shows a cut part yet.** Run detail lists an element under "every element a rule touched" only when the element itself carries a decision. A shown control whose best part is visible carries none: its cut description is in the evidence (`parts`), but no screen draws it. `s4-08` checked it on cshark: see "Leads from the first pass, checked".
 - **A control drawn in parts must spell its name, each element's text in one stretch.** One whose parts, joined, would read words out of order or split a word (`<a>Read <b>more</b> about pricing</a>`) is measured whole, as before #124. So is one whose text is only blank glyphs, or a video's fallback text the page never draws. Found in PR #193's review and the adversarial check after it.
 
 #### Second pass, 2026-10-07, after the fixes
@@ -299,6 +299,158 @@ The same three stored tasks, personas, seeds and backend, posted one goal at a t
   - On G3 two of her three runs run out of time on the way.
 - **Kai** gets to `/about/` in one step. On G2 and G3, his attention cap (A1, 11) leaves "Job Offers" out of the open menu, so he keeps choosing "Careers".
 - **Weaker claims.** Run ids are local to the machine that ran them, and the site may change between passes. G1 and G3 succeed on reaching a page, not on reading the names or applying. Steps under load spend persona budget on the machine's time.
+
+#### Rehearsal through the UI, 2026-10-09 (`s4-08`)
+
+Both read-only goals through every story screen, started from the Target screen as the finals will be (`docs/specs/2026-10-09-s4-08-rehearsal.md`). One machine, `pnpm dev` in a fresh worktree with an empty database. Every run is on the LLM; the Actor and the Analyst are `openai/gpt-6-luna`. No run typed ("Checked after the runs").
+
+| # | Goal, typed on the Target screen | Success, URL pattern | Task |
+|---|---|---|---|
+| G1 | "Find the names of the company's board members." | `https://www.cshark.com/about/**` | `task_01m4fn3h6zeaek4sp5me256cyz` |
+| G2 | "Find out what the salary is for the Senior Performance Test Engineer role." | `https://www.cshark.com/{careers/job-offers/**,job-offers/senior-performance-test-engineer/**}` | `task_01m4fnrfm3sdb4j0fe4csxhwmg` |
+
+- G2 counts the listing too, as the second pass recommended: the listing's card for the role states the rate. Reaching the listing does not prove the persona found that card among the others.
+- G3, "Apply for …", is not rehearsed: its sentence asks for a write.
+- The check rewrote neither goal and took nothing out, in 2.1 s each.
+
+Each goal went through the spec's steps, section 2: the form, Scout, the set and its report, run detail, the Lens and the Race. Between screens, the top bar only. `00 Target`, `02 Lens`, `03 Race` and `04 Report` each led to the goal last checked.
+
+**Scout**
+
+| Goal | Reached | Shortest | Wall | Step cap it sets (#196) |
+|---|---|---|---|---|
+| G1 | 3/3 | 1 step: "About" in the header | 50 s | 7 |
+| G2 | 3/3 | 2 steps: "Careers", then "Job Offers" | 58 s | 10 |
+
+**Ten seeds**
+
+| Persona | G1 got through | G1 median simulated time | G2 got through | G2 median simulated time |
+|---|---|---|---|---|
+| Ada | 10/10 | 3.7 s | 10/10 | 6.2 s |
+| Kai | 10/10 | 2.4 s | 0/10, all at the step cap | — |
+| Vera | 0/10, all at the step cap | — | 9/10, one at the step cap | 16.8 s |
+
+- **The runs.** G1's set is `race_01m4fn5xtvyn12v0pxfhx02372`, and G2's is `race_01m4fntx412xyfzjkmd4evdf8g`. `GET /races/<id>` lists each set's 30 runs. No run ended `error`.
+- **Run detail**, opened from G1's hypothesis finding (Vera, seed 10): the replay steps through all seven steps with their screenshots, and the video (2.6 MB `webm`) and the trace (8.7 MB `zip`) both download.
+- **G1's report:**
+  - Route open reads "—" for every persona, since the goal has no route table. Scout's line reads "reached it in 1 step".
+  - Three measurement findings from axe on the home page: color-contrast, link-name and nested-interactive.
+  - One hypothesis: Vera searches the home page and does not find the About route Ada takes.
+  - Cost $0.0175: the runs $0.0138, the Analyst $0.0037.
+- **G2's report:**
+  - The same three axe findings.
+  - One hypothesis: Kai's repeated "Careers" clicks do not lead to "Job Offers".
+  - Cost $0.0302: the runs $0.0247, the Analyst $0.0055.
+
+**Wall time and cost, from URL to report.** Ten seeds, three personas, nothing else running:
+
+| Goal | Check | Scout | Set, 30 runs | Analyst | Total | Cost |
+|---|---|---|---|---|---|---|
+| G1 | 2 s | 50 s | 4 min 16 s | 57 s | 6 min 36 s | $0.0183 |
+| G2 | 2 s | 58 s | 11 min 8 s | 1 min 17 s | 13 min 44 s | $0.0314 |
+
+- **The clock** runs from the "Check the goal" click to the drawn report.
+  - The parts come from stored timestamps: Scout's first attempt's start (its last step's end less its `durationMs`) and its `recordedAt`, the set's start and last step, and the report's `analysedAt`.
+  - The Analyst's time counts from the set's last step, so it includes the screen's polling.
+  - The rest of the total is the person clicking between steps.
+- **The cost** is Scout's three attempts plus the report's runs and Analyst. The Extractor records no cost.
+- **G2's set takes longer.** All ten of Kai's runs and two of Vera's take the full 10 steps, where G1's cap is 7.
+- **The whole rehearsal** cost $0.065 as recorded: two sets, two races, Scout twice, two reports and the sweep.
+
+**The Lens, seed 1.** Visible elements / removed; none came out degraded.
+
+| Page | Ada | Kai | Milo | Vera | Zoya |
+|---|---|---|---|---|---|
+| `https://www.cshark.com/` | 17 / 172 | 11 / 178 | 9 / 188 | 8 / 181 | 1 / 188 |
+| `https://www.cshark.com/about/` | 18 / 111 | 11 / 118 | 10 / 129 | 9 / 120 | 2 / 127 |
+| `https://www.cshark.com/careers/job-offers/` | 17 / 116 | 11 / 122 | 16 / 130 | 8 / 125 | 1 / 132 |
+
+- **Rules fired:**
+  - Ada: V2.
+  - Kai: V2 and A1.
+  - Milo: P4 and V2. He is measured on mobile, so his page holds more elements.
+  - Vera: P3, P4 and V2.
+  - Zoya: P1, P3, P4 and V2.
+- **Speed.** A new page measured in 5 to 6 s. After that, each persona switch took under a second, except Milo's mobile measurement at 3 to 5 s.
+- **axe:** 3 violations on the home page and the listing, 2 on `/about/`.
+- **How the pages were opened:** "Open in the Lens" first, then the Lens's own URL field.
+
+**The Race, seed 1**
+
+| Goal | Ada | Kai | Vera | Race |
+|---|---|---|---|---|
+| G1 | got through, 1 step, 0:02.4 | got through, 1 step, 0:02.4 | step cap, 7 steps, 0:21.8 | `race_01m4fnp4qg37p6vc7wm0cjns44`, 43 s wall |
+| G2 | got through, 3 steps, 0:06.2 | step cap, 10 steps, 0:15.9 | got through, 5 steps, 0:16.8 | `race_01m4fpmgtwtaczs9gq9azr0vzr`, 1 min 41 s wall |
+
+The narration reads well off the target app. On G1, Vera's first line says the home page's navigation "does not show an obvious company or leadership link", and she scrolls. On G2, Ada and Vera both name the "Job Offers" link in the open menu.
+
+**The sweep**, `swp_01m4fpr4k7zm5qfvzan619stqj`: Kai's attention cap on G1, seeds 1 to 5, prepared with:
+
+```
+pnpm --filter @wayford/io sweep -- --task <G1's task id> --persona prof_kai --axis maxElements --from 11 --to 3 --step 2 --seeds 1-5 --backend llm
+```
+
+| Cap | 11 | 9 | 7 | 5 | 3 |
+|---|---|---|---|---|---|
+| Got through | 5/5 | 5/5 | 5/5 | 0/5 | 0/5 |
+
+- **The Boundary**, opened at `/boundary/<sweep id>`, says "Under half get through, first at 5." Route open reads "—": the goal has no route table.
+- **The stored observations say why.**
+  - At cap 7, seed 1, "About" is in Kai's view, and he clicks it on step 0.
+  - At cap 5, the attention stage (A1) leaves "About" out from step 0, and Kai scrolls until the cap.
+- **Cost:** 25 runs, 4 min 20 s, $0.0112.
+
+**Checked after the runs:**
+
+- **No run typed.** All 97 runs were read for a `type` action: both sets, both races, Scout's six attempts and the sweep's 25.
+  - A watch on every race's events would have stopped io on the first typed field, and saw none.
+  - It lost 13 of G2's set after five minutes, when Node's `fetch` dropped the streams of runs still queued; the read covers them.
+- **No run opened a new tab,** so `s2-14` still waits.
+  - 44 actions left both the URL and the observation unchanged, `s1-07`'s sign of a new tab. All are Vera's double-clicks on "Careers" (B1) in ten of G2's runs, the set's and the race's.
+  - "Careers" is no link: it has no `href`, and a double-click opens its menu and shuts it again. The trace of `run_01m4fntx41gfh3xxbsayhethc2`, one of the ten, holds one page.
+
+#### Gaps the rehearsal hit
+
+| Gap | Issue | Blocks | Why |
+|---|---|---|---|
+| The Report names a goal from the Target screen by its task id: its heading reads `task_01m4fn3h6zeaek4sp5me256cyz`, not the goal | #227 | no | The numbers, findings and evidence are right, but it shows on stage. `screens/report.tsx` reads the goal from web's bundled fixture tasks only. |
+| The Boundary's presets opened the newest sweep of their persona and axis from any task. Here `/boundary?axis=maxElements`, which beat 6 opens, showed the cshark sweep | #228 | yes: the Boundary in beat 6. Fixed in this PR | `pnpm seed:demo` refuses a store that holds any run, report or sweep, so on the presenting machine our pick's data can only come after it, and the newest Kai sweep would be cshark's. Each preset now opens the newest sweep on the hard goal. |
+| The Lens draws the page small | #224 | no | Known from the demo. The counts and the readout are right. |
+| Evidence flags overlap on cshark's dense header: Vera's P4 flags, Kai's A1 flags | #225 | no | Known from `/settings/data`. Run detail's evidence list stays readable. |
+
+Not gaps:
+
+- **The Lens's picker** keeps the target app's three pages beside a URL page, by design (`s3-16`). Do not click them on stage.
+- **`05 Boundary`** leads to the demo's preset, not to the sweep on our pick, and no screen links to a sweep by id: the id the CLI prints goes in the address bar (ADR 0003, D6 and D13).
+
+Leads from the first pass, checked:
+
+- **A cut part no screen shows.** Run detail lists Vera's cut 14 px description of "Job Offers" as its own paragraph row, cut by P3 (`run_01m4fntx40be6mvv66kjedze51`, step 4). The link's own row is absent, since the link carries no decision. So the cut text can be found, but nothing ties it to the link. No issue filed.
+- **The salience size term (A1), #231.** Kai's 0/10 on G2 hangs on it: on which part sets a card link's size term, a `folk` formula (`docs/RULES.md`, "Salience (A1)"). Not blocking.
+  - In the open "Careers" menu, "Our DNA" and "Job Offers" are drawn alike, a 20 px title over a 14 px description. Each is scored by its worst text, 14 px.
+  - That puts them 11th and 12th: "Our DNA" at 0.816 stays in Kai's view under his cap of 11, and "Job Offers" at 0.808 is left out. Position alone separates them. At step 1 of `run_01m4fntx4103v2bx0b8vxvpnm9`, the stored states match the formula.
+  - Scored by its 20 px title, "Job Offers" would reach 0.891, 4th, and stay in his view.
+  - Kai clicks "Careers" again, which shuts the menu, and keeps toggling it until the step cap.
+
+#### What the rehearsal says, and what it does not
+
+- **Every story screen** works from the Target screen on our pick, and the nav carries the goal. Only the sweep needed the CLI.
+- **Vera on G1** fails at the 7-step cap that Scout's one-step route sets. Her target cut (P4) removes the header's "About", a 16 px tall link, so the route Ada and Kai take is not hers. With 20 steps in the first pass, she failed too.
+- **Kai on G2** fails all ten seeds: his attention cap leaves "Job Offers" out of the open menu. That rests on the salience size term above, a `folk` choice. Say it as "under this salience formula", never as Kai's.
+- **Vera on G2** misses one seed of ten, seed 3: her double-click rule (B1, `folk`) turned each of her ten clicks on "Careers" into a double-click ("Checked after the runs"), until the step cap.
+- **Weaker claims:**
+  - Run ids and the data are local to the worktree that ran them, in its `wayford.sqlite` and `runs/`.
+  - The site may change.
+  - G1 and G2 succeed on reaching a page, not on reading it.
+  - The wall times are this machine's, five runs at a time.
+
+#### Before the finals
+
+- **Prepare the data on the presenting machine** the day before, in this order:
+  1. `pnpm seed:demo`, first: it refuses a store that already holds any run, report or sweep, and `--reset` would delete our pick's.
+  2. The two goals on the Target screen, then Scout and ten seeds on each.
+  3. The sweep, with the command above (#228).
+- **Check the job offer still answers:** `https://www.cshark.com/job-offers/senior-performance-test-engineer/`.
 
 ## The week 3 rehearsal
 

@@ -23,6 +23,9 @@ const { vera, kai, noBoundary, stopped, incomplete, noRoutes, empty } = fixtureS
 /** Vera's sweep, run for a profile that is not bundled. */
 const guest = Sweep.parse({ ...vera, id: "swp_guest", profileId: "prof_guest" });
 
+/** Kai's sweep on a task other than the hard goal, as the finals' pick stores one (#228). */
+const elsewhere = Sweep.parse({ ...kai, id: "swp_kai-elsewhere", taskId: "task_elsewhere" });
+
 /** `path` through the app's own router, with `client`'s cache as it stands. */
 async function render(path: string, client: QueryClient = new QueryClient()): Promise<string> {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) });
@@ -293,6 +296,24 @@ describe("/boundary?axis=maxElements, Kai's preset", () => {
     expect(textLine(await kaiPreset())).toContain(
       "Only Kai's attention cap moves; the rest of the profile stays as stored.",
     );
+  });
+});
+
+describe("a preset opens the hard goal's sweep, whatever else is stored (#228)", () => {
+  test("Kai's skips a newer sweep on another task, and of two on the hard goal opens io's first", async () => {
+    const later = Sweep.parse({ ...kai, id: "swp_kai-later", backend: "llm" });
+    const html = await render(
+      "/boundary?axis=maxElements",
+      presets({ maxElements: [elsewhere, later, kai] }),
+    );
+    expect(textLine(html)).toContain("Kai · task_past-order · llm · maxElements");
+    expect(html).not.toContain("task_elsewhere");
+  });
+
+  test("with only another task's sweep stored, the preset is empty", async () => {
+    const html = await render("/boundary?axis=maxElements", presets({ maxElements: [elsewhere] }));
+    expect(h1Of(html)).toBe("No attention sweep on Kai on the hard goal yet.");
+    expect(html).not.toContain("task_elsewhere");
   });
 });
 
@@ -630,10 +651,10 @@ describe("what a sweep says, beyond a boundary", () => {
 describe("the states before a sweep is shown", () => {
   test("a preset with no stored sweep says how to store one", async () => {
     const html = await render("/boundary?axis=maxElements", presets({ maxElements: [] }));
-    expect(h1Of(html)).toBe("No attention sweep on Kai yet.");
-    expect(textLine(html)).toContain("no sweep stored");
+    expect(h1Of(html)).toBe("No attention sweep on Kai on the hard goal yet.");
+    expect(textLine(html)).toContain("no sweep found");
     expect(textLine(html)).toContain(
-      "pnpm seed:demo stores both demo sweeps. pnpm --filter @wayford/io sweep prints how to run one alone.",
+      "pnpm seed:demo stores both demo sweeps in an empty database. pnpm --filter @wayford/io sweep prints how to run one alone.",
     );
     expect(html).toMatch(/<code[^>]*>pnpm seed:demo<\/code>/);
     expect(html).toMatch(/<button[^>]*>Check again<\/button>/);
@@ -641,7 +662,7 @@ describe("the states before a sweep is shown", () => {
 
   test("Vera's empty preset names her and contrast, and the switch still reaches Kai", async () => {
     const html = await render("/boundary", presets({ contrast: [] }));
-    expect(h1Of(html)).toBe("No contrast sweep on Vera yet.");
+    expect(h1Of(html)).toBe("No contrast sweep on Vera on the hard goal yet.");
     expect(switchItems(html).map((item) => item.text)).toEqual([
       "contrast · Vera",
       "attention · Kai",

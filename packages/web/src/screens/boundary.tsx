@@ -3,8 +3,8 @@
  * headline, its two curves and its value table, each cell opening the runs behind it.
  *
  * Two routes draw it:
- * - `/boundary` opens a preset's latest stored sweep: `?axis=contrast`, Vera's, the default, or
- *   `?axis=maxElements`, Kai's.
+ * - `/boundary` opens a preset's latest stored sweep on the hard goal: `?axis=contrast`, Vera's,
+ *   the default, or `?axis=maxElements`, Kai's.
  * - `/boundary/$sweepId` opens any stored sweep by id.
  *
  * On both, `?value=<v>` opens the runs at one value. Nothing here starts a sweep: `sweep` and
@@ -87,7 +87,7 @@ function Fault({ what, message, retry }: { what: string; message: string; retry:
 function Empty({ title, line, action }: { title: string; line: ReactNode; action: ReactNode }) {
   return (
     <div className="grid max-w-140 justify-items-start gap-(--space-3) py-(--space-7)">
-      <p className="mono-label text-ink-3">no sweep stored</p>
+      <p className="mono-label text-ink-3">no sweep found</p>
       <h1 className="display-m text-balance text-ink">{title}</h1>
       <p className="body text-pretty text-ink-2">{line}</p>
       {action}
@@ -100,7 +100,9 @@ function Command({ children }: { children: string }) {
   return <code className="font-mono whitespace-nowrap text-ink">{children}</code>;
 }
 
-/** `/boundary`: the latest stored sweep of a preset, Vera's unless `axis` names Kai's. */
+/**
+ * `/boundary`: a preset's latest stored sweep on the hard goal, Vera's unless `axis` names Kai's.
+ */
 export function BoundaryScreen() {
   const search = boundaryRoute.useSearch();
   const axis = search.axis ?? "contrast";
@@ -112,17 +114,18 @@ export function BoundaryScreen() {
     return <Fault what="The stored sweeps" message={sweeps.error.message} retry={retry} />;
   }
   if (sweeps.data === undefined) return <SweepSkeleton />;
-  const latest = sweeps.data[0];
+  // io filters on persona and axis alone, newest first: a newer sweep on another task is skipped.
+  const latest = sweeps.data.find((sweep) => sweep.taskId === preset.taskId);
   if (latest === undefined) {
     return (
       <div className={FRAME}>
         {/* The switch stays, so the other preset is one click away from an empty one. */}
         <div className="flex items-start justify-between gap-(--space-6)">
           <Empty
-            title={`No ${AXIS_COPY[axis].switchLabel} sweep on ${personaLabel(preset.profileId)} yet.`}
+            title={`No ${AXIS_COPY[axis].switchLabel} sweep on ${personaLabel(preset.profileId)} on the hard goal yet.`}
             line={
               <>
-                <Command>pnpm seed:demo</Command> stores both demo sweeps.{" "}
+                <Command>pnpm seed:demo</Command> stores both demo sweeps in an empty database.{" "}
                 <Command>pnpm --filter @wayford/io sweep</Command> prints how to run one alone.
               </>
             }
