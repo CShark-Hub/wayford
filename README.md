@@ -18,12 +18,14 @@ The question is not "does it work". The question is **who does it work for**.
 - [The personas](#the-personas)
 - [The screens](#the-screens)
 - [Quick start](#quick-start)
+- [Usage](#usage)
 - [Commands](#commands)
 - [Repository layout](#repository-layout)
 - [Development](#development)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 - [Project status](#project-status)
+- [Team](#team)
 - [The name](#the-name)
 - [Prior art and acknowledgements](#prior-art-and-acknowledgements)
 - [Licence](#licence)
@@ -166,12 +168,16 @@ A finding whose basis includes `folk` or `llm` keeps its type but is marked soft
 
 The web app is built on the design system in [`docs/DESIGN.md`](docs/DESIGN.md): a daylight measuring instrument with a cast. Persona colour means who, one orange marks every measurement line, and line style means certainty (solid measured, dashed hypothesis, dotted soft).
 
+The nav numbers the screens in the order the demo walks them, Target first; Runs sits apart.
+
 | Screen | Route | What it shows |
 |---|---|---|
+| Target | `/target` | A site and a goal of your own: a start URL, the goal in one sentence and a success condition. Once the goal is checked, it opens the Lens and the Race on it, starts Scout and a run set, and the nav carries it to every screen that takes a target |
 | Cast | `/cast` | The five personas and their capability bundles |
 | Lens | `/lens` | The page as the persona's filter leaves it: visible, degraded (hatched, masked name) or removed. Thresholds as gauges, the evidence one switch away, axe's result for the page |
 | Race | `/race` | Three to five personas live on one goal, each with its latest screenshot and the agent's narration. A race keeps its URL, `/race/$raceId`, so leaving it or a reload loses nothing, and the History under the start panel lists every race, running ones first |
 | Report | `/report/$taskId` | Per persona over the seed set: route open, got through and median time, and the findings grouped by certainty, each opening its evidence |
+| Boundary | `/boundary`, `/boundary/$sweepId` | One stored sweep: the boundary value in the headline, its two curves and its value table, each cell opening the runs behind it. `/boundary` opens the latest sweep on the hard goal, Vera's contrast by default or Kai's attention with `?axis=maxElements` |
 | Run detail | `/runs/$runId` | One run step by step: the screenshot beside the text the model read, the action, the dice, Jev's options and draw, and the video and trace downloads |
 | Runs | `/runs` | Every run, filtered by goal, persona and outcome |
 
@@ -227,7 +233,7 @@ LLM_API_KEY=x pnpm dev                 # io needs a key to boot; browsing calls 
 
 io answers `curl` and the web UI, never a page a browser opens on its own: a request naming another host, sent from another site, or a navigation the browser started itself is a 403. Its Chromium opens pages nobody vetted, and none of them may reach io (`docs/adr/0003-any-target.md`, D7).
 
-Then open the Cast, the Lens on `/deliveries`, the Report for the hard goal and a run from Runs. The Race starts live runs, so it needs a real key.
+Then open the Cast, the Lens on `/deliveries`, the Report for the hard goal, the Boundary and a run from Runs. The Race and the Target screen call a model, so they need a real key.
 
 ![The target app's "Order archive" link at four contrast settings](packages/target-app/docs/screenshots/07-contrast-strip.png)
 
@@ -243,6 +249,32 @@ pnpm seed:demo --reset               # on Jev by default; --backend llm is the f
 ```
 
 Seeded runs, sweeps and recordings use a production build of the target app rather than its dev server ([`docs/STACK.md`](docs/STACK.md), "Target app").
+
+## Usage
+
+Checking a goal, Scout, the runs and the report call a model, so this needs a real key in `.env`. Start with `pnpm dev` and open <http://localhost:5173/target>.
+
+### On a site of your own
+
+1. **Describe the target** on the Target screen:
+   - **start URL**: where every run starts. Any http(s) page with no login, cookie wall or bot check.
+   - **goal**: what the person wants, not the way there. Write "you want to see what you ordered three months ago", not "click Deliveries, then Order archive".
+   - **success**: how a run is judged, checked after every step. Either a URL pattern (a Playwright glob such as `**/orders/*`) or an element on the page (a CSS selector such as `#order-history`). You write it; the model never does.
+2. **Check the goal.** io's Extractor takes screen names and clicks out of the sentence, shows what it took out, and stores the goal under an id. From then on the nav carries the target: Lens, Race and Report open on it, and the nav shows its host.
+3. **Look before you run.** *Open in the Lens* shows the start page as each persona's filter leaves it. *Race on this goal* runs three to five personas live, with their screenshots and narration.
+4. **Run Scout.** Scout walks the goal three times with every element in view. Run it before the run set, so the report can tell a broken goal from one a persona did not find.
+5. **Run and report.** Pick the cast and 3 or 10 seeds, the same for every persona, and start the set. Keep the page open: when every run has ended, the Analyst writes the report, and *Open the report* leads to it.
+6. **Find the boundary** from the command line, since the UI starts no sweep. Use the goal id the Target screen shows; the Boundary screen opens the stored sweep by its id.
+
+   ```bash
+   pnpm --filter @wayford/io sweep -- --task <id> --persona prof_vera --axis contrast --from 1.5 --to 4.5 --step 0.5 --seeds 1-3
+   ```
+
+Off the target app, every run is on the LLM (io refuses Jev there), the report shows no route-open number, and a run set of three seeds is the default. Logins, goals that write (a form that saves, a purchase), cookie banners, bot challenges, iframes and shadow DOM are out of scope: a site that needs any of them is swapped for another ([ADR 0003](docs/adr/0003-any-target.md)).
+
+### On the target app
+
+`pnpm seed:demo` from the quick start stores the demo's two goals with their runs, reports and sweeps, so the Report, the Boundary and Runs open with data and no form to fill. The Race runs personas live on a goal, and its History keeps every race. Every other command is in [Commands](#commands).
 
 ## Commands
 
@@ -260,6 +292,7 @@ Run from the repository root. The last column says whether a command calls a mod
 | `pnpm --filter @wayford/io sweep -- --task <id> --persona <id> --axis <axis> --from <n> --to <n> --step <n> --seeds <a-b>` | One sweep, its value table and its boundary | Yes |
 | `pnpm --filter @wayford/io analyse -- --task <id>` | The Analyst's report on a goal's stored runs | Yes |
 | `pnpm --filter @wayford/agent scout` | Scout's ground truth for each goal | Yes |
+| `pnpm --filter @wayford/io scout -- --task <id>` | Scout on any stored goal, such as one from the Target screen | Yes |
 | `pnpm --filter @wayford/agent run:one -- --persona <id> --task <id> --seed <n>` | One Actor run, by hand | Yes |
 | `pnpm --filter @wayford/agent calibrate` | The calibration run from `docs/RULES.md` | Yes |
 | `pnpm --filter @wayford/filter routes` | The route table: what the filter leaves on each route to the hard goal, per persona, seeds 1 to 100 | No |
@@ -347,6 +380,15 @@ Wayford is a hackathon project, built in September and October 2026 by a team of
 
 Out of scope for the hackathon: pass/fail regression, CI pipelines, accounts, export, native mobile apps (Milo is a phone viewport in Chromium), API testing, MCP, and a profile builder.
 
+## Team
+
+| Name | GitHub |
+|---|---|
+| Marcin Kotas | [@marcinkotas](https://github.com/marcinkotas) |
+| Tomasz Nowakowski | [@tnowakowski-cshark](https://github.com/tnowakowski-cshark) |
+| Grzegorz Stysiak | [@gstysiak-cshark](https://github.com/gstysiak-cshark) |
+| Dawid Trznadel | [@dawidtheshark](https://github.com/dawidtheshark) |
+
 ## The name
 
 Wayford is a real place, a village on the River Axe in Somerset. The name comes from Old English *weġ* ("way, road") and *ford*: the point where a road crosses water.
@@ -369,4 +411,8 @@ Built with [Playwright](https://playwright.dev), [Hono](https://hono.dev), [Driz
 
 ## Licence
 
-No licence has been chosen yet. Until one is added, the code is not licensed for reuse.
+Copyright 2026 Marcin Kotas, Tomasz Nowakowski, Grzegorz Stysiak and Dawid Trznadel.
+
+Wayford is licensed under the [Apache License, Version 2.0](LICENSE). The copyright notice and the team are in [`NOTICE`](NOTICE), which a redistribution must carry, as section 4 of the licence asks.
+
+Third-party files keep their own licences: the Inter typeface in [`packages/target-app/public/fonts/`](packages/target-app/public/fonts/) is under the SIL Open Font License 1.1, with its licence beside it, and every dependency installed by pnpm is under its own.
