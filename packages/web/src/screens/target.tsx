@@ -11,7 +11,8 @@
  *
  * The rules are in `target/target-state.ts`, the calls in `target/target-calls.ts` and the views in
  * `target/target-view.tsx`. This file holds the state, the polling, the report's mutation, the
- * cache and the navigation.
+ * cache, the navigation, and the current target the nav carries (`target/current-target.ts`): the
+ * one screen that sets it or clears it (D12).
  * The screen shows no measured data to badge, and its run button names the backend.
  */
 import {
@@ -34,6 +35,7 @@ import { EmptyState } from "../components/empty-state.js";
 import { Skeleton } from "../components/skeleton.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
 import { rootRoute } from "../shell.js";
+import { clearCurrentTarget, followStoredGoal } from "../target/current-target.js";
 import {
   checkTarget,
   dispatchScout,
@@ -96,6 +98,7 @@ function usePoll(active: boolean, intervalMs: number, tick: () => Promise<unknow
  */
 function LiveGoal({ task }: { task: Task }) {
   const client = useQueryClient();
+  const navigate = targetRoute.useNavigate();
   const [state, dispatch] = useReducer(goalReducer, undefined, initialGoal);
   const report = reportMutation(client, task.id);
   const { mutate } = useMutation(report);
@@ -140,6 +143,11 @@ function LiveGoal({ task }: { task: Task }) {
       onScout={() => void dispatchScout(startScout(task.id), dispatch)}
       onStart={() => void startRunSet(task, state, bundledProfiles, dispatch)}
       onReport={() => mutate()}
+      onClearTarget={() => {
+        clearCurrentTarget();
+        // The form, with what was typed still in it, as New goal opens it.
+        void navigate({ to: "/target", search: {} });
+      }}
     />
   );
 }
@@ -147,11 +155,14 @@ function LiveGoal({ task }: { task: Task }) {
 /**
  * The stored task under `taskId`, read from io's `GET /tasks`, or written into the cache by the
  * check that accepted it: the goal view, a skeleton while reading, the fault banner while io
- * fails, and the empty state when io holds no goal under the id.
+ * fails, and the empty state when io holds no goal under the id. What io answers is followed into
+ * the current target (D12): a task it holds becomes it, and a not-found clears it when it is this
+ * id, so the nav stops leading to a goal once the Target screen finds it gone.
  */
 function StoredGoal({ taskId }: { taskId: TaskId }) {
   const query = useQuery(storedTaskQuery(taskId));
   const stored = query.data;
+  useEffect(() => followStoredGoal(taskId, stored), [taskId, stored]);
   if (stored) return <LiveGoal task={stored} />;
   return (
     <>

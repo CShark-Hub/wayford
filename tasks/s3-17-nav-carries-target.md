@@ -65,7 +65,7 @@ The top bar leads the Lens, the Race and the Report to the target last opened on
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/web test` passes and includes:
+- [x] `pnpm --filter @wayford/web test` passes and includes: (2026-10-08, in the root run of 181 files and 2930 tests: the named tests in `current-target.test.ts`, `top-bar.test.tsx` and `target.test.tsx`; the static Target tests check the rule and the button's place; the goal view setting the target and the click on "Clear target" are proven live in `scripts/target.browser.test.ts`)
   - `current-target.test.ts`:
     - a target set is read back, and a cleared one reads as nothing;
     - a broken stored value reads as nothing;
@@ -81,7 +81,7 @@ The top bar leads the Lens, the Race and the Report to the target last opened on
     - an id io does not hold clears the current target when it is that id, and leaves another one;
     - "Clear target" clears it;
     - the goal view's Lens and Race links equal the nav's.
-- [ ] Under `pnpm dev`, check a goal on a public site, such as `https://example.com/`, then:
+- [x] Under `pnpm dev`, check a goal on a public site, such as `https://example.com/`, then: (2026-10-08, `pnpm dev` with a key, at 1280 × 720, driven by Playwright: `https://example.com/` checked by the real Extractor as `task_01m4ekdc6667d31zvpnz3nsybn`, and steps 1 to 6 and the D14 note each passed; the two bars are in the PR)
   1. the Lens tab opens the site's page, and a persona switch stays on it;
   2. the Race tab opens the panel on that goal;
   3. the Report tab opens that goal's report, or its empty state before one is written;
@@ -90,9 +90,24 @@ The top bar leads the Lens, the Race and the Report to the target last opened on
   6. after "Clear target", every tab leads where it does today.
 
   The PR shows the bar with a target and without one.
-- [ ] Demo beats 1 to 4 on the target app, with no target set, look and behave as before.
-- [ ] `pnpm --filter @wayford/web check:self` passes, with a new entry for the bar with a target set and a long host.
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root.
+- [x] Demo beats 1 to 4 on the target app, with no target set, look and behave as before. ("with no target, every link is today's" in `top-bar.test.tsx`; the Lens, Race and self-check browser tests unchanged and green; the one visible change is the `00 Target` entry, D15)
+- [x] `pnpm --filter @wayford/web check:self` passes, with a new entry for the bar with a target set and a long host. (`target · nav`: "20 screens checked in Daylight and Night: 0 shortfalls")
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root. (181 files, 2930 tests, after the PR review's fixes)
+
+## Outcome
+
+- **The stored start URL is read as `HttpUrl`, not `LensUrl`.** io stores `Task.startUrl` as `HttpUrl`, so a start URL with a user and a password is a valid goal; read through `LensUrl` it would drop the whole target. `LensUrl` applies only to the Lens link, which stays plain for such a URL (spec, decision log).
+- **Clearing the target forgets the shown race too**, as D13's "a change of current target forgets it" reads.
+- **Every nav link is current on its path whatever the search** (`activeOptions.includeSearch: false`), so the Lens tab stays current on `/lens` while it carries another `url=`.
+- **The `pnpm dev` box is a manual check**, since checking a goal calls the Extractor and needs a key. It was run on 2026-10-08 against `https://example.com/`: every step below passed, the Report showed "No report on this goal yet.", and a typed `/lens` opened `/deliveries`. A race then a new target was left to the browser test, since a live race would start three LLM runs. `target.browser.test.ts` covers with io answered per path: the bar after the goal view draws, a reload, "Clear target", a race then a new target, a typed `/lens` (D14), and the bar's fit at 1280 px with a long host in both themes. Steps for the reviewer, under `pnpm dev` with io and a key:
+  1. `/target`: start URL `https://example.com/`, a goal, success by URL, "Check the goal". The bar's `00 Target` names `example.com`.
+  2. `02 Lens`: the Lens opens `https://example.com/`; switch the persona, it stays on it.
+  3. `03 Race`: the start panel on that goal. `04 Report`: its report, or "No report on this goal yet."
+  4. `00 Target`: back to the goal view.
+  5. Reload on the Lens: the tabs still lead to the site.
+  6. "Clear target": every tab leads where it does on `main`.
+- `packages/web/src/screens/lens.test.tsx` lists the whole nav, so it gained the `Target` row.
+- **Two of the `target.test.tsx` bullets are proven live.** A static render runs no effect and clicks nothing, so the static tests are named for what they check: "the goal view's rule, followStoredGoal, sets the current target to a task io holds" and "Clear target sits beside New goal, as an outline button". The goal view setting the target and the click on "Clear target" run in `packages/web/scripts/target.browser.test.ts`, in `scripts/` because it starts the app with the self-check's `startWebApp`.
 
 ## Out of scope
 

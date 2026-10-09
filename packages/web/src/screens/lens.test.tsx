@@ -534,13 +534,14 @@ test("with every threshold at its maximum nothing is drawn", async () => {
 test("the top bar's story nav has a Lens link to /lens, between Cast and Race", async () => {
   const onLens = linksOf(elementOf(await render(VERA), "nav", 'aria-label="Story"'));
   expect(onLens.map((link) => [link.name, link.attributes.href])).toEqual([
+    ["Target", "/target"],
     ["Cast", "/cast"],
     ["Lens", "/lens"],
     ["Race", "/race"],
     ["Report", "/report/task_past-order"],
     ["Boundary", "/boundary"],
   ]);
-  expect(onLens[1]?.attributes["aria-current"]).toBe("page");
+  expect(onLens[2]?.attributes["aria-current"]).toBe("page");
   const onCast = linksOf(elementOf(await render("/cast"), "nav", 'aria-label="Story"'));
   const lens = onCast.find((link) => link.name === "Lens");
   expect(lens?.attributes.href).toBe("/lens");

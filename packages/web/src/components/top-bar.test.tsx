@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { forgetRace, showRace } from "../arena/shown-race.js";
-import { attributesOf, elementOf, textOf } from "../preview/rendered-markup.js";
+import { attributesOf, classesOf, elementOf, textOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
+import { clearCurrentTarget, setCurrentTarget } from "../target/current-target.js";
+import { stubSessionStorage } from "../target/test-support.js";
 import { STORY_NAV } from "./top-bar.js";
 
 /** The page at `path` through the app's own router, shell included. A static render runs no effect. */
@@ -42,16 +44,80 @@ function pathOf(entry: (typeof STORY_NAV)[number]): string {
   return entry.to.replace(/\$(\w+)/g, (_, name: string) => params[name] ?? "");
 }
 
-test("the story nav numbers Cast, Lens, Race, Report and Boundary, and nothing else", async () => {
-  const nav = linksOf(elementOf(await render("/cast"), "nav", 'aria-label="Story"'));
-  expect(nav.map(({ name, attributes, numbers }) => [numbers[0], name, attributes.href])).toEqual([
-    ["01", "Cast", "/cast"],
-    ["02", "Lens", "/lens"],
-    ["03", "Race", "/race"],
-    // The hard goal's report, the one the demo walks.
-    ["04", "Report", "/report/task_past-order"],
-    ["05", "Boundary", "/boundary"],
+/** A goal of one's own, under an id as io mints one, on a site of its own. */
+const GOAL = { taskId: "task_01jq7r8m2x4k5n6p7q8r9s0t1v", startUrl: "https://example.com/" };
+
+/** The story nav in `html`: each link's name and where it leads, in the nav's order. */
+function hrefsOf(html: string): [string, string | undefined][] {
+  const nav = linksOf(elementOf(html, "nav", 'aria-label="Story"'));
+  return nav.map(({ name, attributes }) => [name, attributes.href]);
+}
+
+/** The story nav on `path`, as `hrefsOf` reads it. */
+async function hrefsOn(path: string): Promise<[string, string | undefined][]> {
+  return hrefsOf(await render(path));
+}
+
+afterEach(() => {
+  clearCurrentTarget();
+  vi.unstubAllGlobals();
+  forgetRace();
+});
+
+test("the nav numbers Target, Cast, Lens, Race, Report and Boundary, 00 to 05, and the right of the bar holds no Target button", async () => {
+  const bar = topBarOf(await render("/cast"));
+  const nav = linksOf(elementOf(bar, "nav", 'aria-label="Story"'));
+  expect(nav.map(({ name, numbers }) => [numbers[0], name])).toEqual([
+    ["00", "Target"],
+    ["01", "Cast"],
+    ["02", "Lens"],
+    ["03", "Race"],
+    ["04", "Report"],
+    ["05", "Boundary"],
   ]);
+  const apart = linksOf(bar.slice(bar.indexOf("</nav>")));
+  expect(apart.map((link) => link.name)).toEqual(["Runs"]);
+});
+
+test("with no target, every link is today's", async () => {
+  stubSessionStorage();
+  expect(await hrefsOn("/cast")).toEqual([
+    ["Target", "/target"],
+    ["Cast", "/cast"],
+    ["Lens", "/lens"],
+    ["Race", "/race"],
+    // The hard goal's report, the one the demo walks.
+    ["Report", "/report/task_past-order"],
+    ["Boundary", "/boundary"],
+  ]);
+});
+
+test("with a target, Target, Lens, Race and Report carry it, and Cast and Boundary do not", async () => {
+  stubSessionStorage();
+  setCurrentTarget(GOAL);
+  const html = await render("/cast");
+  expect(hrefsOf(html)).toEqual([
+    // The host is part of the link's name, so a screen reader hears which site the nav carries.
+    ["Target example.com", `/target?task=${GOAL.taskId}`],
+    ["Cast", "/cast"],
+    ["Lens", `/lens?url=${encodeURIComponent(GOAL.startUrl)}`],
+    ["Race", `/race?task=${GOAL.taskId}`],
+    ["Report", `/report/${GOAL.taskId}`],
+    ["Boundary", "/boundary"],
+  ]);
+  // A long host is cut, and its title still holds the whole of it.
+  const nav = elementOf(html, "nav", 'aria-label="Story"');
+  const host = nav.match(/<span([^>]*\stitle="example\.com"[^>]*)>(.*?)<\/span>/s);
+  expect(host?.[2]).toBe("example.com");
+  expect(classesOf(attributesOf(host?.[1] ?? ""))).toContain("truncate");
+});
+
+test("a shown race still wins the Race tab", async () => {
+  stubSessionStorage();
+  setCurrentTarget(GOAL);
+  showRace("race_shown");
+  const race = (await hrefsOn("/cast")).find(([name]) => name === "Race");
+  expect(race?.[1]).toBe("/race/race_shown");
 });
 
 test.each(STORY_NAV.map((entry) => [pathOf(entry), entry.label] as const))(
@@ -62,6 +128,19 @@ test.each(STORY_NAV.map((entry) => [pathOf(entry), entry.label] as const))(
     expect(current.map((link) => link.name)).toEqual([label]);
   },
 );
+
+// With a target, Target links to its goal view and Lens to its start URL, and each is still
+// current on its screen without them: Target on another goal's view, Lens on a Lens with no `url=`.
+test.each([
+  ["/target?task=task_another-goal", "Target example.com"],
+  ["/lens", "Lens"],
+])("with a target, on %s, only %s is the current page", async (path, name) => {
+  stubSessionStorage();
+  setCurrentTarget(GOAL);
+  const nav = linksOf(elementOf(await render(path), "nav", 'aria-label="Story"'));
+  const current = nav.filter((link) => link.attributes["aria-current"] === "page");
+  expect(current.map((link) => link.name)).toEqual([name]);
+});
 
 // A preset, a stored sweep by id: every Boundary URL keeps its entry current.
 test.each(["/boundary", "/boundary?axis=maxElements", "/boundary/swp_vera-contrast"])(
@@ -115,16 +194,6 @@ test("Runs sits outside the story nav, and Events has no link", async () => {
     "aria-current": "page",
   });
   expect(links.map((link) => link.attributes.href)).not.toContain("/events");
-});
-
-test("Target sits outside the story nav, before Runs, and is current on its screen", async () => {
-  const bar = topBarOf(await render("/target"));
-  const nav = elementOf(bar, "nav", 'aria-label="Story"');
-  // The story nav still holds the five screens and nothing else.
-  expect(linksOf(nav).map((link) => link.name)).toEqual(STORY_NAV.map((entry) => entry.label));
-  const apart = linksOf(bar.slice(bar.indexOf("</nav>")));
-  expect(apart.map((link) => link.name)).toEqual(["Target", "Runs"]);
-  expect(apart[0]?.attributes).toMatchObject({ href: "/target", "aria-current": "page" });
 });
 
 test("the wordmark reads Wayford and opens the Cast", async () => {

@@ -1,29 +1,54 @@
 /**
  * The one bar on every screen (`docs/DESIGN.md`, "Space, shape and layout"): the wordmark, the
- * numbered story nav, then Target and Runs, and the theme toggle. Nothing in it comes from a
- * screen's data. No sidebar and no command palette.
+ * numbered story nav, which carries the current target, then Runs, and the theme toggle. Nothing in
+ * it comes from a screen's data. No sidebar and no command palette.
  */
-import { Link } from "@tanstack/react-router";
-import { DEMO_GOAL } from "../arena/panel-state.js";
+import { Link, linkOptions } from "@tanstack/react-router";
+import type { RaceId } from "@wayford/core";
 import { useShownRace } from "../arena/shown-race.js";
+import { type TargetLinks, targetLinks, useCurrentTarget } from "../target/current-target.js";
 import { ThemeToggle } from "./theme-toggle.js";
 import { buttonVariants } from "./ui/button.js";
 
+/** Where Target, Lens, Race and Report lead with no current target, as `targetLinks` gives them. */
+const NO_TARGET = targetLinks(undefined);
+
 /**
- * The story's screens, numbered in the order the demo walks them. A screen joins once its route
- * exists. Report opens the hard goal's report, the one the demo walks. Boundary stays current on
- * `/boundary/$sweepId` and under a search, as a link is current wherever its path leads, and Race
- * on `/race/$raceId` the same way. Race leads back to the race last opened, once there is one
- * (`arena/shown-race.ts`). Runs sits apart, and Events, the m0-07 debug screen, keeps its route but
- * has no entry.
+ * The story's screens, numbered in the order the demo walks them, Target first at 00, where a site
+ * and a goal of your own are picked (`docs/adr/0003-any-target.md`). A screen joins once its route
+ * exists. Each entry's link is where it leads with no current target, the four that carry one taken
+ * from `targetLinks`: Report opens the hard goal's report, the one the demo walks. Once the Target
+ * screen has opened a goal, the entries marked `carries` lead to that goal instead
+ * (`target/current-target.ts`), and Cast and Boundary stay as they are. Race leads back to the race
+ * last opened, once there is one (`arena/shown-race.ts`), and that wins over the goal. Every entry
+ * is current wherever its path leads, whatever the search: Boundary on `/boundary/$sweepId` and
+ * under a preset, Race on `/race/$raceId`, Target on another goal's view. Runs sits apart, and
+ * Events, the m0-07 debug screen, keeps its route but has no entry.
  */
 export const STORY_NAV = [
+  { number: "00", label: "Target", carries: "target", ...NO_TARGET.target },
   { number: "01", label: "Cast", to: "/cast" },
-  { number: "02", label: "Lens", to: "/lens" },
-  { number: "03", label: "Race", to: "/race" },
-  { number: "04", label: "Report", to: "/report/$taskId", params: { taskId: DEMO_GOAL } },
+  { number: "02", label: "Lens", carries: "lens", ...NO_TARGET.lens },
+  { number: "03", label: "Race", carries: "race", ...NO_TARGET.race },
+  { number: "04", label: "Report", carries: "report", ...NO_TARGET.report },
   { number: "05", label: "Boundary", to: "/boundary" },
 ] as const;
+
+type StoryEntry = (typeof STORY_NAV)[number];
+
+/**
+ * Where an entry leads: Race to the race last opened, if one is shown; an entry that carries the
+ * target through `targetLinks`, which gives its own link when there is no target; Cast and Boundary
+ * to their own.
+ */
+function linkOf(entry: StoryEntry, links: TargetLinks, shownRace: RaceId | undefined) {
+  if (entry.to === "/race" && shownRace !== undefined) {
+    return linkOptions({ to: "/race/$raceId", params: { raceId: shownRace } });
+  }
+  if ("carries" in entry) return links[entry.carries];
+  const { number: _number, label: _label, ...own } = entry;
+  return own;
+}
 
 // TanStack's Link marks the current page with `aria-current="page"`, so the style keys on what a
 // screen reader is told. The bottom border is always 2 px, transparent until current, so the label
@@ -50,6 +75,10 @@ function Wordmark() {
 /** The bar. */
 export function TopBar() {
   const shownRace = useShownRace();
+  const current = useCurrentTarget();
+  const links = targetLinks(current);
+  // The host with its port, so two targets on one machine read apart.
+  const host = current === undefined ? undefined : new URL(current.startUrl).host;
   return (
     <header className="grid h-(--header-h) grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-(--space-6) border-b border-line bg-paper px-(--space-6)">
       <Wordmark />
@@ -57,40 +86,39 @@ export function TopBar() {
           focus outlines inside the scroll box. */}
       <nav aria-label="Story" className="min-w-0 overflow-x-auto p-1">
         <ul className="mx-auto flex w-max items-center gap-1">
-          {STORY_NAV.map(({ number, label, ...target }) => {
-            const name = (
-              <>
-                {/* The list gives the order, so the link's name is the screen's name alone. */}
+          {STORY_NAV.map((entry) => (
+            <li key={entry.to}>
+              {/* Current on its path whatever the search, so a link that carries the target
+                  is still current on its screen under another one, or none. */}
+              <Link
+                {...linkOf(entry, links, shownRace)}
+                activeOptions={{ includeSearch: false }}
+                className={NAV_LINK}
+              >
+                {/* The list gives the order, so the link's name is the screen's name alone,
+                    and Target's the host it carries after it. */}
                 <span
                   aria-hidden="true"
                   className="font-mono text-ink-3 group-aria-[current=page]:text-ink"
                 >
-                  {number}
+                  {entry.number}
                 </span>
-                {label}
-              </>
-            );
-            return (
-              <li key={target.to}>
-                {target.to === "/race" && shownRace !== undefined ? (
-                  <Link to="/race/$raceId" params={{ raceId: shownRace }} className={NAV_LINK}>
-                    {name}
-                  </Link>
-                ) : (
-                  <Link {...target} className={NAV_LINK}>
-                    {name}
-                  </Link>
+                {entry.label}
+                {"carries" in entry && entry.carries === "target" && host !== undefined && (
+                  <>
+                    {" "}
+                    {/* A long host is cut, and its title holds the whole of it. */}
+                    <span title={host} className="max-w-36 truncate font-mono">
+                      {host}
+                    </span>
+                  </>
                 )}
-              </li>
-            );
-          })}
+              </Link>
+            </li>
+          ))}
         </ul>
       </nav>
       <div className="flex items-center gap-2">
-        {/* A site and a goal of your own (`docs/adr/0003-any-target.md`, D6): off the story path. */}
-        <Link to="/target" className={buttonVariants({ variant: "ghost" })}>
-          Target
-        </Link>
         <Link to="/runs" className={buttonVariants({ variant: "ghost" })}>
           Runs
         </Link>

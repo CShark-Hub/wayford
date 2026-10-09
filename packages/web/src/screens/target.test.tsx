@@ -18,6 +18,13 @@ import { readScout, startScout } from "../api/scout.js";
 import { attributesOf, elementOf, lineOf, sectionOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import {
+  CURRENT_TARGET_STORAGE_KEY,
+  clearCurrentTarget,
+  followStoredGoal,
+  readCurrentTarget,
+  setCurrentTarget,
+} from "../target/current-target.js";
+import {
   checkTarget,
   dispatchScout,
   pollRunSet,
@@ -37,6 +44,7 @@ import {
   type TargetForm,
 } from "../target/target-state.js";
 import { GoalView, type ReportState, TargetFormView } from "../target/target-view.js";
+import { stubSessionStorage } from "../target/test-support.js";
 
 const ada = profileFixture("prof_ada");
 const vera = profileFixture("prof_vera");
@@ -148,6 +156,8 @@ function inFlight(id: RunId): Response {
 }
 
 afterEach(() => {
+  // Cleared while the stub still holds it, so the next test starts with no target and no race.
+  clearCurrentTarget();
   vi.unstubAllGlobals();
 });
 
@@ -413,6 +423,7 @@ function goalView(state: GoalState, of: Task = task, report: ReportState = NO_RE
       onScout={() => {}}
       onStart={() => {}}
       onReport={() => {}}
+      onClearTarget={() => {}}
     />,
   );
 }
@@ -454,9 +465,14 @@ function h1Of(html: string): string {
   return lineOf(html.match(/<h1(?:\s[^>]*)?>(.*?)<\/h1>/s)?.[1] ?? "");
 }
 
+/** The markup inside the first `<header>` in `html`, or nothing when it has none. */
+function headerMarkupOf(html: string): string {
+  return html.match(/<header(?:\s[^>]*)?>(.*?)<\/header>/s)?.[1] ?? "";
+}
+
 /** The text of the first `<header>` in `html`, on one line. */
 function headerOf(html: string): string {
-  return lineOf(html.match(/<header(?:\s[^>]*)?>(.*?)<\/header>/s)?.[1] ?? "");
+  return lineOf(headerMarkupOf(html));
 }
 
 /** Each `<a>` or `<button>` in `html`: its attributes and its text on one line. */
@@ -572,6 +588,57 @@ describe("screen", () => {
     expect(only(html, "a", "Race on this goal").href).toBe("/race?task=task_past-order");
     expect(only(html, "a", "New goal").href).toBe("/target");
     expect(elements(html, "button").map((button) => button.text)).not.toContain("Check the goal");
+  });
+
+  test("the goal view's rule, followStoredGoal, sets the current target to a task io holds", () => {
+    // The rule alone: a static render runs no effect, so `target.browser.test.ts` shows the goal
+    // view setting it live.
+    stubSessionStorage();
+    // Still reading, or io failing: nothing set.
+    followStoredGoal(task.id, undefined);
+    expect(readCurrentTarget()).toBeUndefined();
+    // A task io holds, as `StoredGoal`'s effect hands it over when the goal view draws.
+    followStoredGoal(task.id, task);
+    expect(readCurrentTarget()).toEqual({ taskId: task.id, startUrl: task.startUrl });
+  });
+
+  test("an id io does not hold clears the current target when it is that id, and leaves another one", () => {
+    const items = stubSessionStorage();
+    setCurrentTarget({ taskId: task.id, startUrl: task.startUrl });
+
+    // Another id's not-found says nothing about the target set.
+    followStoredGoal("task_unknown", null);
+    expect(readCurrentTarget()?.taskId).toBe(task.id);
+
+    followStoredGoal(task.id, null);
+    expect(readCurrentTarget()).toBeUndefined();
+    expect(items.has(CURRENT_TARGET_STORAGE_KEY)).toBe(false);
+  });
+
+  test("Clear target sits beside New goal, as an outline button", () => {
+    // An outline button in the goal view's header, in New goal's row right after it. A static
+    // render clicks nothing: `target.browser.test.ts` clicks it and reads the bar back.
+    const header = headerMarkupOf(goalView(initialGoal()));
+    expect(only(header, "button", "Clear target")).toMatchObject({
+      type: "button",
+      "data-variant": "outline",
+    });
+    expect(header).toMatch(/>New goal<\/a><button [^>]*>Clear target<\/button><\/div>/);
+  });
+
+  test("the goal view's Lens and Race links equal the nav's", async () => {
+    stubSessionStorage();
+    setCurrentTarget({ taskId: task.id, startUrl: task.startUrl });
+    const html = await renderPath(`/target?task=${task.id}`, storing(task.id, task));
+    const nav = elementOf(html, "nav", 'aria-label="Story"');
+    const open = sectionOf(html, "Open it");
+
+    const lens = only(open, "a", "Open in the Lens").href;
+    const race = only(open, "a", "Race on this goal").href;
+    expect(lens).toBe("/lens?url=http%3A%2F%2Flocalhost%3A5174%2F");
+    expect(race).toBe("/race?task=task_past-order");
+    expect(only(nav, "a", "02 Lens").href).toBe(lens);
+    expect(only(nav, "a", "03 Race").href).toBe(race);
   });
 
   test("the run set's progress line", async () => {

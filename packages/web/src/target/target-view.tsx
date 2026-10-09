@@ -19,6 +19,7 @@ import { SegmentedControl } from "../components/segmented-control.js";
 import { Skeleton } from "../components/skeleton.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
 import { Working } from "../components/working.js";
+import { targetLinks, targetOf } from "./current-target.js";
 import {
   type FormAction,
   type FormCheck,
@@ -446,10 +447,12 @@ function RunSetStatus({
 
 /**
  * The goal view of `task` at `state`: the goal io stored, the links that open it in the Lens and
- * the Race, Scout, and the run set with its `report`. `onAction` takes every choice and "Write the
- * report"; `onScout` starts Scout, `onStart` the set and `onReport` the report again after it
- * failed; the screen makes the calls. On mount its heading takes focus, so an accepted goal is
- * read out where the form's status region was.
+ * the Race, Scout, and the run set with its `report`. The Lens and Race links are the nav's own,
+ * built by `targetLinks` from the task, so both lead to the same places (D13). `onAction` takes
+ * every choice and "Write the report"; `onScout` starts Scout, `onStart` the set, `onReport` the
+ * report again after it failed, and `onClearTarget` clears the current target; the screen makes
+ * the calls. On mount its heading takes focus, so an accepted goal is read out where the form's
+ * status region was.
  */
 export function GoalView({
   task,
@@ -460,6 +463,7 @@ export function GoalView({
   onScout,
   onStart,
   onReport,
+  onClearTarget,
 }: {
   task: Task;
   state: GoalState;
@@ -469,8 +473,10 @@ export function GoalView({
   onScout: () => void;
   onStart: () => void;
   onReport: () => void;
+  onClearTarget: () => void;
 }) {
   const { scout, runSet } = state;
+  const links = targetLinks(targetOf(task));
   const stripped = task.strippedPaths ?? [];
   const blocker = runSetBlocker(state, report.writing);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -506,6 +512,11 @@ export function GoalView({
           <Link to="/target" search={{}} className={buttonVariants({ variant: "outline" })}>
             New goal
           </Link>
+          {/* New goal keeps the current target until the form's next goal is accepted; this lets
+              it go, so the nav leads where it does with none. */}
+          <Button type="button" variant="outline" onClick={onClearTarget}>
+            Clear target
+          </Button>
         </div>
         <p className="mono break-all text-ink-2">{`start · ${task.startUrl}`}</p>
         <p className="mono text-ink-2">{`success · ${successText(task.success)}`}</p>
@@ -520,20 +531,12 @@ export function GoalView({
           five personas on the goal, live.
         </p>
         <div className="flex flex-wrap gap-(--space-3)">
-          {/* Plain anchors, written before `s3-16` gave the Lens its `url` and the Race its `task`
-              search params. Both routes declare them now, so these can become typed `Link`s. */}
-          <a
-            href={`/lens?url=${encodeURIComponent(task.startUrl)}`}
-            className={buttonVariants({ variant: "outline" })}
-          >
+          <Link {...links.lens} className={buttonVariants({ variant: "outline" })}>
             Open in the Lens
-          </a>
-          <a
-            href={`/race?task=${encodeURIComponent(task.id)}`}
-            className={buttonVariants({ variant: "outline" })}
-          >
+          </Link>
+          <Link {...links.race} className={buttonVariants({ variant: "outline" })}>
             Race on this goal
-          </a>
+          </Link>
         </div>
       </Section>
 

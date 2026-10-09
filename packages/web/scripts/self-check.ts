@@ -128,7 +128,7 @@ export interface SelfCheckScreen {
  * A task io has stored off the target app: the hard goal moved to https://example.com/, under a
  * ULID id as io's `newId` gives one. The Race lists it as a stored goal, already checked.
  */
-const FOREIGN_TASK: Task = Task.parse({
+export const FOREIGN_TASK: Task = Task.parse({
   ...taskFixture("task_past-order"),
   id: "task_01k70f8x2m4n6p8q0r2s4t6v8w",
   startUrl: "https://example.com/",
@@ -310,13 +310,26 @@ async function checkTarget(page: Page): Promise<void> {
 /** The goal the Target screen's goal view entries open: the hard goal, stored, with its Scout. */
 const TARGET_TASK = taskFixture("task_past-order");
 
-/** io's answer about the hard goal's Scout: its ground truth. */
-const TARGET_SCOUT_RESPONSES = { [`/tasks/${TARGET_TASK.id}/scout`]: groundTruthFixture };
+/**
+ * The hard goal on a long host, under its own ULID id. The top bar's `00 Target` names the host,
+ * so this is the longest name the bar carries.
+ */
+export const LONG_HOST_TASK: Task = Task.parse({
+  ...taskFixture("task_past-order"),
+  id: "task_01k70g3c5e7g9j1k3m5p7r9t1v",
+  startUrl: "https://checkout-and-order-history.a-rather-long-subdomain.example-shop.co.uk/",
+});
 
-/** io's answer for the hard goal's stored report, which the goal view reads for its link: none. */
-const TARGET_NO_REPORT = {
-  [`GET /reports/${TARGET_TASK.id}`]: jsonAnswer({ error: `no report on ${TARGET_TASK.id}` }, 404),
-};
+/**
+ * io's answers for the goal view of the goal under `taskId`: its Scout, the hard goal's ground
+ * truth, and its stored report, which the goal view reads for its link: none.
+ */
+function goalResponses(taskId: Task["id"]) {
+  return {
+    [`/tasks/${taskId}/scout`]: groundTruthFixture,
+    [`GET /reports/${taskId}`]: jsonAnswer({ error: `no report on ${taskId}` }, 404),
+  };
+}
 
 /** The goal view, drawn once Scout's line has replaced its skeleton. */
 const TARGET_GOAL_READY = 'main:has(section:has-text("Scout reached it in"))';
@@ -498,8 +511,7 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     ready: TARGET_GOAL_READY,
     responses: {
       "POST /tasks": jsonAnswer({ task: TARGET_TASK, rewritten: false }, 201),
-      ...TARGET_SCOUT_RESPONSES,
-      ...TARGET_NO_REPORT,
+      ...goalResponses(TARGET_TASK.id),
     },
     act: async (page) => {
       await checkTarget(page);
@@ -518,8 +530,7 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     // io holds none of until the Analyst's POST answers.
     responses: {
       "/tasks": [TARGET_TASK],
-      ...TARGET_SCOUT_RESPONSES,
-      ...TARGET_NO_REPORT,
+      ...goalResponses(TARGET_TASK.id),
       "POST /runs": jsonAnswer({ raceId: "race_target", runs: TARGET_RUNS }, 202),
       ...Object.fromEntries(TARGET_RUNS.map((run) => [`/runs/${run.id}`, runResultFixture])),
       [`POST /reports/${TARGET_TASK.id}`]: jsonAnswer(reportFixture(TARGET_TASK.id), 201),
@@ -530,6 +541,17 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
         await page.getByRole("button", { name: persona, exact: true }).click();
       }
       await page.getByRole("button", { name: "Start 6 runs on the LLM", exact: true }).click();
+    },
+  },
+  {
+    name: "target · nav",
+    // The bar with a target, on a long host. Only the Target screen sets the target (D12), so the
+    // entry opens the goal view, and is ready once the bar's `00 Target` link names the host.
+    path: `/target?task=${LONG_HOST_TASK.id}`,
+    ready: `body:has(${TARGET_GOAL_READY}):has(header nav a:has-text("checkout-and-order-history"))`,
+    responses: {
+      "/tasks": [LONG_HOST_TASK],
+      ...goalResponses(LONG_HOST_TASK.id),
     },
   },
   {

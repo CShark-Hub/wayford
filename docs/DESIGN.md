@@ -73,7 +73,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 | `/runs/$runId` | Run detail | Run detail | One run step by step: screenshot beside what the model read | `screens/run-detail.html` | `s3-12` |
 | `/boundary` | Boundary | Sweep | The first threshold where fewer than half of a persona's runs get through. Beat 6 | `screens/boundary.html` | `s3-09` |
 | `/runs` | Runs | Runs | The archive table, off the story path | — | `s3-14` (optional) |
-| `/target` | Target | — | A site and a goal of your own in, every story screen on it out (`docs/adr/0003-any-target.md`, D6). Off the story path | — | `s3-15` |
+| `/target` | Target | — | A site and a goal of your own in, every story screen on it out (`docs/adr/0003-any-target.md`, D6). Leads the nav as `00` and sets the current target (D11, D12) | — | `s3-15`, `s3-17` |
 
 `/` redirects to `/cast`. `/events`, the m0-07 debug screen, keeps its route and leaves the nav.
 
@@ -171,8 +171,8 @@ The spacing steps (`space-1` to `space-9`, a 4 px grid), radii, layout sizes (`h
 
 - **One top bar:** `header-h`, with a hairline under it.
   - Wordmark left.
-  - The story nav in the middle, numbered in mono: `01 Cast`, `02 Lens`, `03 Race`, `04 Report`, `05 Boundary`.
-  - `Target` and `Runs` apart on the right, then the theme toggle. The bar is the same on every screen: nothing in it comes from a screen's data.
+  - The story nav in the middle, numbered in mono: `00 Target`, `01 Cast`, `02 Lens`, `03 Race`, `04 Report`, `05 Boundary`. With a current target set, `00 Target` names its host, and Target, Lens, Race and Report lead to it (`docs/adr/0003-any-target.md`, D11–D13).
+  - `Runs` apart on the right, then the theme toggle. The bar is the same on every screen: nothing in it comes from a screen's data.
   - No sidebar, no command palette.
 - **One page column:** `content-max`, centred, with `space-6` gutters. Rails are `rail-w`.
 - **Radii by role:**
