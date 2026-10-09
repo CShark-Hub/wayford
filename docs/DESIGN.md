@@ -56,7 +56,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 6. **Claim less.**
    - Where a screen's data can be live or stored, the screen says which, in the page beside that data, taken from it, never hard-coded:
      - the Race carries a source badge in its header, `live` while its streams are open, `stored` on a race read back from io;
-     - the Lens says it in the stage: its `Live:` line when io answered, and when it did not, a stored banner on a target-app page or a fault banner on a page opened by URL.
+     - the Lens says it in the stage: its `Live:` line under the drawn page when io answered, and when it did not, a stored banner on a target-app page or a fault banner on a page opened by URL.
    - A screen whose data can only be stored (Run detail, Runs, Report, Boundary) carries no source badge: a badge that never changes reads as a status of the whole app.
    - The backend a run, report or sweep was on is a word in its own meta line or facts, not a badge. A run that stopped before its first planned action names none: its record cannot tell Jev from the LLM.
    - Narration is labelled `narration · after the fact`.

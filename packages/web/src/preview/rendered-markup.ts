@@ -93,10 +93,20 @@ function measuredPx(value: string | undefined): number {
   return Number(px);
 }
 
-/** The text of the page's caption, or undefined when it has none. */
+/** The markup inside the page's caption, or undefined when it has none. */
+function captionMarkupOf(html: string): string | undefined {
+  return html.match(/<figcaption[^>]*>(.*?)<\/figcaption>/s)?.[1];
+}
+
+/** Each paragraph of the page's caption, as it reads; empty when it has no caption. */
+export function captionLinesOf(html: string): string[] {
+  const caption = captionMarkupOf(html) ?? "";
+  return [...caption.matchAll(/<p(?:\s[^>]*)?>(.*?)<\/p>/gs)].map((m) => textOf(m[1] ?? ""));
+}
+
+/** The text of the page's caption, its lines joined by a space, or undefined when it has none. */
 export function captionOf(html: string): string | undefined {
-  const caption = html.match(/<figcaption[^>]*>(.*?)<\/figcaption>/s)?.[1];
-  return caption === undefined ? undefined : textOf(caption);
+  return captionMarkupOf(html) === undefined ? undefined : captionLinesOf(html).join(" ");
 }
 
 /** A drawn box's or an outline's bbox, from its style. */

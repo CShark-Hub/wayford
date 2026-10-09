@@ -30,7 +30,7 @@ import {
   toActorObservation,
 } from "@wayford/core";
 import { cn } from "cn";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   CutFlag,
   FILTER_STATE_CLASS,
@@ -74,6 +74,14 @@ function holdsLines(element: ObservedElement): boolean {
   const lineHeight = (element.metrics.fontPx ?? DEFAULT_FONT_PX) * TEXT_LINE_HEIGHT;
   return element.bbox.height > 1.5 * lineHeight;
 }
+
+/**
+ * The measuring surface the frame sits on, and the Lens's skeleton while it measures: a size
+ * container the frame fits. 8 px top and bottom, inside the corner ticks' reach: a frame bound by
+ * the height is centred across, clear of them, and the page gets the 16 px (#224).
+ */
+export const MEASURING_SURFACE =
+  "grid min-h-0 flex-1 @container-size place-items-center px-4 py-2 measure";
 
 /** The room under the lowest element the canvas keeps, in measured CSS px. */
 const CROP_MARGIN_PX = 24;
@@ -342,6 +350,7 @@ export function PerceivedPage({
   observation,
   evidence,
   subject,
+  source,
 }: {
   observation: FullObservation;
   evidence: boolean;
@@ -350,6 +359,8 @@ export function PerceivedPage({
    * seed 1".
    */
   subject: string;
+  /** Where the measurement came from, from the screen: the caption's second line, when given. */
+  source?: ReactNode;
 }) {
   // What the Actor reads, by ref: core's own projection, so no masked or renamed name is worked
   // out twice. A ref it does not list is drawn with an empty name, never the real one, as there,
@@ -372,7 +383,7 @@ export function PerceivedPage({
     <figure className="flex min-h-0 flex-1 flex-col gap-3">
       {/* The measuring surface, which the frame is centred on and fitted to. It clips, so
           nothing drawn past the frame, a flag or an outline off the page, escapes it. */}
-      <div className="grid min-h-0 flex-1 @container-size place-items-center overflow-clip p-4 measure">
+      <div className={cn(MEASURING_SURFACE, "overflow-clip")}>
         <div
           data-lens-stage=""
           className="@container rounded-md border border-line-strong bg-surface"
@@ -428,15 +439,16 @@ export function PerceivedPage({
           </div>
         </div>
       </div>
-      {/* Two lines tall in both views, the evidence caption's length, so flipping the view never
-          resizes the page under it. */}
+      {/* Two lines tall in both views, so flipping the view never resizes the page above it: the
+          view's sentence, one line in either view at 1280 px for the slider's seeds, then the source's. */}
       <figcaption className="min-h-12">
-        {/* A paragraph, the block the self-check measures. */}
+        {/* Paragraphs, the blocks the self-check measures. */}
         <p className="body text-ink-2">
           {evidence
-            ? `Evidence, not perception: dashed outlines mark the elements perceive removed for ${subject}, each with the rule that removed it.`
+            ? `Evidence, not perception: dashed outlines mark what perceive removed for ${subject}, each with its rule.`
             : `The page as perceive returns it for ${subject}.`}
         </p>
+        {source === undefined ? null : <p className="body text-ink-2">{source}</p>}
       </figcaption>
     </figure>
   );

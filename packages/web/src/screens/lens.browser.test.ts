@@ -17,7 +17,7 @@
  */
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import type { AxeScan } from "@wayford/core";
+import type { AxeScan, Bbox } from "@wayford/core";
 import { axeScanFixture, axeScanFixtures, measurementFixture } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { createServer, type ViteDevServer } from "vite";
@@ -146,7 +146,7 @@ test("slider moves redraw the page and make no request; a page link does", async
   expect(await card.getByRole("listitem").allTextContents()).toEqual(["color-contrast, 1 element"]);
   await page.waitForLoadState("networkidle");
   expect(await fetchesOf(page)).toEqual(fetchesFor("/deliveries"));
-  const caption = page.locator("figcaption");
+  const caption = page.locator("figcaption p").first();
   expect(await caption.textContent()).toBe("The page as perceive returns it for Vera, seed 1.");
 
   requests.length = 0;
@@ -181,6 +181,133 @@ test("slider moves redraw the page and make no request; a page link does", async
     ]),
   );
   await card.getByText("axe-core, WCAG 2.2 A and AA: 0 violations", { exact: true }).waitFor();
+  await page.close();
+});
+
+/** Whether the document fits the window, down and across, so nothing scrolls. */
+function fitsOf(page: Page): Promise<{ down: boolean; across: boolean }> {
+  return page.evaluate(() => ({
+    down: document.documentElement.scrollHeight <= window.innerHeight,
+    across: document.documentElement.scrollWidth <= window.innerWidth,
+  }));
+}
+
+/** Whether box `inner` lies inside box `outer`, both as Playwright measures them. */
+function inside(inner: Bbox | null, outer: Bbox | null): boolean {
+  if (inner === null || outer === null) return false;
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  );
+}
+
+test("beat 2 reads at 1280 × 720: the page is drawn at half its size or more, Order archive in view, and nothing scrolls", async () => {
+  // #224: the measured page is 1280 px wide, so a frame 640 px wide or more draws its 16 px text
+  // at 8 px or more. Order archive is the link beat 2 watches go, at y 603 of the measured 720.
+  const page = await spiedPage();
+  expect(page.viewportSize()).toEqual({ width: 1280, height: 720 });
+  const views = [
+    // Drawn whole: at contrast 2 with no band its 2.005:1 passes.
+    { query: "contrast=2&contrastSoftness=0", archive: "[data-state]" },
+    // Cut at 4.5 and shown as evidence: its outline, which names it for screen readers.
+    { query: "contrast=4.5&evidence=true", archive: "[data-removed]" },
+  ];
+  for (const { query, archive: selector } of views) {
+    await page.goto(`${origin}/lens?persona=prof_vera&seed=1&${query}`);
+    const archive = page.locator(selector, { hasText: "Order archive" });
+    await archive.waitFor();
+    await page.getByRole("region", { name: "axe-core" }).getByText("1 violation").waitFor();
+    expect(await fitsOf(page), query).toEqual({ down: true, across: true });
+    const frame = await page.locator("[data-lens-stage]").boundingBox();
+    expect(frame?.width ?? 0, query).toBeGreaterThanOrEqual(640);
+    const box = await archive.boundingBox();
+    expect(inside(box, frame), query).toBe(true);
+    expect(inside(box, { x: 0, y: 0, width: 1280, height: 720 }), query).toBe(true);
+    const fontPx = await archive.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize),
+    );
+    expect(fontPx, query).toBeGreaterThanOrEqual(8);
+  }
+  await page.close();
+});
+
+test("a slider move that fires one rule more keeps the drawn page's size", async () => {
+  // #224 review: with two rules fired, the strip was shorter than with three, so a move that fired
+  // P4 grew the strip and shrank the page mid-drag. Ada at contrast 2.1 and 18 px fires P1 and P3;
+  // her target size at its end fires P4 too.
+  const page = await spiedPage();
+  await page.goto(`${origin}/lens?persona=prof_ada&seed=1&contrast=2.1&fontPx=18`);
+  await page.locator("[data-state]").first().waitFor();
+  const card = page.getByRole("region", { name: "axe-core" });
+  await card.getByText("1 violation").waitFor();
+  const rules = page
+    .getByText("rules fired")
+    .locator("xpath=ancestor::div[1]")
+    .getByRole("listitem");
+  await expect.poll(() => rules.allTextContents()).toEqual(["P1 contrast", "P3 font size"]);
+  const frame = page.locator("[data-lens-stage]");
+  const before = await frame.boundingBox();
+  await press(page, "preview-targetPx", "End", 1);
+  await expect.poll(() => rules.count()).toBe(3);
+  expect(await frame.boundingBox()).toEqual(before);
+  await page.close();
+});
+
+test("the URL button shows the row with its field focused; Escape hides it, and a URL opened from it hides it too", async () => {
+  const page = await spiedPage();
+  await page.goto(`${origin}/lens?persona=prof_vera`);
+  await page.locator("[data-state]").first().waitFor();
+  const toggle = page.getByRole("button", { name: "Open a URL" });
+  const field = page.locator("#lens-url");
+  expect(await toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(await field.count()).toBe(0);
+
+  // Shown: the field is focused and empty on a target-app page, and the button controls its row.
+  await toggle.click();
+  await expect
+    .poll(() => field.evaluate((element) => element === document.activeElement))
+    .toBe(true);
+  expect(await field.inputValue()).toBe("");
+  expect(await toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(await toggle.getAttribute("aria-controls")).toBe("lens-url-row");
+  // Escape hides it and gives the focus back to the button.
+  await page.keyboard.press("Escape");
+  await field.waitFor({ state: "detached" });
+  expect(await toggle.evaluate((element) => element === document.activeElement)).toBe(true);
+  expect(await toggle.getAttribute("aria-expanded")).toBe("false");
+
+  // Shown, then a page link and Back: the row stays hidden, since a navigation forgot it.
+  await toggle.click();
+  await field.waitFor();
+  await page
+    .getByRole("navigation", { name: "Page" })
+    .getByRole("link", { name: "/account" })
+    .click();
+  await page.waitForFunction(() => new URLSearchParams(location.search).get("page") === "/account");
+  await field.waitFor({ state: "detached" });
+  await page.goBack();
+  await page.waitForFunction(() => !new URLSearchParams(location.search).has("page"));
+  await page.locator("[data-state]").first().waitFor();
+  expect(await field.count()).toBe(0);
+  expect(await toggle.getAttribute("aria-expanded")).toBe("false");
+
+  // A refused value keeps the row and shows the alert; a whole URL opens and hides the row.
+  await toggle.click();
+  await field.fill("example.com");
+  await page.keyboard.press("Enter");
+  await page.getByRole("alert").getByText("Enter a whole http(s) URL").waitFor();
+  await field.fill("https://example.com/");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => new URLSearchParams(location.search).get("url"));
+  await field.waitFor({ state: "detached" });
+  expect(await toggle.getAttribute("aria-expanded")).toBe("false");
+  // The focus goes back to the button, as after Escape, not to the body.
+  expect(await toggle.evaluate((element) => element === document.activeElement)).toBe(true);
+  // On a URL page the field shows its URL.
+  await toggle.click();
+  expect(await field.inputValue()).toBe("https://example.com/");
   await page.close();
 });
 
@@ -226,12 +353,7 @@ test("in the illustration view the picture is fetched once, slider moves fetch n
   // It fits the projector with no scroll, as the other views do (s3-11): the 1280 × 720 picture
   // is scaled down into the stage, above its caption.
   expect(page.viewportSize()).toEqual({ width: 1280, height: 720 });
-  expect(
-    await page.evaluate(() => ({
-      down: document.documentElement.scrollHeight <= window.innerHeight,
-      across: document.documentElement.scrollWidth <= window.innerWidth,
-    })),
-  ).toEqual({ down: true, across: true });
+  expect(await fitsOf(page)).toEqual({ down: true, across: true });
   const box = await picture.boundingBox();
   const caption = await page.locator("figcaption").boundingBox();
   expect(box !== null && caption !== null && box.y + box.height <= caption.y).toBe(true);

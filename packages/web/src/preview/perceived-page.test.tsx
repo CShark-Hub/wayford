@@ -505,7 +505,7 @@ test("the caption says evidence, not perception, in the evidence view only, for 
     `The page as perceive returns it for ${subject}.`,
   );
   expect(captionOf(render(full, { evidence: true, subject }))).toBe(
-    `Evidence, not perception: dashed outlines mark the elements perceive removed for ${subject}, each with the rule that removed it.`,
+    `Evidence, not perception: dashed outlines mark what perceive removed for ${subject}, each with its rule.`,
   );
   expect(captionOf(render(full, { evidence: false }))).toBe(
     `The page as perceive returns it for ${SUBJECT}.`,

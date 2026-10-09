@@ -381,12 +381,16 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
   },
   {
     name: "lens · url",
-    // A page off the target app, by its whole URL: the URL row filled, the live line naming it.
-    // Ready on the URL page's own copy, so a refused url= that fell back to /deliveries would
-    // not pass as this entry.
+    // A page off the target app, by its whole URL: the URL row shown and filled, the live line
+    // naming it. Ready on the URL page's own copy, so a refused url= that fell back to /deliveries
+    // would not pass as this entry. The row shows only once its button is pressed (#224).
     path: "/lens?url=https://example.com/",
     ready:
       'main:has([data-state]):has(section[aria-label="axe-core"] li):has-text("https://example.com/ on desktop, opened as given")',
+    act: async (page) => {
+      await page.getByRole("button", { name: "Open a URL", exact: true }).click();
+      await page.locator("#lens-url").waitFor();
+    },
     // The lens entry's measurement and scan, the measurement at the URL asked for, asked for with
     // url= rather than page=; responses are keyed by path, so the query is not. The drawn page is
     // skipped as the lens entry skips it.

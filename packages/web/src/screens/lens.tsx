@@ -17,7 +17,8 @@
  * Chrome vision emulation on the stage in place of the drawing (`src/preview/illustration.tsx`).
  * The picture follows the persona, never a slider.
  *
- * Any page opens by its whole URL too (s3-16): a `url=` link, or the URL form under the header row.
+ * Any page opens by its whole URL too (s3-16): a `url=` link, or the URL form, which a button in the
+ * header row shows under it (#224).
  * Such a page is off the target app, whatever its host, since the link decides
  * (`docs/adr/0003-any-target.md`, D2): `perceive` gets no jargon list, the copy names the URL and
  * never the target app's parameters, and a failed measurement draws no page at all, since the
@@ -38,8 +39,16 @@ import {
 } from "@wayford/core";
 import { perceive } from "@wayford/filter/perceive";
 import { cn } from "cn";
-import { Minus, Plus, ScanLine } from "lucide-react";
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { Link2, Minus, Plus, ScanLine } from "lucide-react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type Ref,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { Banner } from "#components/banner";
 import { type Look, RULE_WORDS, StateSwatch } from "#components/filter-states";
 import { PersonaAvatar } from "#components/persona-avatar";
@@ -59,7 +68,7 @@ import { measurementQuery } from "../api/measure.js";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledJargon, bundledMeasurement, bundledProfiles } from "../bundled-fixtures.js";
 import { ILLUSTRATED_PAGE, IllustrationStage } from "../preview/illustration.js";
-import { looksOf, PerceivedPage } from "../preview/perceived-page.js";
+import { looksOf, MEASURING_SURFACE, PerceivedPage } from "../preview/perceived-page.js";
 import {
   CUT_SLIDERS,
   isOff,
@@ -514,10 +523,11 @@ function counted(n: number, noun: string): string {
  * axe-core's scan of the page, as io stores it (s4-06). The scan is by page, not by run, so the
  * card reads the page alone, never the persona or the device. While io scans, a plain line says
  * so, not a status: the stage's one status line is its measurement's. A failed scan says axe did
- * not run and why, never a count, since no scan is not "no violations". A URL page is scanned as
- * given, not at the target app's parameters, and its note says so.
+ * not run and why, never a count, since no scan is not "no violations". Its note, from the screen,
+ * says the scan is the page's alone, and the parameters it was opened at whenever no `Live:` line
+ * above it names them (#224).
  */
-function AxeCard({ page, onTargetApp }: { page: string; onTargetApp: boolean }) {
+function AxeCard({ page, note }: { page: string; note: string }) {
   const scan = useQuery(axeQuery(page));
   return (
     <section
@@ -549,11 +559,7 @@ function AxeCard({ page, onTargetApp }: { page: string; onTargetApp: boolean }) 
                 ))}
               </ul>
             )}
-            <p className="basis-full body text-ink-3">
-              {onTargetApp
-                ? "Scanned once per page on desktop, at the target app's default parameters."
-                : "Scanned once per page on desktop, opened as given."}
-            </p>
+            <p className="basis-full body text-ink-3">{note}</p>
           </>
         ) : scan.isError ? (
           <>
@@ -608,22 +614,17 @@ const TAG_ROWS = ["grid-rows-1", "grid-rows-2", "grid-rows-3"] as const;
  * URL page failed, each count reads `—` and the rules `none`: nothing was measured, and a skeleton
  * would say it is still loading.
  */
-function ReadoutStrip({
-  stage,
-  page,
-  onTargetApp,
-}: {
-  stage: Stage;
-  page: string;
-  onTargetApp: boolean;
-}) {
+function ReadoutStrip({ stage, page, axeNote }: { stage: Stage; page: string; axeNote: string }) {
   const observation =
     stage.kind === "live" || stage.kind === "stored" ? stage.observation : undefined;
   const failed = stage.kind === "failed";
   const counts = observation === undefined ? undefined : lensCounts(observation);
   const rules = failed ? [] : observation === undefined ? undefined : rulesFired(observation);
   return (
-    <div className="flex min-w-0 items-stretch gap-6">
+    // At least as tall as the rules cell with three rows of tags, 116 px: the cell is then the
+    // tallest the strip can hold, so a slider move that fires a rule more or less never resizes the
+    // strip, nor the page drawn above it (#224).
+    <div className="flex min-h-29 min-w-0 items-stretch gap-6">
       <dl className="flex shrink-0 items-stretch">
         {COUNTED.map((state) => (
           <div key={state} className="grid content-center gap-1 pe-6">
@@ -655,7 +656,7 @@ function ReadoutStrip({
               <p className="mono-label text-ink-3">none</p>
             ) : (
               // Up to three tags a column, column after column, so the cell stays narrow and leaves
-              // the axe-core card its width: the card is the strip's tallest cell either way.
+              // the axe-core card its width. Three rows set the strip's floor.
               <ul
                 className={cn(
                   "grid grid-flow-col justify-start justify-items-start gap-1.5",
@@ -672,7 +673,7 @@ function ReadoutStrip({
           </dd>
         </div>
       </dl>
-      <AxeCard page={page} onTargetApp={onTargetApp} />
+      <AxeCard page={page} note={axeNote} />
     </div>
   );
 }
@@ -698,16 +699,22 @@ export function openedSearch(search: PreviewSearch, raw: string): PreviewSearch 
   return url.success ? urlSearch(search, url.data) : undefined;
 }
 
+/** The URL row's id, which the button that shows it controls. */
+const URL_ROW_ID = "lens-url-row";
+
 /**
  * The URL form's row, a view of its props: a mono `url` label, the field, which fills the row, and
  * an outline Open button, with the one alert under the row once a value was refused. The field is
- * uncontrolled from `value`, so the screen keys it to reset it. The form is `noValidate`, so the
- * browser's own bubble for a `type="url"` field never stands in for the alert.
+ * uncontrolled from `value`, and the screen unmounts it on a page change. The form is `noValidate`, so the
+ * browser's own bubble for a `type="url"` field never stands in for the alert. `Escape` in the
+ * field calls `onClose`.
  */
 export function UrlForm({
   value,
   refused,
   onOpen,
+  onClose,
+  fieldRef,
 }: {
   /** What the field holds at first: the current URL page's URL, or nothing on a target-app page. */
   value: string;
@@ -715,6 +722,10 @@ export function UrlForm({
   refused: boolean;
   /** Called with the field's value on submit. */
   onOpen: (raw: string) => void;
+  /** Called on `Escape` in the field. */
+  onClose: () => void;
+  /** The field, for the screen to focus once it shows the row. */
+  fieldRef?: Ref<HTMLInputElement>;
 }) {
   const alertId = useId();
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -722,8 +733,13 @@ export function UrlForm({
     const raw = new FormData(event.currentTarget).get("url");
     onOpen(typeof raw === "string" ? raw : "");
   }
+  function closeOnEscape(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    onClose();
+  }
   return (
-    <div className="grid gap-1">
+    <div id={URL_ROW_ID} className="grid gap-1">
       <form
         aria-label="Open a page by URL"
         noValidate
@@ -734,10 +750,12 @@ export function UrlForm({
           url
         </label>
         <input
+          ref={fieldRef}
           id={URL_FIELD_ID}
           type="url"
           name="url"
           defaultValue={value}
+          onKeyDown={closeOnEscape}
           spellCheck={false}
           autoComplete="url"
           aria-invalid={refused ? true : undefined}
@@ -774,14 +792,39 @@ export function openUrl(
 }
 
 /**
- * The URL form on the screen, which opens a value by `openUrl`. The screen keys it by the page, so
- * a navigation, Back or a picker link resets both the field and the alert.
+ * The URL form on the screen, which opens a value by `openUrl`. It shows only once asked for, and
+ * its field takes the focus then. A navigation to another page hides it, so the field and the alert
+ * start afresh when it is shown again.
  */
-function UrlRow({ search, state }: { search: PreviewSearch; state: PreviewState }) {
+function UrlRow({
+  search,
+  state,
+  onClose,
+}: {
+  search: PreviewSearch;
+  state: PreviewState;
+  onClose: () => void;
+}) {
   const navigate = lensRoute.useNavigate();
   const [refused, setRefused] = useState(false);
-  const open = (raw: string) => openUrl(search, raw, navigate, setRefused);
-  return <UrlForm value={state.onTargetApp ? "" : state.page} refused={refused} onOpen={open} />;
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => field.current?.focus(), []);
+  // An accepted value closes the row as Escape does, so the focus goes back to its button rather
+  // than falling to the body when the navigation unmounts the field.
+  const open = (raw: string) =>
+    openUrl(search, raw, navigate, (refused) => {
+      setRefused(refused);
+      if (!refused) onClose();
+    });
+  return (
+    <UrlForm
+      value={state.onTargetApp ? "" : state.page}
+      refused={refused}
+      onOpen={open}
+      onClose={onClose}
+      fieldRef={field}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -792,6 +835,13 @@ export function LensScreen() {
   const navigate = lensRoute.useNavigate();
   const search = lensRoute.useSearch();
   const state = resolvePreview(search);
+  // The page the URL row was shown on (#224): the row costs the stage its height only while it is
+  // shown, which its button, Escape or an opened URL ends. A navigation to another page forgets it,
+  // adjusted during render, so Back to the page it was shown on finds it hidden. A persona link or a
+  // slider keeps the page, and the row with it.
+  const [urlRowOn, setUrlRowOn] = useState<string | null>(null);
+  if (urlRowOn !== null && urlRowOn !== state.page) setUrlRowOn(null);
+  const urlRowShown = urlRowOn === state.page;
   // Keyed by the persona's device and the page alone, and never stale, so a slider move finds it
   // in the cache and asks io nothing (`src/api/measure.ts`).
   const device = state.persona.device;
@@ -830,6 +880,11 @@ export function LensScreen() {
   const subject = `${state.persona.label}${state.edited ? ", thresholds edited" : ""}, seed ${state.seed}`;
   const { move, release } = useSliderWrites(navigate);
   useRedrawTiming();
+  const urlToggle = useRef<HTMLButtonElement>(null);
+  function hideUrlRow() {
+    setUrlRowOn(null);
+    urlToggle.current?.focus();
+  }
 
   // The View control replaces the history entry, as a slider does; a persona link pushes one. It
   // writes both view keys, so the URL holds the one view picked.
@@ -850,6 +905,13 @@ export function LensScreen() {
   // What the drawing is of. The page is keyed by it, so a persona, page, source or view switch
   // draws a fresh page, which animates nothing, while a threshold move animates what it changes.
   const scene = `${state.persona.id}|${state.page}|${stage.kind}|${state.view}`;
+  // How the page was opened, said once: by the `Live:` line under a live page, or else by the axe
+  // card's note, so the card never drops it where no `Live:` line stands.
+  const opened = state.onTargetApp ? "at the target app's default parameters" : "opened as given";
+  const liveLine = state.view !== "illustration" && stage.kind === "live";
+  const axeNote = liveLine
+    ? "Scanned once per page, on desktop."
+    : `Scanned once per page on desktop, ${opened}.`;
   return (
     <div className="mx-auto grid h-[calc(100dvh_-_var(--header-h))] min-h-166 max-w-(--content-max) grid-cols-[var(--rail-w)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)]">
       <Rail state={state} onMove={move} onRelease={release} />
@@ -862,6 +924,17 @@ export function LensScreen() {
           <h2 id={PAGE_TITLE_ID} title={title} className="min-w-0 flex-1 truncate label text-ink-2">
             {title}
           </h2>
+          <Button
+            ref={urlToggle}
+            variant="outline"
+            size="icon"
+            aria-label="Open a URL"
+            aria-expanded={urlRowShown}
+            aria-controls={urlRowShown ? URL_ROW_ID : undefined}
+            onClick={() => (urlRowShown ? hideUrlRow() : setUrlRowOn(state.page))}
+          >
+            <Link2 aria-hidden="true" strokeWidth={1.75} />
+          </Button>
           <SegmentedControl
             label="View"
             options={VIEWS}
@@ -869,9 +942,9 @@ export function LensScreen() {
             onValueChange={showView}
           />
         </div>
-        {/* A row of its own, so nothing in the header row moves; the stage below gives up its
-            height. Keyed by the page, so a navigation resets the field and the alert. */}
-        <UrlRow key={state.page} search={search} state={state} />
+        {/* A row of its own while shown, so nothing in the header row moves; the stage gives up
+            its height only then. */}
+        {urlRowShown ? <UrlRow search={search} state={state} onClose={hideUrlRow} /> : null}
         {stage.kind === "stored" || stage.kind === "failed" ? (
           <Banner
             kind={stage.kind === "stored" ? "stored" : "fault"}
@@ -911,33 +984,30 @@ export function LensScreen() {
               {/* On a measuring surface of its own, as the frame is: the frame's shape, 16:9 and
                   fitted to the surface as the frame is, edged as the frame is, since the
                   skeleton's paper is the surface's own. */}
-              <div className="grid min-h-0 flex-1 @container-size place-items-center p-4 measure">
+              <div className={MEASURING_SURFACE}>
                 <Skeleton className="aspect-video w-[min(100cqw,100cqh*16/9)] rounded-md border border-line-strong" />
               </div>
             </>
           ) : stage.kind === "failed" ? null : (
-            <>
-              {stage.kind === "stored" ? null : state.onTargetApp ? (
-                <p className="body text-ink-2">
-                  Live: <span className="font-mono">{stage.observation.url}</span> on {device}, at
-                  the target app's default parameters.
-                </p>
-              ) : (
-                <p className="body text-ink-2">
-                  Live: <span className="font-mono">{stage.observation.url}</span> on {device},
-                  opened as given.
-                </p>
-              )}
-              <PerceivedPage
-                key={scene}
-                observation={stage.observation}
-                evidence={state.view === "evidence"}
-                subject={subject}
-              />
-            </>
+            <PerceivedPage
+              key={scene}
+              observation={stage.observation}
+              evidence={state.view === "evidence"}
+              subject={subject}
+              // The `Live:` line, under the page, where it costs the stage no height (#224). A
+              // stored page has none: its banner says where it came from.
+              source={
+                liveLine ? (
+                  <>
+                    Live: <span className="font-mono">{stage.observation.url}</span> on {device},{" "}
+                    {opened}.
+                  </>
+                ) : undefined
+              }
+            />
           )}
         </div>
-        <ReadoutStrip stage={stage} page={state.page} onTargetApp={state.onTargetApp} />
+        <ReadoutStrip stage={stage} page={state.page} axeNote={axeNote} />
       </section>
     </div>
   );

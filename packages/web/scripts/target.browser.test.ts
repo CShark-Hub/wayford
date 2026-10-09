@@ -259,7 +259,9 @@ test("with a target remembered, a typed /lens opens the target app's /deliveries
   await page.goto(`${app.origin}/lens`);
   await page.getByText("Live: http://localhost:5174/deliveries on desktop").waitFor();
   expect(new URL(page.url()).search).toBe("");
-  // The URL row is empty, as on any target-app page, and io was asked for /deliveries alone.
+  // The URL row, once shown, is empty, as on any target-app page, and io was asked for
+  // /deliveries alone.
+  await page.getByRole("button", { name: "Open a URL" }).click();
   expect(await page.locator("#lens-url").inputValue()).toBe("");
   expect(asked.filter((request) => request.startsWith("GET /api/measure"))).toEqual([
     "GET /api/measure?device=desktop&page=%2Fdeliveries",

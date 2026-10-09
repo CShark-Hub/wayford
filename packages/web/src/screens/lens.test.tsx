@@ -43,6 +43,7 @@ import { illustrationQuery } from "../api/illustration.js";
 import { measurementQuery } from "../api/measure.js";
 import {
   attributesOf,
+  captionLinesOf,
   captionOf,
   classesOf,
   type Drawn,
@@ -518,9 +519,28 @@ test("Perceived, Evidence and Illustration carry aria-checked in each view", asy
 });
 
 test("the caption names the persona, and says thresholds edited once they move", async () => {
-  expect(captionOf(await render(VERA))).toBe("The page as perceive returns it for Vera, seed 1.");
-  expect(captionOf(await render(`${VERA}&contrast=2`))).toBe(
+  expect(captionLinesOf(await render(VERA))[0]).toBe(
+    "The page as perceive returns it for Vera, seed 1.",
+  );
+  expect(captionLinesOf(await render(`${VERA}&contrast=2`))[0]).toBe(
     "The page as perceive returns it for Vera, thresholds edited, seed 1.",
+  );
+});
+
+test("the Live: line is the caption's second line, under the page, in both views (#224)", async () => {
+  const live =
+    "Live: http://localhost:5174/deliveries on desktop, at the target app's default parameters.";
+  expect(captionLinesOf(await render(VERA))).toEqual([
+    "The page as perceive returns it for Vera, seed 1.",
+    live,
+  ]);
+  expect(captionLinesOf(await render(`${VERA}&evidence=true`))).toEqual([
+    "Evidence, not perception: dashed outlines mark what perceive removed for Vera, seed 1, each with its rule.",
+    live,
+  ]);
+  // On a URL page it names the URL as opened.
+  expect(captionLinesOf(await render(VERA_AT_EXAMPLE, exampleClient()))[1]).toBe(
+    `Live: ${EXAMPLE} on desktop, opened as given.`,
   );
 });
 
@@ -730,7 +750,7 @@ function axeRulesOf(card: string): string[] {
   return [...card.matchAll(/<li(?:\s[^>]*)?>(.*?)<\/li>/gs)].map((m) => textOf(m[1] ?? ""));
 }
 
-const SCANNED_ONCE = "Scanned once per page on desktop, at the target app's default parameters.";
+const SCANNED_ONCE = "Scanned once per page, on desktop.";
 
 /**
  * A client that holds io's answers as `liveClient` does, except that its axe-core scan of `page`
@@ -746,6 +766,25 @@ async function axeFailedClient(page: string, reason: string): Promise<QueryClien
   });
   return client;
 }
+
+test("the card's note names the parameters wherever no Live: line above it does (#224)", async () => {
+  const withParameters =
+    "Scanned once per page on desktop, at the target app's default parameters.";
+  // A live page in the perceived or evidence view: its Live: line names them, so the note is short.
+  for (const path of [VERA, `${VERA}&evidence=true`]) {
+    expect(lineOf(axeCardOf(await render(path))), path).toContain(SCANNED_ONCE);
+  }
+  // A stored page and the illustration view have no Live: line, so the note keeps them.
+  // The measurement failed while the scan is held, so the card reads it.
+  const down = await failedClient("desktop", "/deliveries");
+  down.setQueryData(axeQuery("/deliveries").queryKey, axeScanOf("/deliveries"));
+  const stored = await render(VERA, down);
+  expect(textOf(stored)).not.toContain("Live: ");
+  expect(lineOf(axeCardOf(stored))).toContain(withParameters);
+  const pictured = await render(VERA_PICTURED);
+  expect(textOf(pictured)).not.toContain("Live: ");
+  expect(lineOf(axeCardOf(pictured))).toContain(withParameters);
+});
 
 test("on /deliveries the card counts axe-core's one violation and names its rule", async () => {
   const html = await render(VERA);
@@ -1209,13 +1248,25 @@ test("a url= link measures and draws that page, live, opened as given", async ()
   expect(statusOf(html)).toBeUndefined();
   expect(textOf(html)).toContain("Live: https://example.com/ on desktop, opened as given.");
   expect(textOf(html)).not.toContain("default parameters");
-  expect(lineOf(axeCardOf(html))).toBe(
-    "axe-core, WCAG 2.2 A and AA: 0 violations Scanned once per page on desktop, opened as given.",
-  );
+  expect(lineOf(axeCardOf(html))).toBe(`axe-core, WCAG 2.2 A and AA: 0 violations ${SCANNED_ONCE}`);
   // While io measures it, the status line names the URL.
   const fresh = await render(VERA_AT_EXAMPLE, new QueryClient());
   expect(statusOf(fresh)).toBe("Measuring https://example.com/ on desktop…");
   expect(lineOf(axeCardOf(fresh))).toBe("axe-core is scanning https://example.com/…");
+});
+
+test("a failed URL page's axe note says the page was opened as given, with no Live: line above it (#224)", async () => {
+  const down = await failedClient("desktop", EXAMPLE);
+  down.setQueryData(axeQuery(EXAMPLE).queryKey, {
+    ...axeScanFixture("/deliveries"),
+    url: EXAMPLE,
+    violations: [],
+  });
+  const html = await render(VERA_AT_EXAMPLE, down);
+  expect(textOf(html)).not.toContain("Live: ");
+  expect(lineOf(axeCardOf(html))).toBe(
+    "axe-core, WCAG 2.2 A and AA: 0 violations Scanned once per page on desktop, opened as given.",
+  );
 });
 
 test("a failed URL page draws no page, never the stored /deliveries, and says why", async () => {
@@ -1250,7 +1301,7 @@ test("a url= link round-trips as a plain anchor writes it and as encodeURICompon
     perceiveSpy.mockClear();
     const html = renderRouter(router, exampleClient());
     expect(titleOf(html), path).toBe("Example Domain");
-    expect(urlFormOf(html).input.value, path).toBe(EXAMPLE);
+    expect(textOf(html), path).toContain(`Live: ${EXAMPLE} on desktop, opened as given.`);
   }
 });
 
@@ -1291,13 +1342,40 @@ test("Kai on a url= page gets no jargon list: Fulfilment ledger is masked on pag
   expect(plain.map((box) => box.name)).not.toContain("[unfamiliar term]");
 });
 
-test("the URL form shows the page's URL, is noValidate, reads a value as LensUrl does, and shows the alert under a refused one", async () => {
-  // On a URL page the field holds its URL; on a target-app page it is empty.
-  const atExample = urlFormOf(await render(VERA_AT_EXAMPLE, exampleClient()));
+/** The header row's button that shows the URL row, by its start tag's attributes. */
+function urlToggleOf(html: string) {
+  const tag = html.match(/<button(?=[^>]*\saria-label="Open a URL")(\s[^>]*)>/)?.[1];
+  if (tag === undefined) throw new Error("No URL toggle");
+  return attributesOf(tag);
+}
+
+test("the URL row is hidden until its button shows it, on a target-app page and on a URL page alike", async () => {
+  // #224: the row's height goes to the drawn page until someone asks to type a URL.
+  for (const [path, client] of [
+    [VERA, undefined],
+    [VERA_AT_EXAMPLE, exampleClient()],
+  ] as const) {
+    const html = await render(path, client);
+    expect(urlToggleOf(html)["aria-expanded"], path).toBe("false");
+    expect(urlToggleOf(html)["aria-controls"], path).toBeUndefined();
+    expect(html, path).not.toContain("<form");
+    expect(html, path).not.toContain('id="lens-url"');
+  }
+});
+
+test("the URL form shows the value it is given, is noValidate, reads a value as LensUrl does, and shows the alert under a refused one", async () => {
+  // The screen gives the field a URL page's URL, and nothing on a target-app page.
+  const atExample = urlFormOf(
+    renderToStaticMarkup(
+      <UrlForm value={EXAMPLE} refused={false} onOpen={() => {}} onClose={() => {}} />,
+    ),
+  );
   // React's server markup keeps the prop's camel case, `noValidate=""`.
   expect(atExample.form).toMatchObject({ "aria-label": "Open a page by URL", noValidate: "" });
   expect(atExample.input).toMatchObject({ type: "url", name: "url", value: EXAMPLE });
-  const html = await render(VERA);
+  const html = renderToStaticMarkup(
+    <UrlForm value="" refused={false} onOpen={() => {}} onClose={() => {}} />,
+  );
   expect(urlFormOf(html).input.value).toBe("");
   expect(textOf(elementOf(html, "form", 'aria-label="Open a page by URL"'))).toBe("urlOpen");
   expect(alertsOf(html)).toEqual([]);
@@ -1314,14 +1392,18 @@ test("the URL form shows the page's URL, is noValidate, reads a value as LensUrl
     expect(openedSearch(search, refused), refused).toBeUndefined();
   }
   // A refused value shows the one alert under the row, tied to the field.
-  const shown = renderToStaticMarkup(<UrlForm value="example.com" refused onOpen={() => {}} />);
+  const shown = renderToStaticMarkup(
+    <UrlForm value="example.com" refused onOpen={() => {}} onClose={() => {}} />,
+  );
   expect(alertsOf(shown)).toEqual(["Enter a whole http(s) URL, such as https://example.com/"]);
   const field = urlFormOf(shown).input;
   expect(field["aria-invalid"]).toBe("true");
   const alertId = shown.match(/<p(?=[^>]*\srole="alert")[^>]*\sid="([^"]+)"/)?.[1];
   expect(alertId).toBeDefined();
   expect(field["aria-describedby"]).toBe(alertId);
-  const quiet = renderToStaticMarkup(<UrlForm value="" refused={false} onOpen={() => {}} />);
+  const quiet = renderToStaticMarkup(
+    <UrlForm value="" refused={false} onOpen={() => {}} onClose={() => {}} />,
+  );
   expect(alertsOf(quiet)).toEqual([]);
   expect(urlFormOf(quiet).input["aria-invalid"]).toBeUndefined();
 });
