@@ -1,5 +1,6 @@
 import type { StartedRun, Task } from "@wayford/core";
 import { afterEach, expect, test, vi } from "vitest";
+import { pickBackend } from "../actor-backend.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { dispatched, foreignTask, withPersonas } from "./fixture-race.js";
 import { checkGoal, startRace } from "./panel-calls.js";
@@ -64,6 +65,7 @@ function ready(): PanelState {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  pickBackend("llm");
 });
 
 test("checkGoal: a sentence edited while io checks the old one drops the late answer", async () => {
@@ -114,6 +116,7 @@ test("startRace: io's 202 starts the race, and spends the check, so the next rac
     taskId: acceptedTask.id,
     profileIds: bundledProfiles.slice(0, MIN_PERSONAS).map((profile) => profile.id),
     seeds: [1],
+    backend: "llm",
   });
   expect(screen.actions.map(({ type }) => type)).toStrictEqual(["startStarted", "startSucceeded"]);
   // The race io keeps, which the screen opens by its id: io holds its task, seed and runs.
@@ -122,6 +125,22 @@ test("startRace: io's 202 starts the race, and spends the check, so the next rac
   // and gets a task of its own: its report then reads its runs alone.
   expect(screen.state().starting).toBe(false);
   expect(startBlocker(screen.state())).toMatch(/^Check the goal first/);
+});
+
+test("startRace sends the backend picked in the settings dialog, read when Start is pressed", async () => {
+  const started: StartedRun[] = bundledProfiles.slice(0, MIN_PERSONAS).map((profile, i) => ({
+    id: `run_jev-${i + 1}`,
+    profileId: profile.id,
+    seed: 1,
+  }));
+  const fetch = answer(Response.json({ raceId: "race_jev-1", runs: started }, { status: 202 }));
+  const screen = panel(ready());
+  pickBackend("jev");
+
+  await startRace(screen.state(), bundledProfiles, screen.dispatch);
+
+  const [, init] = fetch.mock.calls[0] ?? [];
+  expect(JSON.parse(String(init?.body))).toMatchObject({ backend: "jev" });
 });
 
 test("a stored goal starts with POST /runs alone, no POST /tasks", async () => {
@@ -147,6 +166,7 @@ test("a stored goal starts with POST /runs alone, no POST /tasks", async () => {
     taskId: foreignTask.id,
     profileIds: bundledProfiles.slice(0, MIN_PERSONAS).map((profile) => profile.id),
     seeds: [1],
+    backend: "llm",
   });
   expect(screen.actions.map(({ type }) => type)).toStrictEqual(["startStarted", "startSucceeded"]);
   expect(race).toBe("race_stored-1");

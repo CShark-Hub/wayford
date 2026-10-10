@@ -72,7 +72,7 @@ Agreed 2026-10-04, for week 4. What we ship is what `docs/DEMO.md` shows: every 
 Cut for the hackathon, so nobody builds them:
 
 - F1 AC1, the profile builder. The personas are the five fixtures; the preview's sliders change thresholds.
-- Jev in the arena: no backend toggle, no Jev tiles.
+- Jev tiles in the arena. The backend toggle was brought back on 2026-10-10 (`s3-19`): one switch in Settings, the LLM by default, for races started on the Race screen. The Target screen stays on the LLM.
 - The collector gaps (#124 to #127, #146, #149) and #64 beyond the sweep fields, unless a demo beat or the rehearsal on our site (`s4-08`) hits one.
 - A route table for the easy goal, and target-app tasks that need typing. A goal on another site may need typing: it runs on the LLM, which can type (`docs/adr/0003-any-target.md` D9).
 

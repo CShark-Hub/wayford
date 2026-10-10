@@ -39,6 +39,7 @@ import { z } from "zod";
 import { Banner } from "#components/banner";
 import { Skeleton } from "#components/skeleton";
 import { Button, buttonVariants } from "#components/ui/button";
+import { useActorBackend } from "../actor-backend.js";
 import { type Race, raceQuery } from "../api/races.js";
 import { runQuery, tasksQuery } from "../api/runs.js";
 import { RaceHistory } from "../arena/history.js";
@@ -183,6 +184,7 @@ function OpeningGoal({
   onStarted: (raceId: RaceId) => void;
 }) {
   const { panel, dispatch } = usePanel();
+  const backend = useActorBackend();
   const tasks = useQuery(storedTasksQuery());
   const [settled, setSettled] = useState<Opening>();
   let opening = settled;
@@ -214,6 +216,7 @@ function OpeningGoal({
         state={shown}
         profiles={bundledProfiles}
         stored={storedOf(tasks)}
+        backend={backend}
         onAction={dispatch}
         onCheck={() => void checkGoal(shown, dispatch)}
         onStart={() =>

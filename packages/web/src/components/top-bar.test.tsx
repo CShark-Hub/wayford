@@ -79,6 +79,13 @@ test("the nav numbers Target, Cast, Lens, Race, Report and Boundary, 00 to 05, a
   expect(apart.map((link) => link.name)).toEqual(["Runs"]);
 });
 
+test("right of Runs the bar holds the settings gear, then the theme toggle", async () => {
+  const bar = topBarOf(await render("/cast"));
+  const apart = bar.slice(bar.indexOf("</nav>"));
+  const named = [...apart.matchAll(/<button[^>]*\saria-label="([^"]*)"/g)].map((m) => m[1]);
+  expect(named).toEqual(["Settings", expect.stringMatching(/^Switch to /)]);
+});
+
 test("with no target, every link is today's", async () => {
   stubSessionStorage();
   expect(await hrefsOn("/cast")).toEqual([

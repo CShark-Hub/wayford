@@ -91,7 +91,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 - Rehearse the race on candidate seeds, and pick the live one for pace: a seed where the race ends inside its 26 seconds. If asked, say so. The report shows every seed.
 - Record the backup video of the full 90 seconds (`docs/ROADMAP.md`, week 4).
 - One browser window, tabs open on the Lens (Ada, `/deliveries`), the Race (preset filled), the Report and the Boundary screen. Zoom checked on the projector.
-- `pnpm dev` running, the key's balance checked, the Race on the LLM: `LLM_ACTOR_BACKEND` unset or `llm`.
+- `pnpm dev` running, the key's balance checked, the Race on the LLM: Settings → Actor backend on LLM in the demo browser. `LLM_ACTOR_BACKEND` sets only sweeps and `seed:demo`.
 - If the target app is down, the Lens shows the stored page and its banner (F2 AC5). Carry on.
 - If anything else breaks, switch to the backup video at the current beat.
 

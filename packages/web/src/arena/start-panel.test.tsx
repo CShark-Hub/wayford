@@ -1,4 +1,4 @@
-import type { Profile, Task } from "@wayford/core";
+import type { Profile, ReportBackend, Task } from "@wayford/core";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { type Extraction, extractTask } from "../api/runs.js";
@@ -32,6 +32,7 @@ function render(
   state: PanelState,
   profiles: readonly Profile[] = bundledProfiles,
   stored: StoredGoals = NONE_STORED,
+  backend: ReportBackend = "llm",
 ): string {
   const inert = () => {};
   return renderToStaticMarkup(
@@ -39,6 +40,7 @@ function render(
       state={state}
       profiles={profiles}
       stored={stored}
+      backend={backend}
       onAction={inert}
       onCheck={inert}
       onStart={inert}
@@ -544,7 +546,9 @@ test("every control is drawn, named and described, and the panel never says disa
     expect(line).toMatch(/personas/);
     // The seed keeps its hint.
     const seed = attributesOf(input(html, "arena-seed"));
-    expect(textById(html, seed["aria-describedby"] ?? "")).toBe("One seed for every persona");
+    expect(textById(html, seed["aria-describedby"] ?? "")).toBe(
+      "One seed for every persona, on the LLM",
+    );
     // What a person or a screen reader gets, as `router.test.tsx` collects it.
     const said = [
       ...[...html.matchAll(/>([^<]+)</g)].map((m) => m[1] ?? ""),
@@ -672,4 +676,10 @@ test("a stored goal's element success is a line, not a field: an edited sentence
   expect(attributesOf(button(html, "Check the goal"))).not.toHaveProperty("disabled");
   expect(lineOf(html)).not.toContain(NO_SUCCESS);
   expect(lineOf(html)).toContain("Check the goal first");
+});
+
+test("the seed's hint names the backend the race runs on, as the settings dialog picks it", () => {
+  const html = render(initialPanel(), bundledProfiles, NONE_STORED, "jev");
+  const seed = attributesOf(input(html, "arena-seed"));
+  expect(textById(html, seed["aria-describedby"] ?? "")).toBe("One seed for every persona, on Jev");
 });

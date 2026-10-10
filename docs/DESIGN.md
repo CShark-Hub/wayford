@@ -172,7 +172,8 @@ The spacing steps (`space-1` to `space-9`, a 4 px grid), radii, layout sizes (`h
 - **One top bar:** `header-h`, with a hairline under it.
   - Wordmark left.
   - The story nav in the middle, numbered in mono: `00 Target`, `01 Cast`, `02 Lens`, `03 Race`, `04 Report`, `05 Boundary`. With a current target set, `00 Target` names its host, and Target, Lens, Race and Report lead to it (`docs/adr/0003-any-target.md`, D11–D13).
-  - `Runs` apart on the right, then the theme toggle. The bar is the same on every screen: nothing in it comes from a screen's data.
+  - `Runs` apart on the right, then the settings gear, then the theme toggle. The bar is the same on every screen: nothing in it comes from a screen's data.
+  - The gear opens Settings, a dialog: the Actor backend the Race screen's races run on, LLM or Jev, stored per browser. The OpenRouter key and each role's model are drawn too, read-only, each naming its variable: io reads them from `.env` until after the demo (`tasks/s3-19-settings-dialog.md`).
   - No sidebar, no command palette.
 - **One page column:** `content-max`, centred, with `space-6` gutters. Rails are `rail-w`.
 - **Radii by role:**
@@ -190,6 +191,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | Component | What it is | Built in |
 |---|---|---|
 | TopBar | Wordmark, story nav, Target and Runs, theme toggle | `s3-13` |
+| SettingsDialog | The gear in the top bar and its dialog: the Actor backend switch, the key and models read-only | `s3-19` |
 | Button | Ink primary (one per view), outlined default, ghost; 40 px, never under 32 px | `s3-13` |
 | PersonaAvatar, PersonaChip | The existing avatar in slot colours on a squircle tile; 12 px square and name | `s3-13` |
 | SegmentedControl | Two to five sibling views; mono variant for paths and ids | `s3-13` |

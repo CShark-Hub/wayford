@@ -1,12 +1,13 @@
 /**
  * The one bar on every screen (`docs/DESIGN.md`, "Space, shape and layout"): the wordmark, the
- * numbered story nav, which carries the current target, then Runs, and the theme toggle. Nothing in
- * it comes from a screen's data. No sidebar and no command palette.
+ * numbered story nav, which carries the current target, then Runs, the settings gear and the theme
+ * toggle. Nothing in it comes from a screen's data. No sidebar and no command palette.
  */
 import { Link, linkOptions } from "@tanstack/react-router";
 import type { RaceId } from "@wayford/core";
 import { useShownRace } from "../arena/shown-race.js";
 import { type TargetLinks, targetLinks, useCurrentTarget } from "../target/current-target.js";
+import { SettingsDialog } from "./settings-dialog.js";
 import { ThemeToggle } from "./theme-toggle.js";
 import { buttonVariants } from "./ui/button.js";
 
@@ -122,6 +123,7 @@ export function TopBar() {
         <Link to="/runs" className={buttonVariants({ variant: "ghost" })}>
           Runs
         </Link>
+        <SettingsDialog />
         <ThemeToggle />
       </div>
     </header>

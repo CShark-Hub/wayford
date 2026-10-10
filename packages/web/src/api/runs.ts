@@ -165,9 +165,9 @@ export type RunsRequest = {
 
 /**
  * `POST /api/runs` with `{ taskId, profileIds, seeds }`, and `backend` only when it is given: with
- * none, io runs the set on its default Actor backend, so the Race's body is unchanged. io's 202
- * parses `{ raceId, runs }`; a non-OK answer rejects with io's `error` text (a 404 names the
- * unknown task or profile).
+ * none, io runs the set on its default Actor backend. The Race and the Target screen always name
+ * one. io's 202 parses `{ raceId, runs }`; a non-OK answer rejects with io's `error` text (a 404
+ * names the unknown task or profile).
  */
 export async function startRuns(request: RunsRequest): Promise<StartedRace> {
   return parseResponse(await postJson("/api/runs", request), StartedRace, "a started race");

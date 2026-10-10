@@ -5,6 +5,7 @@
  * answer may change.
  */
 import type { Profile, RaceId } from "@wayford/core";
+import { currentBackend } from "../actor-backend.js";
 import { type Extraction, extractTask, type StartedRace, startRuns } from "../api/runs.js";
 import {
   checkedFor,
@@ -43,9 +44,10 @@ export async function checkGoal(
 }
 
 /**
- * Ask io to start the race `state` describes, the personas in `profiles`' order. The id of the race
- * io started, which the screen opens by its URL, or `undefined` when io refused (the panel then
- * shows io's reason) or the check is not accepted, which Start's blocker rules out.
+ * Ask io to start the race `state` describes, the personas in `profiles`' order, on the backend
+ * picked in the settings dialog (`actor-backend.ts`), read at the press. The id of the race io
+ * started, which the screen opens by its URL, or `undefined` when io refused (the panel then shows
+ * io's reason) or the check is not accepted, which Start's blocker rules out.
  */
 export async function startRace(
   state: PanelState,
@@ -53,7 +55,7 @@ export async function startRace(
   dispatch: (action: PanelAction) => void,
 ): Promise<RaceId | undefined> {
   if (state.check.status !== "accepted") return undefined;
-  const request = runsRequestOf(state, profiles);
+  const request = { ...runsRequestOf(state, profiles), backend: currentBackend() };
   dispatch({ type: "startStarted" });
   let started: StartedRace;
   try {

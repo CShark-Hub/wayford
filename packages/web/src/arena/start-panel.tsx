@@ -10,12 +10,13 @@
  * control for the presets and a native select for the stored goals, and each persona a pressed or
  * unpressed button.
  */
-import type { Profile, ProfileId, SuccessCondition } from "@wayford/core";
+import type { Profile, ProfileId, ReportBackend, SuccessCondition } from "@wayford/core";
 import { cn } from "cn";
 import { PersonaAvatar } from "#components/persona-avatar";
 import { SegmentedControl } from "#components/segmented-control";
 import { Skeleton } from "#components/skeleton";
 import { Button } from "#components/ui/button";
+import { onBackend } from "../actor-backend.js";
 import {
   fixedSuccess,
   GOAL_PRESETS,
@@ -405,14 +406,16 @@ function CastPicker({
 }
 
 /**
- * The setup strip at `state`, offering `stored`, io's stored goals, beside the presets. `onAction`
- * takes every edit, `onCheck` asks io to check the sentence and `onStart` starts the race; the
- * screen does both calls, and dispatches what they answer.
+ * The setup strip at `state`, offering `stored`, io's stored goals, beside the presets, and naming
+ * `backend`, the one the race runs on. `onAction` takes every edit, `onCheck` asks io to check the
+ * sentence and `onStart` starts the race; the screen does both calls, and dispatches what they
+ * answer.
  */
 export function StartPanel({
   state,
   profiles,
   stored,
+  backend,
   onAction,
   onCheck,
   onStart,
@@ -420,6 +423,7 @@ export function StartPanel({
   state: PanelState;
   profiles: readonly Profile[];
   stored: StoredGoals;
+  backend: ReportBackend;
   onAction: (action: PanelAction) => void;
   onCheck: () => void;
   onStart: () => void;
@@ -462,7 +466,7 @@ export function StartPanel({
             </Button>
           </div>
           <p id={SEED_HINT_ID} className="body text-ink-3">
-            One seed for every persona
+            {`One seed for every persona, ${onBackend(backend)}`}
           </p>
           {blocker === undefined ? null : (
             <p id={BLOCKER_ID} className="max-w-100 text-right body text-ink-2">
