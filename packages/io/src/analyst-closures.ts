@@ -57,10 +57,10 @@ const SCOUT_NOT_REACHED =
  * The provenance of `rule` for `profile`: copied from its threshold, or `folk`.
  *
  * P1 and P2 copy `perception.contrast`'s source, P3 `fontPx`'s and P4 `targetPx`'s. A1, A3, K1,
- * K2, K4 and V2 are `folk`: the profile carries no source for its caps, its pattern lists or its
- * vocabulary (`kai.yaml` says they are folk, and the jargon list is `folk`), and a rule without a
- * source says `folk` (`AGENTS.md`, "Provenance on every threshold"). V2 reads the device, which
- * every profile has.
+ * K2, K4, V2 and V3 are `folk`: the profile carries no source for its caps, its pattern lists or
+ * its vocabulary (`kai.yaml` says they are folk, and the jargon list is `folk`), and a rule without
+ * a source says `folk` (`AGENTS.md`, "Provenance on every threshold"). V2 reads the device, which
+ * every profile has, and V3 the page (#229).
  *
  * A rule whose input the profile does not set has none, and the caller drops the entry: a
  * perception rule without its threshold, A1 or A3 without the cap, K1 and K4 with no unknown
@@ -88,6 +88,7 @@ export function provenanceOf(rule: RuleId, profile: Profile): ProvenanceId | und
     case "K2":
       return folkIf(knowledge.domainVocabulary !== undefined);
     case "V2":
+    case "V3":
       return "folk";
     default:
       return undefined;
@@ -193,7 +194,9 @@ export function fallbackRecommendation(closing: RouteClosed): string {
     case "attention":
       return "Make it stand out more on the page, or put fewer things beside it.";
     case "viewport":
-      return "Bring it into view without scrolling.";
+      return decision.rule === "V2"
+        ? "Bring it into view without scrolling."
+        : "Keep it clear of what the page draws over it.";
     case "knowledge":
       return "Give it a visible text label in everyday words.";
   }
@@ -300,6 +303,9 @@ export function clauseOf(decision: ElementDecision, profile: Profile): string {
         ? `A1: ${label}'s attention cap${cap(profile.behaviour.maxElements, "elements")} cuts it.`
         : `A3: ${label}'s option cap${cap(profile.behaviour.maxOptions, "entries")} cuts it.`;
     case "viewport": {
+      if (decision.side === undefined) {
+        return "V3: something the page paints lies over it, where a click on it lands.";
+      }
       const where = decision.side === "left" || decision.side === "right" ? "of " : "";
       return `V2: it lies wholly ${decision.side} ${where}the viewport.`;
     }

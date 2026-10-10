@@ -88,14 +88,15 @@ const CROP_MARGIN_PX = 24;
 
 /**
  * How tall the canvas is drawn, in measured CSS px: 24 px under the lowest bottom edge of the
- * elements `perceive` left in the viewport, those with no `viewport` decision (V2), whatever else
- * removed or degraded them, so a slider never moves it; never taller than the viewport, and the
- * viewport's height when V2 removed every element.
+ * elements `perceive` left in the viewport, those with no V2 decision, whatever else removed or
+ * degraded them, so a slider never moves it; never taller than the viewport, and the viewport's
+ * height when V2 removed every element. An element V3 cut is in the viewport, under what the page
+ * paints over it (#229).
  */
 export function croppedHeight(observation: FullObservation): number {
   const { height } = observation.viewport;
   const bottoms = observation.elements
-    .filter((element) => !element.decisions.some((d) => d.stage === "viewport"))
+    .filter((element) => !element.decisions.some((d) => d.rule === "V2"))
     .map(({ bbox }) => bbox.y + bbox.height);
   if (bottoms.length === 0) return height;
   return Math.min(Math.max(...bottoms) + CROP_MARGIN_PX, height);
@@ -171,15 +172,15 @@ function BoxName({ element, name }: { element: ObservedElement; name: string }) 
 
 /**
  * One line of a cut flag: `P1 · 2.005 < 3`, the value and threshold as `perceive` recorded them,
- * never rounded; `V2 · below`; `A1 · attention` or `A3 · options`, in the strip's words. A
- * knowledge decision renames and never removes, so no flag lists one.
+ * never rounded; `V2 · below`; `V3 · covered`, `A1 · attention` or `A3 · options`, in the strip's
+ * words. A knowledge decision renames and never removes, so no flag lists one.
  */
 function flagLine(decision: ElementDecision): string {
   switch (decision.stage) {
     case "perception":
       return `${decision.rule} · ${decision.value} < ${decision.threshold}`;
     case "viewport":
-      return `V2 · ${decision.side}`;
+      return `${decision.rule} · ${decision.side ?? RULE_WORDS.get(decision.rule)}`;
     case "attention":
       return `${decision.rule} · ${RULE_WORDS.get(decision.rule)}`;
     default:

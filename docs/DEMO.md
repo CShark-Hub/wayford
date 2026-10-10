@@ -374,6 +374,21 @@ Each goal went through the spec's steps, section 2: the form, Scout, the set and
 - **Speed.** A new page measured in 5 to 6 s. After that, each persona switch took under a second, except Milo's mobile measurement at 3 to 5 s.
 - **axe:** 3 violations on the home page and the listing, 2 on `/about/`.
 - **How the pages were opened:** "Open in the Lens" first, then the Lens's own URL field.
+- **Measured before V3 (#229, PR #232).** V3 cuts what the CookieYes bar paints over until it is accepted. Remeasured on 2026-10-09 at seed 1, each persona on its own device, the pages give the counts above exactly without V3, and these with it. The runs stay as recorded:
+
+  | Page | Ada | Kai | Milo | Vera | Zoya |
+  |---|---|---|---|---|---|
+  | `https://www.cshark.com/` | 15 / 174 | 11 / 178 | 7 / 190 | 6 / 183 | 1 / 188 |
+  | `https://www.cshark.com/about/` | 17 / 112 | 11 / 118 | 8 / 131 | 8 / 121 | 2 / 127 |
+  | `https://www.cshark.com/careers/job-offers/` | 16 / 117 | 11 / 122 | 8 / 138 | 7 / 126 | 1 / 132 |
+
+  - V3 joins every persona's rules. Under the bar sit:
+    - on the home page, "Get In Touch" and a paragraph on a desktop, or a heading on a phone;
+    - on `/about/`, "Get In Touch" alone on a desktop, and a heading too on a phone;
+    - on the listing, one icon link on a desktop.
+  - On the listing, Milo loses 8. Among them are the role's heading and its rate line, so on his phone they wait for the bar to be accepted.
+  - Kai's and Zoya's counts do not move. What the bar covers sits too low on the page for Kai's cap of 11, and Zoya's thresholds already cut it.
+  - Kai's step 0 on G1 does not move at any cap of the sweep: "About" is in his view at 11, 9 and 7, and out at 5 and 3.
 
 **The Race, seed 1**
 

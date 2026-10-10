@@ -197,6 +197,12 @@ describe("MeasuredElement (the filter's input, before any decision)", () => {
     }
   });
 
+  test("covered is there only as true, on a control or a text block alike (#229)", () => {
+    expect(MeasuredElement.safeParse({ ...archive, covered: true }).success).toBe(true);
+    expect(MeasuredElement.safeParse({ ...heading, covered: true }).success).toBe(true);
+    expect(MeasuredElement.safeParse({ ...archive, covered: false }).success).toBe(false);
+  });
+
   test("the key suffix check reads the whole role, not a tail of it", () => {
     // `main//link:x` ends in `k:x` too; only the full `//link:x` counts.
     const result = MeasuredElement.safeParse({

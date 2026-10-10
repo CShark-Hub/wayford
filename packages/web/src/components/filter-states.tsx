@@ -22,6 +22,7 @@ export const RULE_WORDS: ReadonlyMap<RuleId, string> = new Map<RuleId, string>([
   ["P3", "font size"],
   ["P4", "target"],
   ["V2", "viewport"],
+  ["V3", "covered"],
   ["K1", "pattern"],
   ["K2", "jargon"],
   ["K4", "pattern"],

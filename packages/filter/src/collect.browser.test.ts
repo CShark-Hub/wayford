@@ -120,9 +120,10 @@ async function missedByRole(page: Page, element: MeasuredElement): Promise<strin
 
 // Boxes are left out, since glyph positioning differs between operating systems (the task's box
 // 2). Target sizes are compared: they came out the same on every machine measured. `parts` too,
-// so a control the target app draws in parts (#124), which it has none of, would show here.
+// so a control the target app draws in parts (#124), which it has none of, would show here, and
+// `covered`, which it has none of either (#229).
 const comparable = ({ elements }: PageMeasurement) =>
-  elements.map(({ key, kind, role, name, metrics, parts, hasPopup, controls }) => ({
+  elements.map(({ key, kind, role, name, metrics, parts, hasPopup, controls, covered }) => ({
     key,
     kind,
     role,
@@ -133,6 +134,7 @@ const comparable = ({ elements }: PageMeasurement) =>
     parts,
     hasPopup,
     controls,
+    covered,
   }));
 
 test("collect on /deliveries matches measurementFixture", async () => {
@@ -161,6 +163,14 @@ test.each(TARGET_APP_PATHS)("getByRole finds every measured element on %s", asyn
     ).filter((miss) => miss !== undefined);
     expect(misses, `${misses.length} of ${elements.length} not found`).toStrictEqual([]);
   });
+});
+
+// The target app paints nothing over its own content: its menus open in the flow (`style.css`), so
+// V3 cuts nothing there, and neither the route table nor `seed:demo` moves with it (#229).
+test.each(TARGET_APP_PATHS)("nothing the page paints covers an element on %s", async (path) => {
+  const { elements } = await measure(`${path}${CONTRAST_2}`);
+  expect(elements.length, "elements measured").toBeGreaterThan(0);
+  expect(elements.filter((e) => e.covered).map((e) => e.key)).toStrictEqual([]);
 });
 
 test("collect then perceive twice gives the same Actor text", async () => {

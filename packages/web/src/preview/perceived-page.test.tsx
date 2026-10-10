@@ -153,6 +153,15 @@ function veraBelowTheFold(): FullObservation {
   return atFirstSeed(below, vera, (full) => softlyDegraded(full, ARCHIVE));
 }
 
+/** Order archive under something the page paints over it, for Ada: V3 removes it (#229). */
+function adaUnderACover(): FullObservation {
+  return observe(
+    withElement(ARCHIVE, (e) => ({ ...e, covered: true })),
+    ada,
+    1,
+  );
+}
+
 /**
  * Vera on the fixture with the kebab added and her target cut softened, as her softness slider
  * would: her band degrades the kebab, and since she does not know the pattern she reads it by its
@@ -446,6 +455,9 @@ test("a tag lists the rules that removed the element, never one that only degrad
   // Below the fold, V2 removes Order archive and Vera's band only degrades it.
   const belowHtml = render(veraBelowTheFold(), { evidence: true });
   expect(outlineOf(belowHtml, measured(ARCHIVE).name).tag).toEqual(["V2 · below"]);
+  // Under a cookie wall's backdrop, say, V3 removes it.
+  const coveredHtml = render(adaUnderACover(), { evidence: true });
+  expect(outlineOf(coveredHtml, measured(ARCHIVE).name).tag).toEqual(["V3 · covered"]);
   // Kai sets no threshold, so his cap is all that removes an element, and A1 is its whole tag.
   const kaiHtml = render(observe(measurementFixture, kai, 1), { evidence: true });
   expect(outlines(kaiHtml).length).toBeGreaterThan(0);
@@ -460,14 +472,18 @@ test("a removal a perception rule made is drawn in signal; a cut that measured n
     expect(outline.classes, outline.name).toEqual(expect.arrayContaining(lookOf("removed")));
     expect(outline.flag, outline.name).toContain("bg-signal");
   }
-  // Kai's attention cap and V2 below the fold: dashed line-strong outlines, quiet flags, and no
-  // signal on either, since neither measured anything.
+  // Kai's attention cap, V2 below the fold and V3 under a cover: dashed line-strong outlines,
+  // quiet flags, and no signal on any, since none measured the persona.
   const kaiCuts = outlines(render(observe(measurementFixture, kai, 1), { evidence: true }));
   const belowCut = outlineOf(
     render(veraBelowTheFold(), { evidence: true }),
     measured(ARCHIVE).name,
   );
-  for (const outline of [...kaiCuts, belowCut]) {
+  const coveredCut = outlineOf(
+    render(adaUnderACover(), { evidence: true }),
+    measured(ARCHIVE).name,
+  );
+  for (const outline of [...kaiCuts, belowCut, coveredCut]) {
     expect(outline.classes, outline.name).toEqual(expect.arrayContaining(lookOf("cut")));
     expect(outline.flag, outline.name).toEqual(
       expect.arrayContaining(["bg-surface", "text-ink-2"]),
@@ -561,6 +577,12 @@ test("the canvas ends 24 px under the lowest element in the viewport, whatever i
   // Removed, Order archive still sets the crop, so a slider never moves the canvas's edge.
   const removing = atFirstSeed(page, vera, (f) => observed(f, ARCHIVE).state === "invisible");
   expect(croppedHeight(removing)).toBe(lowest + 24);
+  // So it does under a cover: V3 cuts it in the viewport (#229).
+  const covered = PageMeasurement.parse({
+    ...page,
+    elements: page.elements.map((e) => (e.key === ARCHIVE ? { ...e, covered: true } : e)),
+  });
+  expect(croppedHeight(observe(covered, ada, 1))).toBe(lowest + 24);
   // The canvas is that tall, and the frame fits it to the height it is given.
   const { frame, canvas } = frameAndCanvas(render(full, { evidence: false }));
   expect(canvas.height).toBe(`calc(${lowest + 24} * var(--px))`);

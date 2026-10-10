@@ -11,8 +11,8 @@
  * because the web preview (`s3-01`) runs it in the browser. `tsconfig.perceive.json` checks it
  * with no Node and no DOM types.
  *
- * Rules in scope (`docs/RULES.md`), in pipeline order: V2 outside the viewport; P1 contrast, P3
- * font size, P4 target size; K1 and K4, a pattern the persona does not know (`knowledge.ts`); K2,
+ * Rules in scope (`docs/RULES.md`), in pipeline order: V2 outside the viewport, V3 under what the
+ * page paints over it; P1 contrast, P3 font size, P4 target size; K1 and K4, a pattern the persona does not know (`knowledge.ts`); K2,
  * a jargon term the persona does not know (`vocabulary.ts`); A1, the attention cap
  * (`attention.ts`). The rest of the pipeline is not here yet, and nothing stands in for it.
  */
@@ -105,8 +105,12 @@ interface Decided {
  *   above. A box that overlaps the viewport at all is inside, and so is a zero-width or
  *   zero-height box at 0. One side per element, and left and right are checked first: the Actor
  *   scrolls only up and down, so a box off a corner is never counted as more below (#116).
- * - Then P1, P3 and P4, on every element, V2-cut ones too, because "every rule an element fails
- *   is recorded". A rule applies when the profile sets its threshold and the element has its
+ * - V3 on an element V2 left on screen that the measurement marks `covered`: something the page
+ *   paints is over the point a click on it lands on (#229). It is invisible, counted nowhere
+ *   (`docs/RULES.md`, "Covered (V3)") and never takes a slot of the attention cap. An element
+ *   gets V2 or V3, never both.
+ * - Then P1, P3 and P4, on every element, V2- and V3-cut ones too, because "every rule an element
+ *   fails is recorded". A rule applies when the profile sets its threshold and the element has its
  *   metric. They also decide the count: an element below the viewport is counted in
  *   `belowFoldCount` only when none of them is `invisible` (#118).
  * - A control drawn in parts (#124) has P1 and P3 judged on each part instead, and a part's state
@@ -131,7 +135,7 @@ interface Decided {
  * order and `hiddenCount` is 0.
  *
  * Final pass, down the order:
- * - Decisions are V2, P1, P3, P4, K1, K2, K4, A1, which is pipeline order, then rule id. The
+ * - Decisions are V2 or V3, P1, P3, P4, K1, K2, K4, A1, which is pipeline order, then rule id. The
  *   state is the worst of them.
  * - The evidence lists the elements in the order, and a shown element gets the next ref, so refs
  *   run `e1..eN` down it over shown elements only.
@@ -169,12 +173,12 @@ export function perceive(
   let belowFoldCount = 0;
   const decided: Decided[] = measurement.elements.map((element) => {
     const decisions: ElementDecision[] = [];
-    const offscreen = viewportDecision(element, viewport);
-    if (offscreen !== undefined) decisions.push(offscreen);
+    const unseen = viewportDecision(element, viewport);
+    if (unseen !== undefined) decisions.push(unseen);
     const { decisions: perceived, parts } = perceptionOf(element, profile.perception, runSeed);
     decisions.push(...perceived);
     // "N more below" is what scrolling could bring into view, not what perception removed (#118).
-    if (offscreen?.side === "below" && !perceived.some((d) => d.state === "invisible")) {
+    if (unseen?.side === "below" && !perceived.some((d) => d.state === "invisible")) {
       belowFoldCount += 1;
     }
     const patterns = knowledgeDecisions(element, profile.knowledge.unknownPatterns);
@@ -198,7 +202,7 @@ export function perceive(
     order = salienceOrder(measurement.elements, viewport).flatMap((index) => decided[index] ?? []);
     let kept = 0;
     for (const { decisions } of order) {
-      // What V2 or perception removed is skipped, never cut; knowledge never hides an element.
+      // What V2, V3 or perception removed is skipped, never cut; knowledge never hides an element.
       if (worstState(decisions) === "invisible") continue;
       if (kept < cap) {
         kept += 1;
@@ -246,8 +250,9 @@ export function perceive(
 }
 
 /**
- * V2: the side of the viewport the element lies wholly beyond, or nothing when it is on screen.
- * Left and right come first, so a box off a corner is never below (#116).
+ * V2: the side of the viewport the element lies wholly beyond. Left and right come first, so a box
+ * off a corner is never below (#116). Then V3, when it is on screen but the page paints over it
+ * (#229). Nothing when it is on screen and nothing covers it.
  */
 function viewportDecision(
   element: MeasuredElement,
@@ -258,7 +263,7 @@ function viewportDecision(
   if (x < 0 && x + width <= 0) return { stage: "viewport", rule: "V2", side: "left" };
   if (y >= viewport.height) return { stage: "viewport", rule: "V2", side: "below" };
   if (y < 0 && y + height <= 0) return { stage: "viewport", rule: "V2", side: "above" };
-  return undefined;
+  return element.covered ? { stage: "viewport", rule: "V3" } : undefined;
 }
 
 /**

@@ -154,14 +154,23 @@ export type PerceptionDecision = z.infer<typeof PerceptionDecision>;
  * `belowFoldCount`, since the Actor is told "N more below", and only when
  * perception left the element shown (#118). `above`, `left` and `right` are
  * counted nowhere.
+ *
+ * V3: on screen, but under something the page paints over the point a click
+ * on it lands on, such as a cookie wall's backdrop (`covered` on the measured
+ * element, #229). Invisible, with no side, and counted nowhere (why:
+ * `docs/RULES.md`, "Covered (V3)"). One schema for the stage, as for knowledge.
  */
 export const ViewportDecision = z
   .object({
     stage: z.literal("viewport"),
-    rule: z.literal("V2"),
-    side: z.enum(["above", "below", "left", "right"]),
+    rule: RuleId.extract(["V2", "V3"]),
+    side: z.enum(["above", "below", "left", "right"]).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => (d.rule === "V2") === (d.side !== undefined), {
+    path: ["side"],
+    message: "V2 names the side the element lies beyond, and only V2 carries a side",
+  });
 export type ViewportDecision = z.infer<typeof ViewportDecision>;
 
 /**
@@ -463,7 +472,8 @@ export type ObservedElement = z.infer<typeof ObservedElement>;
  * option cap cut. Each counted element is in `elements` as invisible with its
  * V2 or A1/A3 decision, enforced on `FullObservation`. What perception removed
  * (P1 to P4) is counted nowhere the Actor can see, below the viewport too
- * (#118): a person does not know how many things they failed to see.
+ * (#118): a person does not know how many things they failed to see. Neither
+ * is what V3 removed, under something the page paints over it (#229).
  *
  * Every `bbox`, in both shapes, is a position in the viewport, in CSS px, as
  * the `PageMeasurement` gave it. No scroll offset is kept (#119): a stored box

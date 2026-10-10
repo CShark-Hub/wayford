@@ -17,7 +17,8 @@
  * blocks nested in it (row 34), so a heading that holds a link is not named as Playwright names
  * it. Text drawn by an element with no role of either kind, outside every control and text block,
  * is measured as a box of text, a text block with the role `text` that `getByRole` cannot find
- * (#219). Light DOM of the top document only, no shadow roots or iframes (row 13).
+ * (#219). Light DOM of the top document only, no shadow roots or iframes (row 13). What paints
+ * over an element is read through an open shadow root and from a frame's own box too (#229).
  */
 import type { Bbox, ElementKind, Landmark, ScrollOffset, Viewport } from "@wayford/core";
 import type { BackgroundLayer } from "./contrast.js";
@@ -44,6 +45,8 @@ export interface RawElement {
   hasPopup?: string;
   /** The role of the first element its `aria-controls` names that exists, on a control. */
   controls?: string;
+  /** `true` when a layer the page paints above it hides the point a click on it lands on (#229). */
+  covered?: true;
 }
 
 /** The page as it reports itself. `isMobile` is not the page's to know (spec, row 8). */
@@ -508,6 +511,106 @@ export function measurePage(): RawPage {
     return { name: "", texts: runsOf(drawers ?? textDrawers(el)) };
   }
 
+  // Where a click on a box lands: the centre of its part inside the viewport, as the Actor's
+  // `actionPoint` takes it (`packages/agent/src/act.ts`). None for a box wholly off screen, which
+  // V2 cuts.
+  function clickPoint({ x, y, width, height }: DOMRect): { x: number; y: number } | undefined {
+    const left = Math.max(x, 0);
+    const right = Math.min(x + width, window.innerWidth);
+    const top = Math.max(y, 0);
+    const bottom = Math.min(y + height, window.innerHeight);
+    if (left >= right || top >= bottom) return undefined;
+    return { x: (left + right) / 2, y: (top + bottom) / 2 };
+  }
+
+  // Elements that draw their content over their whole box: a frame, an image, a video.
+  const REPLACED = new Set(["CANVAS", "EMBED", "IFRAME", "IMG", "OBJECT", "VIDEO"]);
+
+  // The pseudo-elements a layer can be hit through outside its own box.
+  const PSEUDOS = ["::before", "::after", "::backdrop"];
+
+  // Whether a computed colour paints: an alpha above 0. Chromium writes the alpha as `rgba`'s
+  // fourth value, or after a slash in the other colour functions, and leaves it out when it is 1.
+  function paintsColour(colour: string): boolean {
+    const alpha =
+      /^rgba\((?:[^,]*,){3}([^)]*)\)$/.exec(colour)?.[1] ?? /\/([^)]*)\)$/.exec(colour)?.[1];
+    return alpha === undefined || Number.parseFloat(alpha) > 0;
+  }
+
+  // Whether a style paints a box: a background colour that is not clear, a background image, or a
+  // backdrop filter, which blurs or tints what is under it.
+  const paintsBox = (style: CSSStyleDeclaration) =>
+    paintsColour(style.backgroundColor) ||
+    style.backgroundImage !== "none" ||
+    style.getPropertyValue("backdrop-filter") !== "none";
+
+  // Whether a pseudo-element of `layer` can be hit outside the layer's box and paints its box. A
+  // `::backdrop` is drawn under a modal dialog only. A `::before` or `::after` is drawn whenever it
+  // has content, and reaches outside its owner's box only when taken out of the flow: an in-flow
+  // one, such as a link's icon dot, lies inside the box, so it is not what was hit there.
+  function pseudoPaints(layer: Element, pseudo: string): boolean {
+    if (pseudo === "::backdrop") {
+      return layer.matches(":modal") && paintsBox(getComputedStyle(layer, pseudo));
+    }
+    const style = getComputedStyle(layer, pseudo);
+    return (
+      style.content !== "none" &&
+      (style.position === "absolute" || style.position === "fixed") &&
+      paintsBox(style)
+    );
+  }
+
+  // Whether an SVG shape's fill or stroke paints: a colour that is not clear, or a paint server.
+  const paintsSvg = (paint: string) =>
+    paint !== "none" && (paint.startsWith("url(") || paintsColour(paint));
+
+  // Whether `layer`, above an element at the point (`x`, `y`), paints there (#229; what counts as
+  // paint is in `docs/RULES.md`, "Covered (V3)"). Outside its own box, the browser hit one of its
+  // pseudo-elements, so its own box is not what is there: filmweb.pl's cookie wall is the
+  // `::before` of a box of no size, and a stretched link's `::after` spans its card, painting
+  // nothing.
+  function paints(layer: Element, x: number, y: number): boolean {
+    if (!layer.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+    const box = layer.getBoundingClientRect();
+    if (box.left <= x && x < box.right && box.top <= y && y < box.bottom) {
+      if (REPLACED.has(layer.tagName)) return true;
+      if (layer instanceof SVGGeometryElement) {
+        const style = getComputedStyle(layer);
+        if (paintsSvg(style.fill) || paintsSvg(style.stroke)) return true;
+      } else if (layer instanceof SVGElement && !(layer instanceof SVGSVGElement)) return true;
+      if (paintsBox(getComputedStyle(layer))) return true;
+    } else if (PSEUDOS.some((pseudo) => pseudoPaints(layer, pseudo))) {
+      return true;
+    }
+    const shadow = layer.shadowRoot;
+    if (shadow === null) return false;
+    return shadow
+      .elementsFromPoint(x, y)
+      .some((node) => node.getRootNode() === shadow && paints(node, x, y));
+  }
+
+  // Whether a click that hits `node` is a click on `el`: `node` is `el`, inside it or around it,
+  // or inside one of its labels, which activate it (#117).
+  const ownHit = (el: Element, node: Element) =>
+    el.contains(node) ||
+    node.contains(el) ||
+    (labelable(el) && [...(el.labels ?? [])].some((label) => label.contains(node)));
+
+  // Whether the page paints over `el` at the point a click on it lands (#229): of the layers the
+  // browser hits there, top down, one above `el`'s own (`ownHit`) paints. A layer that takes clicks
+  // and paints nothing, such as a stretched link's or a menu's click catcher, hides nothing. An
+  // element that takes no clicks is never hit, so nothing places it in the stack, and it is not
+  // read as covered.
+  function coveredAt(el: Element, box: DOMRect): boolean {
+    const point = clickPoint(box);
+    if (point === undefined || getComputedStyle(el).pointerEvents === "none") return false;
+    for (const layer of document.elementsFromPoint(point.x, point.y)) {
+      if (ownHit(el, layer)) return false;
+      if (paints(layer, point.x, point.y)) return true;
+    }
+    return false;
+  }
+
   // A box of text as a text block (#219): named by its own text and measured by the runs that
   // draw it. One whose own text holds no word, or draws none of it, is not measured.
   function boxOfText(el: Element): RawElement | undefined {
@@ -516,14 +619,15 @@ export function measurePage(): RawPage {
     if (!WORDS.test(name)) return undefined;
     const texts = runsOf(textParents(el, undefined, true));
     if (texts.length === 0) return undefined;
-    const { x, y, width, height } = el.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
     return {
       kind: "text",
       role: TEXT_ROLE,
       name,
       path: pathOf(el, true),
-      bbox: { x, y, width, height },
+      bbox: { x: box.x, y: box.y, width: box.width, height: box.height },
       texts,
+      ...(coveredAt(el, box) ? { covered: true } : {}),
     };
   }
 
@@ -541,7 +645,8 @@ export function measurePage(): RawPage {
     const { name, texts } = nameOf(el, role);
     // A text block with no name, as one that draws none of its own text has (row 34), is skipped.
     if (kind === "text" && name === "") continue;
-    const { x, y, width, height } = el.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    const { x, y, width, height } = box;
     // A click on a label activates its control, so a visible label is part of the target (#117).
     const labels = labelable(el)
       ? [...(el.labels ?? [])].filter(seen).map((label) => {
@@ -563,6 +668,7 @@ export function measurePage(): RawPage {
       ...(texts.length === 0 ? {} : { texts }),
       ...(hasPopup === undefined ? {} : { hasPopup }),
       ...(controls === undefined ? {} : { controls }),
+      ...(coveredAt(el, box) ? { covered: true } : {}),
     });
   }
   return {

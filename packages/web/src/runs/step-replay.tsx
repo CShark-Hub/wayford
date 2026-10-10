@@ -58,7 +58,7 @@ const HEADING = {
 
 /**
  * One decision as a line of the evidence: `P1 contrast 2.1 < 3, rolled 0.42: degraded`,
- * `V2 below`, `K1 hamburger`, `K2 Fulfilment ledger`, `A1`. The rule is printed from the data,
+ * `V2 below`, `V3`, `K1 hamburger`, `K2 Fulfilment ledger`, `A1`. The rule is printed from the data,
  * never from the stage, so a rule a later filter emits shows by its own id. A roll is printed
  * short (`shortNumber`); `rollTitle` holds it as stored.
  */
@@ -70,7 +70,8 @@ export function decisionLine(decision: ElementDecision): string {
       return `${decision.rule} ${decision.metric} ${decision.value} < ${decision.threshold}${rolled}: ${decision.state}`;
     }
     case "viewport":
-      return `${decision.rule} ${decision.side}`;
+      // V2 names the side; V3, under what the page paints over it (#229), names nothing.
+      return decision.side === undefined ? decision.rule : `${decision.rule} ${decision.side}`;
     case "knowledge":
       // K2 names the jargon terms it masked, K1 the pattern, K4 nothing.
       if (decision.terms !== undefined) return `${decision.rule} ${decision.terms.join(", ")}`;

@@ -53,9 +53,10 @@ export async function collect(page: Page, options: CollectOptions = {}): Promise
 /**
  * A raw element's key and metrics. Over several runs of text, the worst contrast and the smallest
  * font count; a run whose background is unknown gives no contrast. A metric the element has no
- * source for is left out, and so are `hasPopup` and `controls` when its markup says nothing. A
- * control drawn in parts carries them too (`partsOf`), and its own contrast and font size are the
- * worst of the same numbers, so the two cannot drift.
+ * source for is left out, and so are `hasPopup` and `controls` when its markup says nothing, and
+ * `covered` when nothing the page paints is above it (#229). A control drawn in parts carries them
+ * too (`partsOf`), and its own contrast and font size are the worst of the same numbers, so the two
+ * cannot drift.
  */
 function measured(raw: RawElement): MeasuredElement {
   const runs = (raw.texts ?? []).map((run) => ({
@@ -85,6 +86,7 @@ function measured(raw: RawElement): MeasuredElement {
     ...(parts === undefined ? {} : { parts }),
     ...(hasPopup === undefined ? {} : { hasPopup }),
     ...(controls.success ? { controls: controls.data } : {}),
+    ...(raw.covered ? { covered: true } : {}),
   };
 }
 

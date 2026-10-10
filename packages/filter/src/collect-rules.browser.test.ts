@@ -768,3 +768,187 @@ test("a page that is not on http(s) throws invalid_measurement", async () => {
   expect(error).toBeInstanceOf(WayfordError);
   expect(error).toMatchObject({ code: "invalid_measurement" });
 });
+
+describe("what the page paints over (#229)", () => {
+  /** The keys of the measured elements a layer the page paints covers, in measurement order. */
+  const coveredKeys = (measurement: { elements: MeasuredElement[] }) =>
+    measurement.elements.filter((e) => e.covered).map((e) => e.key);
+
+  /** Absolutely placed, 300 × 40 px, one row of 50 px per `row`. */
+  const at = (row: number) =>
+    `position: absolute; top: ${row * 50}px; left: 0; width: 300px; height: 40px; margin: 0`;
+
+  test.each<{ claim: string; html: string; scroll?: number; keys: string[] }>([
+    {
+      // filmweb.pl's Didomi notice, cut down: a dimmed backdrop over the page, a dialog above it.
+      claim: "a backdrop covers the page under it, never the dialog above it or a box off screen",
+      html: `<main><a href="/films">Films</a><p>Behind the notice</p><div>Plain box text</div>
+          <p style="margin-top: 2000px">Far below</p></main>
+        <div style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5)"></div>
+        <div role="dialog" aria-label="Cookies"
+          style="position: fixed; top: 300px; left: 300px; width: 400px; background: #fff">
+          <p>We use cookies</p><button>Accept</button></div>`,
+      keys: ["main//link:Films", "main//paragraph:Behind the notice", "main//text:Plain box text"],
+    },
+    {
+      // filmweb.pl's Didomi wall as measured on 2026-10-09: the backdrop is the `::before` of a
+      // host of no height, a white wash at 0.8 over the whole viewport.
+      claim: "a backdrop drawn as a pseudo-element of a box of no size covers the page",
+      html: `<style>#host::before { content: ""; position: fixed; inset: 0;
+          background: rgba(255, 255, 255, 0.8) }</style>
+        <main><a href="/films">Films</a></main>
+        <div id="host"><div role="dialog" aria-label="Cookies" style="position: fixed; top: 300px;
+          left: 300px; width: 400px; background: #fff"><button>Accept</button></div></div>`,
+      keys: ["main//link:Films"],
+    },
+    {
+      claim: "a cookie bar covers only what lies under the point a click lands on",
+      html: `<p>Above the bar</p>
+        <p style="position: absolute; top: 680px; margin: 0">Under the bar</p>
+        <div style="position: fixed; bottom: 0; left: 0; right: 0; height: 80px; background: #222">
+          <button>OK</button></div>`,
+      keys: ["//paragraph:Under the bar"],
+    },
+    {
+      // Scrolled 60 px: First is under the header; Second's centre is below it, though its top is
+      // not. One point is read, so a partial cover is not.
+      claim: "a sticky header covers what is scrolled under it",
+      html: `<body style="margin: 0"><header style="position: sticky; top: 0; height: 60px;
+          background: #fff"><a href="/">Home</a></header>
+        <main><p style="margin: 0; height: 50px">First</p><p style="margin: 0; height: 50px">Second</p>
+          <div style="height: 2000px"></div></main></body>`,
+      scroll: 60,
+      keys: ["main//paragraph:First"],
+    },
+    {
+      // What V3 overstates (RULES, "Covered (V3)"): the box's centre is under the header, its
+      // text below it. Pinned, so a fix shows up here.
+      claim: "a partial cover over the point read cuts the whole element, its clear text too",
+      html: `<p style="position: absolute; top: 0; margin: 0; padding-top: 70px; height: 30px">Tall</p>
+        <div style="position: fixed; top: 0; left: 0; right: 0; height: 60px; background: #fff"></div>`,
+      keys: ["//paragraph:Tall"],
+    },
+    {
+      claim: "an open menu covers the page under it, never its own entries",
+      html: `<p style="${at(1)}">Under the menu</p>
+        <div style="position: absolute; top: 40px; left: 0; width: 320px; height: 120px;
+          background: #fff"><a href="/edit">Edit</a></div>`,
+      keys: ["//paragraph:Under the menu"],
+    },
+    {
+      // A floating label drawn over its field activates the field, so it is the field's own.
+      claim: "a control's icon, and a label drawn over it, are the control's own",
+      html: `<a href="/search" aria-label="Search" style="display: inline-block; width: 40px;
+          height: 40px"><svg width="40" height="40"><rect width="40" height="40" /></svg></a>
+        <input id="email" style="${at(2)}">
+        <label for="email" style="${at(2)}; background: #fff">Email</label>`,
+      keys: [],
+    },
+    {
+      // A link that wraps: its box's centre falls between its two lines, on the tinted paragraph
+      // around it, which is no cover.
+      claim: "a layer around the element is its own, as a wrapped link's paragraph is",
+      html: `<p style="width: 300px; background: #eef; font: 16px/20px monospace">${"a".repeat(25)}
+        <a href="/x">bbbb cccc</a> ${"d".repeat(20)}</p>`,
+      keys: [],
+    },
+    {
+      // Bootstrap's stretched links, one a filled button, and the transparent layer a menu
+      // spreads behind itself to close on a click outside: a click lands on them, but the eye
+      // reads straight through. The button's fill is in its own box, not over the card's text, and
+      // so is an icon dot drawn in the flow.
+      claim: "a layer that paints nothing over the point covers nothing, though it takes the click",
+      html: `<style>.stretched::after { content: ""; position: absolute; inset: 0 }
+          .dotted::before { content: ""; display: inline-block; width: 8px; height: 8px;
+          background: red }</style>
+        <div style="position: relative; width: 300px"><h2>Card title</h2><p>Card text</p>
+          <a class="stretched" href="/card">Open</a></div>
+        <div style="position: relative; width: 300px"><h2>Offer</h2><p>Offer text</p>
+          <a class="stretched" href="/offer" style="background: #0d6efd; color: #fff">Go</a></div>
+        <div style="position: relative; width: 300px"><h2>News</h2><p>News text</p>
+          <a class="stretched dotted" href="/news">Read</a></div>
+        <div style="position: fixed; inset: 0"></div>`,
+      keys: [],
+    },
+    {
+      claim:
+        "a layer paints by its background, its backdrop filter, what it is, or its open shadow root",
+      html: `<p style="${at(0)}">Tinted</p><div style="${at(0)}; background: oklch(0.98 0 0 / 0.5)"></div>
+        <p style="${at(1)}">Gradient</p>
+        <div style="${at(1)}; background-image: linear-gradient(#fff0, #fff)"></div>
+        <p style="${at(2)}">Frosted</p><div style="${at(2)}; backdrop-filter: blur(4px)"></div>
+        <p style="${at(3)}">Canvas</p><canvas style="${at(3)}"></canvas>
+        <p style="${at(4)}">Frame</p><iframe style="${at(4)}; border: 0"></iframe>
+        <p style="${at(5)}">Shape</p><svg style="${at(5)}"><rect width="300" height="40" /></svg>
+        <p style="${at(6)}">Shadow</p><div id="host" style="${at(6)}"></div>
+        <script>document.getElementById("host").attachShadow({ mode: "open" }).innerHTML =
+          '<div style="height: 40px; background: #fff"></div>';</script>
+        <p style="${at(7)}">Faded out</p><div style="${at(7)}; background: #fff; opacity: 0"></div>
+        <p style="${at(8)}">Clear</p><div style="${at(8)}; background: rgba(0, 0, 0, 0)"></div>
+        <style>.pseudo::before { content: ""; position: absolute; inset: 0; background: #fff }</style>
+        <p style="${at(9)}">Pseudo in its box</p><div class="pseudo" style="${at(9)}"></div>
+        <p style="${at(10)}">Empty svg</p><svg style="${at(10)}"></svg>
+        <p style="${at(11)}">Clear shape</p><svg style="${at(11)}"><rect width="300" height="40"
+          fill="none" pointer-events="all" /></svg>
+        <style>.bare { position: absolute; top: 600px; left: 0; width: 0; height: 0 }
+          .bare::after { content: ""; position: absolute; width: 300px; height: 40px }
+          .bare::before { position: absolute; width: 300px; height: 40px; background: #fff }</style>
+        <p style="${at(12)}">No content</p><div class="bare"></div>`,
+      keys: [
+        "//paragraph:Tinted",
+        "//paragraph:Gradient",
+        "//paragraph:Frosted",
+        "//paragraph:Canvas",
+        "//paragraph:Frame",
+        "//paragraph:Shape",
+        "//paragraph:Shadow",
+      ],
+    },
+    {
+      // Its box's centre is past the fold, where nothing is hit. The centre of its part on
+      // screen, where the Actor clicks (`actionPoint`), is under the strip.
+      claim: "the point read is the centre of the box's part on screen, where the Actor clicks",
+      html: `<p style="position: absolute; top: 640px; height: 200px; margin: 0">Straddling</p>
+        <div style="position: fixed; top: 670px; left: 0; right: 0; height: 20px;
+          background: #fff"></div>`,
+      keys: ["//paragraph:Straddling"],
+    },
+    {
+      claim: "an element that takes no clicks is not read as covered: nothing places it",
+      html: `<p style="${at(0)}; pointer-events: none">No clicks</p>
+        <div style="${at(0)}; background: #fff"></div>`,
+      keys: [],
+    },
+  ])("$claim", async ({ html, scroll, keys }) => {
+    const measurement = await withPage(async (page) => {
+      await open(page, html);
+      if (scroll !== undefined) await page.evaluate((y) => window.scrollTo(0, y), scroll);
+      return collect(page);
+    });
+    expect(measurement.elements.length, "elements measured").toBeGreaterThan(0);
+    expect(coveredKeys(measurement)).toStrictEqual(keys);
+  });
+
+  test.each([
+    { backdrop: "", keys: ["main//link:Films"] },
+    // The page behind a modal dialog is inert, but a clear backdrop hides none of it from sight.
+    { backdrop: "dialog::backdrop { background: transparent }", keys: [] },
+  ])(
+    "a modal dialog covers the page by its backdrop's paint, never its own controls: $backdrop",
+    async ({ backdrop, keys }) => {
+      // At a point on the page, the browser hits the dialog, through its backdrop: the dialog's own
+      // white box is not what is drawn there.
+      const measurement = await withPage(async (page) => {
+        await open(
+          page,
+          `<style>${backdrop}</style><main><a href="/films">Films</a></main>
+        <dialog><p>Sign in to continue</p><button>Close</button></dialog>
+        <script>document.querySelector("dialog").showModal();</script>`,
+        );
+        return collect(page);
+      });
+      expect(measurement.elements.map((e) => e.key)).toContain("//button:Close");
+      expect(coveredKeys(measurement)).toStrictEqual(keys);
+    },
+  );
+});

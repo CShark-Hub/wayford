@@ -52,6 +52,7 @@ const p3Invisible = {
 } as const;
 const v2Below = { stage: "viewport", rule: "V2", side: "below" } as const;
 const v2Above = { stage: "viewport", rule: "V2", side: "above" } as const;
+const v3 = { stage: "viewport", rule: "V3" } as const;
 const a1 = { stage: "attention", rule: "A1" } as const;
 const k1 = { stage: "knowledge", rule: "K1", pattern: "hamburger" } as const;
 const k2 = { stage: "knowledge", rule: "K2", terms: ["Fulfilment ledger"] } as const;
@@ -64,8 +65,8 @@ function cut(decisions: readonly unknown[]): unknown {
 }
 
 describe("ElementDecision (one failed rule)", () => {
-  test("a rule without a metric or threshold is a decision: V2, A1, K1", () => {
-    for (const d of [v2Below, v2Above, a1, k1, { stage: "knowledge", rule: "K4" }]) {
+  test("a rule without a metric or threshold is a decision: V2, V3, A1, K1", () => {
+    for (const d of [v2Below, v2Above, v3, a1, k1, { stage: "knowledge", rule: "K4" }]) {
       expect(ElementDecision.safeParse(d).success).toBe(true);
     }
   });
@@ -76,6 +77,12 @@ describe("ElementDecision (one failed rule)", () => {
     ).toBe(false);
     expect(ElementDecision.safeParse({ ...v2Below, metric: "contrast" }).success).toBe(false);
     expect(ElementDecision.safeParse({ stage: "attention", rule: "K1" }).success).toBe(false);
+  });
+
+  test("V2 names the side it cut on, and only V2 carries a side (#229)", () => {
+    const { side: _side, ...noSide } = v2Below;
+    expect(ElementDecision.safeParse(noSide).success).toBe(false);
+    expect(ElementDecision.safeParse({ ...v3, side: "below" }).success).toBe(false);
   });
 
   test("a perception decision carries metric, value, threshold and its own state", () => {
@@ -538,6 +545,21 @@ describe("FullObservation (the evidence record)", () => {
       elements: [...observationFixture.elements, above],
     };
     expect(FullObservation.safeParse(observation).success).toBe(true);
+  });
+
+  test("an element V3 cut is counted nowhere, and attention never ranks it in (#229)", () => {
+    const covered = { ...(cut([v3]) as object), key: "main//link:Archive" };
+    const elements = [...observationFixture.elements, covered];
+    const { belowFoldCount, hiddenCount } = observationFixture;
+    expect(FullObservation.safeParse({ ...observationFixture, elements }).success).toBe(true);
+    const below = { ...observationFixture, belowFoldCount: belowFoldCount + 1, elements };
+    expect(FullObservation.safeParse(below).success).toBe(false);
+    const ranked = {
+      ...observationFixture,
+      hiddenCount: hiddenCount + 1,
+      elements: [...observationFixture.elements, cut([v3, a1])],
+    };
+    expect(FullObservation.safeParse(ranked).success).toBe(false);
   });
 
   test("an element left or right of the viewport is cut by V2 and counted nowhere (#116)", () => {

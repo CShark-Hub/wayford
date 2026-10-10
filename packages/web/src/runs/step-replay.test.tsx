@@ -755,6 +755,7 @@ test("a decision line prints the rule the data names, whatever its stage", () =>
       "P4 targetPx 20 < 44: invisible",
     ],
     [{ stage: "viewport", rule: "V2", side: "below" }, "V2 below"],
+    [{ stage: "viewport", rule: "V3" }, "V3"],
     [{ stage: "knowledge", rule: "K1", pattern: "hamburger" }, "K1 hamburger"],
     [{ stage: "knowledge", rule: "K2", terms: ["Fulfilment ledger"] }, "K2 Fulfilment ledger"],
     [{ stage: "knowledge", rule: "K2", terms: ["ledger", "SKU"] }, "K2 ledger, SKU"],

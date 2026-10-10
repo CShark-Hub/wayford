@@ -90,6 +90,13 @@ function worstOf(parts: readonly MeasuredPart[], metric: keyof PartMetrics): num
  * `aria-controls` names, hidden or not. Each is present only when the markup
  * says so, never on a text block, and neither is in the key, so no roll moves.
  *
+ * `covered` is present, and `true`, only on an element the page paints over:
+ * at the point a click on it lands, the centre of its box's part inside the
+ * viewport, a layer above it paints, such as a cookie wall's backdrop or a
+ * sticky header (`docs/RULES.md`, V3, #229). It is read on controls and text
+ * blocks alike, never on a box wholly outside the viewport, and it is not in
+ * the key.
+ *
  * The key ends in `//role:name`, the shape `elementKey` builds, and that is
  * enforced below. Otherwise a fixture or collector edit could change the name
  * and leave the key, and with it the roll, pointing at the old one.
@@ -108,6 +115,7 @@ export const MeasuredElement = z
       .optional(),
     hasPopup: PopupKind.optional(),
     controls: AriaRole.optional(),
+    covered: z.literal(true).optional(),
   })
   .strict()
   .refine((e) => e.kind === "control" || e.metrics.targetPx === undefined, {

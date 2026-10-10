@@ -486,6 +486,62 @@ test("a zero-height box is inside the viewport at its top edge and below it at i
   expect(at(-0.5)).toStrictEqual([{ stage: "viewport", rule: "V2", side: "above" }]);
 });
 
+test("an element the page paints over is cut by V3, counted nowhere, and takes no slot (#229)", () => {
+  // The nav under a cookie wall's backdrop: the four nav links measured as covered.
+  const walled = PageMeasurement.parse({
+    ...measurementFixture,
+    elements: measurementFixture.elements.map((e) =>
+      NAV_LINKS.includes(e.key) ? { ...e, covered: true } : e,
+    ),
+  });
+  for (const profile of profileFixtures) {
+    for (const seed of seeds(20)) {
+      const where = `${profile.id} at run seed ${seed}`;
+      const full = perceive(walled, profile, seed);
+      const open = perceive(measurementFixture, profile, seed);
+      for (const key of NAV_LINKS) {
+        const link = observed(full, key);
+        expect(link.state, `${where}: ${key}`).toBe("invisible");
+        expect("ref" in link, `${where}: ${key}`).toBe(false);
+        // V3 first, then every perception rule it fails, as on the open page; never A1.
+        const before = observed(open, key).decisions.filter((d) => d.stage !== "attention");
+        expect(link.decisions, `${where}: ${key}`).toStrictEqual([
+          { stage: "viewport", rule: "V3" },
+          ...before,
+        ]);
+      }
+      // Counted nowhere, not even as more below, and the cap never reached it.
+      expect(full.belowFoldCount, where).toBe(open.belowFoldCount);
+      expect(actorText(full), where).not.toContain('link "Deliveries"');
+      const parsed = FullObservation.safeParse(full);
+      expect(parsed.success, `${where}: ${parsed.error}`).toBe(true);
+    }
+  }
+
+  // Kai's cap of 11 cuts 4 of the 15 elements, Order archive the least salient. With four of
+  // them covered, 11 are left to show: the cap cuts none, and Order archive reaches him.
+  const kai = profileFixture("prof_kai");
+  for (const seed of seeds(5)) {
+    expect(perceive(measurementFixture, kai, seed).hiddenCount).toBe(4);
+    expect(observed(perceive(measurementFixture, kai, seed), ARCHIVE).state).toBe("invisible");
+    const full = perceive(walled, kai, seed);
+    expect(full.hiddenCount).toBe(0);
+    expect(observed(full, ARCHIVE).state).toBe("visible");
+  }
+
+  // V2 wins: an element wholly off screen gets V2 alone, whatever the measurement says of it.
+  const offScreen = {
+    ...walled,
+    elements: walled.elements.map((e) =>
+      e.key === NAV_LINKS[0] ? { ...e, bbox: { ...e.bbox, x: walled.viewport.width } } : e,
+    ),
+  };
+  const ada = profileFixture("prof_ada");
+  expect(observed(perceive(offScreen, ada, 1), NAV_LINKS[0] ?? "").decisions).toStrictEqual([
+    { stage: "viewport", rule: "V2", side: "right" },
+  ]);
+});
+
 test("the mask reads its own draw, not the roll", () => {
   const vera = profileFixture("prof_vera");
   const { name } = measured(ARCHIVE);

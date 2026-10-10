@@ -175,6 +175,19 @@ test("the walked route table matches docs/RULES.md for all five personas", () =>
   expect(walked).toStrictEqual(rulesRouteTable());
 });
 
+test("no step of any walk, the kebab's menu and the phone menu open included, is covered (#229)", () => {
+  // Both menus open in the flow, so V3 cuts nothing on a route and the table above stands.
+  const covered = [...walks.entries()].flatMap(([device, routes]) =>
+    routes.flatMap((route) =>
+      route.steps.flatMap((step) =>
+        step.measurement.elements.filter((e) => e.covered).map((e) => `${device} ${e.key}`),
+      ),
+    ),
+  );
+  expect(walks.size).toBeGreaterThan(1);
+  expect(covered).toStrictEqual([]);
+});
+
 test("Kai's route C stays open: K2 renames its final link and cuts nothing", () => {
   const kai = profileFixture("prof_kai");
   const routeC = routesOn(kai.device).find((route) => route.id === "C");

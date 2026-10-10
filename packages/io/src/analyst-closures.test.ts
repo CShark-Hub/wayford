@@ -345,6 +345,22 @@ describe("closureFindings: the finding", () => {
     expect(draft?.finding.detail).toContain("below the viewport");
   });
 
+  test("V3 says the page paints over the element, and names no side (#229)", () => {
+    // With the P1 the runs hold as evidence, as V2 is tested above.
+    const covered: ElementDecision = { stage: "viewport", rule: "V3" };
+    const [draft] = findings({
+      runs,
+      closings: [closingAt(cutSeed, [covered, ...closingAt(cutSeed).decisions])],
+    }).drafts;
+    expect(draft?.finding.basis.map((b) => [b.rule, b.provenance])).toEqual([
+      ["V3", "folk"],
+      ["P1", "wcag22"],
+    ]);
+    expect(draft?.finding.detail).toContain(
+      "V3: something the page paints lies over it, where a click on it lands.",
+    );
+  });
+
   test("a rule whose threshold the profile does not set gives no basis entry", () => {
     // Ada sets no contrast threshold: her P1 has no source to copy, her V2 is folk.
     const below: ElementDecision = { stage: "viewport", rule: "V2", side: "below" };
@@ -373,7 +389,7 @@ describe("provenanceOf", () => {
   test("caps, pattern lists, vocabulary and the viewport are folk where the profile sets them", () => {
     const kai = profileFixture("prof_kai");
     const zoya = profileFixture("prof_zoya");
-    for (const rule of ["A1", "K1", "K4", "V2"] as const) {
+    for (const rule of ["A1", "K1", "K4", "V2", "V3"] as const) {
       expect(provenanceOf(rule, vera)).toBe("folk");
     }
     expect(provenanceOf("A3", zoya)).toBe("folk");
@@ -388,6 +404,7 @@ describe("provenanceOf", () => {
     expect(provenanceOf("A3", vera)).toBeUndefined();
     expect(provenanceOf("K2", vera)).toBeUndefined();
     expect(provenanceOf("V2", ada)).toBe("folk");
+    expect(provenanceOf("V3", ada)).toBe("folk");
   });
 
   test("any other rule has none", () => {
@@ -420,5 +437,8 @@ describe("fallbackRecommendation", () => {
         closingAt(cutSeed, [{ stage: "viewport", rule: "V2", side: "below" }]),
       ),
     ).toBe("Bring it into view without scrolling.");
+    expect(fallbackRecommendation(closingAt(cutSeed, [{ stage: "viewport", rule: "V3" }]))).toBe(
+      "Keep it clear of what the page draws over it.",
+    );
   });
 });

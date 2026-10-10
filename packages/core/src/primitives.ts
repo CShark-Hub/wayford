@@ -68,6 +68,7 @@ export const RULE_IDS = [
   // viewport
   "V1",
   "V2",
+  "V3",
   // attention
   "A1",
   "A2",
