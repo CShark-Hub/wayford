@@ -26,6 +26,6 @@ Installing Wayford and a first run are in the [README](../README.md). The guides
 | [`ROADMAP.md`](ROADMAP.md) | Four weekly milestones, the dependency map, the cut order |
 | [`KICKOFF.md`](KICKOFF.md) | How the four of us started, and the rules for running agents in parallel |
 | [`WHAT-NEXT.md`](WHAT-NEXT.md) | Ideas beyond the hackathon scope |
-| [`adr/`](adr) | Decisions: Jev as a second Actor backend, the redesign, any target for the finals |
+| [`adr/`](adr) | Decisions: Jev as a second Actor backend, the redesign, any target for the finals, installing and starting from a clone |
 
 Work items and the board are in [`tasks/`](../tasks); specs and plans for the larger tasks are in [`specs/`](specs) and [`plans/`](plans).

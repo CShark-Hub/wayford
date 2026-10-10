@@ -67,6 +67,7 @@ Agreed 2026-10-04, for week 4. What we ship is what `docs/DEMO.md` shows: every 
 - **Look:** one design system (`docs/DESIGN.md`, approved 2026-10-06 in `docs/adr/0002-daylight-instrument-redesign.md`) over the demo screens: Lens, Race, run detail, Report, Boundary. Wayford's own screens pass its own measurement at Vera's floors: 16 px text, 32 px targets.
 - **Jev:** run detail shows each step's options, probabilities and draw.
 - **Any target, for the finals:** the Lens, the Race, the Report and the Boundary on a site entered on the Target screen, with what only the target app has (its parameters, jargon list and route table) handed only to runs on it. A sweep on such a site is prepared with the CLI. Decided in `docs/adr/0003-any-target.md`; the tasks are in `tasks/BOARD.md`, "Any target, for the finals".
+- **Install:** `pnpm install` and `pnpm start` from a clone, with no key needed to boot. Decided in `docs/adr/0004-install-and-start.md`; the task is `s4-12`, first in the cut order.
 
 Cut for the hackathon, so nobody builds them:
 

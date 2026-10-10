@@ -134,6 +134,12 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s4-11 | The Analyst reads what the filter cut, on a goal with no route table | S | s4-04, s4-10 | Tomasz | review |
 | demo-3 | Drill: someone picks a site the presenter has not seen; the presenter takes it from URL to a three-seed report, timed | — | s4-08 | team | todo |
 
+**Install in two commands, added 2026-10-09** (`docs/adr/0004-install-and-start.md`). From a clone, `pnpm install` and `pnpm start`, with no key needed to boot. A released package waits until after the finals. Nothing in the demo or the finals depends on this, and it may not delay a task above.
+
+| Task | Title | Size | Depends on | Owner | Status |
+|---|---|---|---|---|---|
+| s4-12 | `pnpm start`: Wayford from a clone in two commands | M | — | | todo |
+
 Optional, taken only once every task above is taken:
 
 | Task | Title | Size | Depends on | Owner | Status |
@@ -161,4 +167,4 @@ Optional, taken only once every task above is taken:
 
 **Screens before data.** `s3-08` and `s3-09` build on the `Report` and `Sweep` fixtures their engines add. `seed:demo --fake` (`s4-07`) fills every screen with no key, and is the way to check the week's screens together.
 
-**Cut order**, from `docs/ROADMAP.md`: the optional table first, from its bottom up. Then the any-target table: `demo-3` first, then the sweep on a foreign goal, then `s3-17`, with the Lens, the Race and a report on our own pick as its floor. Then the sweep on `maxElements`, then axe. The report, the contrast sweep and `seed:demo` are not on the list.
+**Cut order**, from `docs/ROADMAP.md`: `s4-12` first, then the optional table, from its bottom up. Then the any-target table: `demo-3` first, then the sweep on a foreign goal, then `s3-17`, with the Lens, the Race and a report on our own pick as its floor. Then the sweep on `maxElements`, then axe. The report, the contrast sweep and `seed:demo` are not on the list.

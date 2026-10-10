@@ -259,5 +259,6 @@ Cut from the bottom, never from the top.
 13. Lens illustration view (`s3-06`).
 14. Behaviour beyond B1 (`s2-07`, `s2-08`, `s2-09`).
 15. Cast and Runs redesigned (`s3-14`). Without it both keep their week 3 layouts under the new tokens.
+16. `pnpm start` (`s4-12`, `docs/adr/0004-install-and-start.md`). Without it, the Quick start keeps its four steps.
 
 The ring (`s3-03`) and K2 (`s1-05`) are built, so they left this list on 2026-10-05: cutting them saves nothing.
