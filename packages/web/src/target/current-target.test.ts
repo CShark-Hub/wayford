@@ -44,7 +44,9 @@ test("a target set is read back, and a cleared one reads as nothing", () => {
   expect(items.has(CURRENT_TARGET_STORAGE_KEY)).toBe(false);
 });
 
-test("with no sessionStorage, as in Node, the store reads nothing and a set does not throw", () => {
+test("with no sessionStorage, the store reads nothing and a set does not throw", () => {
+  // Stubbed away: Node 25 and later define Web Storage globals, so the runtime cannot be relied on.
+  vi.stubGlobal("sessionStorage", undefined);
   expect(typeof sessionStorage).toBe("undefined");
   expect(() => setCurrentTarget(shop)).not.toThrow();
   expect(readCurrentTarget()).toBeUndefined();
