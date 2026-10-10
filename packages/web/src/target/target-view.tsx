@@ -14,6 +14,7 @@ import { MAX_RUN_SET_SEEDS, type Profile, type ProfileId, type Task } from "@way
 import { cn } from "cn";
 import { type ReactNode, useEffect, useRef } from "react";
 import { successText } from "../arena/start-panel.js";
+import { AnalystWorking } from "../components/analyst-working.js";
 import { PersonaAvatar } from "../components/persona-avatar.js";
 import { SegmentedControl } from "../components/segmented-control.js";
 import { Skeleton } from "../components/skeleton.js";
@@ -51,8 +52,11 @@ const RUN_ID = "target-run";
 const RUN_BLOCKER_ID = "target-run-blocker";
 const WRITE_LINE_ID = "target-write-line";
 
-/** The goal's report as the screen reads it: stored in io, being written, or this visit's failure. */
-export type ReportState = { stored: boolean; writing: boolean; error?: string };
+/**
+ * The goal's report as the screen reads it: stored in io, being written and since when (ms), or
+ * this visit's failure.
+ */
+export type ReportState = { stored: boolean; writing: boolean; since?: number; error?: string };
 
 /** An instrument label: lowercase, mono, ink-3 (`docs/DESIGN.md`, "Type"). */
 const LABEL = "mono-label text-ink-3";
@@ -402,8 +406,8 @@ const SEED_COUNTS: readonly GoalState["seedCount"][] = [3, MAX_RUN_SET_SEEDS];
 
 /**
  * What the set and its report have got to, for the status region under the run button: the set's
- * progress, a poll that failed and why the page stays open, then the Analyst at work, or, while no
- * set runs, the link to the stored report, the last one when a newer report failed. A link that
+ * progress, a poll that failed and why the page stays open, then that the Analyst is writing the
+ * report (its changing line stands under the region, outside it), or, while no set runs, the link to the stored report, the last one when a newer report failed. A link that
  * left the page mid-set would drop the set's report.
  */
 function RunSetStatus({
@@ -431,7 +435,9 @@ function RunSetStatus({
         </>
       ) : null}
       {report.writing ? (
-        <Working>The Analyst is writing the report. This can take a few minutes.</Working>
+        // What the region announces. The Analyst's changing line stands under the region, outside
+        // it, so it is never read out (#237).
+        <p>The Analyst is writing the report. This can take a few minutes.</p>
       ) : report.stored && !running ? (
         <Link
           to="/report/$taskId"
@@ -595,6 +601,7 @@ export function GoalView({
         <div role="status" className="grid justify-items-start gap-(--space-1) body text-ink-2">
           <RunSetStatus task={task} runSet={runSet} report={report} />
         </div>
+        {report.writing ? <AnalystWorking since={report.since} /> : null}
         {runSet.status === "idle" && runSet.error !== undefined ? (
           <p role="alert" className={FAULT}>
             {`io did not start the runs: ${runSet.error}`}

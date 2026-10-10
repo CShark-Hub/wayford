@@ -9,13 +9,15 @@
  * - A finding backed by ten runs shows three evidence links and "Show 7 more", which shows the
  *   rest with focus on the first of them, and folds them again.
  * - "Analyse again" shows it running while io's `POST` is held, posts the report's own backend, and
- *   draws the new report once io answers; a refusal shows the fault, and Try again posts the same.
+ *   draws the new report once io answers; a refusal shows the fault, and Try again posts the same,
+ *   also when the analysis that failed was started by a page since left.
  * - The meta line names the report's backend, and the page draws no source badge.
  * - With no report, "Analyse runs" posts no backend, so io reads the one the task's runs are on.
  * - Arriving with `?analyse=true`, as the race's "Analyse this race" does, starts the Analyst once
  *   and drops the flag, so a reload starts nothing. With a report stored it starts none. Arriving
  *   again within the app starts it once on a report already read as none, StrictMode's second
  *   effect included, and not again while it runs, which shows as running.
+ * - Back on a goal whose analysis ended, while another goal's runs, the status region says nothing.
  * - A ten-seed report fits: the findings' headings end above 720 px, and nothing scrolls sideways.
  */
 import { fileURLToPath } from "node:url";
@@ -24,6 +26,7 @@ import { reportFixture, runResultFixture, taskFixtures } from "@wayford/core/fix
 import { type Browser, chromium, type Page, type Request } from "playwright";
 import { createServer, type ViteDevServer } from "vite";
 import { afterAll, beforeAll, expect, onTestFinished, test, vi } from "vitest";
+import { ANALYST_LINES } from "../components/analyst-working.js";
 
 // Starting Vite, its first transform of the app and launching Chromium take longer than vitest's
 // 5 s hook default.
@@ -258,6 +261,47 @@ test("Analyse again shows it running, posts the report's backend, then shows the
   expect(await page.getByText("io answered 502", { exact: false }).count()).toBe(0);
 });
 
+test("a failure this page did not start shows the fault, and Try again posts the backend that analysis asked for", async () => {
+  const EASY = "task_next-parcel";
+  const posts: Posted[] = [];
+  const answers = [held<Answer>(), held<Answer>()];
+  const page = await servedPage((request, pathname) => {
+    if (request.method() === "POST" && pathname === REPORT_PATH) {
+      const answer = answers[posts.length];
+      posts.push(posted(request));
+      return answer?.promise;
+    }
+    return (
+      get(request, pathname, REPORT_PATH, LLM_REPORT) ??
+      get(request, pathname, `/api/reports/${EASY}`, reportFixture(EASY))
+    );
+  });
+  await page.goto(`${origin}/report/${EASY}`);
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  await page
+    .getByRole("navigation", { name: "Story" })
+    .getByRole("link", { name: /Report/ })
+    .click();
+  await page.waitForURL(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("button", { name: "Analyse again" }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0]?.body).toBe('{"backend":"llm"}');
+
+  // Away and back while it is held: the page that started it is gone, and this mount reads it.
+  await page.goBack();
+  await page.waitForURL(`${origin}/report/${EASY}`);
+  await page.goForward();
+  await page.waitForURL(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("button", { name: "Analysing…" }).waitFor();
+
+  answers[0]?.release({ status: 502, json: { error: "llm_timeout: the Analyst did not answer" } });
+  await page.getByRole("alert").getByText("io answered 502", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect.poll(() => posts.length).toBe(2);
+  expect(posts[1]).toEqual(posts[0]);
+  answers[1]?.release({ status: 201, json: LLM_REPORT });
+});
+
 test("moving to another goal's report while one is analysed: that page is not running, and the result lands on its own goal", async () => {
   const EASY = "task_next-parcel";
   const EASY_PATH = `/api/reports/${EASY}`;
@@ -331,6 +375,118 @@ test("with no report, Analyse runs posts no backend", async () => {
   expect(posts).toEqual([{ body: "{}", contentType: "application/json" }]);
 });
 
+test("while the Analyst runs, its line changes every 4 s and the time counts, while the status region says only the start and the end (#237)", async () => {
+  const answer = held<Answer>();
+  const page = await servedPage((request, pathname) => {
+    if (pathname !== REPORT_PATH) return undefined;
+    if (request.method() === "POST") return answer.promise;
+    return { status: 404, json: { error: `no report on ${TASK_ID}` } };
+  });
+  await page.clock.install();
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("button", { name: "Analyse runs" }).click();
+
+  const posts = page.locator('[data-slot="working"]');
+  await posts.waitFor();
+  const line = page.locator('[aria-live="off"]');
+  const status = page.locator('p[role="status"].sr-only');
+  const start = "Analysing the stored runs. This can take a few minutes.";
+  await expect.poll(() => line.textContent()).toBe(`${ANALYST_LINES[0]} · 0:00 so far`);
+  expect(await status.textContent()).toBe(start);
+
+  await page.clock.runFor(4000);
+  await expect.poll(() => line.textContent()).toBe(`${ANALYST_LINES[1]} · 0:04 so far`);
+  await page.clock.runFor(81_000);
+  // 85 s: the 22nd slot, line 21 mod 8 = 5, and the time.
+  await expect.poll(() => line.textContent()).toBe(`${ANALYST_LINES[5]} · 1:25 so far`);
+  // The line changed, and the region a screen reader hears did not.
+  expect(await status.textContent()).toBe(start);
+  // The posts are hidden from it, and the changing line sits outside any announcement.
+  expect(await posts.getAttribute("aria-hidden")).toBe("true");
+
+  answer.release({ status: 201, json: reportFixture(TASK_ID) });
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  await expect.poll(() => status.textContent()).toBe("The report is ready.");
+  expect(await posts.count()).toBe(0);
+});
+
+test("back on a goal whose analysis ended, while another goal's runs, the status region announces nothing (#237)", async () => {
+  const EASY = "task_next-parcel";
+  const EASY_PATH = `/api/reports/${EASY}`;
+  const easyAnswer = held<Answer>();
+  onTestFinished(() => easyAnswer.release({ status: 201, json: reportFixture(EASY) }));
+  const page = await servedPage((request, pathname) => {
+    if (request.method() === "POST" && pathname === REPORT_PATH) {
+      return { status: 201, json: reportFixture(TASK_ID) };
+    }
+    if (request.method() === "POST" && pathname === EASY_PATH) return easyAnswer.promise;
+    return (
+      get(request, pathname, REPORT_PATH, reportFixture(TASK_ID)) ??
+      get(request, pathname, EASY_PATH, reportFixture(EASY))
+    );
+  });
+  // Every text the status region takes, in order, as a screen reader would be handed it.
+  await page.addInitScript(() => {
+    const said: string[] = [];
+    Object.assign(window, { said });
+    new MutationObserver(() => {
+      const text = document.querySelector('p[role="status"].sr-only')?.textContent ?? "";
+      if (text !== said.at(-1)) said.push(text);
+    }).observe(document, { subtree: true, childList: true, characterData: true });
+  });
+  const said = () => page.evaluate(() => (window as unknown as { said: string[] }).said);
+
+  await page.goto(`${origin}/report/${EASY}`);
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  await page
+    .getByRole("navigation", { name: "Story" })
+    .getByRole("link", { name: /Report/ })
+    .click();
+  await page.waitForURL(`${origin}/report/${TASK_ID}`);
+  await page.getByText(`${TASK_ID} · jev · 9 runs`, { exact: false }).waitFor();
+
+  // The hard goal's analysis ends while watched: its end is announced once.
+  await page.getByRole("button", { name: "Analyse again" }).click();
+  await page.getByRole("status").getByText("The report is ready.").waitFor();
+
+  // The easy goal's analysis starts and is held.
+  await page.goBack();
+  await page.waitForURL(`${origin}/report/${EASY}`);
+  await page.getByRole("button", { name: "Analyse again" }).click();
+  await page.getByRole("button", { name: "Analysing…" }).waitFor();
+
+  // Back on the hard goal: nothing ended there in sight, and the easy goal's run is not its own.
+  const before = (await said()).length;
+  await page.goForward();
+  await page.waitForURL(`${origin}/report/${TASK_ID}`);
+  await page.getByText(`${TASK_ID} · jev · 9 runs`, { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Analyse again" }).waitFor();
+  expect((await said()).slice(before).filter((text) => text !== "")).toEqual([]);
+  expect(await page.locator('p[role="status"].sr-only').textContent()).toBe("");
+});
+
+test("under reduced motion the Analyst's line stays the first, and the time still counts (#237)", async () => {
+  const answer = held<Answer>();
+  const page = await servedPage((request, pathname) => {
+    if (pathname !== REPORT_PATH) return undefined;
+    if (request.method() === "POST") return answer.promise;
+    return { status: 404, json: { error: `no report on ${TASK_ID}` } };
+  });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.clock.install();
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("button", { name: "Analyse runs" }).click();
+  const line = page.locator('[aria-live="off"]');
+  await line.waitFor();
+  await page.clock.runFor(12_000);
+  await expect.poll(() => line.textContent()).toBe(`${ANALYST_LINES[0]} · 0:12 so far`);
+  // The posts stand still: their animation is off under reduced motion.
+  const bars = page.locator('[data-slot="working"] > span');
+  expect(await bars.first().evaluate((bar) => getComputedStyle(bar).animationName)).toBe("none");
+  answer.release({ status: 201, json: reportFixture(TASK_ID) });
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+});
+
 test("arriving with ?analyse=true starts the Analyst once, posts no backend, and drops the flag, so a reload starts nothing", async () => {
   const posts: Posted[] = [];
   const answer = held<Answer>();
@@ -395,7 +551,9 @@ test("arriving again within the app starts the Analyst once: on a report already
     }, `/report/${TASK_ID}?analyse=true`);
     await page.waitForURL(`${origin}/report/${TASK_ID}`);
     await page.getByText("Analysing the stored runs.", { exact: false }).waitFor();
-    expect(await page.getByRole("button", { name: "Analysing…" }).isDisabled()).toBe(true);
+    // With no report stored, the Analyst at work stands in the empty state, in place of its button.
+    await page.locator('[data-slot="working"]').waitFor();
+    expect(await page.getByRole("button", { name: "Analyse runs" }).count()).toBe(0);
   }
 
   answer.release({ status: 201, json: reportFixture(TASK_ID) });

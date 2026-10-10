@@ -11,7 +11,7 @@
  */
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import type { Profile, RunId, StartedRun, Task, TaskId } from "@wayford/core";
-import { analyse, reportQuery } from "../api/reports.js";
+import { analyse, analysisKey, reportQuery } from "../api/reports.js";
 import { type Extraction, extractTask, fetchRun, startRuns } from "../api/runs.js";
 import type { ScoutAnswer } from "../api/scout.js";
 import {
@@ -123,16 +123,17 @@ export async function pollRunSet(
 }
 
 /**
- * The Analyst over `taskId`'s stored runs, on the LLM, as a mutation under the key the Report
- * screen gives its own (`screens/report.tsx`): while either runs, `useIsMutating` on that key shows
- * it on both screens and on a later visit to either, so neither offers a second paid call. The
- * report lands in `reportQuery`'s cache, which the goal view's link reads, even once the screen
- * that asked has unmounted.
+ * The Analyst over `taskId`'s stored runs, on the LLM the set ran on, as a mutation under the key
+ * the Report screen gives its own (`screens/report.tsx`): while either runs, `useAnalysis` on that
+ * key shows it on both screens and on a later visit to either, so neither offers a second paid
+ * call. The report lands in `reportQuery`'s cache, which the goal view's link reads, even once the
+ * screen that asked has unmounted. The backend is the mutation's variable, `mutate("llm")`, so the
+ * Report screen's Try again on a failure asked for here repeats it instead of io's default.
  */
 export function reportMutation(client: QueryClient, taskId: TaskId) {
   return mutationOptions({
-    mutationKey: ["analyse", taskId],
-    mutationFn: () => analyse(taskId, "llm"),
+    mutationKey: analysisKey(taskId),
+    mutationFn: (backend: "llm") => analyse(taskId, backend),
     onSuccess: (report) => client.setQueryData(reportQuery(report.taskId).queryKey, report),
   });
 }

@@ -15,6 +15,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { reportQuery } from "../api/reports.js";
 import { storedTaskQuery } from "../api/runs.js";
 import { readScout, startScout } from "../api/scout.js";
+import { ANALYST_LINES } from "../components/analyst-working.js";
 import { attributesOf, elementOf, lineOf, sectionOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import {
@@ -361,8 +362,8 @@ describe("calls", () => {
     fetch.mockImplementation(() => new Promise((resolve) => (answerReport = resolve)));
     const client = new QueryClient();
 
-    const written = new MutationObserver(client, reportMutation(client, task.id)).mutate();
-    // While it runs, `useIsMutating(["analyse", taskId])`, as `screens/report.tsx` reads it, counts it.
+    const written = new MutationObserver(client, reportMutation(client, task.id)).mutate("llm");
+    // While it runs, the `["analyse", taskId]` key that `useAnalysis` reads counts it.
     await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(client.isMutating({ mutationKey: ["analyse", task.id] })).toBe(1);
     answerReport(Response.json(report, { status: 201 }));
@@ -384,7 +385,7 @@ describe("calls", () => {
     const client = new QueryClient();
 
     await expect(
-      new MutationObserver(client, reportMutation(client, task.id)).mutate(),
+      new MutationObserver(client, reportMutation(client, task.id)).mutate("llm"),
     ).rejects.toThrow("io answered 404: no runs of task_past-order on llm; none on jev");
     expect(client.getQueryData(reportQuery(task.id).queryKey)).toBeUndefined();
   });
@@ -668,7 +669,7 @@ describe("screen", () => {
     // The report written: the screen reads it from the cache and links to it.
     answer(Response.json(reportFixture("task_past-order"), { status: 201 }));
     const client = storing(task.id, task);
-    await new MutationObserver(client, reportMutation(client, task.id)).mutate();
+    await new MutationObserver(client, reportMutation(client, task.id)).mutate("llm");
     const run = sectionOf(await renderPath(`/target?task=${task.id}`, client), "Run and report");
     expect(only(run, "a", "Open the report").href).toBe("/report/task_past-order");
   });
@@ -689,12 +690,22 @@ describe("screen", () => {
       vi.fn(() => new Promise(() => {})),
     );
     const busy = storing(task.id, task);
-    void new MutationObserver(busy, reportMutation(busy, task.id)).mutate();
+    // Asked for at noon and visited 90 s later, as after the Report screen or an earlier visit.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
+    void new MutationObserver(busy, reportMutation(busy, task.id)).mutate("llm");
     await vi.waitFor(() => expect(busy.isMutating()).toBe(1));
+    vi.setSystemTime(new Date("2026-10-09T12:01:30Z"));
     const writing = await visit(busy);
+    vi.useRealTimers();
+    // The region announces the sentence alone (#237). The Analyst at work stands under it, outside
+    // it: the posts, the line for 90 s and the time since the report was asked for.
     expect(roleTexts(writing, "status")).toStrictEqual([
       "The Analyst is writing the report. This can take a few minutes.",
     ]);
+    expect(writing).toContain('data-slot="working"');
+    expect(writing).toContain('<span aria-live="off">');
+    expect(lineOf(writing)).toContain(`${ANALYST_LINES[6]} · 1:30 so far`);
     expect(descriptions(writing, only(writing, "button", "Start 0 runs on the LLM"))).toStrictEqual(
       ["Wait for the report before you start more runs"],
     );
@@ -703,7 +714,7 @@ describe("screen", () => {
     answer(Response.json({ error: "analyst exploded" }, { status: 500 }));
     const failed = storing(task.id, task);
     await expect(
-      new MutationObserver(failed, reportMutation(failed, task.id)).mutate(),
+      new MutationObserver(failed, reportMutation(failed, task.id)).mutate("llm"),
     ).rejects.toThrow();
     const alert = await visit(failed);
     expect(roleTexts(alert, "alert")).toStrictEqual([

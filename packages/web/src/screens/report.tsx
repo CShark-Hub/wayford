@@ -6,7 +6,8 @@
  * The report is stored by io's Analyst (`api/reports.ts`), and its meta line names the backend it
  * read. "Analyse again" asks io to build it anew; io's `POST` is synchronous with no progress, so
  * "running" is the pending state of this goal's analysis. With no report yet, the screen offers the
- * same instead of an empty page.
+ * same instead of an empty page. While it runs, the working posts and the Analyst's lines stand
+ * where the report will appear (#237).
  *
  * `?persona=` is the persona whose row was picked: the findings narrow to theirs and the page's
  * measurements, and say so, so a picked row is a link.
@@ -18,7 +19,7 @@
  * earlier visit shows as running too: the mutation outlives the screen, and its `onSuccess` stores
  * the report all the same.
  */
-import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute, Link } from "@tanstack/react-router";
 import {
   ProfileId,
@@ -27,11 +28,12 @@ import {
   type ScoutLine,
   type UnevidencedClosure,
 } from "@wayford/core";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { analyse, reportQuery } from "../api/reports.js";
+import { analyse, analysisKey, reportQuery, useAnalysis } from "../api/reports.js";
 import { storedTaskQuery } from "../api/runs.js";
 import { bundledTasks } from "../bundled-fixtures.js";
+import { AnalystWorking } from "../components/analyst-working.js";
 import { Banner } from "../components/banner.js";
 import { EmptyState } from "../components/empty-state.js";
 import { count } from "../components/outcome-words.js";
@@ -96,12 +98,12 @@ function leftOutLine(report: Report): string | undefined {
 function AnalyseButton({
   label,
   variant,
-  pending,
+  pending = false,
   onClick,
 }: {
   label: string;
   variant: "default" | "outline";
-  pending: boolean;
+  pending?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -229,7 +231,7 @@ export function ReportScreen() {
     // Keyed by task, so moving to another task's report resets it: one goal's run never shows as
     // running, or failed, on another's page, and a POST that resolves after the move keeps the
     // options it started with, so its report lands on its own goal.
-    mutationKey: ["analyse", taskId],
+    mutationKey: analysisKey(taskId),
     mutationFn: (backend: ReportBackend | undefined) => analyse(taskId, backend),
     // The report names its task; storing by that id holds even if the key above were ever lost.
     onSuccess: (report) => client.setQueryData(reportQuery(report.taskId).queryKey, report),
@@ -241,8 +243,21 @@ export function ReportScreen() {
   const storedTask = useQuery({ ...storedTaskQuery(taskId), enabled: bundled === undefined });
   const goal = (bundled ?? storedTask.data)?.goal;
   const stored = query.data;
-  // This goal's analyses still running: this screen's own, or one an earlier visit started.
-  const pending = useIsMutating({ mutationKey: ["analyse", taskId] }) > 0;
+  // This goal's analysis: this screen's own, or one the Target screen or an earlier visit started.
+  const { pending, succeeded, since, error, backend } = useAnalysis(taskId);
+  // Whether this mount saw an analysis running, so the end is announced only after a start was:
+  // adjusted during render. Each goal's report mounts fresh (`remountDeps` below), so a return to
+  // a goal, or another goal's analysis, never announces an end this mount did not see.
+  const [sawRun, setSawRun] = useState(false);
+  if (pending && !sawRun) setSawRun(true);
+  // What the status region says (#237): the start once, and the end once, never the changing line.
+  // A failure is the fault banner's to say.
+  const status = pending
+    ? "Analysing the stored runs. This can take a few minutes."
+    : sawRun && succeeded
+      ? "The report is ready."
+      : "";
+  const working = pending ? <AnalystWorking since={since} /> : null;
 
   // Handled once per arrival, after the stored report has been read: the flag stays set until the
   // replaced address reaches the screen, and StrictMode runs the effect twice. With no backend, io
@@ -278,12 +293,14 @@ export function ReportScreen() {
         sentence="No report on this goal yet."
         line="The Analyst reads the latest run of each persona and seed on this goal, all personas at once."
         action={
-          <AnalyseButton
-            label="Analyse runs"
-            variant="default"
-            pending={pending}
-            onClick={() => analysis.mutate(undefined)}
-          />
+          // While it runs, the Analyst at work stands where its report will appear.
+          working ?? (
+            <AnalyseButton
+              label="Analyse runs"
+              variant="default"
+              onClick={() => analysis.mutate(undefined)}
+            />
+          )
         }
       />
     );
@@ -326,13 +343,18 @@ export function ReportScreen() {
           </div>
         )}
       </header>
-      {pending ? (
-        <p role="status" className="body text-ink-2">
-          Analysing the stored runs. This can take a few minutes.
-        </p>
-      ) : null}
-      {analysis.isError ? (
-        <Fault message={analysis.error.message} onRetry={() => analysis.mutate(analysis.variables)}>
+      {/* Mounted throughout, so a change of its text is announced. */}
+      <p role="status" className="sr-only">
+        {status}
+      </p>
+      {/* With a report, or none read yet, the Analyst at work stands under the header; with none
+          stored, the empty state holds it in place of its button, unless a re-read fault took
+          the body. */}
+      {stored === null && !query.isError ? null : working}
+      {/* This goal's last analysis failed, whichever screen or visit asked for it: Try again asks
+          for the same backend. */}
+      {error ? (
+        <Fault message={error.message} onRetry={() => analysis.mutate(backend)}>
           The runs could not be analysed.
         </Fault>
       ) : null}
@@ -346,5 +368,8 @@ export const reportRoute = createRoute({
   path: "/report/$taskId",
   // A zod schema is a Standard Schema, which TanStack validates with directly.
   validateSearch: ReportSearch,
+  // Each goal's report mounts fresh, as the Target screen keys its goal: what one goal's page saw
+  // of an analysis never carries over to another's.
+  remountDeps: ({ params }) => params.taskId,
   component: ReportScreen,
 });

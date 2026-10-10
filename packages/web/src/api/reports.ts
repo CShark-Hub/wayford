@@ -4,11 +4,11 @@
  * again (s3-08). Both answers are parsed with core's `Report`, and a refusal reads as
  * `api/runs.ts` words it, `io answered <status>: <error>`, since its helpers do the reading.
  *
- * io's `POST` is synchronous and can take minutes, with no job id or progress: the screen shows it
- * running from its own mutation's pending state.
+ * io's `POST` is synchronous and can take minutes, with no job id or progress: both screens show it
+ * running from the pending state of the goal's latest analysis, through `useAnalysis`.
  */
-import { queryOptions } from "@tanstack/react-query";
-import { Report, type ReportBackend } from "@wayford/core";
+import { queryOptions, useMutationState } from "@tanstack/react-query";
+import { Report, ReportBackend } from "@wayford/core";
 import { parseResponse, postJson } from "./runs.js";
 
 /** A task's own path under io's `/reports`, its id encoded. */
@@ -45,4 +45,43 @@ export function reportQuery(taskId: string) {
     queryFn: () => fetchReport(taskId),
     retry: false,
   });
+}
+
+/**
+ * The key a goal's analysis runs under, on the Report screen and the Target screen alike, so
+ * either shows the other's as running, and neither offers a second paid call while one runs.
+ */
+export function analysisKey(taskId: string) {
+  return ["analyse", taskId] as const;
+}
+
+/**
+ * The latest analysis of `taskId` in the mutation cache, whichever screen or visit asked for it
+ * (#237): whether it runs, since when (ms), how it ended, and the backend it asked for, so Try
+ * again repeats it on either screen; none when it asked for io's default. Only one runs at a time,
+ * since both screens hold their button while one does, so the latest is the one running.
+ */
+export function useAnalysis(taskId: string): {
+  pending: boolean;
+  succeeded: boolean;
+  since: number | undefined;
+  error: Error | null | undefined;
+  backend: ReportBackend | undefined;
+} {
+  const latest = useMutationState({
+    filters: { mutationKey: analysisKey(taskId) },
+    select: ({ state }) => ({
+      status: state.status,
+      submittedAt: state.submittedAt,
+      error: state.error,
+      backend: ReportBackend.safeParse(state.variables).data,
+    }),
+  }).at(-1);
+  return {
+    pending: latest?.status === "pending",
+    succeeded: latest?.status === "success",
+    since: latest?.status === "pending" ? latest.submittedAt : undefined,
+    error: latest?.error,
+    backend: latest?.backend,
+  };
 }

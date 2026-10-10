@@ -3,7 +3,7 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { type FindingType, Report, Task } from "@wayford/core";
 import { reportFixture } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { reportQuery } from "../api/reports.js";
 import { storedTaskQuery } from "../api/runs.js";
 import { attributesOf, lineOf, rowsOf } from "../preview/rendered-markup.js";
@@ -517,5 +517,94 @@ describe("the states before a report is shown", () => {
     const html = await renderWith("/report/task_past-order", client);
     expect(html).toMatch(/<table/);
     expect(html).not.toContain('role="alert"');
+  });
+});
+
+describe("while the Analyst runs (#237)", () => {
+  /**
+   * A client holding this goal's analysis, running and never answering, as `useMutation` leaves it
+   * once its POST is sent; with `report`, that report stored, else io's answer of none.
+   */
+  function analysing(taskId: string, report: Report | null): QueryClient {
+    const client = new QueryClient();
+    client.setQueryData(reportQuery(taskId).queryKey, report);
+    void client
+      .getMutationCache()
+      .build(client, { mutationKey: ["analyse", taskId], mutationFn: () => new Promise(() => {}) })
+      .execute(undefined);
+    return client;
+  }
+
+  /** The screen's own status region, not the skeleton's: what a screen reader hears of the Analyst. */
+  function analystStatusOf(html: string): string[] {
+    return [...html.matchAll(/<p role="status" class="sr-only">(.*?)<\/p>/gs)].map((m) =>
+      lineOf(m[1] ?? ""),
+    );
+  }
+
+  test("with no report stored, the posts and the Analyst's line stand in the empty state, in place of its button", async () => {
+    const html = await renderWith("/report/task_past-order", analysing(HARD.taskId, null));
+    const empty = html.match(/No report on this goal yet\.(.*)$/s)?.[1] ?? "";
+    expect(empty).toContain('data-slot="working"');
+    expect(empty).toContain('aria-live="off"');
+    expect(lineOf(empty)).toContain("so far");
+    expect(buttonsOf(html)).not.toContain("Analyse runs");
+    expect(analystStatusOf(html)).toEqual([
+      "Analysing the stored runs. This can take a few minutes.",
+    ]);
+  });
+
+  test("with a report stored, the posts stand under the header and Analyse again says it runs", async () => {
+    const html = await renderWith("/report/task_past-order", analysing(HARD.taskId, HARD));
+    const posts = html.indexOf('data-slot="working"');
+    expect(posts).toBeGreaterThan(html.indexOf("</header>"));
+    expect(posts).toBeLessThan(html.indexOf("<table"));
+    expect(buttonsOf(html)).toContain("Analysing…");
+    expect(analystStatusOf(html)).toEqual([
+      "Analysing the stored runs. This can take a few minutes.",
+    ]);
+  });
+
+  test("the time counts from when the analysis was asked for, not from the render, as after a visit elsewhere", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
+      const client = analysing(HARD.taskId, null);
+      vi.setSystemTime(new Date("2026-10-09T12:01:30Z"));
+      const html = await renderWith("/report/task_past-order", client);
+      expect(lineOf(html)).toContain("· 1:30 so far");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an analysis that ended before this render announces nothing: the end is said only after a start was", async () => {
+    const client = new QueryClient();
+    client.setQueryData(reportQuery(HARD.taskId).queryKey, HARD);
+    await client
+      .getMutationCache()
+      .build(client, { mutationKey: ["analyse", HARD.taskId], mutationFn: async () => HARD })
+      .execute(undefined);
+    const html = await renderWith("/report/task_past-order", client);
+    expect(analystStatusOf(html)).toEqual([""]);
+  });
+
+  test("an analysis another screen or visit started that failed shows the fault, over the stored report", async () => {
+    const client = new QueryClient();
+    client.setQueryData(reportQuery(HARD.taskId).queryKey, HARD);
+    await client
+      .getMutationCache()
+      .build(client, {
+        mutationKey: ["analyse", HARD.taskId],
+        mutationFn: () => Promise.reject(new Error("io answered 502: llm_timeout")),
+      })
+      .execute(undefined)
+      .catch(() => {});
+    const html = await renderWith("/report/task_past-order", client);
+    const alert = html.match(/<div role="alert"[^>]*>(.*?)<\/div><\/div>/s)?.[1] ?? "";
+    expect(lineOf(alert)).toContain("The runs could not be analysed. io answered 502: llm_timeout");
+    expect(buttonsOf(html)).toContain("Try again");
+    expect(html).toMatch(/<table/);
+    expect(analystStatusOf(html)).toEqual([""]);
   });
 });

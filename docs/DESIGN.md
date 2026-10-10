@@ -216,7 +216,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 Every data screen has three states besides its data:
 
 - **Loading:** a skeleton in the shape of its content. Never a spinner, never "Loading…" alone.
-- **Working:** a job io runs for a while, such as a goal check, Scout, a run set or the report, draws the working posts beside the line that says what runs. The line is what a screen reader hears; the posts are hidden from it. Never a spinner.
+- **Working:** a job io runs for a while, such as a goal check, Scout, a run set or the report, draws the working posts beside the line that says what runs. The line is what a screen reader hears; the posts are hidden from it. Never a spinner. The Analyst's wait, which takes minutes, adds a line that changes every 4 s and the time so far (`AnalystWorking`, #237). Those lines are flavour, never progress: io reports none, so no line claims a stage done, a count or a share of the work. They sit outside the announcement, which says once that the Analyst runs and once that it ended; under reduced motion the first line stays.
 - **Empty:** a mono label, one sentence in `display-m`, one line of body, and one action.
 - **Fault:** a fault banner with the HTTP status in mono and "Try again".
 

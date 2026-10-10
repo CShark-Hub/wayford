@@ -15,18 +15,12 @@
  * one screen that sets it or clears it (D12).
  * The screen shows no measured data to badge, and its run button names the backend.
  */
-import {
-  useIsMutating,
-  useMutation,
-  useMutationState,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute, Link, useRouter } from "@tanstack/react-router";
 import { type Task, TaskId } from "@wayford/core";
 import { useEffect, useEffectEvent, useReducer } from "react";
 import { z } from "zod";
-import { reportQuery } from "../api/reports.js";
+import { reportQuery, useAnalysis } from "../api/reports.js";
 import { storedTaskQuery } from "../api/runs.js";
 import { readScout, startScout } from "../api/scout.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
@@ -102,13 +96,9 @@ function LiveGoal({ task }: { task: Task }) {
   const [state, dispatch] = useReducer(goalReducer, undefined, initialGoal);
   const report = reportMutation(client, task.id);
   const { mutate } = useMutation(report);
-  // This goal's report being written, and how the last one ended: asked here, on an earlier
-  // visit, or on the Report screen, all under the one key.
-  const writing = useIsMutating({ mutationKey: report.mutationKey }) > 0;
-  const failure = useMutationState({
-    filters: { mutationKey: report.mutationKey },
-    select: (mutation) => mutation.state.error,
-  }).at(-1);
+  // This goal's report being written, since when, and how the last one ended: asked here, on an
+  // earlier visit, or on the Report screen, all under the one key.
+  const { pending: writing, since, error: failure } = useAnalysis(task.id);
   const stored = useQuery(reportQuery(task.id)).data;
 
   useEffect(() => {
@@ -125,7 +115,7 @@ function LiveGoal({ task }: { task: Task }) {
   // Once per set: only a set's end turns the status `ended`, and a mount starts idle, so
   // StrictMode's second run of this effect posts nothing. `mutate` keeps its identity.
   useEffect(() => {
-    if (state.runSet.status === "ended") mutate();
+    if (state.runSet.status === "ended") mutate("llm");
   }, [state.runSet.status, mutate]);
 
   return (
@@ -135,6 +125,8 @@ function LiveGoal({ task }: { task: Task }) {
       report={{
         stored: stored != null,
         writing,
+        // When the report being written was asked for, here or elsewhere, for its time so far.
+        ...(since !== undefined && { since }),
         // A new set under way sets the last failure aside; its own report follows it.
         ...(failure != null && !isUnderWay(state.runSet.status) && { error: failure.message }),
       }}
@@ -142,7 +134,7 @@ function LiveGoal({ task }: { task: Task }) {
       onAction={dispatch}
       onScout={() => void dispatchScout(startScout(task.id), dispatch)}
       onStart={() => void startRunSet(task, state, bundledProfiles, dispatch)}
-      onReport={() => mutate()}
+      onReport={() => mutate("llm")}
       onClearTarget={() => {
         clearCurrentTarget();
         // The form, with what was typed still in it, as New goal opens it.
