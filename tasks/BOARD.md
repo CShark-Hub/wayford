@@ -112,6 +112,9 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s3-18 | The source badge moves into the page | S | s3-12, s3-14 | Tomasz | done |
 | demo-1 | Agree the 90-second script, `docs/DEMO.md`, and rehearse beats 1 to 4 | — | by Friday 2026-10-09 | team | todo |
 | demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task, #224 | team | todo |
+| demo-4 | Landing page on GitHub Pages: `site/`, published by `pages.yml` and nothing else | S | — | Tomasz | review |
+
+`demo-4` was agreed by Tomasz on 2026-10-10 for the pitch, and is outside the 90-second demo (PR #257). Before it merges, Pages' source must be set to GitHub Actions (Settings → Pages): publishing from `main` would serve the whole private repository.
 
 **Any target, for the finals on 2026-10-14** (`docs/adr/0003-any-target.md`).
 

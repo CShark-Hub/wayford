@@ -77,7 +77,7 @@ A pnpm workspace of six packages under the `@wayford/*` scope, TypeScript and ES
 | [`packages/web`](../packages/web) | The React app: Vite, TanStack Router and Query, Tailwind, shadcn/ui |
 | [`packages/target-app`](../packages/target-app) | Quillmere, a small fictional shop with three routes to its hard goal and query parameters that tune it |
 
-Beside them: [`docs/`](.) for the plan, rules, design and decisions, and [`tasks/`](../tasks) for the work items and the board.
+Beside them: [`docs/`](.) for the plan, rules, design and decisions, [`tasks/`](../tasks) for the work items and the board, and [`site/`](../site) for the landing page. It is one self-contained `index.html`, with no build step. [`pages.yml`](../.github/workflows/pages.yml) publishes that folder, and only that folder, to GitHub Pages on every push to `main` that changes it.
 
 Biome enforces the package import rules in `pnpm lint`; they are in [`STACK.md`](STACK.md), "Package import rules". The Actor's code path never imports Scout's output; a test walks its imports to check.
 

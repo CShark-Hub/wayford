@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Wayford's posts: one signal, two ink steps (packages/web/src/components/top-bar.tsx), drawn thicker to read at 16 px. -->
+  <style>
+    .ink { fill: #1a1510; }
+    .ink3 { fill: #655f59; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #f5f3f0; }
+      .ink3 { fill: #a7a49e; }
+    }
+  </style>
+  <rect x="7" y="2" width="5" height="22" rx="1.5" fill="#ea5202"/>
+  <rect class="ink" x="14.5" y="7" width="4" height="21"/>
+  <rect class="ink3" x="21" y="12" width="2.5" height="19"/>
+</svg>
