@@ -131,6 +131,7 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s1-07 | Our pick through the API, and the gaps it hits | M | s2-13 | Dawid | done |
 | s2-14 | Follow a tab the action opens, only if a run on our pick hits one | S | s1-07 or s4-08 | | todo |
 | s4-08 | Rehearsal on our site: every screen, from the Target screen | M | s1-07, s4-09, s4-10, s3-15, s3-16, s3-17 | Dawid | done |
+| s4-11 | The Analyst reads what the filter cut, on a goal with no route table | S | s4-04, s4-10 | Tomasz | doing |
 | demo-3 | Drill: someone picks a site the presenter has not seen; the presenter takes it from URL to a three-seed report, timed | — | s4-08 | team | todo |
 
 Optional, taken only once every task above is taken:
