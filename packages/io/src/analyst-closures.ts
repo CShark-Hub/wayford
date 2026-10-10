@@ -277,9 +277,10 @@ function detailOf(
 
 /**
  * One rule's clause: what it compared, or what cap or side cut the element. A perception rule's
- * threshold is the decision's: `perceive` copies it from the profile that cut the element.
+ * threshold is the decision's: `perceive` copies it from the profile that cut the element. The
+ * Analyst's case words its cut lines with it too (`analyst-digest.ts`), so both read alike.
  */
-function clauseOf(decision: ElementDecision, profile: Profile): string {
+export function clauseOf(decision: ElementDecision, profile: Profile): string {
   const { label } = profile;
   switch (decision.stage) {
     case "perception": {

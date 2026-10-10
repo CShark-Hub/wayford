@@ -579,6 +579,22 @@ describe("Scout's line", () => {
     );
   });
 
+  test("Scout's path reaches the case: with no run through, its element gives a cut line", async () => {
+    const s = await store();
+    // No route table (`analystDefaults`), and no run that got through: only Scout used the link.
+    await saveAll(s, [run(vera, cutSeed, "run_vera-cut", { steps: [deliveries(cutSeed)] })]);
+    const without = fakeLlm({ analyst: [NOTHING] });
+    await analysed(depsOf(s, without));
+    expect(without.calls[0]?.messages[1]?.content).not.toContain("cut from this agent");
+
+    await writeFile(join(await dirOf(s), `${TASK}.json`), JSON.stringify(groundTruthFixture));
+    const fake = fakeLlm({ analyst: [NOTHING] });
+    await analysed(depsOf(s, fake));
+    expect(fake.calls[0]?.messages[1]?.content).toContain(
+      'link "Order archive" on /deliveries, step 0. P1:',
+    );
+  });
+
   test("a file whose attempts all failed gives notReached, and the case says so", async () => {
     const s = await store();
     await storeRunSet(s);

@@ -231,7 +231,15 @@ async function analyseTask(input: AnalysisInput): Promise<Report> {
       { role: "system", content: PROMPT },
       {
         role: "user",
-        content: analystCase({ task, scout, personas, drafts, runs: ordered, backend }),
+        content: analystCase({
+          task,
+          scout,
+          personas,
+          drafts,
+          runs: ordered,
+          backend,
+          scoutPath: groundTruth?.shortest?.path.steps,
+        }),
       },
     ],
     schema: answerFor(drafts),

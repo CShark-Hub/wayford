@@ -169,6 +169,7 @@ describe("the fake Analyst", () => {
             drafts: [],
             runs,
             backend: "jev",
+            scoutPath: undefined,
           }),
         },
       ],

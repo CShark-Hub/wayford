@@ -87,8 +87,8 @@ Nothing changes after the call. `basisOf` already takes any rule a cited persona
 
 ## Acceptance
 
-- [ ] `pnpm --filter @wayford/io test` passes and `analyst-digest.test.ts` includes:
-  - a failing run's step on `/` where the key a successful run clicked is cut by P4 gives one cut line, with its steps and `clauseOf`'s clause;
+- [x] `pnpm --filter @wayford/io test` passes and `analyst-digest.test.ts` includes:
+  - a failing run's step where the key a successful run clicked is cut by a perception rule gives one cut line, with its steps and `clauseOf`'s clause (P1 on `/deliveries` in the test; P4 on `/` in the real-key box);
   - the same element `visible` or `degraded` gives no line;
   - two elements with the key, one shown, give no line;
   - an element cut by V2 alone gives no line;
@@ -96,10 +96,37 @@ Nothing changes after the call. `basisOf` already takes any rule a cited persona
   - a successful run and an `error` run get no lines;
   - Scout's path alone, with no run through, makes an element used;
   - the prompt tests pass unchanged: no label, no trait word.
-- [ ] On the real key, `pnpm --filter @wayford/io analyse -- --task task_01m4grew5fed6wk4zg607hr1a8 --backend llm` runs against a copy of the 2026-10-09 rehearsal store, with Scout's `task_01m4grew5fed6wk4zg607hr1a8.json` in `runs/ground-truth/`. That is one Analyst call. The PR shows:
+
+  Evidence: `analyst-digest.test.ts`, "analystCase: what the filter cut from a run that did not get through", eleven tests. 31 of 31 pass in the file. Two more guards, added after the branch review, have a test each: only a run that got through makes an element used, and only a decision that itself cuts the element gives a clause. After the PR review (#250), the first test also stands on `/account` with the link cut and on `/deliveries` under a query string, so only the page condition drops a step and a query string never splits a page; `analyst.test.ts`, "Scout's path reaches the case", proves `analyseTask` hands Scout's path on. io: 447 of 447. The cut is Vera's P1 on "Order archive" on `/deliveries` and Kai's A1 there, read off `perceive` over the target app's measurement; the P4 cut on `/` is the real-key box below (Outcome). Each guard was mutated once and its test failed: the "every element with the key" check, the route-table gate, the stage filter that leaves V2 out, the outcome gate.
+- [x] On the real key, `pnpm --filter @wayford/io analyse -- --task task_01m4grew5fed6wk4zg607hr1a8 --backend llm` runs against a copy of the 2026-10-09 rehearsal store, with Scout's `task_01m4grew5fed6wk4zg607hr1a8.json` in `runs/ground-truth/`. That is one Analyst call. The PR shows:
   - Vera's cut lines as the case gives them, built with `analystCase` over the same stored runs;
   - the hypothesis the report writes. Expected, not guaranteed: it names P4, cites Vera's steps, and has the basis P4 `folk`.
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root.
+
+  Evidence, 2026-10-10, at `6c5a988`, on a copy of the rehearsal store:
+  - The case, diffed against the one the Analyst read on 2026-10-09, gains three blocks, one per Vera run, and nothing else. Seed 1:
+
+    ```
+      cut from this agent at these steps, of what a run that got through or Scout used:
+        button "Reject All" on /, steps 0 to 9. P3: font size 14 px, below Vera's threshold of 16 px.
+        link "About" on /, steps 0, 4, 6, 8. P4: target size 16 px, below Vera's threshold of 32 px.
+    ```
+
+  - `analyse` exits 0. The Analyst cost 0.004205 USD for 3,932 tokens in and 7,623 out. The one hypothesis:
+    - title: "The undersized About link may contribute to Vera's repeated homepage scrolling";
+    - basis: `P4 (folk)`;
+    - evidence: Ada's step 1, Kai's step 0, and Vera's seed-1 steps 0, 3 to 4, 6 and 8;
+    - detail ends: "This makes the size-based filter a plausible contributor to her search loop, but the run does not establish that About is the only route.";
+    - recommendation: "Increase the About link's interactive target on / to at least 32 px so it meets Vera's P4 threshold and is not cut from her agent."
+
+    On 2026-10-09 the same runs got "Vera's scrolling path misses the homepage's About entry", with `basis: []`.
+- [x] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass at the root.
+
+  Evidence: lint "Checked 451 files … No fixes applied", typecheck clean. Test: 3,023 of 3,024 pass. The one failure is web's `src/target/current-target.test.ts`, "with no sessionStorage, as in Node": it asserts `typeof sessionStorage` is `"undefined"`, which Node 26, this machine's, no longer gives. CI runs Node 24 (`.node-version`), and this branch changes nothing in web.
+
+## Outcome
+
+- The tests prove the rule on the target app's own pages, P1 and A1 on `/deliveries`, since `perceive` over the fixture measurement gives real decisions; the P4 cut on `/` is proven on the real key, over cshark.com's stored runs.
+- `seed-demo.test.ts` passes `scoutPath: undefined` to `analystCase`, the field's one other caller.
 
 ## Out of scope
 

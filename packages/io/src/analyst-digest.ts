@@ -14,6 +14,12 @@
  * the behaviour dice changed the planned action, the line says so, so a double click the dice made
  * is not read as the agent's choice.
  *
+ * On a goal with no route table, code writes no closure findings (ADR 0003 D3), so a run that did
+ * not get through ends with cut lines instead (`s4-11`): each element a run that got through, or
+ * Scout, used on a page this run stood on, which a perception or attention rule kept from this
+ * run's agent there, with the steps and the rule's clause. Without them the case shows an agent
+ * that never clicked a link it was never given, and the model reads that as wayfinding.
+ *
  * Left out on purpose: Jev's options, probabilities and confidence (ADR 0001, decision 6). A Jev
  * run has no narration, and its header says so. The personas' descriptions are left out too: the
  * case gives labels and numbers, never traits.
@@ -23,8 +29,11 @@
  */
 import {
   type Action,
+  decisionState,
+  type ElementDecision,
   type FullObservation,
   type Observation,
+  type PathStep,
   type PersonaResult,
   type ReportBackend,
   type RunResult,
@@ -33,7 +42,8 @@ import {
   type Task,
   toActorObservation,
 } from "@wayford/core";
-import type { Draft } from "./analyst-closures.js";
+import { profileFixtures } from "@wayford/core/fixtures";
+import { clauseOf, type Draft } from "./analyst-closures.js";
 import { labelOf, NONE, plural, scoutLine, seconds } from "./analyst-text.js";
 
 export function analystCase(input: {
@@ -44,15 +54,23 @@ export function analystCase(input: {
   runs: readonly RunResult[];
   /** The report's backend, which every run of `runs` ran on: `selectRuns` chose them by it. */
   backend: ReportBackend;
+  /** Scout's shortest path, when it reached the goal: what it used counts for the cut lines. */
+  scoutPath: readonly PathStep[] | undefined;
 }): string {
-  const { task, scout, personas, drafts, runs, backend } = input;
+  const { task, scout, personas, drafts, runs, backend, scoutPath } = input;
+  const used = usedElements(runs, scoutPath);
+  // A persona with a route table has its cuts as closure findings already.
+  const routeTable = new Set(
+    personas.filter((p) => p.routeOpenSeeds !== null).map((p) => p.profileId),
+  );
+  const cutsOf = (run: RunResult) => (routeTable.has(run.profileId) ? [] : cutLines(run, used));
   const sections = [
     ["Goal", oneLine(task.goal)],
     // Scout's line worded as `reportText` words it (`scoutLine`): context, not a verdict.
     ["Baseline: Scout, a run with full access to the page", scoutLine(scout)],
     ["Personas", ...personas.map(personaLine)],
     ["Findings computed from the page", ...findingLines(drafts)],
-    ["Runs", ...runs.flatMap((run) => runLines(run, backend))],
+    ["Runs", ...runs.flatMap((run) => [...runLines(run, backend), ...cutsOf(run)])],
   ];
   return `${sections.map(([heading, ...lines]) => [`## ${heading}`, ...lines].join("\n")).join("\n\n")}\n`;
 }
@@ -175,6 +193,113 @@ function elementText(ref: string, { full, read }: Page): string {
   return readAs === undefined || readAs === element.name
     ? quote(element.name)
     : `${quote(element.name)} (read as ${quote(readAs)})`;
+}
+
+/** A page as the cut lines key it: origin and path, so a query string never splits one page. */
+function pageOf(url: string): string {
+  const { origin, pathname } = new URL(url);
+  return `${origin}${pathname}`;
+}
+
+/**
+ * The element keys used on the way to the goal, by page: every element a run that got through
+ * acted on, looked up by ref in that step's own evidence, and every element Scout's path names.
+ * Keys, not names: the key is what perception hashes its decision on.
+ */
+function usedElements(
+  runs: readonly RunResult[],
+  scoutPath: readonly PathStep[] | undefined,
+): Map<string, Set<string>> {
+  const used = new Map<string, Set<string>>();
+  const add = (url: string, key: string) => {
+    const page = pageOf(url);
+    used.set(page, (used.get(page) ?? new Set()).add(key));
+  };
+  for (const run of runs) {
+    if (run.outcome !== "success") continue;
+    for (const step of run.steps) {
+      if ("wasted" in step) continue;
+      const action = step.performedAction;
+      if (action === undefined || !("ref" in action)) continue;
+      const element = step.fullObservation.elements.find((e) => e.ref === action.ref);
+      if (element !== undefined) add(step.urlBefore, element.key);
+    }
+  }
+  for (const step of scoutPath ?? []) {
+    if (step.key !== undefined) add(step.url, step.key);
+  }
+  return used;
+}
+
+/** One used element cut by one clause in a run, over the steps it was cut at. */
+interface Cut {
+  role: string;
+  name: string;
+  path: string;
+  clause: string;
+  steps: number[];
+}
+
+/**
+ * A run's cut lines: none unless it gave up or ran out of budget. An `error` run says nothing
+ * about the persona. A step shows a cut of a used key of its page when every element with that
+ * key is `invisible` and one carries a perception or attention decision whose own state is
+ * `invisible`: `showsCut`'s test, keyed. V2 is left out: it says where the agent had scrolled,
+ * which the step lines show already. Cuts group by page, key and clause, in the order first met.
+ */
+function cutLines(run: RunResult, used: ReadonlyMap<string, ReadonlySet<string>>): string[] {
+  if (run.outcome !== "gave_up" && run.outcome !== "budget_exceeded") return [];
+  const profile = profileFixtures.find((p) => p.id === run.profileId);
+  if (profile === undefined) return [];
+  const cuts = new Map<string, Cut>();
+  for (const step of run.steps) {
+    const page = pageOf(step.urlBefore);
+    for (const key of used.get(page) ?? []) {
+      const elements = step.fullObservation.elements.filter((e) => e.key === key);
+      const [first] = elements;
+      if (first === undefined || elements.some((e) => e.state !== "invisible")) continue;
+      const clauses = new Set(
+        elements.flatMap((e) => e.decisions.filter(cutsIt).map((d) => clauseOf(d, profile))),
+      );
+      for (const clause of clauses) {
+        const id = JSON.stringify([page, key, clause]);
+        const path = new URL(step.urlBefore).pathname;
+        const cut = cuts.get(id) ?? { role: first.role, name: first.name, path, clause, steps: [] };
+        cut.steps.push(step.stepIndex);
+        cuts.set(id, cut);
+      }
+    }
+  }
+  if (cuts.size === 0) return [];
+  return [
+    "  cut from this agent at these steps, of what a run that got through or Scout used:",
+    ...[...cuts.values()].map(
+      (cut) =>
+        `    ${cut.role} ${quote(cut.name)} on ${cut.path}, ${stepsText(cut.steps)}. ${cut.clause}`,
+    ),
+  ];
+}
+
+/** A perception or attention decision that alone makes its element `invisible`. */
+function cutsIt(decision: ElementDecision): boolean {
+  return (
+    (decision.stage === "perception" || decision.stage === "attention") &&
+    decisionState(decision) === "invisible"
+  );
+}
+
+/** `step 3`, `steps 0, 4, 6`, or `steps 0 to 9, 12` for three or more in a row. */
+function stepsText(steps: readonly number[]): string {
+  if (steps.length === 1) return `step ${steps[0]}`;
+  const parts: string[] = [];
+  let start = 0;
+  steps.forEach((step, index) => {
+    if (steps[index + 1] === step + 1) return;
+    const run = steps.slice(start, index + 1);
+    parts.push(...(run.length >= 3 ? [`${run[0]} to ${step}`] : run.map(String)));
+    start = index + 1;
+  });
+  return `steps ${parts.join(", ")}`;
 }
 
 /**
