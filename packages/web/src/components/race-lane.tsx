@@ -11,6 +11,11 @@
  * its text, and the screenshot and the right column span both rows, so row 2 costs the lane no
  * height in any state, and three lanes fit 1280 by 720.
  *
+ * The narration is the agent's, written after the action, so it is a hypothesis: the bubble's
+ * outline is dashed (`docs/DESIGN.md`, Principle 3). Its tail is a caret too short to dash, drawn
+ * in the same persona colour. The bubble shows the persona's words alone, and a screen reader hears
+ * "Narration, written after the action:" first (#236).
+ *
  * That fit has a price. Over a detail line, one line holds about 75 characters of narration at
  * 1280, so a stuck, errored or lost lane cuts a longer narration short. A second narration line
  * there would make the lane 24 px taller. Three such lanes in a live race, whose header holds the
@@ -134,7 +139,7 @@ function GoalPost({ reached, place }: { reached: boolean; place: number | undefi
 /**
  * A race lane. The narration, in a bubble in the persona's colour that points at its avatar, gets
  * one line over a detail line, and both lines without one. Both are clamped in CSS alone, so the
- * markup keeps every word. With no narration, as on a Jev run, there is no bubble and no label.
+ * markup keeps every word. With no narration, as on a Jev run, there is no bubble.
  */
 export function RaceLane({
   headingId,
@@ -280,7 +285,8 @@ export function RaceLane({
         {/* The bubble alone fits its text. A detail line keeps the column's width: one sized to an
             unbreakable token, such as a URL's session token in an error, would reach over the
             screenshot and take the clicks meant for "See the run". */}
-        {narration === undefined ? null : (
+        {/* Whitespace alone would shrink the bubble to a sliver beside its tail. */}
+        {narration === undefined || narration.trim() === "" ? null : (
           <div data-narration="" className="relative isolate max-w-full self-start px-2">
             {/* The bubble's ground and outline, beside the paragraph, since the clamp's overflow
                 would clip them inside it. They reach 2 px up into the row gap and stop at the
@@ -290,7 +296,7 @@ export function RaceLane({
                 these are. */}
             <span
               aria-hidden="true"
-              className="absolute inset-x-0 -top-0.5 bottom-0 -z-10 rounded-sm border-(length:--stroke-rule) border-(--p) bg-paper after:absolute after:-top-1.5 after:left-6.5 after:size-2 after:rotate-45 after:border-t-(length:--stroke-rule) after:border-l-(length:--stroke-rule) after:border-(--p) after:bg-paper"
+              className="absolute inset-x-0 -top-0.5 bottom-0 -z-10 rounded-sm border-(length:--stroke-rule) border-dashed border-(--p) bg-paper after:absolute after:-top-1.5 after:left-6.5 after:size-2 after:rotate-45 after:border-t-(length:--stroke-rule) after:border-l-(length:--stroke-rule) after:border-(--p) after:bg-paper"
             />
             <p
               className={cn(
@@ -298,7 +304,8 @@ export function RaceLane({
                 detail === undefined ? "line-clamp-2" : "line-clamp-1",
               )}
             >
-              <span className="mono-label text-ink-3">narration · after the fact</span> {narration}
+              {/* Out of flow, so it takes none of the clamp's room. */}
+              <span className="sr-only">Narration, written after the action:</span> {narration}
             </p>
           </div>
         )}

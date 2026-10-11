@@ -130,12 +130,12 @@ function tileText(html: string): string {
 }
 
 /**
- * The text after a lane's narration label, in its bubble; `undefined` when the lane draws no
- * bubble, as before the first narration or on a Jev run (#195).
+ * The text after a lane's hidden narration prefix, in its bubble; `undefined` when the lane draws
+ * no bubble, as before the first narration or on a Jev run (#195, #236).
  */
 function narrationOf(html: string, run: StartedRun = vera): string | undefined {
   const found = tileOf(html, run).match(
-    /<span[^>]*>narration · after the fact<\/span>((?:(?!<\/p>).)*)<\/p>/s,
+    /<span class="sr-only">Narration, written after the action:<\/span>((?:(?!<\/p>).)*)<\/p>/s,
   );
   return found === null ? undefined : lineOf(found[1] ?? "");
 }
@@ -320,14 +320,14 @@ describe("a lane's narration follows the latest narration event of its run", () 
     ]);
   });
 
-  test("a run with no narration event, as a Jev run: no bubble and no label", () => {
+  test("a run with no narration event, as a Jev run: no bubble and no prefix", () => {
     const jevRun = RunEvent.array().parse(
       runEventFixtures.filter((event) => event.type !== "narration"),
     );
     // Still a whole run: it folds, and only the narration is gone.
     expect(runResultFromEvents(jevRun).steps.every((step) => step.narration === "")).toBe(true);
     const html = render(jevRun);
-    expect(tileOf(html, vera)).not.toContain("after the fact");
+    expect(tileOf(html, vera)).not.toContain("after the");
     expect(runView(jevRun).narration).toBeUndefined();
   });
 });

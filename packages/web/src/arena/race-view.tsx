@@ -6,11 +6,11 @@
  * of a race without a stream.
  *
  * A lane says what its state rests on: the page a stuck persona left as it was, a crash's message,
- * the state a lost stream was last seen in. The narration is the model's, labelled as written after
- * the fact and never read into. Each avatar state is a static variant (`Avatar`'s `state`), swapped
- * as the events come: nothing moves. A run whose stream broke for good before its end shows no
- * live state: its avatar is plain and dimmed, its track has no step under way, and its lane says
- * what was last seen.
+ * the state a lost stream was last seen in. The narration is the model's, marked as a hypothesis by
+ * its dashed outline, labelled as written after the fact for a screen reader only, and never read
+ * into. Each avatar state is a static variant (`Avatar`'s `state`), swapped as the events come:
+ * nothing moves. A run whose stream broke for good before its end shows no live state: its avatar
+ * is plain and dimmed, its track has no step under way, and its lane says what was last seen.
  *
  * Every clock on the Race is simulated time (B3's clock): each step's cost from the KLM and
  * Fitts's law at the persona's pace, never the wall clock, which measures the model and the

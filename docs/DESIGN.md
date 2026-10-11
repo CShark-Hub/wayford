@@ -59,7 +59,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
      - the Lens says it in the stage: its `Live:` line under the drawn page when io answered, and when it did not, a stored banner on a target-app page or a fault banner on a page opened by URL.
    - A screen whose data can only be stored (Run detail, Runs, Report, Boundary) carries no source badge: a badge that never changes reads as a status of the whole app.
    - The backend a run, report or sweep was on is a word in its own meta line or facts, not a badge. A run that stopped before its first planned action names none: its record cannot tell Jev from the LLM.
-   - Narration is labelled `narration · after the fact`.
+   - Narration is marked as written after the fact. On run detail its heading reads `narration · after the fact`. In the Race's bubble there is no visible label: its outline is dashed (Principle 3), and a visually hidden "Narration, written after the action:" comes before the words (#236).
    - Jev's confidence is labelled as the model's.
 
 ## Screens
@@ -203,7 +203,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | ThresholdGauge | A ruler: persona fill to the value, signal post at the threshold, softness band below it, provenance tag. A native range input over the drawing | `s3-11` |
 | FilterStates | Visible, degraded (hatch), removed (dashed signal outline and cut flag `P1 · 2.0 < 4.5`), renamed (`[unfamiliar term]`), cut by attention (quiet flag) | `s3-11` |
 | Outcome | Glyph and word: Got through, Gave up, Out of time, Hit the step cap, Over budget, Error. The three budget endings share one hourglass | `s3-12` |
-| RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail. A run too long for its track narrows every done pip alike, so all of them stay between the start and the post. The narration sits in a bubble on `paper`, under the avatar, its outline and its tail pointing at the avatar in the persona's fill; with no narration there is no bubble. The bubble costs the lane no height (#195) | `s3-12` |
+| RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail. A run too long for its track narrows every done pip alike, so all of them stay between the start and the post. The narration sits in a bubble on `paper`, under the avatar, with a tail pointing at the avatar. Its outline is dashed, a hypothesis, in the persona's fill; the tail is a caret too short to dash, in the same fill. The bubble shows the persona's words alone, with no visible label (#236); with no narration there is no bubble. The bubble costs the lane no height (#195) | `s3-12` |
 | StepTimeline | 40 px step buttons, ← → moves; wasted hatched, last ringed | `s3-12` |
 | JevDraw | Options laid end to end on 0–1, the rolled needle in signal, the drawn segment filled | `s3-10` |
 | SeedStrip | One 32 px cell per seed: border = route open (solid) or closed (dashed), fill = got through, slash = error | `s3-08` |

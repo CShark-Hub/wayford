@@ -326,6 +326,8 @@ describe("the detail line", () => {
 });
 
 describe("the narration", () => {
+  /** What a screen reader hears before the narration, where the eye sees a dashed bubble. */
+  const HIDDEN_PREFIX = "Narration, written after the action:";
   const LONG =
     "A link at the bottom reads Order archive, but the letters are faint. Going back to the account page to look for another way in.";
 
@@ -343,39 +345,55 @@ describe("the narration", () => {
     "is clamped to %s, in CSS alone: every word stays in the markup",
     (_case, over, clamp, not) => {
       const html = lane({ ...over, narration: LONG });
-      const paragraph = tagReading(html, "p", `narration · after the fact ${LONG}`);
+      const paragraph = tagReading(html, "p", `${HIDDEN_PREFIX} ${LONG}`);
       expect(classesOf(paragraph)).toContain(clamp);
       expect(classesOf(paragraph)).not.toContain(not);
       expect(textOf(html)).toContain(LONG);
     },
   );
 
-  test("is a bubble: the label first, then the words in ink", () => {
-    const html = lane({ narration: "Opening it." });
-    const bubble = elementOf(html, "div", "data-narration");
-    expect(classesOf(tagReading(bubble, "p", "narration · after the fact Opening it."))).toContain(
-      "text-ink",
-    );
-    expect(classesOf(tagReading(bubble, "span", "narration · after the fact"))).toEqual(
-      expect.arrayContaining(["mono-label", "text-ink-3"]),
-    );
+  // The bubble's border marks the narration as a hypothesis, so the eye reads the words alone (#236).
+  test("shows the persona's words alone, in ink", () => {
+    const bubble = elementOf(lane({ narration: "Opening it." }), "div", "data-narration");
+    const [, start = "", inner = ""] = bubble.match(/<p(\s[^>]*)>(.*?)<\/p>/s) ?? [];
+    expect(classesOf(attributesOf(start))).toContain("text-ink");
+    expect(lineOf(inner.replace(/<span class="sr-only">.*?<\/span>/gs, ""))).toBe("Opening it.");
+  });
+
+  test("tells a screen reader first that the words were written after the action", () => {
+    const bubble = elementOf(lane({ narration: "Opening it." }), "div", "data-narration");
+    const [, inner = ""] = bubble.match(/<p\s[^>]*>(.*?)<\/p>/s) ?? [];
+    const prefix = inner.match(/^<span(\s[^>]*)>(.*?)<\/span>/s);
+    expect(classesOf(attributesOf(prefix?.[1] ?? ""))).toStrictEqual(["sr-only"]);
+    expect(prefix?.[2]).toBe(HIDDEN_PREFIX);
+    expect(lineOf(inner)).toBe(`${HIDDEN_PREFIX} Opening it.`);
   });
 
   // That the tail points at the avatar, and that the bubble is painted over the lane, is measured
   // in the self-check's lane pass: classes alone cannot show either.
-  test("draws its outline and tail in the persona's fill, on paper, hidden from assistive technology", () => {
+  test("draws its outline dashed, a hypothesis, and its tail, in the persona's fill, on paper, hidden from assistive technology", () => {
     const bubble = elementOf(lane({ narration: "Opening it." }), "div", "data-narration");
     const drawn = tagsWith(bubble, 'aria-hidden="true"');
     expect(drawn).toHaveLength(1);
     // The ground is paper, never the persona's colour: a persona colour is never behind body text.
     expect(classesOf(drawn[0] ?? {})).toEqual(
-      expect.arrayContaining(["border-(--p)", "bg-paper", "after:border-(--p)", "after:bg-paper"]),
+      expect.arrayContaining([
+        "border-dashed",
+        "border-(--p)",
+        "bg-paper",
+        "after:border-(--p)",
+        "after:bg-paper",
+      ]),
     );
   });
 
-  test("is not drawn when there is no narration, as on a Jev run: no bubble and no label", () => {
+  test("is not drawn when there is no narration, as on a Jev run: no bubble and no prefix", () => {
     const html = lane();
     expect(html).not.toContain("data-narration");
-    expect(textOf(html)).not.toContain("after the fact");
+    expect(textOf(html)).not.toContain("after the");
+  });
+
+  test("is not drawn when the narration is only whitespace: no bubble to shrink beside its tail", () => {
+    expect(lane({ narration: " " })).not.toContain("data-narration");
   });
 });
