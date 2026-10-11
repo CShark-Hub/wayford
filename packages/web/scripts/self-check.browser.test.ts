@@ -893,6 +893,41 @@ describe("on the web app", () => {
     );
   });
 
+  describe("run detail's narration, measured", () => {
+    // The replay's own tests read the card's classes from the markup. Narration is free text, so
+    // this lays out one far longer than a model writes in Chromium, and shows it scrolling inside
+    // its card, the model's panel keeping the rest of the column, and the column ending above the
+    // recording.
+    const longRun = RunResult.parse({
+      ...runResultFixture,
+      id: "run_vera-hard-long",
+      steps: runResultFixture.steps.map((step) =>
+        step.stepIndex === 1 ? { ...step, narration: "I look again, slowly. ".repeat(200) } : step,
+      ),
+    });
+
+    test("a long narration scrolls inside its card, over the model's panel, above the recording", async () => {
+      const page = await runDetailAt(1, longRun);
+      const card = page.locator("section[aria-labelledby='step-narration']");
+      const box = async (selector: string) => {
+        const laid = await page.locator(selector).boundingBox();
+        if (laid === null) throw new Error(`run detail lays out no ${selector}`);
+        return laid;
+      };
+      const narration = await box("section[aria-labelledby='step-narration']");
+      const panel = await box("section[aria-labelledby='step-model-read']");
+      const recording = await box("section[aria-labelledby='run-recording']");
+      expect(await card.evaluate((section) => section.scrollHeight > section.clientHeight)).toBe(
+        true,
+      );
+      // Half the screen-high column at most, which is under half the window, whatever the
+      // model's text holds.
+      expect(narration.height).toBeLessThanOrEqual(SELF_CHECK_VIEWPORT.height / 2);
+      expect(narration.y + narration.height).toBeLessThanOrEqual(panel.y);
+      expect(panel.y + panel.height).toBeLessThanOrEqual(recording.y);
+    });
+  });
+
   describe("run detail's ← and →, pressed on the page", () => {
     // `stepKeyDelta` and `neighbourStep` are tested alone. These press the keys in Chromium, so
     // they show the window's listener moving `?step`, a Radix tab handling its own arrows before

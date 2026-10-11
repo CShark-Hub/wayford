@@ -28,8 +28,8 @@ const LLM_HEADINGS = [
   "Screenshot",
   "Filtered out",
   "Dice",
-  "What the model read",
   "narration · after the fact",
+  "What the model read",
 ];
 
 /** The narration section's heading. */
@@ -194,8 +194,8 @@ describe("a step Jev chose", () => {
       "Filtered out",
       "Dice",
       "Jev",
-      "What the model read",
       NARRATION,
+      "What the model read",
     ]);
     expect(tabsOf(html)).toEqual([
       { name: "Filtered out (0)", selected: false },
@@ -271,6 +271,51 @@ describe("narration is interpretation, so it sits under narration · after the f
       `${NARRATION} Answer 1, not shown: click e3 Jev writes no narration` +
         " Answer 2, not shown: click e5 Jev writes no narration",
     );
+  });
+});
+
+describe("the narration leads the right column, as a bubble in the persona's colour (#239)", () => {
+  /**
+   * The narration's row and its section: the classes of each, whether the persona's avatar, hidden
+   * from assistive technology, stands right before the section, and whether the section is in the
+   * tab order, as a box that scrolls must be.
+   */
+  function cardOf(html: string) {
+    const card = html.match(
+      /<div ([^>]*)>(<div aria-hidden="true"[^>]*>(?:(?!<section).)*?<svg [^>]*role="img".*?<\/svg><\/div><\/div>)?<section ([^>]*aria-labelledby="step-narration"[^>]*)>/s,
+    );
+    if (card === null) throw new Error("no section is labelled by the narration's heading");
+    const section = attributesOf(card[3] ?? "");
+    return {
+      row: classesOf(attributesOf(card[1] ?? "")),
+      classes: classesOf(section),
+      avatar: card[2] !== undefined,
+      focusable: section.tabindex === "0",
+    };
+  }
+
+  test.each([
+    ["an LLM step", 0, runResultFixture],
+    ["a wasted step", 3, runResultFixture],
+    ["a Jev step", 0, fixtureJevRun],
+  ])(
+    "%s: a dashed outline and a tail in the persona's fill, never signal, beside the avatar",
+    (_, stepIndex, run) => {
+      const { row, classes, avatar, focusable } = cardOf(replay(stepIndex, run));
+      expect(classes).toEqual(expect.arrayContaining(["border-dashed", "border-(--p)"]));
+      expect(row).toEqual(expect.arrayContaining(["before:border-dashed", "before:border-(--p)"]));
+      expect([...row, ...classes].filter((name) => name.includes("signal"))).toEqual([]);
+      expect(avatar).toBe(true);
+      expect(focusable).toBe(true);
+    },
+  );
+
+  test("a persona that is not bundled has no avatar, so its bubble has no tail", () => {
+    const html = replay(0, RunResult.parse({ ...runResultFixture, profileId: "prof_unbundled" }));
+    const { row, classes, avatar } = cardOf(html);
+    expect(avatar).toBe(false);
+    expect(classes).toContain("border-dashed");
+    expect(row.filter((name) => name.startsWith("before:"))).toEqual([]);
   });
 });
 

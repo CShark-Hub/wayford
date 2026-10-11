@@ -98,8 +98,8 @@ The app follows the system preference until someone flips the one Daylight/Night
 | `paper` | Page ground. |
 | `paper-sunken` | Wells: the Lens stage, table header rows, the gauge track, skeletons. |
 | `surface` | Anything raised: cast cards, findings, race lanes, popovers. |
-| `ink` | Primary text, headings, readouts, the primary button's fill, the Race's narration in its bubble. |
-| `ink-2` | Secondary text: descriptions, table cells that are not the key value, narration on run detail. |
+| `ink` | Primary text, headings, readouts, the primary button's fill, narration in its bubble, on the Race and run detail. |
+| `ink-2` | Secondary text: descriptions, table cells that are not the key value. |
 | `ink-3` | Meta text: captions, units, axis titles. Never a number that is evidence. |
 | `line` | Hairlines that only decorate: panel edges, table rules, chart grid. |
 | `line-strong` | Anything that must be seen to be used: control borders, seed cells, gauge ticks, a removed element's outline. |
@@ -120,7 +120,7 @@ Text is set only in those text tokens.
 
 **Persona slots.** A persona owns a slot, not a hex. It has three tokens:
 
-- `persona-<slot>`, the fill: series, dots, the lane track, the avatar body, a slider fill, the outline and tail of a race lane's narration bubble.
+- `persona-<slot>`, the fill: series, dots, the lane track, the avatar body, a slider fill, the outline and tail of a narration bubble, on a race lane and on run detail.
 - `persona-<slot>-ink`, its name set in colour.
 - `persona-<slot>-soft`, the tint behind its avatar.
 

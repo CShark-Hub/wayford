@@ -112,7 +112,11 @@ main.rd{padding:var(--space-3) var(--space-6) 0;display:grid;grid-template-colum
 .obs .is-drawn{background:var(--surface);box-shadow:inset 0 1px 0 var(--line),inset 0 -1px 0 var(--line)}
 .obs .mk{display:inline-flex;align-items:center;gap:6px;color:var(--ink-3);font-family:var(--font-sans)}
 .obs .mk::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--p)}
-.nonarr{margin:0;display:flex;gap:var(--space-3);align-items:center;color:var(--ink-3)}
+/* The narration leads the right column (#239): a speech bubble beside the avatar, its outline and tail in the
+   persona's fill, dashed, since narration is a hypothesis. */
+.narr{position:relative;display:flex;gap:var(--space-3);align-items:flex-start}
+.narr::before{content:"";position:absolute;top:20px;left:56px;width:8px;height:8px;transform:rotate(45deg);background:var(--surface);border-bottom:var(--stroke-rule) dashed var(--p);border-left:var(--stroke-rule) dashed var(--p)}
+.nonarr{flex:1;min-width:0;margin:0;display:grid;gap:var(--space-2);padding:var(--space-3) var(--space-4);background:var(--surface);border:var(--stroke-rule) dashed var(--p);border-radius:var(--radius-md);color:var(--ink-3)}
 </style>
 </head>
 <body>
@@ -192,6 +196,7 @@ main.rd{padding:var(--space-3) var(--space-6) 0;display:grid;grid-template-colum
       </div>
     </div>
     <div class="rcol">
+      <div class="narr"><span class="wf-avatar" aria-hidden="true" style="--s:48px"><svg viewBox="0 0 160 160" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><g data-part="body"><path d="M10 160 C10 128 34 106 70 106 C106 106 130 128 130 160" stroke-width="4" style="fill:var(--p);stroke:var(--avatar-line)"></path><g style="fill:var(--p-ink)"><circle cx="42" cy="128" r="4.5"></circle><circle cx="70" cy="126" r="4.5"></circle><circle cx="98" cy="128" r="4.5"></circle><circle cx="28" cy="146" r="4.5"></circle><circle cx="56" cy="144" r="4.5"></circle><circle cx="84" cy="144" r="4.5"></circle><circle cx="112" cy="146" r="4.5"></circle></g></g><g data-part="head"><circle cx="70" cy="72" r="40" stroke-width="4" style="fill:var(--avatar-head);stroke:var(--avatar-line)"></circle></g><g data-part="tuft"><path d="M70 33 L70 19" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--p-ink)"></path><path d="M70 23 C64 13 54 12 49 16 C53 25 62 27 70 23 Z" style="fill:var(--p-ink)"></path><path d="M70 19 C76 9 87 7 92 11 C88 20 79 23 70 19 Z" style="fill:var(--p-ink)"></path></g><g data-part="face"><circle cx="52" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="88" cy="74" r="8.5" class="av-eye" stroke-width="2.25" style="stroke:var(--avatar-line)"></circle><circle cx="52" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="88" cy="75" r="4.5" style="fill:var(--avatar-line)"></circle><circle cx="50.5" cy="73.5" r="1.5" class="av-eye"></circle><circle cx="86.5" cy="73.5" r="1.5" class="av-eye"></circle><path d="M45 55 Q52 49 59 55 M81 55 Q88 49 95 55" fill="none" stroke-width="3.5" stroke-linecap="round" style="stroke:var(--avatar-line)"></path><path d="M58 92 Q70 102 82 92" fill="none" stroke-width="4" stroke-linecap="round" style="stroke:var(--avatar-line)"></path></g><g data-part="hourglass"><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill-opacity="0.3" style="fill:var(--avatar-head)"></path><path d="M127.51 19.29 L146.49 19.29 L137 37 Z" style="fill:var(--p)"></path><path d="M122 9 L152 9 L137 37 Z M137 37 L152 65 L122 65 Z" fill="none" stroke-width="3" stroke-linejoin="round" style="stroke:var(--avatar-line)"></path><rect x="119" width="36" height="6" rx="3" y="4" style="fill:var(--p-ink)"></rect><rect x="119" width="36" height="6" rx="3" y="64" style="fill:var(--p-ink)"></rect></g></svg></span><p class="nonarr"><span class="wf-label">narration · after the fact</span>Jev writes no narration</p></div>
       <section class="wf-panel readpanel" aria-label="What the model read">
         <div class="wf-panel__head"><h2 class="wf-panel__title">What the model read</h2><span class="rp-meta">11 shown · 4 not shown</span></div>
         <ol class="obs">
@@ -212,7 +217,6 @@ main.rd{padding:var(--space-3) var(--space-6) 0;display:grid;grid-template-colum
 <li><span class="ln">15</span><code><span class="tail">4 more elements not shown</span></code></li>
         </ol>
       </section>
-      <p class="nonarr"><span class="wf-label">narration</span>Jev writes no narration.</p>
     </div>
   </div>
 </main>

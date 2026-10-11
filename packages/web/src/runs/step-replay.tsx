@@ -2,15 +2,17 @@
  * One stored step, replayed in two columns as `docs/design/screens/run-detail.html` draws it
  * (`docs/PLAN.md` F7 AC3). On the left, the screenshot of the page the step observed, with the
  * click point, and under it three tabs: what the filter took out, the dice, and on a step Jev chose,
- * its draw (`decision-panel.tsx`). On the right, what the model read, line by line, and the
- * narration. Nothing is worked out here that the record does not hold: the model's text is the
- * stored text, what the Actor read of each element is core's `toActorObservation`, and every
- * decision prints the rule its data names.
+ * its draw (`decision-panel.tsx`). On the right, the narration, then what the model read, line by
+ * line. Nothing is worked out here that the record does not hold: the model's text is the stored
+ * text, what the Actor read of each element is core's `toActorObservation`, and every decision
+ * prints the rule its data names.
  *
  * The narration is the model's account of its own answer, written as it answered, and so
  * interpretation, never measurement (`AGENTS.md`, "Traps"). It has a section of its own, labelled
  * `narration · after the fact`, and no other section prints it: a wasted step's refused answers
  * are listed under Dice by what they did, and their narrations go under narration with the rest.
+ * It leads the right column (#239): it is what makes a step readable at a glance, and a long page's
+ * text would push it below the fold.
  *
  * The screenshot, the click point, the filtered elements and the model's text describe the page the
  * step observed. A step's own screenshot is taken after its action landed, so that page is the one
@@ -35,9 +37,10 @@ import { cn } from "cn";
 import { Tabs } from "radix-ui";
 import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { screenshotUrl } from "../api/runs.js";
+import { bundledProfiles } from "../bundled-fixtures.js";
 import { SIGNAL_FLAG } from "../components/filter-states.js";
 import { percent } from "../components/jev-draw.js";
-import { personaLabel } from "../components/persona-avatar.js";
+import { PersonaAvatar, personaLabel } from "../components/persona-avatar.js";
 import { SEGMENT_GROUP, SegmentedControl, segmentItem } from "../components/segmented-control.js";
 import { ConfidenceNote, DecisionPanel } from "./decision-panel.js";
 import { Detail, Details, FACTS, Fact, Mark, NOTE, shortNumber, TABLE, TD, TH } from "./details.js";
@@ -425,10 +428,18 @@ function Screenshots({ run, step }: { run: RunResult; step: RunStep }) {
 // ---------------------------------------------------------------------------
 
 /**
- * The model's panel at most a screen high: the viewport under the top bar, less a gutter. A real
+ * The right column at most a screen high: the viewport under the top bar, less a gutter. The
+ * narration takes the room it needs, up to `NARRATION_HIGH`, and the model's panel the rest: a real
  * page reads to a hundred lines and more, so its text scrolls inside the panel, not the page.
  */
 const SCREEN_HIGH = "max-h-[calc(100dvh_-_var(--header-h)_-_var(--space-6))]";
+
+/**
+ * The narration at most half that column. Narration is free text, and a wasted step lists several,
+ * so a long one scrolls inside its card rather than pushing the model's panel out of the column
+ * and the column over the recording under it.
+ */
+const NARRATION_HIGH = "max-h-[calc((100dvh_-_var(--header-h)_-_var(--space-6))_/_2)]";
 
 /**
  * The Filtered out panel, the same screen less the screenshot, its caption and the tabs over the
@@ -751,7 +762,7 @@ function Evidence({ run, step }: { run: RunResult; step: RunStep }) {
 }
 
 // ---------------------------------------------------------------------------
-// What the model read, and the narration
+// The narration, and what the model read
 // ---------------------------------------------------------------------------
 
 /**
@@ -781,10 +792,10 @@ export function modelReadMeta(
  * "drawn" when Jev drew that element, the performed action's type otherwise, so a click a B4
  * misclick moved to a neighbour reads "click".
  *
- * The panel is at most `SCREEN_HIGH`, its title and closing note fixed and the text scrolling
- * between them. The text opens on the marked line, centred, since that line is what the step did,
- * or at its top when no line is marked. The replay draws a new panel for each step, so each step
- * opens this way.
+ * The panel takes what the right column, at most `SCREEN_HIGH`, leaves under the narration, its
+ * title and closing note fixed and the text scrolling between them. The text opens on the marked
+ * line, centred, since that line is what the step did, or at its top when no line is marked. The
+ * replay draws a new panel for each step, so each step opens this way.
  */
 function ModelRead({ step }: { step: RunStep }) {
   const { fullObservation: observation, actorObservationText: text } = step;
@@ -808,10 +819,7 @@ function ModelRead({ step }: { step: RunStep }) {
   return (
     <section
       aria-labelledby={HEADING.modelRead}
-      className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface",
-        SCREEN_HIGH,
-      )}
+      className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2">
         <h3 id={HEADING.modelRead} className="title text-ink">
@@ -860,37 +868,76 @@ function ModelRead({ step }: { step: RunStep }) {
 function NarrationText({ text, jev }: { text: string; jev: boolean }) {
   if (text === "")
     return <p className={NOTE}>{jev ? "Jev writes no narration" : "No narration"}</p>;
-  return <p className="body whitespace-pre-line text-ink-2">{text}</p>;
+  return <p className="body whitespace-pre-line text-ink">{text}</p>;
 }
 
 /**
- * The step's narration, or each refused answer's on a wasted step. Whether Jev wrote it is the
- * run's backend, as its `backend` fact names it, so a Jev run's step that was cut short before Jev was
- * asked still says Jev writes none.
+ * The bubble's tail, pointing left at the 48 px avatar's centre, as the race lane's points up at
+ * its avatar: a square turned 45°, its two outer sides in the bubble's outline, its ground over the
+ * bubble's edge, 60 px in, past the avatar and the gap. It hangs from the row, not the bubble,
+ * which scrolls and would clip it, and as a positioned box it paints over the bubble's edge.
+ */
+const TAIL =
+  "before:absolute before:top-5 before:left-14 before:size-2 before:rotate-45 before:border-b-(length:--stroke-rule) before:border-l-(length:--stroke-rule) before:border-dashed before:border-(--p) before:bg-surface";
+
+/**
+ * The step's narration, or each refused answer's on a wasted step, in a card at the top of the right
+ * column (#239). It is a speech bubble beside the persona's avatar, as on the race lane, so it reads
+ * as the persona speaking. The outline and the tail take the persona's fill, `--p`, which the run
+ * detail sets on its root: colour means who. They are dashed, since narration is a hypothesis, and
+ * never `signal`, which marks only a measurement (`docs/DESIGN.md`, Principles 2 and 3). The avatar
+ * is for the eye alone, since the header names the persona. A persona that is not bundled has no
+ * avatar, so its bubble has no tail. The card is at most `NARRATION_HIGH`, and scrolls past it.
+ *
+ * Whether Jev wrote it is the run's backend, as its `backend` fact names it, so a Jev run's step that
+ * was cut short before Jev was asked still says Jev writes none. That line keeps the card, so the
+ * column does not jump from step to step.
  */
 function Narration({ run, step }: { run: RunResult; step: RunStep }) {
   const jev = backendOf(run) === "jev";
+  const profile = bundledProfiles.find((bundled) => bundled.id === run.profileId);
   return (
-    <section aria-labelledby={HEADING.narration} className="grid min-w-0 gap-2">
-      <h3 id={HEADING.narration} className="mono-label text-ink-3">
-        narration · after the fact
-      </h3>
-      {"wasted" in step ? (
-        <ol className="flex flex-col gap-3">
-          {step.rejected.map((answer, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: the answers keep the order given, so the index is the answer's identity
-            <li key={index} className="flex flex-col gap-1">
-              <p className="mono text-ink-3">
-                {`Answer ${index + 1}, not shown: ${describeAction(answer.action)}`}
-              </p>
-              <NarrationText text={answer.narration} jev={jev} />
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <NarrationText text={step.narration} jev={jev} />
+    <div
+      className={cn(
+        "relative flex min-w-0 shrink-0 items-start gap-3",
+        profile === undefined ? null : TAIL,
       )}
-    </section>
+    >
+      {profile === undefined ? null : (
+        <div aria-hidden="true" className="shrink-0">
+          <PersonaAvatar profile={profile} className="size-12" />
+        </div>
+      )}
+      <section
+        aria-labelledby={HEADING.narration}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: a scroll box takes focus, so the keyboard scrolls it too
+        tabIndex={0}
+        className={cn(
+          "grid min-w-0 flex-1 content-start gap-2 rounded-md border-(length:--stroke-rule) border-dashed border-(--p) bg-surface px-4 py-3",
+          NARRATION_HIGH,
+          SCROLL_BOX,
+        )}
+      >
+        <h3 id={HEADING.narration} className="mono-label text-ink-3">
+          narration · after the fact
+        </h3>
+        {"wasted" in step ? (
+          <ol className="flex flex-col gap-3">
+            {step.rejected.map((answer, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the answers keep the order given, so the index is the answer's identity
+              <li key={index} className="flex flex-col gap-1">
+                <p className="mono text-ink-3">
+                  {`Answer ${index + 1}, not shown: ${describeAction(answer.action)}`}
+                </p>
+                <NarrationText text={answer.narration} jev={jev} />
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <NarrationText text={step.narration} jev={jev} />
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -902,9 +949,9 @@ function Narration({ run, step }: { run: RunResult; step: RunStep }) {
 export const REPLAY_COLUMNS = "grid-cols-[--spacing(160)_minmax(0,1fr)]";
 
 /**
- * One step of `run` in `REPLAY_COLUMNS`: the screenshot and its tabs on the left, what the model
- * read and the narration on the right. `run` supplies the screenshot routes, the earlier steps and
- * the persona the confidence is not.
+ * One step of `run` in `REPLAY_COLUMNS`: the screenshot and its tabs on the left, the narration
+ * and what the model read on the right. `run` supplies the screenshot routes, the earlier steps
+ * and the persona: the avatar beside the narration, and whose the confidence is not.
  */
 export function StepReplay({ run, step }: { run: RunResult; step: RunStep }) {
   return (
@@ -913,10 +960,10 @@ export function StepReplay({ run, step }: { run: RunResult; step: RunStep }) {
         <Screenshots run={run} step={step} />
         <Evidence run={run} step={step} />
       </div>
-      <div className="grid min-w-0 content-start gap-(--space-4)">
+      <div className={cn("flex min-w-0 flex-col gap-(--space-4)", SCREEN_HIGH)}>
+        <Narration run={run} step={step} />
         {/* Keyed by step, so each step's text opens on its own marked line. */}
         <ModelRead key={step.stepIndex} step={step} />
-        <Narration run={run} step={step} />
       </div>
     </div>
   );
