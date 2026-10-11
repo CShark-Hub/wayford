@@ -39,7 +39,7 @@ import {
 } from "@wayford/core";
 import { perceive } from "@wayford/filter/perceive";
 import { cn } from "cn";
-import { Link2, Minus, Plus, ScanLine } from "lucide-react";
+import { Link2, Minus, Plus, ScanLine, ZoomIn } from "lucide-react";
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -68,7 +68,12 @@ import { measurementQuery } from "../api/measure.js";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledJargon, bundledMeasurement, bundledProfiles } from "../bundled-fixtures.js";
 import { ILLUSTRATED_PAGE, IllustrationStage } from "../preview/illustration.js";
-import { looksOf, MEASURING_SURFACE, PerceivedPage } from "../preview/perceived-page.js";
+import {
+  looksOf,
+  MEASURING_SURFACE,
+  PerceivedPage,
+  type Scroll,
+} from "../preview/perceived-page.js";
 import {
   CUT_SLIDERS,
   isOff,
@@ -894,6 +899,12 @@ export function LensScreen() {
     setUrlRowOn(null);
     urlToggle.current?.focus();
   }
+  // Where the stage was scrolled at full size, per measured page: its device and page, as the
+  // measurement is keyed (#224). A view or persona switch mounts a fresh page, which starts where
+  // the last one on this page was left, so beat 2's flip to evidence keeps the link in view. In
+  // memory only: a pixel offset is no link to share.
+  const scrolls = useRef(new Map<string, Scroll>());
+  const scrollKey = `${device}|${state.page}`;
 
   // The View control replaces the history entry, as a slider does; a persona link pushes one. It
   // writes both view keys, so the URL holds the one view picked.
@@ -943,6 +954,26 @@ export function LensScreen() {
             onClick={() => (urlRowShown ? hideUrlRow() : setUrlRowOn(state.page))}
           >
             <Link2 aria-hidden="true" strokeWidth={1.75} />
+          </Button>
+          {/* The page at its measured size, in a stage that scrolls, so its text reads from
+              across a room (#224). Off in the illustration view, a picture it does not draw;
+              disabled rather than hidden, so the View control never moves. It replaces the
+              history entry, as the View control does. */}
+          <Button
+            variant={state.zoom ? "default" : "outline"}
+            size="icon"
+            aria-label="Full size"
+            aria-pressed={state.zoom}
+            disabled={state.view === "illustration"}
+            onClick={() =>
+              void navigate({
+                search: (prev) => ({ ...prev, zoom: state.zoom ? undefined : true }),
+                replace: true,
+                resetScroll: false,
+              })
+            }
+          >
+            <ZoomIn aria-hidden="true" strokeWidth={1.75} />
           </Button>
           <SegmentedControl
             label="View"
@@ -1004,6 +1035,9 @@ export function LensScreen() {
               observation={stage.observation}
               evidence={state.view === "evidence"}
               subject={subject}
+              zoom={state.zoom}
+              initialScroll={scrolls.current.get(scrollKey)}
+              onScroll={(scroll) => scrolls.current.set(scrollKey, scroll)}
               // The `Live:` line, under the page, where it costs the stage no height (#224). A
               // stored page has none: its banner says where it came from. One line whatever the
               // URL: a long one is cut short with an ellipsis, whole in its `title` and its text,

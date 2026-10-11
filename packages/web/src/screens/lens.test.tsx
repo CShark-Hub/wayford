@@ -1342,12 +1342,15 @@ test("Kai on a url= page gets no jargon list: Fulfilment ledger is masked on pag
   expect(plain.map((box) => box.name)).not.toContain("[unfamiliar term]");
 });
 
-/** The header row's button that shows the URL row, by its start tag's attributes. */
-function urlToggleOf(html: string) {
-  const tag = html.match(/<button(?=[^>]*\saria-label="Open a URL")(\s[^>]*)>/)?.[1];
-  if (tag === undefined) throw new Error("No URL toggle");
+/** A header row button named `label`, by its start tag's attributes. */
+function headerButtonOf(html: string, label: string) {
+  const tag = html.match(new RegExp(`<button(?=[^>]*\\saria-label="${label}")(\\s[^>]*)>`))?.[1];
+  if (tag === undefined) throw new Error(`No button "${label}"`);
   return attributesOf(tag);
 }
+
+/** The header row's button that shows the URL row. */
+const urlToggleOf = (html: string) => headerButtonOf(html, "Open a URL");
 
 test("the URL row is hidden until its button shows it, on a target-app page and on a URL page alike", async () => {
   // #224: the row's height goes to the drawn page until someone asks to type a URL.
@@ -1361,6 +1364,23 @@ test("the URL row is hidden until its button shows it, on a target-app page and 
     expect(html, path).not.toContain("<form");
     expect(html, path).not.toContain('id="lens-url"');
   }
+});
+
+/** The header row's full-size toggle. */
+const zoomToggleOf = (html: string) => headerButtonOf(html, "Full size");
+
+test("the full-size toggle says whether the page is drawn at full size, and is off in the illustration view", async () => {
+  // #224: fitted by default; zoom=true draws the page at its measured size, in a scroller.
+  const fitted = await render(VERA);
+  expect(zoomToggleOf(fitted)["aria-pressed"]).toBe("false");
+  expect(zoomToggleOf(fitted).disabled).toBeUndefined();
+  expect(fitted).not.toContain('aria-label="The page at full size"');
+  const zoomed = await render(`${VERA}&zoom=true`);
+  expect(zoomToggleOf(zoomed)["aria-pressed"]).toBe("true");
+  expect(zoomed).toContain('aria-label="The page at full size"');
+  // The illustration is a picture the toggle does not draw.
+  const pictured = await render(`${VERA}&illustration=true&zoom=true`);
+  expect(zoomToggleOf(pictured).disabled).toBe("");
 });
 
 test("the URL form shows the value it is given, is noValidate, reads a value as LensUrl does, and shows the alert under a refused one", async () => {

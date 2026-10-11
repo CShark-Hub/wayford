@@ -16,7 +16,8 @@
  *   viewport's, so the drawing scales with no script and the markup carries the measured numbers.
  *   A flag is not on the page: it is drawn at full size beside its element, so it reads at any
  *   scale. The canvas is cropped below the lowest element in the viewport, and the frame fits it
- *   to the measuring surface it is centred on, which clips whatever runs past it.
+ *   to the measuring surface it is centred on, which clips whatever runs past it; at full size
+ *   the frame is the viewport's own width and the surface scrolls instead.
  * - The one animation (`docs/DESIGN.md`, "Motion"): an element whose look changes between two
  *   renders of one mounted page is drawn by a fresh node, whose CSS animation plays once. The
  *   screen mounts a fresh page per scene, and a static render has no render before it, so neither
@@ -30,7 +31,7 @@ import {
   toActorObservation,
 } from "@wayford/core";
 import { cn } from "cn";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import {
   CutFlag,
   FILTER_STATE_CLASS,
@@ -102,6 +103,9 @@ export function croppedHeight(observation: FullObservation): number {
   return Math.min(Math.max(...bottoms) + CROP_MARGIN_PX, height);
 }
 
+/** How far the measuring surface is scrolled at full size, in px. */
+export type Scroll = { left: number; top: number };
+
 /** One measured px is `--px` on screen, since the viewport's width is the frame's. */
 function canvasStyle(width: number, height: number) {
   return { "--px": `calc(100cqw / ${width})`, height: scaled(height) };
@@ -113,8 +117,12 @@ function canvasStyle(width: number, height: number) {
  * container around the frame; the 2 px are the frame's two hairline borders, so its border box
  * fits exactly. And never wider than the measured viewport, so a phone's page is drawn at a
  * phone's width rather than stretched across the stage.
+ *
+ * At full size it is the measured width plus those borders, so one measured px is one px and the
+ * page's text is drawn at its own size, in a surface that scrolls (#224).
  */
-function frameStyle(width: number, height: number) {
+function frameStyle(width: number, height: number, zoom: boolean) {
+  if (zoom) return { width: `${width + 2}px` };
   return {
     width: `min(100cqw, (100cqh - 2px) * ${width} / ${height} + 2px)`,
     maxWidth: `${width}px`,
@@ -352,9 +360,18 @@ export function PerceivedPage({
   evidence,
   subject,
   source,
+  zoom,
+  initialScroll,
+  onScroll,
 }: {
   observation: FullObservation;
   evidence: boolean;
+  /** Whether the page is drawn at its measured size, in a surface that scrolls, or fitted whole. */
+  zoom: boolean;
+  /** Where to put the surface's scroll at full size, on mount and when zoom turns on. */
+  initialScroll?: Scroll | undefined;
+  /** Each scroll of the surface at full size, for the screen to keep. */
+  onScroll?: (scroll: Scroll) => void;
   /**
    * Who the page was perceived for, from the screen: "Vera, seed 1" or "Vera, thresholds edited,
    * seed 1".
@@ -378,67 +395,100 @@ export function PerceivedPage({
   const next = nextTrack(track, looks, names);
   if (next !== track) setTrack(next);
 
+  // At full size, the surface's scroll restored on mount and whenever zoom turns on, and only
+  // then: read through a ref, so a redraw during a scroll never pulls the surface back.
+  const scroller = useRef<HTMLElement>(null);
+  const restore = useRef(initialScroll);
+  restore.current = initialScroll;
+  useLayoutEffect(() => {
+    const scroll = restore.current;
+    if (zoom && scroll !== undefined) scroller.current?.scrollTo(scroll.left, scroll.top);
+  }, [zoom]);
+
   const { width } = observation.viewport;
   const height = croppedHeight(observation);
   return (
     <figure className="flex min-h-0 flex-1 flex-col gap-3">
-      {/* The measuring surface, which the frame is centred on and fitted to. It clips, so
-          nothing drawn past the frame, a flag or an outline off the page, escapes it. */}
+      {/* The measuring surface, which the frame is centred on and, unless at full size, fitted
+          to. It clips, so nothing drawn past the frame, a flag or an outline off the page,
+          escapes it. */}
       <div className={cn(MEASURING_SURFACE, "overflow-clip")}>
-        <div
-          data-lens-stage=""
-          className="@container rounded-md border border-line-strong bg-surface"
-          style={frameStyle(width, height)}
+        {/* What the frame sits in: over the whole surface, with the surface's own padding
+            (`MEASURING_SURFACE`, keep the two alike), so a frame fitted to the surface's size
+            fits here as before. At full size it scrolls, while the surface's corner ticks, drawn on
+            the surface itself, stay at its corners; the page passes over them as it scrolls.
+            The grid's track grows to an oversized frame, which keeps its edges in the scroll's
+            reach. Its focus ring is drawn inside, since the surface clips whatever lies outside
+            it. */}
+        <section
+          ref={scroller}
+          data-lens-scroller=""
+          className={cn(
+            "absolute inset-0 grid place-items-center px-4 py-2 focus-visible:-outline-offset-4",
+            zoom ? "overflow-auto" : "overflow-clip",
+          )}
+          // A region landmark only at full size, where it scrolls: unnamed, a section is none.
+          aria-label={zoom ? "The page at full size" : undefined}
+          tabIndex={zoom ? 0 : undefined}
+          onScroll={(event) =>
+            onScroll?.({ left: event.currentTarget.scrollLeft, top: event.currentTarget.scrollTop })
+          }
         >
-          {/* Clipped top and bottom only: an outline below the fold stays off the page, while a
-              flag, drawn at full size beside a page drawn at about half, may run past the frame's
-              side onto the measuring surface rather than lose its numbers. */}
           <div
-            className="relative overflow-x-visible overflow-y-clip"
-            style={canvasStyle(width, height)}
+            data-lens-stage=""
+            className="@container rounded-md border border-line-strong bg-surface"
+            style={frameStyle(width, height, zoom)}
           >
-            {/* Keyed by place in the observation, which every redraw keeps: measurement order, or
+            {/* Clipped top and bottom only: an outline below the fold stays off the page, while a
+              flag, drawn at full size beside a page drawn at about half or at its own size, may
+              run past the frame's side onto the measuring surface rather than lose its numbers. */}
+            <div
+              className="relative overflow-x-visible overflow-y-clip"
+              style={canvasStyle(width, height)}
+            >
+              {/* Keyed by place in the observation, which every redraw keeps: measurement order, or
                 salience order under a cap, and salience reads no threshold and no seed, so a
                 slider never moves an element. A ref moves when an element before it goes. And by
                 the count of its look's changes, so the element whose look changes is the one
                 React replaces, its animation playing once, and the rest stay the same nodes. */}
-            {observation.elements.map((element, index) => {
-              const n = next.changes[index] ?? 0;
-              if (element.ref !== undefined) {
-                return (
-                  <ShownBox
+              {observation.elements.map((element, index) => {
+                const n = next.changes[index] ?? 0;
+                if (element.ref !== undefined) {
+                  return (
+                    <ShownBox
+                      // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
+                      key={`shown:${index}:${n}`}
+                      element={element}
+                      look={looks[index] ?? "visible"}
+                      name={names[index] ?? ""}
+                      animate={n > 0}
+                    />
+                  );
+                }
+                if (evidence) {
+                  return (
+                    <RemovedOutline
+                      // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
+                      key={`removed:${index}:${n}`}
+                      element={element}
+                      viewportWidth={width}
+                      animate={n > 0}
+                    />
+                  );
+                }
+                const was = next.was[index];
+                return n > 0 && was !== undefined && was.look !== "removed" ? (
+                  <LeavingBox
                     // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
-                    key={`shown:${index}:${n}`}
+                    key={`leaving:${index}:${n}`}
                     element={element}
-                    look={looks[index] ?? "visible"}
-                    name={names[index] ?? ""}
-                    animate={n > 0}
+                    was={was}
                   />
-                );
-              }
-              if (evidence) {
-                return (
-                  <RemovedOutline
-                    // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
-                    key={`removed:${index}:${n}`}
-                    element={element}
-                    viewportWidth={width}
-                    animate={n > 0}
-                  />
-                );
-              }
-              const was = next.was[index];
-              return n > 0 && was !== undefined && was.look !== "removed" ? (
-                <LeavingBox
-                  // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
-                  key={`leaving:${index}:${n}`}
-                  element={element}
-                  was={was}
-                />
-              ) : null;
-            })}
+                ) : null;
+              })}
+            </div>
           </div>
-        </div>
+        </section>
       </div>
       {/* Two lines tall in both views, so flipping the view never resizes the page above it: the
           view's sentence, one line in either view at 1280 px for the slider's seeds, then the source's. */}

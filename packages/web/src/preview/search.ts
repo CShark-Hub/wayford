@@ -142,6 +142,7 @@ export const PreviewSearch = z.object({
   targetPxSoftness: softnessParam,
   evidence: z.literal(true).optional().catch(undefined),
   illustration: z.literal(true).optional().catch(undefined),
+  zoom: z.literal(true).optional().catch(undefined),
   page: z.enum(PREVIEW_PAGES).optional().catch(undefined),
   url: LensUrl.optional().catch(undefined),
 });
@@ -179,6 +180,11 @@ export type PreviewState = {
    */
   edited: boolean;
   view: LensView;
+  /**
+   * Whether the page is drawn at its measured size, in a stage that scrolls, rather than fitted
+   * whole to the stage (#224): its 16 px text reads from across a room only at full size.
+   */
+  zoom: boolean;
   /**
    * The page perceived, named as io's messages name it: a `PREVIEW_PAGES` path (`page=`), or a
    * whole URL (`url=`). A path starts with `/` and a whole URL never does, so the two never collide
@@ -230,6 +236,7 @@ export function resolvePreview(search: PreviewSearch): PreviewState {
     profile: { ...persona, perception },
     edited,
     view: viewOf(search),
+    zoom: search.zoom === true,
     // A link holding both is read as the URL: it names one page exactly, while `page=` may be a
     // picker value left behind.
     page: search.url ?? search.page ?? DEFAULT_PAGE,
@@ -245,14 +252,14 @@ function viewOf(search: PreviewSearch): LensView {
 }
 
 /**
- * The search a persona link navigates to: the new persona on the same seed, view and page. The
+ * The search a persona link navigates to: the new persona on the same seed, view, zoom and page. The
  * thresholds and softness are dropped, so they fall back to the new persona's own. The seed stays,
  * because it stands in for a run seed, and a run set compares personas on the same seeds
  * (`docs/PLAN.md`, A20). The page stays as the link named it, `page=` for a target-app page and
  * `url=` for any other, and `page=` is left out at its default, so a short link stays short.
  */
 export function personaSearch(
-  state: Pick<PreviewState, "seed" | "view" | "page" | "onTargetApp">,
+  state: Pick<PreviewState, "seed" | "view" | "zoom" | "page" | "onTargetApp">,
   personaId: string,
 ): PreviewSearch {
   return {
@@ -260,6 +267,7 @@ export function personaSearch(
     seed: state.seed,
     evidence: state.view === "evidence" ? true : undefined,
     illustration: state.view === "illustration" ? true : undefined,
+    zoom: state.zoom ? true : undefined,
     ...(state.onTargetApp ? { page: pageParam(state.page) } : { url: state.page }),
   };
 }

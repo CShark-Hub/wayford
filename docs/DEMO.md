@@ -27,8 +27,8 @@ About 200 spoken words in 90 seconds. Lines in brackets are filled from the seed
 
 ### 2. The persona is a filter — 0:08 to 0:22
 
-- **Screen:** the Lens. Switch the persona to Vera, on the rehearsed seed where "Order archive" reaches her degraded, so its masked name shows.
-- **Do:** drag Vera's contrast threshold from 3.0 to 4.5. The link goes from masked to gone. Flip the view to evidence for a second: the outline of the removed link and its rule, P1.
+- **Screen:** the Lens. Switch the persona to Vera, on the rehearsed seed where "Order archive" reaches her degraded, so its masked name shows. Press **Full size**: the stage opens at "Order archive", drawn at its own size (set up before the demo).
+- **Do:** drag Vera's contrast threshold from 3.0 to 4.5. The link goes from masked to gone. Flip the view to evidence for a second: the outline of the removed link and its rule, P1. Press **Full size** again, so beat 3's page is drawn whole.
 - **Say:** "This is Vera. A persona isn't a prompt — it's a filter in code. Below her contrast threshold, this link never reaches the model at all."
 - **Needs:** `s3-01`, `s3-05`.
 - **Optional, if `s3-06` is built:** three seconds of the illustration view. "That blur is Chrome's emulation — an illustration. The threshold decides."
@@ -91,6 +91,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 - Rehearse the race on candidate seeds, and pick the live one for pace: a seed where the race ends inside its 26 seconds. If asked, say so. The report shows every seed.
 - Record the backup video of the full 90 seconds (`docs/ROADMAP.md`, week 4).
 - One browser window, tabs open on the Lens (Ada, `/deliveries`), the Race (preset filled), the Report and the Boundary screen. Zoom checked on the projector.
+- In the Lens tab, set beat 2 up: press **Full size**, scroll the stage until "Order archive" sits in it, and press **Full size** again. Beat 1 shows the whole page, and in beat 2 one press opens the stage at the link. The tab keeps the scroll until it reloads or leaves the Lens (#224).
 - `pnpm dev` running, the key's balance checked, the Race on the LLM: Settings → Actor backend on LLM in the demo browser. `LLM_ACTOR_BACKEND` sets only sweeps and `seed:demo`.
 - If the target app is down, the Lens shows the stored page and its banner (F2 AC5). Carry on.
 - If anything else breaks, switch to the backup video at the current beat.
@@ -430,7 +431,7 @@ pnpm --filter @wayford/io sweep -- --task <G1's task id> --persona prof_kai --ax
 |---|---|---|---|
 | The Report names a goal from the Target screen by its task id: its heading reads `task_01m4fn3h6zeaek4sp5me256cyz`, not the goal | #227 | no | The numbers, findings and evidence are right, but it shows on stage. `screens/report.tsx` reads the goal from web's bundled fixture tasks only. |
 | The Boundary's presets opened the newest sweep of their persona and axis from any task. Here `/boundary?axis=maxElements`, which beat 6 opens, showed the cshark sweep | #228 | yes: the Boundary in beat 6. Fixed in this PR | `pnpm seed:demo` refuses a store that holds any run, report or sweep, so on the presenting machine our pick's data can only come after it, and the newest Kai sweep would be cshark's. Each preset now opens the newest sweep on the hard goal. |
-| The Lens draws the page small | #224 | no | Known from the demo. The counts and the readout are right. |
+| The Lens draws the page small | #224 | no | Known from the demo. The counts and the readout are right. Fitted, the page is about half size; **Full size** draws it at its own, and beat 2 uses it. Whether that reads on the projector is `demo-2`'s check. |
 | Evidence flags overlap on cshark's dense header: Vera's P4 flags, Kai's A1 flags | #225 | no | Known from `/settings/data`. Run detail's evidence list stays readable. |
 
 Not gaps:

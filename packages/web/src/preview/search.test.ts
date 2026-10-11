@@ -54,6 +54,7 @@ test("a present but invalid key comes back as undefined, overrides the raw query
     targetPxSoftness: true,
     evidence: false,
     illustration: "yes",
+    zoom: "on",
     page: "/nowhere",
   };
   expect({ ...query, ...validate(query) }).toStrictEqual({
@@ -67,6 +68,7 @@ test("a present but invalid key comes back as undefined, overrides the raw query
     targetPxSoftness: undefined,
     evidence: undefined,
     illustration: undefined,
+    zoom: undefined,
     page: undefined,
   });
   // Each falls back on its own, an unknown persona to Vera and the rest to her own values.
@@ -288,6 +290,7 @@ test("a persona link keeps the seed and the evidence toggle and drops every thre
     seed: 7,
     evidence: true,
     illustration: undefined,
+    zoom: undefined,
     page: undefined,
   });
   // So Zoya opens at her own values, unedited, on Vera's seed (`docs/PLAN.md`, A20).
@@ -302,6 +305,7 @@ test("a persona link keeps the seed and the evidence toggle and drops every thre
     seed: 7,
     evidence: undefined,
     illustration: undefined,
+    zoom: undefined,
     page: undefined,
   });
   expect(personaSearch(stateOf({}), "prof_milo")).toStrictEqual({
@@ -309,6 +313,7 @@ test("a persona link keeps the seed and the evidence toggle and drops every thre
     seed: 1,
     evidence: undefined,
     illustration: undefined,
+    zoom: undefined,
     page: undefined,
   });
 });
@@ -318,6 +323,20 @@ test("illustration=true opens the illustration view, and evidence=true wins over
   expect(stateOf({ evidence: true }).view).toBe("evidence");
   // An s3-01 evidence link keeps its meaning whatever else the URL holds.
   expect(stateOf({ evidence: true, illustration: true }).view).toBe("evidence");
+});
+
+test("zoom=true draws the page at full size, and every link keeps it (#224)", () => {
+  expect(stateOf({}).zoom).toBe(false);
+  expect(stateOf({ zoom: true }).zoom).toBe(true);
+  // Only `true` is a value: anything else is dropped, as a view toggle's is.
+  expect(validate({ zoom: "1" }).zoom).toBeUndefined();
+  expect(validate({ zoom: false }).zoom).toBeUndefined();
+  const zoomed = resolvePreview(validate({ persona: "prof_vera", seed: 3, zoom: true }));
+  expect(personaSearch(zoomed, "prof_kai")).toMatchObject({ persona: "prof_kai", zoom: true });
+  // A page link and the URL form keep everything else, the zoom with it.
+  const search = validate({ zoom: true });
+  expect(pageSearch(search, "/account").zoom).toBe(true);
+  expect(urlSearch(search, "https://example.org/").zoom).toBe(true);
 });
 
 test("each preview page is a page param, and anything else falls back to /deliveries", () => {
@@ -413,6 +432,7 @@ test("a page link drops url=, a URL link drops page=, a persona link keeps eithe
     seed: 7,
     evidence: undefined,
     illustration: undefined,
+    zoom: undefined,
     url: "https://example.com/",
   });
   expect(personaSearch(resolvePreview(onData), "prof_zoya")).toStrictEqual({
@@ -420,6 +440,7 @@ test("a page link drops url=, a URL link drops page=, a persona link keeps eithe
     seed: 1,
     evidence: true,
     illustration: undefined,
+    zoom: undefined,
     page: "/settings/data",
   });
   // Each link resolves back to the page it was made on.

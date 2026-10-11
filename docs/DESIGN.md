@@ -183,6 +183,7 @@ The spacing steps (`space-1` to `space-9`, a 4 px grid), radii, layout sizes (`h
   - `radius-lg` for the cast only (cards and avatar tiles).
 - **Hairlines, not shadows.** `shadow-raised` only on cast cards and a finished race lane, `shadow-pop` only on popovers.
 - **Measuring surfaces** go only where something is measured: the Lens stage and the sweep chart. They sit on `paper-sunken` with a 16 px dot grid and four corner ticks.
+  - The Lens stage fits the whole page by default. Its **Full size** toggle (`zoom=true`) draws the page at its measured size, its text as large as on the page itself, and the page scrolls across the surface, over its corner ticks (#224). The stage keeps its scroll per measured page across view and persona switches and the toggle itself, so beat 2 can flip to evidence without losing its link.
 
 ## Components
 
@@ -311,4 +312,4 @@ It fails on:
 
 Each screen task adds its screen to the list. Text in a table cell is measured only if the row is built as a measured block, so build rows that way.
 
-**One region is excluded:** the Lens stage. It redraws the target app scaled down, and keeps the page's weak contrast on purpose, since that is what the filter measures. `s3-11` gives a listed screen an optional `exclude` selector and sets it to the stage. Everything around the stage is checked: the rail, the controls and the readout strip.
+**One region is excluded:** the Lens stage. It redraws the target app scaled down, or at full size, and keeps the page's weak contrast on purpose, since that is what the filter measures. `s3-11` gives a listed screen an optional `exclude` selector and sets it to the stage. Everything around the stage is checked: the rail, the controls and the readout strip.

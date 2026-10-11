@@ -239,6 +239,72 @@ test("beat 2 reads at 1280 × 720: the page is drawn at half its size or more, O
   await page.close();
 });
 
+test("beat 2 at full size: Order archive is drawn at its 16 px in a stage that scrolls, and keeps its scroll through a view flip, a slider move and a persona switch while fitted", async () => {
+  // #224, part 2: the whole page cannot be legible on the stage, so zoom=true draws it at its
+  // measured size and the stage scrolls, while the document still scrolls nothing.
+  const page = await spiedPage();
+  const viewport = { x: 0, y: 0, width: 1280, height: 720 };
+  const scroller = page.locator("[data-lens-scroller]");
+  for (const { query, archive: selector } of [
+    { query: "contrast=2&contrastSoftness=0", archive: "[data-state]" },
+    { query: "contrast=4.5&evidence=true", archive: "[data-removed]" },
+  ]) {
+    await page.goto(`${origin}/lens?persona=prof_vera&seed=1&${query}&zoom=true`);
+    const archive = page.locator(selector, { hasText: "Order archive" });
+    await archive.waitFor();
+    await page.getByRole("region", { name: "axe-core" }).getByText("1 violation").waitFor();
+    expect(await page.getByRole("button", { name: "Full size" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    const fontPx = await archive.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize),
+    );
+    expect(fontPx, query).toBe(16);
+    // Off the stage at first, since the page is taller than the stage; scrolled to, inside it.
+    await archive.scrollIntoViewIfNeeded();
+    const stage = await scroller.boundingBox();
+    expect(inside(await archive.boundingBox(), stage), query).toBe(true);
+    expect(inside(stage, viewport), query).toBe(true);
+    expect(await fitsOf(page), query).toEqual({ down: true, across: true });
+  }
+
+  // The scroll survives the fresh page a view flip mounts, a slider move's redraw, and a persona
+  // switch while fitted, which is how the demo sets beat 2 up before beat 1.
+  await page.goto(
+    `${origin}/lens?persona=prof_vera&seed=1&contrast=2&contrastSoftness=0&zoom=true`,
+  );
+  await page.locator("[data-state]", { hasText: "Order archive" }).waitFor();
+  await scroller.evaluate((element) => element.scrollTo(40, 300));
+  await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(300);
+  await page.getByRole("radio", { name: "Evidence" }).click();
+  await page.locator("[data-removed]").first().waitFor();
+  const kept = () =>
+    scroller.evaluate((element) => ({ left: element.scrollLeft, top: element.scrollTop }));
+  expect(await kept()).toEqual({ left: 40, top: 300 });
+  await press(page, "preview-contrast", "ArrowRight", 1);
+  await expect.poll(() => page.url()).toContain("contrast=2.1");
+  expect(await kept()).toEqual({ left: 40, top: 300 });
+
+  // Toggled off, the page fits the stage again and the stage scrolls nothing. A persona switch
+  // then mounts the page fitted, and Full size brings the scroll back: the demo's setup.
+  const fullSize = page.getByRole("button", { name: "Full size" });
+  await fullSize.click();
+  await expect.poll(() => page.url()).not.toContain("zoom=");
+  const frame = await page.locator("[data-lens-stage]").boundingBox();
+  expect(inside(frame, await scroller.boundingBox())).toBe(true);
+  // Kai, like Vera, is measured on desktop, so his page is the same page.
+  await page
+    .getByRole("navigation", { name: "Persona" })
+    .getByRole("link", { name: "Kai" })
+    .click();
+  await expect.poll(() => page.url()).toContain("persona=prof_kai");
+  await page.locator("[data-lens-stage]").waitFor();
+  await fullSize.click();
+  await expect.poll(() => page.url()).toContain("zoom=true");
+  await expect.poll(kept).toEqual({ left: 40, top: 300 });
+  await page.close();
+});
+
 test("a long URL with no hyphens scrolls nothing at 1280 × 720 and draws the page as large as a short one does, in either view (#245)", async () => {
   // #245: a URL of `/`, `?` and letters has no break point, so its `Live:` line ran to x 1601.
   // Wrapped, it grew the caption and shrank the frame from 663 to 535 px wide, so it is cut short

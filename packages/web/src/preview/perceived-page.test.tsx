@@ -233,9 +233,17 @@ function cases(): Record<string, FullObservation> {
 // Reading the markup
 // ---------------------------------------------------------------------------
 
-function render(full: FullObservation, view: { evidence: boolean; subject?: string }): string {
+function render(
+  full: FullObservation,
+  view: { evidence: boolean; subject?: string; zoom?: boolean },
+): string {
   return renderToStaticMarkup(
-    <PerceivedPage observation={full} evidence={view.evidence} subject={view.subject ?? SUBJECT} />,
+    <PerceivedPage
+      observation={full}
+      evidence={view.evidence}
+      subject={view.subject ?? SUBJECT}
+      zoom={view.zoom ?? false}
+    />,
   );
 }
 
@@ -588,6 +596,38 @@ test("the canvas ends 24 px under the lowest element in the viewport, whatever i
   expect(canvas.height).toBe(`calc(${lowest + 24} * var(--px))`);
   expect(canvas["--px"]).toBe("calc(100cqw / 1280)");
   expect(frame.width).toBe(`min(100cqw, (100cqh - 2px) * 1280 / ${lowest + 24} + 2px)`);
+});
+
+/** The attributes of the element the frame scrolls in, `[data-lens-scroller]`. */
+function scrollerOf(html: string): Record<string, string> {
+  const [, attributes = ""] =
+    html.match(/<section((?:\s[^>]*)?\sdata-lens-scroller=""[^>]*)>/) ?? [];
+  return attributesOf(attributes);
+}
+
+test("at full size the frame is the measured width, in a scroller a keyboard can reach (#224)", () => {
+  const full = observe(measurementFixture, vera, 1);
+  const height = croppedHeight(full);
+  for (const evidence of [false, true]) {
+    const zoomed = render(full, { evidence, zoom: true });
+    const { frame, canvas } = frameAndCanvas(zoomed);
+    // The canvas's 1280 px plus the frame's two hairline borders, so one measured px is one px.
+    expect(frame.width, `evidence ${evidence}`).toBe("1282px");
+    expect(frame["max-width"]).toBeUndefined();
+    expect(canvas["--px"]).toBe("calc(100cqw / 1280)");
+    expect(canvas.height).toBe(`calc(${height} * var(--px))`);
+    const scroller = scrollerOf(zoomed);
+    expect(classesOf(scroller)).toContain("overflow-auto");
+    expect(scroller.tabindex).toBe("0");
+    expect(scroller["aria-label"]).toBe("The page at full size");
+    // Fitted, the frame is as it was, and its scroller clips and takes no focus.
+    const fitted = render(full, { evidence, zoom: false });
+    expect(frameAndCanvas(fitted).frame.width).toBe(
+      `min(100cqw, (100cqh - 2px) * 1280 / ${height} + 2px)`,
+    );
+    expect(classesOf(scrollerOf(fitted))).toContain("overflow-clip");
+    expect(scrollerOf(fitted).tabindex).toBeUndefined();
+  }
 });
 
 test("an element below the fold does not extend the canvas, and the viewport's height bounds it", () => {
