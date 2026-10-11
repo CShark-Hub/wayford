@@ -15,9 +15,11 @@
 import {
   type Bbox,
   decisionState,
+  type ElementDecision,
   FullObservation,
   type MeasuredElement,
   type MetricName,
+  type ObservedElement,
   PageMeasurement,
   type Profile,
 } from "@wayford/core";
@@ -26,7 +28,7 @@ import { perceive } from "@wayford/filter/perceive";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { FILTER_STATE_CLASS, type Look } from "../components/filter-states.js";
-import { croppedHeight, nextTrack, PerceivedPage } from "./perceived-page.js";
+import { croppedHeight, flagRuns, nextTrack, PerceivedPage } from "./perceived-page.js";
 import {
   attributesOf,
   bboxOf,
@@ -35,6 +37,7 @@ import {
   decode,
   divsWith,
   drawnBoxes,
+  measuredPx,
   shownElements,
   styleOf,
   textOf,
@@ -254,9 +257,20 @@ function lookOf(state: keyof typeof FILTER_STATE_CLASS): string[] {
 
 /**
  * What an outline says about a removed element: its name for screen readers, its flag's lines (the
- * tag), its box, and the classes of the outline and of its flag.
+ * tag), the count of the run its flag speaks for, the flag's text, its box, and the classes and
+ * style of the outline and of its flag. An element whose flag the element above it carries (#225)
+ * keeps its lines in an `sr-only` span in place of a flag.
  */
-type Outline = { name: string; tag: string[]; bbox: Bbox; classes: string[]; flag: string[] };
+type Outline = {
+  name: string;
+  tag: string[];
+  count: string | undefined;
+  text: string;
+  bbox: Bbox;
+  classes: string[];
+  flag: string[];
+  flagStyle: Record<string, string>;
+};
 
 function outlines(html: string): Outline[] {
   return divsWith(html, "data-removed").map(({ attributes, inner }) => {
@@ -265,11 +279,19 @@ function outlines(html: string): Outline[] {
     return {
       name: textOf(name),
       tag: [...tag.matchAll(/<span>(.*?)<\/span>/g)].map((m) => textOf(m[1] ?? "")),
+      count: tag.match(/<span data-count=""[^>]*>(.*?)<\/span>/)?.[1],
+      text: textOf(tag),
       bbox: bboxOf(styleOf(attributes)),
       classes: classesOf(attributes),
       flag: classesOf(attributesOf(flag)),
+      flagStyle: styleOf(attributesOf(flag)),
     };
   });
+}
+
+/** Whether an outline draws a flag of its own, rather than leaving it to its run's (#225). */
+function flagged(outline: Outline): boolean {
+  return !outline.flag.includes("sr-only");
 }
 
 /** The side of its element an outline's flag is drawn on, from its placing class. */
@@ -431,10 +453,10 @@ test("an invisible element is not drawn, and its name appears nowhere in the per
 
 test("with evidence, exactly the invisible elements are outlined, tagged with what removed them", () => {
   for (const [label, full] of Object.entries(cases())) {
-    const drawn = outlines(render(full, { evidence: true })).map(({ name, tag, bbox }) => ({
-      name,
-      rules: tag.map((line) => line.split(" ")[0]),
-      bbox,
+    const drawn = outlines(render(full, { evidence: true })).map((outline) => ({
+      name: outline.name,
+      rules: outline.tag.map((line) => line.split(" ")[0]),
+      bbox: outline.bbox,
     }));
     expect(drawn, label).toEqual(removedElements(full));
   }
@@ -466,19 +488,23 @@ test("a tag lists the rules that removed the element, never one that only degrad
   // Under a cookie wall's backdrop, say, V3 removes it.
   const coveredHtml = render(adaUnderACover(), { evidence: true });
   expect(outlineOf(coveredHtml, measured(ARCHIVE).name).tag).toEqual(["V3 · covered"]);
-  // Kai sets no threshold, so his cap is all that removes an element, and A1 is its whole tag.
+  // Kai sets no threshold, so his cap is all that removes an element, and A1 is its whole tag,
+  // with the count of its run beside it on the flag that speaks for one (#225).
   const kaiHtml = render(observe(measurementFixture, kai, 1), { evidence: true });
   expect(outlines(kaiHtml).length).toBeGreaterThan(0);
-  expect(outlines(kaiHtml).every((outline) => outline.tag.join() === "A1 · attention")).toBe(true);
+  for (const outline of outlines(kaiHtml)) {
+    expect(outline.tag, outline.name).toEqual(["A1 · attention"]);
+  }
 });
 
 test("a removal a perception rule made is drawn in signal; a cut that measured nothing is quiet", () => {
   // Vera's contrast band and target cut: dashed signal outlines, signal flags.
   const removing = outlines(render(veraRemoving(), { evidence: true }));
   expect(removing.length).toBeGreaterThan(0);
+  expect(removing.filter(flagged).length).toBeGreaterThan(0);
   for (const outline of removing) {
     expect(outline.classes, outline.name).toEqual(expect.arrayContaining(lookOf("removed")));
-    expect(outline.flag, outline.name).toContain("bg-signal");
+    if (flagged(outline)) expect(outline.flag, outline.name).toContain("bg-signal");
   }
   // Kai's attention cap, V2 below the fold and V3 under a cover: dashed line-strong outlines,
   // quiet flags, and no signal on any, since none measured the persona.
@@ -491,11 +517,14 @@ test("a removal a perception rule made is drawn in signal; a cut that measured n
     render(adaUnderACover(), { evidence: true }),
     measured(ARCHIVE).name,
   );
+  expect(kaiCuts.filter(flagged).length).toBeGreaterThan(0);
   for (const outline of [...kaiCuts, belowCut, coveredCut]) {
     expect(outline.classes, outline.name).toEqual(expect.arrayContaining(lookOf("cut")));
-    expect(outline.flag, outline.name).toEqual(
-      expect.arrayContaining(["bg-surface", "text-ink-2"]),
-    );
+    if (flagged(outline)) {
+      expect(outline.flag, outline.name).toEqual(
+        expect.arrayContaining(["bg-surface", "text-ink-2"]),
+      );
+    }
     expect(
       [...outline.classes, ...outline.flag].filter((c) => c.includes("signal")),
       outline.name,
@@ -520,6 +549,173 @@ test("a flag sits beside its element, on the side with more room", () => {
   // page on either side, so its flag goes inside.
   const lead = render(zoyaSoftUnderHard(), { evidence: true });
   expect(flagSideOf(outlineOf(lead, measured(LEAD).name))).toBe("inside");
+});
+
+// ---------------------------------------------------------------------------
+// Runs of neighbours (#225)
+// ---------------------------------------------------------------------------
+
+/** One of Kai's cuts on the fixture: an element his attention cap removed, A1 its only decision. */
+function kaiCut(): ObservedElement {
+  const cut = observe(measurementFixture, kai, 1).elements.find((e) => e.ref === undefined);
+  if (!cut) throw new Error("Kai's cap removes nothing on the fixture");
+  return cut;
+}
+
+/** A removed element at `y`, 30 px tall, as a link in a list; A1 removed it unless told otherwise. */
+function cutAt(
+  y: number,
+  {
+    x = 224,
+    width = 150,
+    decisions,
+  }: { x?: number; width?: number; decisions?: ElementDecision[] } = {},
+): ObservedElement {
+  const template = kaiCut();
+  return {
+    ...template,
+    key: `main//link:Cut at ${x},${y}`,
+    name: `Cut at ${x},${y}`,
+    bbox: { x, y, width, height: 30 },
+    decisions: decisions ?? template.decisions,
+  };
+}
+
+const BELOW: ElementDecision = { stage: "viewport", rule: "V2", side: "below" };
+
+/**
+ * `/settings/data`'s list under "What we keep" as Kai's cap leaves it: the last five of its seven
+ * links, Saved addresses to Marketing choices, 43 px apart, as the target app lays them out, each a
+ * different width.
+ */
+const LIST = [
+  [363, 138],
+  [406, 167],
+  [449, 160],
+  [492, 120],
+  [535, 148],
+].map(([y = 0, width = 0]) => cutAt(y, { width }));
+
+test("removed neighbours stacked as a list share one flag, carried by the topmost", () => {
+  const runs = flagRuns(LIST);
+  expect(runs.get(0)).toEqual({ count: 5, box: { x: 224, y: 363, width: 167, height: 202 } });
+  for (const index of [1, 2, 3, 4]) expect(runs.get(index), `link ${index}`).toBeNull();
+  // In any order: the topmost carries it, whatever its place in the observation.
+  const reversed = flagRuns([...LIST].reverse());
+  expect(reversed.get(4)).toMatchObject({ count: 5 });
+  expect([0, 1, 2, 3].map((index) => reversed.get(index))).toEqual([null, null, null, null]);
+});
+
+test("a run breaks where the lines differ, the boxes miss each other across, or a pitch apart", () => {
+  // A V2 cut lands between two A1 cuts 43 px apart, close enough to join: the V2 breaks the run,
+  // so three runs, the first of two.
+  const mixed = flagRuns([cutAt(0), cutAt(43), cutAt(60, { decisions: [BELOW] }), cutAt(86)]);
+  expect([0, 1, 2, 3].map((index) => mixed.get(index)?.count ?? null)).toEqual([2, null, 1, 1]);
+  // Side by side, as nav links: no overlap across, so two flags.
+  const across = flagRuns([cutAt(12, { x: 821, width: 76 }), cutAt(12, { x: 905, width: 134 })]);
+  expect([across.get(0)?.count, across.get(1)?.count]).toEqual([1, 1]);
+  // 47 px apart is a run; 48 px apart is not.
+  expect(flagRuns([cutAt(0), cutAt(47)]).get(0)?.count).toBe(2);
+  expect(flagRuns([cutAt(0), cutAt(48)]).get(0)?.count).toBe(1);
+});
+
+test("a run never reaches past an element with different lines between its members", () => {
+  // A1 at y 0, V2 at y 20, A1 at y 40, all at x 0 to 100: joined, the A1s' one flag would sit at
+  // y 35, just right of x 100, where the V2's own flag sits. So three flags.
+  const box = { x: 0, width: 100 };
+  const runs = flagRuns([cutAt(0, box), cutAt(20, { ...box, decisions: [BELOW] }), cutAt(40, box)]);
+  expect([0, 1, 2].map((index) => runs.get(index)?.count ?? null)).toEqual([1, 1, 1]);
+});
+
+/** Kai's observation of the fixture with `elements` in place of its own. */
+function kaiWith(elements: ObservedElement[]): FullObservation {
+  return { ...observe(measurementFixture, kai, 1), elements };
+}
+
+test("a run's flag reads its count once, beside the whole run; the rest keep their lines unseen", () => {
+  const drawn = outlines(render(kaiWith(LIST), { evidence: true }));
+  // Every link is still outlined, at its own box.
+  expect(drawn.map((outline) => outline.bbox)).toEqual(LIST.map((cut) => cut.bbox));
+  const [top, ...rest] = drawn;
+  // The topmost carries the run's one flag, to the right, at the run's middle, 101 px down its
+  // 202 px, and past its widest link: 167 px from the topmost's left, 29 px past its own edge.
+  expect(top?.tag).toEqual(["A1 · attention"]);
+  expect(top?.count).toBe("×5");
+  expect(top && flagSideOf(top)).toBe("right");
+  expect(measuredPx(top?.flagStyle.top)).toBe(101);
+  expect(measuredPx(top?.flagStyle.left)).toBe(167);
+  // The others draw no flag, and a screen reader still hears what removed each.
+  for (const outline of rest) {
+    expect(flagged(outline), outline.name).toBe(false);
+    expect(outline.tag, outline.name).toEqual(["A1 · attention"]);
+  }
+  // One element alone keeps CutFlag's own place, with no style and no count.
+  const [alone] = outlines(render(kaiWith([cutAt(320)]), { evidence: true }));
+  expect(alone?.tag).toEqual(["A1 · attention"]);
+  expect(alone?.count).toBeUndefined();
+  expect(alone?.flagStyle).toEqual({});
+});
+
+/** A perception decision that removed an element: `rule` measured `value` under `threshold`. */
+function removedBy(rule: "P1" | "P3" | "P4", value: number, threshold: number): ElementDecision {
+  const metric = ({ P1: "contrast", P3: "fontPx", P4: "targetPx" } as const)[rule];
+  return { stage: "perception", rule, metric, value, threshold, state: "invisible" };
+}
+
+/** Two removed elements 43 px apart, a run, that `decisions` removed alike. */
+function pairRemovedBy(decisions: ElementDecision[]): Outline[] {
+  return outlines(
+    render(kaiWith([cutAt(0, { decisions }), cutAt(43, { decisions })]), { evidence: true }),
+  );
+}
+
+test("a run's count stands apart from the lines, never read as part of a value", () => {
+  // Vera at contrast 7: glued to the line, the count would read as a threshold of "7 ×2". It is
+  // a column of its own, beside the lines, so it adds no line to the flag's height.
+  const [contrast] = pairRemovedBy([removedBy("P1", 6.386, 7)]);
+  expect(contrast?.tag).toEqual(["P1 · 6.386 < 7"]);
+  expect(contrast?.count).toBe("×2");
+  expect(contrast?.flag).toContain("flex-row");
+  // Two rules: the count is the run's, beside both lines, not P3's alone.
+  const [top, below] = pairRemovedBy([removedBy("P3", 17, 24), removedBy("P4", 30, 48)]);
+  expect(top?.tag).toEqual(["P3 · 17 < 24", "P4 · 30 < 48"]);
+  expect(top?.count).toBe("×2");
+  // The member whose flag the run's carries: its lines read apart, not as "24P4".
+  expect(below && flagged(below)).toBe(false);
+  expect(below?.text).toBe("P3 · 17 < 24, P4 · 30 < 48");
+});
+
+test("a run's flag takes its side from the whole run's box, not the topmost element's own", () => {
+  // The topmost, at x 600 to 800, has more room to its left; the run, from x 150 to 800, more to
+  // its right, so the run's flag goes right.
+  const [top] = outlines(
+    render(kaiWith([cutAt(0, { x: 600, width: 200 }), cutAt(43, { x: 150, width: 500 })]), {
+      evidence: true,
+    }),
+  );
+  expect(top && flagSideOf(top)).toBe("right");
+});
+
+test("a run at the page's right takes its flag on the left, at the run's left edge", () => {
+  // The list moved to the right half, each link ending at x 1056: the run, from x 889, has more
+  // room to its left. Its flag is set 167 px in from the topmost's right edge, at x 889.
+  const atRight = LIST.map((cut) => ({ ...cut, bbox: { ...cut.bbox, x: 1056 - cut.bbox.width } }));
+  const [top] = outlines(render(kaiWith(atRight), { evidence: true }));
+  expect(top && flagSideOf(top)).toBe("left");
+  expect(measuredPx(top?.flagStyle.top)).toBe(101);
+  expect(measuredPx(top?.flagStyle.right)).toBe(167);
+});
+
+test("a run with too little room on either side takes its flag inside, at CutFlag's own place", () => {
+  // "Your rights": the 832 px paragraph and the button 42 px under it. Their run leaves 224 px on
+  // each side, under a quarter of the page, so its flag goes inside the paragraph's outline, with
+  // no style of its own, and keeps its count.
+  const [paragraph] = outlines(
+    render(kaiWith([cutAt(655, { width: 832 }), cutAt(697, { width: 248 })]), { evidence: true }),
+  );
+  expect(paragraph && flagSideOf(paragraph)).toBe("inside");
+  expect(paragraph?.flagStyle).toEqual({});
+  expect(paragraph?.count).toBe("×2");
 });
 
 test("the caption says evidence, not perception, in the evidence view only, for its subject", () => {

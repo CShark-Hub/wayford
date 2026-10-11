@@ -1,6 +1,6 @@
 import type { Bbox, RuleId } from "@wayford/core";
 import { cn } from "cn";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 /** How the Lens draws one element: the filter's decision, never a new one. */
 export type FilterState = "visible" | "degraded" | "renamed" | "removed" | "cut";
@@ -79,21 +79,25 @@ export function flagSide(bbox: Bbox, viewportWidth: number): FlagSide {
  * `inside`, inside the outline at its top, with no leader. One line per child, so an element
  * several rules removed lists each. `quiet` beside a cut outline (`FILTER_STATE_CLASS`). Its
  * parent is the positioned element it flags. `className` adds to its look, as the Lens's drop-in
- * animation does.
+ * animation does, and `style` moves it, as the Lens does for a flag that speaks for a run of
+ * neighbours (#225).
  */
 export function CutFlag({
   quiet,
   side,
   className,
+  style,
   children,
 }: {
   quiet?: boolean;
   side: FlagSide;
   className?: string;
+  style?: CSSProperties | undefined;
   children: ReactNode;
 }) {
   return (
     <span
+      style={style}
       className={cn(
         "absolute z-1 flex flex-col",
         side === "inside"

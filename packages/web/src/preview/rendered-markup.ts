@@ -93,7 +93,7 @@ export function styleOf(attributes: Record<string, string>): Record<string, stri
 }
 
 /** The measured CSS px inside `calc(N * var(--px))`. */
-function measuredPx(value: string | undefined): number {
+export function measuredPx(value: string | undefined): number {
   const px = value?.match(/^calc\((-?[\d.]+(?:e[+-]?\d+)?) \* var\(--px\)\)$/)?.[1];
   if (px === undefined) throw new Error(`Not a measured length: ${value}`);
   return Number(px);

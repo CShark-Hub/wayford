@@ -11,7 +11,8 @@
  *   looks, never whether it is drawn.
  * - An element with no `ref` was removed and is not drawn. In the evidence view it is a dashed
  *   outline at its bbox, with its name for screen readers and a flag beside it listing every
- *   decision that removed it, in its removed or cut look (`FILTER_STATE_CLASS`).
+ *   decision that removed it, in its removed or cut look (`FILTER_STATE_CLASS`). Neighbours removed
+ *   alike, stacked as a list's entries, share one flag with their count (`flagRuns`, #225).
  * - Every length on the page is a measured CSS px times `--px`, the frame's width over the
  *   viewport's, so the drawing scales with no script and the markup carries the measured numbers.
  *   A flag is not on the page: it is drawn at full size beside its element, so it reads at any
@@ -24,6 +25,7 @@
  *   animates anything.
  */
 import {
+  type Bbox,
   decisionState,
   type ElementDecision,
   type FullObservation,
@@ -31,11 +33,12 @@ import {
   toActorObservation,
 } from "@wayford/core";
 import { cn } from "cn";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import {
   CutFlag,
   FILTER_STATE_CLASS,
   type FilterState,
+  type FlagSide,
   flagSide,
   type Look,
   RULE_WORDS,
@@ -228,22 +231,120 @@ function ShownBox({
 }
 
 /**
+ * The decisions that removed an element. A decision that only degraded it did not, so its flag
+ * leaves it out.
+ */
+function removalsOf(element: ObservedElement): ElementDecision[] {
+  return element.decisions.filter((d) => decisionState(d) === "invisible");
+}
+
+/**
+ * How far below the top of a run's last element the next may start and still join it, in measured
+ * CSS px. A flag is about 22 px tall, drawn at full size beside a page fitted at about half its
+ * size, so the flags of neighbours closer than this touch or overlap (#225).
+ */
+const RUN_PITCH_PX = 48;
+
+/** A flag that speaks for a run of removed neighbours: how many, and the box around them all. */
+export type FlagRun = { count: number; box: Bbox };
+
+/**
+ * Which removed element carries a flag, by its index in the observation (#225). Removed elements
+ * stacked one under another, each starting less than `RUN_PITCH_PX` below the top of the one above
+ * it and overlapping it across, that the same decisions removed with the same lines, as the
+ * entries of a list an attention cap left out, share one flag: the topmost carries it, for the
+ * whole run, and the rest map to `null`. Every one of them is still outlined; only their flags are
+ * merged. A removed element with other lines that lands between two of them, overlapping across,
+ * ends the run. It reads the measured boxes alone, never the scale, so a page draws the same flags
+ * fitted or at full size.
+ */
+export function flagRuns(elements: readonly ObservedElement[]): Map<number, FlagRun | null> {
+  const removed = elements
+    .map((element, index) => ({ element, index }))
+    .filter(({ element }) => element.ref === undefined)
+    .sort((a, b) => a.element.bbox.y - b.element.bbox.y || a.element.bbox.x - b.element.bbox.x);
+  const runs: { lines: string; members: ObservedElement[]; leader: number; open: boolean }[] = [];
+  const result = new Map<number, FlagRun | null>();
+  for (const { element, index } of removed) {
+    const lines = removalsOf(element).map(flagLine).join("\n");
+    const { x, y, width } = element.bbox;
+    const across = ({ bbox }: ObservedElement) => x < bbox.x + bbox.width && bbox.x < x + width;
+    const run = runs.find((r) => {
+      const last = r.members[r.members.length - 1];
+      if (last === undefined || !r.open || r.lines !== lines) return false;
+      return across(last) && y - last.bbox.y < RUN_PITCH_PX;
+    });
+    // An element with other lines below a run, overlapping it across, ends it: a later member
+    // would put the run's flag beside this element's own.
+    for (const r of runs) {
+      const last = r.members[r.members.length - 1];
+      if (last !== undefined && r.lines !== lines && across(last)) r.open = false;
+    }
+    if (run === undefined) {
+      runs.push({ lines, members: [element], leader: index, open: true });
+    } else {
+      run.members.push(element);
+      result.set(index, null);
+    }
+  }
+  for (const { members, leader } of runs) {
+    const left = Math.min(...members.map((m) => m.bbox.x));
+    const top = Math.min(...members.map((m) => m.bbox.y));
+    const right = Math.max(...members.map((m) => m.bbox.x + m.bbox.width));
+    const bottom = Math.max(...members.map((m) => m.bbox.y + m.bbox.height));
+    result.set(leader, {
+      count: members.length,
+      box: { x: left, y: top, width: right - left, height: bottom - top },
+    });
+  }
+  return result;
+}
+
+/**
+ * Where a run's flag sits, from its topmost element: beside the whole run, at its middle, past its
+ * widest edge, so it covers none of the run's outlines. One element's flag, or one inside its
+ * outline, keeps `CutFlag`'s own place.
+ */
+function runStyle(
+  element: ObservedElement,
+  run: FlagRun,
+  side: FlagSide,
+): CSSProperties | undefined {
+  if (run.count === 1 || side === "inside") return undefined;
+  const { x, y, width } = element.bbox;
+  const { box } = run;
+  const top = scaled(box.y + box.height / 2 - y);
+  return side === "right"
+    ? { top, left: scaled(box.x + box.width - x) }
+    : { top, right: scaled(x + width - box.x) };
+}
+
+/**
  * A removed element, in the evidence view: its outline, and a flag beside it with the decisions
  * that removed it, in the removed or cut look by what removed it (`FILTER_STATE_CLASS`). A changed
  * one draws in from the hatch, which fades off it, while its flag drops in.
+ *
+ * The flag of a run of neighbours is drawn once, by its topmost element, with the run's count in a
+ * column of its own beside the lines (`A1 · attention │ ×5`), so it never reads as part of a value
+ * and adds no line to the flag's height; each other element of the run keeps its lines for screen
+ * readers only, a comma between them (#225).
  */
 function RemovedOutline({
   element,
+  run,
   viewportWidth,
   animate,
 }: {
   element: ObservedElement;
+  /** The run whose flag it carries, or `null` when the element above it carries its flag. */
+  run: FlagRun | null;
   viewportWidth: number;
   animate: boolean;
 }) {
-  // A decision that only degraded the element did not remove it, so its flag leaves it out.
-  const removals = element.decisions.filter((d) => decisionState(d) === "invisible");
+  const removals = removalsOf(element);
   const perception = removals.some((d) => d.stage === "perception");
+  const lines = removals.map((decision) => <span key={decision.rule}>{flagLine(decision)}</span>);
+  const side = run === null ? undefined : flagSide(run.box, viewportWidth);
   return (
     <div
       data-removed=""
@@ -256,15 +357,29 @@ function RemovedOutline({
       style={boxStyle(element)}
     >
       <span className="sr-only">{element.name}</span>
-      <CutFlag
-        quiet={!perception}
-        side={flagSide(element.bbox, viewportWidth)}
-        className={animate ? "animate-lens-flag" : ""}
-      >
-        {removals.map((decision) => (
-          <span key={decision.rule}>{flagLine(decision)}</span>
-        ))}
-      </CutFlag>
+      {run === null || side === undefined ? (
+        <span className="sr-only">
+          {lines.flatMap((line, i) => (i === 0 ? [line] : [", ", line]))}
+        </span>
+      ) : (
+        <CutFlag
+          quiet={!perception}
+          side={side}
+          style={runStyle(element, run, side)}
+          className={cn(run.count > 1 && "flex-row gap-1.5", animate && "animate-lens-flag")}
+        >
+          {run.count > 1 ? (
+            <>
+              <span className="flex flex-col">{lines}</span>
+              <span data-count="" className="flex items-center border-l border-current pl-1.5">
+                {`×${run.count}`}
+              </span>
+            </>
+          ) : (
+            lines
+          )}
+        </CutFlag>
+      )}
     </div>
   );
 }
@@ -407,6 +522,7 @@ export function PerceivedPage({
 
   const { width } = observation.viewport;
   const height = croppedHeight(observation);
+  const runs = evidence ? flagRuns(observation.elements) : undefined;
   return (
     <figure className="flex min-h-0 flex-1 flex-col gap-3">
       {/* The measuring surface, which the frame is centred on and, unless at full size, fitted
@@ -471,6 +587,7 @@ export function PerceivedPage({
                       // biome-ignore lint/suspicious/noArrayIndexKey: a slider never moves an element, so its index is its identity
                       key={`removed:${index}:${n}`}
                       element={element}
+                      run={runs?.get(index) ?? null}
                       viewportWidth={width}
                       animate={n > 0}
                     />

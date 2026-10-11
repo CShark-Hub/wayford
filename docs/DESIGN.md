@@ -203,7 +203,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | Skeleton | Loading in the shape of the content | `s3-13` |
 | Working | A job under way: the wordmark's three posts in a water line, sinking and rising in turn, beside the line that says what runs | Target |
 | ThresholdGauge | A ruler: persona fill to the value, signal post at the threshold, softness band below it, provenance tag. A native range input over the drawing | `s3-11` |
-| FilterStates | Visible, degraded (hatch), removed (dashed signal outline and cut flag `P1 · 2.0 < 4.5`), renamed (`[unfamiliar term]`), cut by attention (quiet flag) | `s3-11` |
+| FilterStates | Visible, degraded (hatch), removed (dashed signal outline and cut flag `P1 · 2.0 < 4.5`), renamed (`[unfamiliar term]`), cut by attention (quiet flag). Neighbours removed with the same lines and stacked, as a list's entries, keep an outline each and share one flag beside the whole run, their count in a column of its own after a rule (`A1 · attention │ ×5`); an element with other lines between them ends the run (#225) | `s3-11` |
 | Outcome | Glyph and word: Got through, Gave up, Out of time, Hit the step cap, Over budget, Error. The three budget endings share one hourglass | `s3-12` |
 | RaceLane | Avatar and name, step pips, goal post, latest screenshot, outcome, clock, narration; once the run is stored, a link to its run detail. A run too long for its track narrows every done pip alike, so all of them stay between the start and the post. The narration sits in a bubble on `paper`, under the avatar, with a tail pointing at the avatar. Its outline is dashed, a hypothesis, in the persona's fill; the tail is a caret too short to dash, in the same fill. The bubble shows the persona's words alone, with no visible label (#236); with no narration there is no bubble. The bubble costs the lane no height (#195) | `s3-12` |
 | StepTimeline | 40 px step buttons, ← → moves; wasted hatched, last ringed | `s3-12` |
@@ -229,7 +229,7 @@ The Lens's stored-page fallback is the dashed stored banner, and the page still 
 ## Motion
 
 - Colour and opacity transitions, 160 ms ease-out, on interactive elements. A pressed button moves 1 px.
-- **One choreographed moment.** When a threshold moves, each Lens element that changes state animates once, 240 ms: hatched in, or hatched to a dashed outline while its cut flag drops in. This is beat 2.
+- **One choreographed moment.** When a threshold moves, each Lens element that changes state animates once, 240 ms: hatched in, or hatched to a dashed outline while its cut flag drops in. One that joins a run of removed neighbours under its topmost has no flag of its own: the run's count changes in place (#225). This is beat 2.
 - Nothing else animates on its own except the skeleton shimmer and the working posts. Race pips append without easing. The avatars do not move.
 - Under `prefers-reduced-motion`, every duration is 0.
 
