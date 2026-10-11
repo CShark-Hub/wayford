@@ -23,9 +23,15 @@ export function textOf(html: string): string {
   return decode(html.replace(/<[^>]*>/g, ""));
 }
 
-/** The text a piece of markup reads as, on one line: tags become spaces, whitespace collapses. */
+/**
+ * The text a piece of markup reads as, on one line: tags become spaces, whitespace collapses. A
+ * `hidden` span's text is dropped: it is shown nowhere, only named by an `aria-describedby`, as a
+ * hint's words are (#240).
+ */
 export function lineOf(html: string): string {
-  return decode(html.replace(/<[^>]*>/g, " "))
+  return decode(
+    html.replace(/<span(?=[^>]*\shidden="")[^>]*>[^<]*<\/span>/g, " ").replace(/<[^>]*>/g, " "),
+  )
     .replace(/\s+/g, " ")
     .trim();
 }

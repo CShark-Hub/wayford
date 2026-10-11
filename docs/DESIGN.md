@@ -69,7 +69,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 | `/cast` | Cast | Personas | Who crosses: a lineup over a capability matrix | `screens/cast.html` | `s3-14` (optional) |
 | `/lens` | Lens | Preview | The hero: the page as the persona's filter leaves it. Demo beats 1–3 | `screens/lens.html` | `s3-11` |
 | `/race` | Race | Arena | Three to five personas live on one goal. Beat 4. Each race keeps its URL, `/race/$raceId`, and the History under the start panel lists them all (issue #194) | `screens/race.html` | `s3-12` |
-| `/report/$taskId` | Report | — | Ten seeds, two numbers, findings by certainty. Beat 5. Under a persona not through on every seed, one line: its seeds by how they ended, each count opening every stored run of the persona on the goal with that outcome, then the first finding naming it, with its glyph and certainty word, linked to its card; or that none names it; or, when its only failed seeds errored, that an error is the tool's (issue #238) | `screens/report.html` | `s3-08` |
+| `/report/$taskId` | Report | — | Ten seeds, two numbers, findings by certainty. Beat 5. Under a persona not through on every seed, one line: its seeds by how they ended, each count opening every stored run of the persona on the goal with that outcome, then the first finding naming it, with its glyph and certainty word, linked to its card; or that none names it; or, when its only failed seeds errored, that an error is the tool's (issue #238). Each findings column's header, and the route open and got through headers, carry a Hint saying where that kind of finding or number comes from and how far to trust it (#240) | `screens/report.html` | `s3-08` |
 | `/runs/$runId` | Run detail | Run detail | One run step by step: screenshot beside what the model read | `screens/run-detail.html` | `s3-12` |
 | `/boundary` | Boundary | Sweep | The first threshold where fewer than half of a persona's runs get through. Beat 6 | `screens/boundary.html` | `s3-09` |
 | `/runs` | Runs | Runs | The archive table, off the story path | — | `s3-14` (optional) |
@@ -197,6 +197,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | PersonaAvatar, PersonaChip | The existing avatar in slot colours on a squircle tile; 12 px square and name | `s3-13` |
 | SegmentedControl | Two to five sibling views; mono variant for paths and ids | `s3-13` |
 | Tag | Square mono flag: provenance, rule id. `folk`/`llm` dotted with "no source" | `s3-13` |
+| Hint | A 32 px ghost Info button and a few plain words beside it, on `surface` with a hairline and `shadow-pop`. Opens on hover, keyboard focus, a click and a tap, and a second tap closes it; stays open while hovered or while the button has focus, until Esc, a press elsewhere or another hint opening. The button is described by the words even when closed. Never a native `title` for an explanation; the Report's older `title=` explanations (readouts, "—", seed cells, why-line counts) are still to move to it | #240 |
 | SourceBadge | `live` or `stored`, from the screen's own data; dashed when stored. Only in the page, beside data that can be either: the Race header | `s3-13` |
 | Banner | Stored-page notice (dashed) or fault (`fault-soft`), one action | `s3-13` |
 | Skeleton | Loading in the shape of the content | `s3-13` |

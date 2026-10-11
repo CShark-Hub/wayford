@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import { reportQuery } from "../api/reports.js";
 import { storedTaskQuery } from "../api/runs.js";
-import { attributesOf, lineOf, rowsOf } from "../preview/rendered-markup.js";
+import { attributesOf, lineOf, rowsOf, textOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 
 const HARD = reportFixture("task_past-order");
@@ -78,16 +78,57 @@ const GROUP: Record<FindingType, string> = {
   hypothesis: "Hypothesis",
 };
 
-/** A group of findings: its `<h2>`'s markup, and the markup of the section it heads. */
-function groupOf(html: string, type: FindingType): { heading: string; body: string } {
+/**
+ * A group of findings: its `<header>`'s markup, the `<h2>`'s inside it, and the markup of the
+ * section after the header, its cards or the line saying it has none.
+ */
+function groupOf(
+  html: string,
+  type: FindingType,
+): { header: string; heading: string; body: string } {
   const sections = [...html.matchAll(/<section(\s[^>]*)>(.*?)<\/section>/gs)];
   for (const section of sections) {
-    const heading = section[2]?.match(/<h2(?:\s[^>]*)?>(.*?)<\/h2>/s)?.[1];
-    if (heading !== undefined && lineOf(heading).startsWith(GROUP[type])) {
-      return { heading, body: section[2] ?? "" };
+    const inner = section[2] ?? "";
+    const header = inner.match(/<header(?:\s[^>]*)?>(.*?)<\/header>/s)?.[1];
+    const heading = header?.match(/<h2(?:\s[^>]*)?>(.*?)<\/h2>/s)?.[1];
+    if (header !== undefined && heading !== undefined && lineOf(heading).startsWith(GROUP[type])) {
+      return {
+        header,
+        heading,
+        body: inner.slice(inner.indexOf("</header>") + "</header>".length),
+      };
     }
   }
   throw new Error(`no group headed ${GROUP[type]}`);
+}
+
+/** Each hint's words, by its button's name (#240). */
+const HINTS = {
+  "Explain Measurement":
+    "Measured by axe-core, an accessibility scanner, on pages the runs stood on, each loaded afresh at desktop size. It is about the page, not a persona, so it stays in view whichever persona is picked. What to change is the Analyst's.",
+  "Explain Deterministic":
+    "Decided in code by the filter, from the persona's limits: what did not reach the model. The same seed gives the same decision. What to change is the Analyst's.",
+  "Explain Hypothesis":
+    "Written by the Analyst, a model, from what the agent did in the runs. A reading worth checking, not a measured fact.",
+  "Explain route open":
+    "Seeds where at least one route to the goal stayed open, out of the persona's seeds. Deterministic: the filter decides it in code, from the persona's limits and the seed, with no model.",
+  "Explain got through":
+    "Runs that reached the goal, out of those that did not error. Code checks the goal; the way there is the agent's and varies, so read it as a hypothesis.",
+} as const;
+
+/**
+ * The words that describe the hint button named `label` in `html`: the text of the span its
+ * `aria-describedby` names, which holds text alone. Throws when there is no such button.
+ */
+function hintOf(html: string, label: string): string | undefined {
+  const button = [...html.matchAll(/<button(\s[^>]*)>/g)]
+    .map((m) => attributesOf(m[1] ?? ""))
+    .find((a) => a["aria-label"] === label);
+  if (button === undefined) throw new Error(`no hint button named ${label}`);
+  const at = html.indexOf(` id="${button["aria-describedby"]}"`);
+  if (at < 0) return undefined;
+  const close = html.indexOf(">", at);
+  return textOf(html.slice(close + 1, html.indexOf("</span>", close)));
 }
 
 /** Each finding card in `html`: its attributes and its text on one line. */
@@ -294,6 +335,19 @@ describe("the cast table", () => {
       expect(inner).toMatch(/<p[\s>]/);
     }
   });
+
+  test.each([
+    ["route open", "Explain route open"],
+    ["got through", "Explain got through"],
+  ] as const)("%s's header carries its hint", async (name, label) => {
+    const html = await render("/report/task_past-order", HARD);
+    const th = [...html.matchAll(/<th(\s[^>]*)>(.*?)<\/th>/gs)].find((cell) =>
+      (cell[2] ?? "").includes(`aria-label="${label}"`),
+    );
+    if (th === undefined) throw new Error(`no header holds ${label}`);
+    expect(lineOf(th[2] ?? "")).toBe(name);
+    expect(hintOf(th[2] ?? "", label)).toBe(HINTS[label]);
+  });
 });
 
 /** The why line under `profileId`'s cast row (#238): its markup, or undefined when it has none. */
@@ -491,6 +545,29 @@ describe("the findings", () => {
     expect(groupOf(html, "measurement").heading).toMatch(/data-line="measured"/);
     expect(groupOf(html, "deterministic").heading).toMatch(/data-line="deterministic"/);
     expect(groupOf(html, "hypothesis").heading).toMatch(/data-line="hypothesis"/);
+  });
+
+  test.each([
+    ["measurement", "Explain Measurement"],
+    ["deterministic", "Explain Deterministic"],
+    ["hypothesis", "Explain Hypothesis"],
+  ] as const)("the %s group's header carries its hint after the <h2>", async (type, label) => {
+    const { header, heading } = groupOf(await render("/report/task_past-order", HARD), type);
+    // After the heading, so its name stays out of the heading's, which names the section.
+    expect(heading).not.toContain("<button");
+    expect(header.indexOf("</h2>")).toBeLessThan(header.indexOf("<button"));
+    expect(hintOf(header, label)).toBe(HINTS[label]);
+  });
+
+  test("no hint names a persona, speaks for people, or claims more than the column holds", async () => {
+    const html = await render("/report/task_past-order", HARD);
+    for (const label of Object.keys(HINTS)) {
+      const text = hintOf(html, label) ?? "";
+      expect(text, label).not.toBe("");
+      expect(text, label).not.toMatch(
+        /\b(Ada|Kai|Milo|Vera|Zoya)\b|can't|cannot|predict|real (user|people)|impaired|disabled|blind|confused|route closes/i,
+      );
+    }
   });
 
   test("an empty group says so", async () => {

@@ -680,7 +680,7 @@ test("a ten-seed report fits 1280 × 720", async () => {
   await page.goto(`${origin}/report/${TASK_ID}`);
   await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
 
-  const headings = page.locator("section > h2");
+  const headings = page.locator("section > header > h2");
   expect(await headings.count()).toBe(3);
   const bottoms = await headings.evaluateAll((elements) =>
     elements.map((element) => element.getBoundingClientRect().bottom),

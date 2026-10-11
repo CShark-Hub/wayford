@@ -469,6 +469,17 @@ describe("on the web app", () => {
         expect(check.shortfalls).toEqual([]);
       },
     );
+
+    test("the open hint's words are among what the report-hint entry measures", async () => {
+      const screen = SELF_CHECK_SCREENS.find((entry) => entry.name === "report-hint");
+      if (screen === undefined) throw new Error("no report-hint entry");
+      const page = await newPage();
+      const check = await checkScreen(page, app.origin, screen);
+      const hint = (await page.getByRole("tooltip").innerText()).trim();
+      expect(hint).toMatch(/^Measured by axe-core/);
+      const texts = check.measurement.elements.filter((element) => element.kind === "text");
+      expect(texts.some((element) => element.name.includes(hint))).toBe(true);
+    });
   });
 
   describe("the Race and run detail, as the self-check opens them", () => {

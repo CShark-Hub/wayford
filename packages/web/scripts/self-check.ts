@@ -461,6 +461,17 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     responses: { "/reports/task_past-order": reportFixture("task_past-order") },
   },
   {
+    name: "report-hint",
+    path: "/report/task_past-order",
+    // The Measurement column's hint (#240), open while its button is hovered. It renders in a
+    // portal under `<body>`, so it is measured here, in both themes.
+    ready: "role=tooltip",
+    responses: { "/reports/task_past-order": reportFixture("task_past-order") },
+    act: async (page) => {
+      await page.getByRole("button", { name: "Explain Measurement", exact: true }).hover();
+    },
+  },
+  {
     name: "boundary",
     path: "/boundary",
     ready: BOUNDARY_READY,

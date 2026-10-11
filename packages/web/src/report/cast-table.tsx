@@ -15,6 +15,10 @@
  *
  * Each row sets its persona's slot variables, which the seed strip and the gap bar fill from. Every
  * text cell holds its text in a `<p>`, so `check:self` measures it.
+ *
+ * The headers of the two numbers each carry a hint saying what the number counts and how far to
+ * trust it (#240). Each header is named by its label alone, so a screen reader does not repeat the
+ * hint button's name with every cell of the column.
  */
 import { Link } from "@tanstack/react-router";
 import type {
@@ -26,7 +30,7 @@ import type {
   RunOutcome,
 } from "@wayford/core";
 import { cn } from "cn";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, useId } from "react";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { CertaintyGlyph } from "../components/certainty.js";
@@ -35,6 +39,7 @@ import { count, OUTCOME_WORDS } from "../components/outcome-words.js";
 import { PersonaAvatar, PersonaName, personaLabel } from "../components/persona-avatar.js";
 import { GapBar, NoValue, Readout } from "../components/readout.js";
 import { SeedStrip } from "../components/seed-strip.js";
+import { Hint } from "../components/ui/tooltip.js";
 import { formatSeconds } from "../runs/step-replay.js";
 
 /** The bundled profiles by id: a persona among them is drawn with its avatar. */
@@ -60,6 +65,17 @@ function seedSpan(seeds: readonly number[], to = "–"): string {
  */
 const ROW = "transition-colors group-hover:bg-paper-sunken";
 const HEAD = "px-(--space-3) py-(--space-2) align-bottom whitespace-nowrap label text-ink-3";
+
+/**
+ * What each of the two numbers counts, in its header's hint. Each says its certainty in words, as
+ * the glyph beside the label is hidden from assistive technology.
+ */
+const NUMBER_HINTS = {
+  routeOpen:
+    "Seeds where at least one route to the goal stayed open, out of the persona's seeds. Deterministic: the filter decides it in code, from the persona's limits and the seed, with no model.",
+  gotThrough:
+    "Runs that reached the goal, out of those that did not error. Code checks the goal; the way there is the agent's and varies, so read it as a hypothesis.",
+} as const;
 const CELL = "px-(--space-3) py-(--space-2)";
 
 /** The persona's cell: avatar and name if bundled, `PersonaName` if not. The name picks it. */
@@ -294,6 +310,8 @@ function WhyRow({
 /** `report`'s personas, one row each, with `picked`'s row marked and a why line where one is due. */
 export function CastTable({ report, picked }: { report: Report; picked: string | undefined }) {
   const span = seedSpan(report.personas.flatMap((result) => result.seeds.map((s) => s.seed)));
+  const routeOpenId = useId();
+  const gotThroughId = useId();
   return (
     <table className="w-full border-collapse">
       <thead>
@@ -304,16 +322,18 @@ export function CastTable({ report, picked }: { report: Report; picked: string |
           <th scope="col" className={cn(HEAD, "text-left")}>
             <p>{span}</p>
           </th>
-          <th scope="col" className={cn(HEAD, "text-right")}>
+          <th scope="col" aria-labelledby={routeOpenId} className={cn(HEAD, "text-right")}>
             <p className="inline-flex items-center gap-(--space-2)">
               <CertaintyGlyph line="deterministic" />
-              route open
+              <span id={routeOpenId}>route open</span>
+              <Hint label="Explain route open" hint={NUMBER_HINTS.routeOpen} />
             </p>
           </th>
-          <th scope="col" className={cn(HEAD, "text-right")}>
+          <th scope="col" aria-labelledby={gotThroughId} className={cn(HEAD, "text-right")}>
             <p className="inline-flex items-center gap-(--space-2)">
               <CertaintyGlyph line="hypothesis" />
-              got through
+              <span id={gotThroughId}>got through</span>
+              <Hint label="Explain got through" hint={NUMBER_HINTS.gotThrough} />
             </p>
           </th>
           <th scope="col" className={cn(HEAD, "ps-(--space-6) text-left")}>
