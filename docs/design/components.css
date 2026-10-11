@@ -113,6 +113,17 @@ body {
 .wf-cert--hypothesis::before { border-top-style: dashed; border-top-color: var(--ink-2); }
 .wf-cert--soft::before { border-top-style: dotted; border-top-color: var(--ink-3); }
 
+/* ---------- Hint: a 32 px ghost Info button, and a few plain words above it while open ---------- */
+/* The bubble sits on its button's top side, centred, as Radix places it. No arrow, no animation. */
+.wf-hint { position: relative; display: inline-flex; }
+.wf-hint__btn { width: var(--target-min); min-height: var(--target-min); padding: 0; }
+.wf-hint__bubble {
+  position: absolute; bottom: calc(100% + var(--space-1)); left: 50%; transform: translateX(-50%); z-index: var(--z-overlay);
+  width: max-content; max-width: 20rem; padding: var(--space-2) var(--space-3);
+  background: var(--surface); border: var(--stroke-hair) solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
+  font: 400 16px/24px var(--font-sans); color: var(--ink); text-wrap: pretty;
+}
+
 /* ---------- Persona: avatar tile, chip, name ---------- */
 .wf-avatar {
   --s: 64px; width: var(--s); height: var(--s); flex: none; border-radius: calc(var(--s) * 0.3);

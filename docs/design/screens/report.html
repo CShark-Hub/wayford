@@ -32,6 +32,7 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
 .cast .r{text-align:right}
 .cast th:nth-child(5),.cast td:nth-child(5){padding-left:var(--space-6)}
 .cast th .wf-cert{color:var(--ink-3);font-family:var(--font-sans)}
+.cast th .hcell{display:inline-flex;align-items:center;gap:var(--space-2)}
 .who{display:flex;align-items:center;gap:var(--space-3)}
 .who .wf-pname{font-size:24px;line-height:28px}
 .cast .wf-seeds{flex-wrap:nowrap}
@@ -65,9 +66,10 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
 .findings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4);margin-top:var(--space-5);align-items:start}
 .fcol{display:grid;gap:var(--space-3);align-content:start}
 .fhead{margin:0;display:flex;align-items:center;gap:var(--space-2);padding-bottom:var(--space-2);border-bottom:var(--stroke-hair) solid var(--line-strong)}
-.fhead .wf-cert{font:600 18px/24px var(--font-sans);color:var(--ink)}
-.fhead .n{font:500 16px/20px var(--font-mono);color:var(--ink-3)}
-.fhead .d{margin-left:auto;font:400 16px/20px var(--font-sans);color:var(--ink-3)}
+.fhead h2{margin:0;flex:1;display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--space-2);font:inherit}
+.fhead .wf-cert{font:600 18px/28px var(--font-sans);color:var(--ink)}
+.fhead .n{font:500 16px/20px var(--font-mono);color:var(--ink-2)}
+.fhead .d{margin-left:auto;font:400 16px/24px var(--font-sans);color:var(--ink-3)}
 .ftags{gap:var(--space-2)}
 .leftout{margin-top:var(--space-6);padding-top:var(--space-3);border-top:var(--stroke-hair) solid var(--line);color:var(--ink-3)}
 </style>
@@ -98,12 +100,12 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
   </header>
 
   <table class="wf-table cast">
-    <colgroup><col style="width:212px"><col style="width:406px"><col style="width:134px"><col style="width:134px"><col style="width:196px"><col></colgroup>
+    <colgroup><col style="width:214px"><col style="width:398px"><col style="width:175px"><col style="width:182px"><col style="width:131px"><col></colgroup>
     <thead><tr>
       <th scope="col">persona</th>
       <th scope="col">seeds 1–10</th>
-      <th scope="col" class="r"><span class="wf-cert wf-cert--deterministic">route open</span></th>
-      <th scope="col" class="r"><span class="wf-cert wf-cert--hypothesis">got through</span></th>
+      <th scope="col" class="r"><span class="hcell"><span class="wf-cert wf-cert--deterministic">route open</span><span class="wf-hint"><button class="wf-btn wf-btn--ghost wf-hint__btn" type="button" aria-label="Explain route open" aria-describedby="hint-route-open"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button><span hidden id="hint-route-open">Seeds where at least one route to the goal stayed open, out of the persona's seeds. Deterministic: the filter decides it in code, from the persona's limits and the seed, with no model.</span></span></span></th>
+      <th scope="col" class="r"><span class="hcell"><span class="wf-cert wf-cert--hypothesis">got through</span><span class="wf-hint"><button class="wf-btn wf-btn--ghost wf-hint__btn" type="button" aria-label="Explain got through" aria-describedby="hint-got-through"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button><span hidden id="hint-got-through">Runs that reached the goal, out of those that did not error. Code checks the goal; the way there is the agent's and varies, so read it as a hypothesis.</span></span></span></th>
       <th scope="col">gap</th>
       <th scope="col" class="r">median time</th>
     </tr></thead>
@@ -137,7 +139,7 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
 
   <section class="findings" aria-label="Findings">
 <div class="fcol">
-  <h2 class="fhead"><span class="wf-cert">Measured</span><span class="n">1</span><span class="d">the page, by axe</span></h2>
+  <header class="fhead"><h2><span class="wf-cert">Measurement</span><span class="n">1</span><span class="d">the page, by axe</span></h2><span class="wf-hint"><button class="wf-btn wf-btn--ghost wf-hint__btn" type="button" aria-label="Explain Measurement" aria-describedby="hint-measurement"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button><span hidden id="hint-measurement">Measured by axe-core, an accessibility scanner, on pages the runs stood on, each loaded afresh at desktop size. It is about the page, not a persona, so it stays in view whichever persona is picked. What to change is the Analyst's.</span></span></header>
   <article class="wf-finding">
   <h3 class="wf-finding__title">The link “Order archive” on /deliveries measures 2.005:1, below the WCAG&nbsp;2.2 minimum for text</h3>
   <div class="wf-row ftags"><span class="wf-tag">axe · color-contrast</span></div>
@@ -146,7 +148,7 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
 </article>
 </div>
 <div class="fcol">
-  <h2 class="fhead"><span class="wf-cert wf-cert--deterministic">Deterministic</span><span class="n">2</span><span class="d">the filter, in code</span></h2>
+  <header class="fhead"><h2><span class="wf-cert wf-cert--deterministic">Deterministic</span><span class="n">2</span><span class="d">the filter, in code</span></h2><span class="wf-hint"><button class="wf-btn wf-btn--ghost wf-hint__btn" type="button" aria-label="Explain Deterministic" aria-describedby="hint-deterministic"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button><span hidden id="hint-deterministic">Decided in code by the filter, from the persona's limits: what did not reach the model. The same seed gives the same decision. What to change is the Analyst's.</span></span></header>
   <article class="wf-finding wf-finding--soft">
   <div class="wf-row ftags"><span class="wf-pchip wf-p-raspberry">Kai</span></div>
   <h3 class="wf-finding__title">The link “Order archive” on /deliveries is cut by A1 for Kai in 10 of 10 seeds</h3>
@@ -163,7 +165,7 @@ main.rep{padding:var(--space-5) var(--space-6) 0;min-height:0;overflow:hidden}
 </article>
 </div>
 <div class="fcol">
-  <h2 class="fhead"><span class="wf-cert wf-cert--hypothesis">Hypothesis</span><span class="n">1</span><span class="d">read from the runs</span></h2>
+  <header class="fhead"><h2><span class="wf-cert wf-cert--hypothesis">Hypothesis</span><span class="n">1</span><span class="d">read from the runs</span></h2><span class="wf-hint"><button class="wf-btn wf-btn--ghost wf-hint__btn" type="button" aria-label="Explain Hypothesis" aria-describedby="hint-hypothesis"><svg class="wf-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button><span hidden id="hint-hypothesis">Written by the Analyst, a model, from what the agent did in the runs. A reading worth checking, not a measured fact.</span></span></header>
   <article class="wf-finding wf-finding--hypothesis">
   <div class="wf-row ftags"><span class="wf-pchip wf-p-cobalt">Vera</span></div>
   <h3 class="wf-finding__title">Where the archive link reached the model degraded, its masked name may not read as the way to past orders</h3>
