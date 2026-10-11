@@ -243,6 +243,7 @@ The sweep is the one chart in scope, drawn as plain SVG from the tokens:
   - The headline says that in those words, e.g. "Under half get through, first at 3:1." It names the first value only: the rate is not monotone, so a value past the boundary can climb back over half, and "from 3:1 on" would claim what the sweep did not measure.
   - With no boundary in range: no post, and "no boundary up to" the last value.
   - Where `boundaryOf` stopped at a value with an errored run: no post, and the headline names that value and the error. Nothing is claimed past it.
+- **The intro:** one line before any chart or command says what a sweep is and what the boundary means (#242). It shares the top row with the axis switch, on a loaded sweep and an empty one alike. The meta line has the row under it to itself, so a minted task id fits on one line. It must stay one line at 1280 × 720: a loaded sweep has no height to give, and the Boundary's frame is already tighter than other screens' to make room for it.
 - **Ticks:** 16 px mono.
 - **Never:** smoothing, a fill under a line, or a gradient.
 

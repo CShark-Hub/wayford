@@ -1,6 +1,7 @@
 /**
- * One loaded sweep, laid out as `docs/design/screens/boundary.html` draws it: the head, with the
- * persona, the meta line, the headline and the axis switch; the lead; then the chart beside the
+ * One loaded sweep, laid out as `docs/design/screens/boundary.html` draws it, plus an intro the
+ * picture lacks (#242): the head, with the persona, the intro, the meta line, the headline and the
+ * axis switch; the lead; then the chart beside the
  * value table, and the runs of a value when one is open.
  *
  * The headline and the lead say what `readSweep` reads, in the agent's words: the boundary is a
@@ -25,10 +26,25 @@ import { ValueTable } from "./value-table.js";
 
 /**
  * The page's frame in every state, loaded or not: the content column and the screen's padding, so
- * nothing moves when the data arrives.
+ * nothing moves when the data arrives. Tighter than other screens (16 px at the top, 8 between and
+ * under the blocks): the meta line's own row under the intro (#242) costs 20 px, and a loaded sweep
+ * had about 3 px to spare at 1280 × 720.
  */
 export const FRAME =
-  "mx-auto grid max-w-(--content-max) gap-(--space-3) px-(--space-6) pt-(--space-5) pb-(--space-3)";
+  "mx-auto grid max-w-(--content-max) gap-(--space-2) px-(--space-6) pt-(--space-4) pb-(--space-2)";
+
+/**
+ * What the page is for, before any chart or command (#242), so it holds up without a narrator, as on
+ * the judges' app, where the Boundary is empty. One line at 1280 beside the switch: a loaded sweep
+ * has no room for a second.
+ */
+export const BOUNDARY_INTRO =
+  "A sweep reruns the goal as one limit tightens. Boundary: the first value where under half get through.";
+
+/** The intro's paragraph, on a loaded sweep and on both empty states. */
+export function Intro() {
+  return <p className="body text-ink-2">{BOUNDARY_INTRO}</p>;
+}
 
 /**
  * The switch between the two demo presets: a link each, drawn as a segmented control, each a chip
@@ -213,11 +229,14 @@ export function SweepView({
     <div className={FRAME} style={slotStyle(slotOf(sweep.profileId))}>
       <header className="flex items-center gap-(--space-5)">
         {profile === undefined ? null : <PersonaAvatar profile={profile} className="size-22" />}
-        {/* As the picture lays it out: the meta line and the switch share the top row, and the
-            headline has the row under them to itself, so a boundary at 3.0:1 fits on one line. */}
+        {/* Unlike the picture, the intro (#242) shares the top row with the switch, as on an empty
+            preset, and the meta line has the row under them to itself, so a minted task id or an
+            incomplete sweep still fits it on one line. The headline has the last row to itself,
+            so a boundary at 3.0:1 fits on one line. */}
         <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-(--space-6)">
-          <p className="font-mono leading-5 text-ink-3">{metaOf(sweep, persona)}</p>
+          <Intro />
           <AxisSwitch value={preset} />
+          <p className="col-span-2 font-mono leading-5 text-ink-3">{metaOf(sweep, persona)}</p>
           <h1 className="col-span-2 display-l text-balance text-ink">
             <Headline sweep={sweep} reading={reading} />
           </h1>

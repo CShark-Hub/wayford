@@ -12,12 +12,14 @@
  * until New race clears it. Run detail's ← and → are pressed on the page itself, and its
  * screenshot crop is measured against the click point and the flag that names the action.
  */
-import { RunEvent, RunResult, type StartedRun } from "@wayford/core";
+import { RunEvent, RunResult, type StartedRun, Sweep } from "@wayford/core";
 import { runEventFixtures, runResultFixture, taskFixture } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from "vitest";
 import { demoRace, eventsOf } from "../src/arena/demo-race.js";
 import { stuckRun } from "../src/arena/fixture-race.js";
+import { fixtureSweep, fixtureSweeps } from "../src/boundary/fixture-sweeps.js";
+import { BOUNDARY_INTRO } from "../src/boundary/sweep-view.js";
 import { THEME_NAMES } from "../src/theme.js";
 import {
   checkScreen,
@@ -665,6 +667,61 @@ describe("on the web app", () => {
       await start.waitFor();
       expect(await page.getByRole("article", { name: "Ada", exact: true }).count()).toBe(0);
     });
+  });
+
+  describe("the Boundary at 1280 × 720, with its intro (#242)", () => {
+    /** Kai's sweep on a minted task id and the LLM, as the finals store one: a long meta line. */
+    const minted = Sweep.parse({
+      ...fixtureSweep("swp_kai-max-elements"),
+      id: "swp_kai-minted",
+      taskId: "task_01m4fn3h6zeaek4sp5me256cyz",
+      backend: "llm",
+    });
+    const screens: SelfCheckScreen[] = [
+      listedScreen("boundary"),
+      {
+        name: "boundary · minted task id",
+        path: `/boundary/${minted.id}`,
+        ready: "main h1",
+        responses: { [`/sweeps/${minted.id}`]: minted },
+      },
+      {
+        name: "boundary · incomplete",
+        path: "/boundary",
+        ready: "main h1",
+        responses: { "/sweeps": [fixtureSweeps.incomplete] },
+      },
+    ];
+
+    // The loaded page has a few px to spare: a second line of the intro or the meta line scrolls it.
+    test.each(
+      screens.flatMap((screen) =>
+        SELF_CHECK_THEMES.map((theme) => [screen.name, THEME_NAMES[theme], screen, theme] as const),
+      ),
+    )(
+      "%s in %s: the intro and the meta line one line each, and the page fits",
+      async (_name, _theme, screen, theme) => {
+        const page = await newPage();
+        await checkScreen(page, app.origin, screen, theme);
+        const lines = await page.evaluate((intro) => {
+          const paragraphs = [...document.querySelectorAll("main p")];
+          return [
+            paragraphs.find((p) => p.textContent === intro),
+            paragraphs.find((p) => p.textContent?.includes(" · seeds ")),
+          ].map((p) =>
+            p === undefined
+              ? 0
+              : Math.round(
+                  p.getBoundingClientRect().height /
+                    Number.parseFloat(getComputedStyle(p).lineHeight),
+                ),
+          );
+        }, BOUNDARY_INTRO);
+        expect(lines).toEqual([1, 1]);
+        const height = await page.evaluate(() => document.scrollingElement?.scrollHeight);
+        expect(height).toBeLessThanOrEqual(SELF_CHECK_VIEWPORT.height);
+      },
+    );
   });
 
   describe("the Target screen, as the self-check opens it", () => {

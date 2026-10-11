@@ -17,7 +17,7 @@ import type { ReactNode } from "react";
 import { z } from "zod";
 import { sweepQuery, sweepsQuery } from "../api/sweeps.js";
 import { AXIS_COPY, BOUNDARY_PRESETS } from "../boundary/axis.js";
-import { AxisSwitch, FRAME, SweepView } from "../boundary/sweep-view.js";
+import { AxisSwitch, FRAME, Intro, SweepView } from "../boundary/sweep-view.js";
 import { Banner } from "../components/banner.js";
 import { personaLabel } from "../components/persona-avatar.js";
 import { Skeleton } from "../components/skeleton.js";
@@ -35,18 +35,20 @@ const BoundarySearch = z.object({
   value: z.number().optional().catch(undefined),
 });
 
-/** The skeleton in the content's shape: the head, the lead, the chart and the table. */
+/**
+ * The skeleton in the content's shape: the head's three rows (the intro beside the switch, the meta
+ * line, the headline), the lead, the chart and the table.
+ */
 function SweepSkeleton() {
   return (
     <div className={FRAME} role="status" aria-label="Reading the stored sweep">
       <div className="flex items-center gap-(--space-5)">
         <Skeleton className="size-22 rounded-lg" />
-        <div className="grid flex-1 gap-(--space-2)">
-          <Skeleton className="h-5 w-180" />
-          <div className="flex items-center justify-between gap-(--space-6)">
-            <Skeleton className="h-16 w-170" />
-            <Skeleton className="h-10 w-80 rounded-sm" />
-          </div>
+        <div className="grid flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-(--space-6) gap-y-(--space-1)">
+          <Skeleton className="h-6 w-184" />
+          <Skeleton className="h-10 w-80 rounded-sm" />
+          <Skeleton className="col-span-2 h-5 w-180" />
+          <Skeleton className="col-span-2 h-16 w-170" />
         </div>
       </div>
       <Skeleton className="h-7 w-250" />
@@ -83,21 +85,28 @@ function Fault({ what, message, retry }: { what: string; message: string; retry:
   );
 }
 
-/** The empty state, local to this screen: a mono label, a sentence, one line and one action. */
-function Empty({ title, line, action }: { title: string; line: ReactNode; action: ReactNode }) {
+/** A command, as typed, never broken across lines, in its line's ink. */
+function Command({ children }: { children: string }) {
+  return <code className="font-mono whitespace-nowrap">{children}</code>;
+}
+
+/**
+ * The empty state, local to this screen: a mono label, the sentence of what is missing, one line
+ * of how to store a sweep, secondary in `ink-3` (#242), and one action. The page's intro stands
+ * above it.
+ */
+function Empty({ title, action }: { title: string; action: ReactNode }) {
   return (
     <div className="grid max-w-140 justify-items-start gap-(--space-3) py-(--space-7)">
       <p className="mono-label text-ink-3">no sweep found</p>
       <h1 className="display-m text-balance text-ink">{title}</h1>
-      <p className="body text-pretty text-ink-2">{line}</p>
+      <p className="body text-pretty text-ink-3">
+        How to store one: <Command>pnpm seed:demo</Command> stores both demo sweeps in an empty
+        database. <Command>pnpm --filter @wayford/io sweep</Command> prints how to run one alone.
+      </p>
       {action}
     </div>
   );
-}
-
-/** A command, as typed, never broken across lines. */
-function Command({ children }: { children: string }) {
-  return <code className="font-mono whitespace-nowrap text-ink">{children}</code>;
 }
 
 /**
@@ -119,24 +128,20 @@ export function BoundaryScreen() {
   if (latest === undefined) {
     return (
       <div className={FRAME}>
-        {/* The switch stays, so the other preset is one click away from an empty one. */}
-        <div className="flex items-start justify-between gap-(--space-6)">
-          <Empty
-            title={`No ${AXIS_COPY[axis].switchLabel} sweep on ${personaLabel(preset.profileId)} on the hard goal yet.`}
-            line={
-              <>
-                <Command>pnpm seed:demo</Command> stores both demo sweeps in an empty database.{" "}
-                <Command>pnpm --filter @wayford/io sweep</Command> prints how to run one alone.
-              </>
-            }
-            action={
-              <Button variant="outline" onClick={retry}>
-                Check again
-              </Button>
-            }
-          />
+        {/* The intro and the switch share the top row, as on a loaded sweep. The switch stays, so
+            the other preset is one click away from an empty one. */}
+        <div className="flex items-center justify-between gap-(--space-6)">
+          <Intro />
           <AxisSwitch value={axis} />
         </div>
+        <Empty
+          title={`No ${AXIS_COPY[axis].switchLabel} sweep on ${personaLabel(preset.profileId)} on the hard goal yet.`}
+          action={
+            <Button variant="outline" onClick={retry}>
+              Check again
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -158,14 +163,9 @@ export function BoundarySweepScreen() {
   if (sweep.data === null) {
     return (
       <div className={FRAME}>
+        <Intro />
         <Empty
           title={`No stored sweep ${sweepId}.`}
-          line={
-            <>
-              io holds no sweep under this id. <Command>pnpm seed:demo</Command> and{" "}
-              <Command>pnpm --filter @wayford/io sweep</Command> store them.
-            </>
-          }
           action={
             <Link to="/boundary" className={buttonVariants({ variant: "outline" })}>
               Open the latest sweep

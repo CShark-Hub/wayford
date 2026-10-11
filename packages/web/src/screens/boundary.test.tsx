@@ -8,6 +8,7 @@ import { runQuery } from "../api/runs.js";
 import { sweepQuery, sweepsQuery } from "../api/sweeps.js";
 import { BOUNDARY_PRESETS } from "../boundary/axis.js";
 import { fixtureSweeps, stoppedSweep } from "../boundary/fixture-sweeps.js";
+import { BOUNDARY_INTRO } from "../boundary/sweep-view.js";
 import {
   attributesOf,
   decode,
@@ -700,6 +701,69 @@ describe("the states before a sweep is shown", () => {
     expect(html).toMatch(/data-slot="skeleton"/);
   });
 });
+
+describe("the intro says what the page is for (#242)", () => {
+  /** A missing sweep id, as io answers it. */
+  function missing(): Promise<string> {
+    const client = new QueryClient();
+    client.setQueryData(sweepQuery("swp_none").queryKey, null);
+    return render("/boundary/swp_none", client);
+  }
+
+  /** The empty preset: Kai's, with nothing stored. */
+  function emptyPreset(): Promise<string> {
+    return render("/boundary?axis=maxElements", presets({ maxElements: [] }));
+  }
+
+  // The reading changes the headline and the lead, never the head's rows the intro sits in.
+  test.each([
+    ["a preset", () => veraPreset()],
+    ["a sweep by id", () => render(`/boundary/${kai.id}`, sweepById(kai))],
+  ])("%s: the intro comes before the headline and the chart", async (_, open) => {
+    const main = mainOf(await open());
+    const intro = main.indexOf(BOUNDARY_INTRO);
+    expect(intro).toBeGreaterThan(-1);
+    expect(intro).toBeLessThan(main.indexOf("<h1"));
+    expect(intro).toBeLessThan(main.indexOf("<figure"));
+  });
+
+  test.each([
+    ["the empty preset", emptyPreset],
+    ["a missing id", missing],
+  ])("%s: the intro, then what is missing, then how to store one", async (_, open) => {
+    const main = mainOf(await open());
+    const intro = main.indexOf(BOUNDARY_INTRO);
+    expect(intro).toBeGreaterThan(-1);
+    expect(intro).toBeLessThan(main.indexOf("<h1"));
+    const how = main.indexOf("How to store one:");
+    expect(how).toBeGreaterThan(main.indexOf("</h1>"));
+    expect(how).toBeLessThan(main.indexOf("<code"));
+  });
+
+  test("the commands are one secondary line, in ink-3, the commands with no ink of their own", async () => {
+    const html = await emptyPreset();
+    const line = html.match(/<p class="([^"]*)">How to store one:(.*?)<\/p>/s);
+    expect(line?.[1]?.split(" ")).toContain("text-ink-3");
+    const commands = [...(line?.[2] ?? "").matchAll(/<code class="([^"]*)"/g)];
+    expect(commands).toHaveLength(2);
+    for (const [, classes] of commands) expect(classes).not.toMatch(/\btext-ink/);
+  });
+
+  test.each([
+    ["the empty preset", emptyPreset],
+    ["a missing id", missing],
+  ])("%s says none of the words the demo keeps off the screen", async (_, open) => {
+    const said = textLine(await open()).toLowerCase();
+    for (const word of BANNED) expect(said, word).not.toContain(word);
+  });
+});
+
+/** A client holding `sweep` under its id. */
+function sweepById(sweep: Sweep): QueryClient {
+  const client = new QueryClient();
+  client.setQueryData(sweepQuery(sweep.id).queryKey, sweep);
+  return client;
+}
 
 test("the meta line takes the backend from the data, and the page draws no source badge", async () => {
   const html = await render("/boundary", presets({ contrast: [{ ...vera, backend: "llm" }] }));
