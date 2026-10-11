@@ -311,6 +311,8 @@ It fails on:
 - text whose contrast cannot be measured;
 - an `/api` request the screen's list does not answer.
 
+`pnpm test` checks the same list in both themes (`packages/web/scripts/self-check.browser.test.ts`), so CI runs it on every PR. There each screen, once measured, is also scanned with axe-core on the same page, with the tags io scans a target-app page with (`AXE_WCAG_TAGS`): `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` and `wcag22aa`, WCAG 2.0, 2.1 and 2.2 at A and AA. Any violation fails it, named by its rule and the elements it flags. What axe-core leaves for review fails nothing. Its best-practice rules are left out: none is a WCAG criterion, and `region` flags the portal a hint or a spec sheet opens in, outside `<main>` (#266).
+
 Each screen task adds its screen to the list. Text in a table cell is measured only if the row is built as a measured block, so build rows that way.
 
-**One region is excluded:** the Lens stage. It redraws the target app scaled down, or at full size, and keeps the page's weak contrast on purpose, since that is what the filter measures. `s3-11` gives a listed screen an optional `exclude` selector and sets it to the stage. Everything around the stage is checked: the rail, the controls and the readout strip.
+**One region is excluded:** the Lens stage, from both checks. It redraws the target app scaled down, or at full size, and keeps the page's weak contrast on purpose, since that is what the filter measures. `s3-11` gives a listed screen an optional `exclude` selector and sets it to the stage. Everything around the stage is checked: the rail, the controls and the readout strip.

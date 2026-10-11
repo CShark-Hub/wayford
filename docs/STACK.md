@@ -67,6 +67,7 @@
 | Charts | plain SVG, no library | One chart, the sweep, with a fixed 0–1 axis and marks a chart library fights (`docs/adr/0002-daylight-instrument-redesign.md`, D11). Recharts left with the old runs bar charts in `s3-14`. |
 | Avatars | own SVG parts, no library | DiceBear rejected: its parts do not map to capability dimensions. Ours do: glasses thickness follows contrast threshold, device follows `device`, posture follows patience. |
 | Fonts | Bricolage Grotesque for names and titles, Geist for UI, Geist Mono for seeds, measurements and evidence: `@fontsource-variable/bricolage-grotesque/opsz.css`, `@fontsource-variable/geist`, `@fontsource-variable/geist-mono` | Loaded locally, no CDN, so the demo works offline. They register the families as "… Variable", the names the font stacks lead with. Chosen in the redesign (`docs/DESIGN.md`, "Type"). |
+| Accessibility check of our own screens | `axe-core` through `@axe-core/playwright`, a devDependency | The self-check's test scans every listed screen with it, with the tags io scans a target-app page with (`AXE_WCAG_TAGS`; `docs/DESIGN.md`, "Checked by"). The package io uses, at the version io resolves, so the lockfile holds one `axe-core`. Web can't borrow io's copy: web may not import `@wayford/io`, and pnpm links only a package's declared dependencies. |
 
 ## Target app
 

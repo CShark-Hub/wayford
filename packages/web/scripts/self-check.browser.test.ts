@@ -10,9 +10,11 @@
  * ended, for no badge at all, its floors and its fit, and the links on to the report and each run,
  * on a goal with a stored report and on one without, and Back from the report finds it again,
  * until New race clears it. Run detail's ← and → are pressed on the page itself, and its
- * screenshot crop is measured against the click point and the flag that names the action.
+ * screenshot crop is measured against the click point and the flag that names the action. Each
+ * listed screen, once measured, is also scanned with axe-core on the same page.
  */
-import { RunEvent, RunResult, type StartedRun, Sweep } from "@wayford/core";
+import { AxeBuilder } from "@axe-core/playwright";
+import { AXE_WCAG_TAGS, RunEvent, RunResult, type StartedRun, Sweep } from "@wayford/core";
 import { runEventFixtures, runResultFixture, taskFixture } from "@wayford/core/fixtures";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from "vitest";
@@ -52,11 +54,29 @@ afterAll(async () => {
   await browser?.close();
 });
 
-/** A page closed when the test ends. `checkScreen` sets its size. */
+/**
+ * A page in a context of its own, closed when the test ends. `checkScreen` sets its size. Not
+ * `browser.newPage()`: axe-core's `analyze()` opens a second page in the page's context, which
+ * Playwright refuses for a page made that way.
+ */
 async function newPage(): Promise<Page> {
-  const page = await browser.newPage();
-  onTestFinished(() => page.close());
-  return page;
+  const context = await browser.newContext();
+  onTestFinished(() => context.close());
+  return context.newPage();
+}
+
+/**
+ * What axe-core finds on `page` with the tags io scans a target-app page with (`AXE_WCAG_TAGS`),
+ * skipping `exclude`: each violated rule's id and the elements it flags.
+ */
+async function axeViolations(page: Page, exclude?: string) {
+  const axe = new AxeBuilder({ page }).withTags([...AXE_WCAG_TAGS]);
+  if (exclude !== undefined) axe.exclude(exclude);
+  const { violations } = await axe.analyze();
+  return violations.map(({ id, nodes }) => ({
+    rule: id,
+    targets: nodes.map(({ target }) => target.join(" ")),
+  }));
 }
 
 /** A page that gets `body` as its whole document from the fake origin, white and 16 px. */
@@ -267,6 +287,22 @@ describe("checkScreen on a page built to fail", () => {
   });
 });
 
+test("axe-core names a button with no name by its rule and selector, and skips one inside an exclude", async () => {
+  // Every listed screen passes, so only a page built to fail shows the scan finds anything: one
+  // that ran no rule, or dropped what it found, would leave them all green as well.
+  const page = await fakePage(`
+    <h1 style="font-size: 32px">Self-check</h1>
+    <button id="bare" style="width: 32px; height: 32px"></button>
+    <div id="stage"><button id="staged" style="width: 32px; height: 32px"></button></div>`);
+  await page.goto(`${FAKE_ORIGIN}/`);
+  expect(await axeViolations(page)).toEqual([
+    { rule: "button-name", targets: ["#bare", "#staged"] },
+  ]);
+  expect(await axeViolations(page, "#stage")).toEqual([
+    { rule: "button-name", targets: ["#bare"] },
+  ]);
+});
+
 test("every screen is checked in both themes", () => {
   // Dropping Night from the list would leave every test below green, with Night's floors checked
   // only when someone reads `check:self`'s summary line.
@@ -459,14 +495,16 @@ describe("on the web app", () => {
         SELF_CHECK_THEMES.map((theme) => [screen.name, THEME_NAMES[theme], screen, theme] as const),
       ),
     )(
-      "%s in %s: text and controls measured, nothing under the floor",
+      "%s in %s: text and controls measured, nothing under the floor, no axe-core violation",
       async (_name, _theme, screen, theme) => {
-        const check = await checkScreen(await newPage(), app.origin, screen, theme);
+        const page = await newPage();
+        const check = await checkScreen(page, app.origin, screen, theme);
         // So an empty page cannot pass. That the check waits for a screen's data is shown on the
         // fake page above.
         const kinds = new Set(check.measurement.elements.map((element) => element.kind));
         expect(kinds).toEqual(new Set(["text", "control"]));
         expect(check.shortfalls).toEqual([]);
+        expect(await axeViolations(page, screen.exclude)).toEqual([]);
       },
     );
 
