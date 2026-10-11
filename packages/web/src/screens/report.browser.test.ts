@@ -6,7 +6,8 @@
  *
  * - Beat 5's click path: Kai's row, then the evidence link of his failed run, opens run detail at
  *   the step his finding cites.
- * - A why line's finding link opened in a fresh tab lands on its card, below the fold, with focus.
+ * - A why line's finding link opened in a fresh tab scrolls its card, below the fold, into view
+ *   with focus.
  * - A finding backed by ten runs shows three evidence links and "Show 7 more", which shows the
  *   rest with focus on the first of them, and folds them again.
  * - "Analyse again" shows it running while io's `POST` is held, posts the report's own backend, and
@@ -20,6 +21,9 @@
  *   effect included, and not again while it runs, which shows as running.
  * - Back on a goal whose analysis ended, while another goal's runs, the status region says nothing.
  * - A ten-seed report fits: the findings' headings end above 720 px, and nothing scrolls sideways.
+ * - Finding cards at rest (#241): titles no larger than `lead` in two lines, the columns at most
+ *   60 % as tall as before, and "Show more" opens the whole title, the whole detail and the change.
+ *   Opened with a long page URL, a card stays in its column and Show less takes the click.
  */
 import { fileURLToPath } from "node:url";
 import { type PersonaResult, Report, RunResult } from "@wayford/core";
@@ -189,9 +193,10 @@ test("a why line's finding link, opened in a fresh tab, lands on its card with f
   const card = page.locator(`[id="${id}"]`);
   await card.waitFor();
   await page.waitForFunction((cardId) => document.activeElement?.id === cardId, id);
-  const top = await card.evaluate((element) => element.getBoundingClientRect().top);
+  // In view, not at the top: the compact cards (#241) leave the page too short to lift it there.
+  const { top, bottom } = await card.evaluate((element) => element.getBoundingClientRect());
   expect(top).toBeGreaterThanOrEqual(0);
-  expect(top).toBeLessThan(100);
+  expect(bottom).toBeLessThanOrEqual(720);
 });
 
 test("a finding backed by ten runs shows three evidence links, and Show 7 more shows the rest", async () => {
@@ -575,6 +580,97 @@ test("arriving again within the app starts the Analyst once: on a report already
   answer.release({ status: 201, json: reportFixture(TASK_ID) });
   await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
   expect(posts).toEqual([{ body: "{}", contentType: "application/json" }]);
+});
+
+test("finding cards at rest: titles no larger than lead in two lines, the columns at most 60 % as tall as before, and Show more opens the rest (#241)", async () => {
+  const report = reportFixture(TASK_ID);
+  const page = await servedPage((request, pathname) => get(request, pathname, REPORT_PATH, report));
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+
+  const titles = page.locator("section[aria-labelledby^='findings-'] article h3");
+  expect(await titles.count()).toBe(report.findings.length);
+  const sizes = await titles.evaluateAll((elements) =>
+    elements.map((element) => {
+      const style = getComputedStyle(element);
+      return {
+        fontPx: Number.parseFloat(style.fontSize),
+        lineHeight: Number.parseFloat(style.lineHeight),
+        height: element.getBoundingClientRect().height,
+      };
+    }),
+  );
+  for (const { fontPx, lineHeight, height } of sizes) {
+    // `lead` is 18 px.
+    expect(fontPx).toBeLessThanOrEqual(18);
+    expect(height).toBeLessThanOrEqual(2 * lineHeight + 1);
+  }
+  // On `main` the three columns were 1009 px tall on this report at 1280 × 720.
+  const columns = await page
+    .locator("section[aria-labelledby^='findings-']")
+    .evaluateAll((sections) => sections.map((section) => section.getBoundingClientRect().height));
+  expect(Math.max(...columns)).toBeLessThanOrEqual(0.6 * 1009);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
+
+  // Show more opens the whole title, the whole detail and the change; Show less closes them again.
+  const finding = report.findings[0];
+  if (finding === undefined) throw new Error("the fixture report has no finding");
+  const card = page.locator("article", { has: page.getByRole("heading", { name: finding.title }) });
+  const more = card.getByRole("button", { name: "Show more" });
+  expect(await more.getAttribute("aria-expanded")).toBe("false");
+  expect(await card.getByText("change →").count()).toBe(0);
+  await more.click();
+  const less = card.getByRole("button", { name: "Show less" });
+  expect(await less.getAttribute("aria-expanded")).toBe("true");
+  await card.getByText(finding.recommendation).waitFor();
+  // Open, it controls the change it now shows too, each by an id the page holds.
+  const controls = ((await less.getAttribute("aria-controls")) ?? "").split(" ");
+  expect(controls).toHaveLength(3);
+  for (const controlled of controls) {
+    expect(await page.locator(`[id="${controlled}"]`).count()).toBe(1);
+  }
+  expect(await page.locator(`[id="${controls[2]}"]`).textContent()).toContain(
+    finding.recommendation,
+  );
+  const unclamped = (element: Element) => getComputedStyle(element).webkitLineClamp;
+  expect(await card.getByRole("heading", { name: finding.title }).evaluate(unclamped)).toBe("none");
+  expect(await card.getByText(finding.detail).evaluate(unclamped)).toBe("none");
+  await less.click();
+  expect(await card.getByText("change →").count()).toBe(0);
+});
+
+test("an opened card with a long page URL stays in its column, and Show less takes the click (#241)", async () => {
+  // io names a page off the target app by its whole URL, a token with few places to break.
+  const url =
+    "https://shop.example.com/account/orders/archive/2026/previous-orders?page=3&sort=desc";
+  const report = reportFixture(TASK_ID);
+  const long = Report.parse({
+    ...report,
+    findings: report.findings.map((finding) => ({
+      ...finding,
+      detail: `${finding.detail} ${url}`,
+    })),
+  });
+  const page = await servedPage((request, pathname) => get(request, pathname, REPORT_PATH, long));
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  const heading = page.getByRole("heading", { name: /^Measurement/ });
+  await heading.waitFor();
+
+  // The first column's card, which the next column paints over if it spreads.
+  const card = heading.locator("xpath=ancestor::section").locator("article").first();
+  await card.getByRole("button", { name: "Show more" }).click();
+  const right = await card.evaluate((article) => {
+    const text = document.createRange();
+    text.selectNodeContents(article);
+    return {
+      text: text.getBoundingClientRect().right,
+      column: article.closest("section")?.getBoundingClientRect().right ?? 0,
+    };
+  });
+  expect(right.text).toBeLessThanOrEqual(right.column);
+  // Covered by the next column, the click fails its hit check and times out.
+  await card.getByRole("button", { name: "Show less" }).click({ timeout: 5_000 });
+  await card.getByRole("button", { name: "Show more" }).waitFor();
 });
 
 test("a ten-seed report fits 1280 × 720", async () => {

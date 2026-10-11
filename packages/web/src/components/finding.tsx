@@ -1,9 +1,10 @@
 /**
- * One finding of the report (`docs/DESIGN.md`, "Finding"), as `.wf-finding` draws it: its tags,
- * the claim, the detail, what to change, and last, in lighter type, the runs behind it. Its border
- * is its certainty (Principle 3): a hairline for a measurement or a filter decision, dashed for a
- * hypothesis, dotted for anything resting on a `folk` or `llm` threshold. Soft keeps the finding's
- * group; it only marks it (`docs/PLAN.md` F8 AC5).
+ * One finding of the report (`docs/DESIGN.md`, "Finding"), as `.wf-finding` draws it: its persona,
+ * the claim, its tags, the detail with "Show more", which opens what to change (#241), and last, in
+ * lighter type, the runs behind it. Its border is its certainty (Principle 3): a hairline for a
+ * measurement or a filter decision, dashed for a hypothesis, dotted for anything resting on a
+ * `folk` or `llm` threshold. Soft keeps the finding's group; it only marks it (`docs/PLAN.md` F8
+ * AC5).
  *
  * Every finding links to the runs behind it (`AGENTS.md`, "Every verdict clickable through to
  * evidence"): one link per run, however many of its steps the finding cites, landing on the
@@ -24,7 +25,7 @@ import {
   type Seed,
 } from "@wayford/core";
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { CertaintyLine } from "./certainty.js";
 import { OUTCOME_WORDS } from "./outcome-words.js";
 import { PersonaName, personaLabel } from "./persona-avatar.js";
@@ -58,6 +59,8 @@ const SHOWN = 3;
 const EVIDENCE_LINK =
   "inline-flex min-h-8 items-center gap-1.5 body text-ink-2 transition-colors hover:text-ink";
 const UNDERLINED = "underline decoration-line-strong underline-offset-4";
+/** A button that shows or hides part of the card: "Show more" and "Show N more" look alike. */
+const TOGGLE = cn(EVIDENCE_LINK, UNDERLINED, "cursor-pointer");
 
 /**
  * The runs `evidence` cites, in the order it first names them but `persona`'s first, each at the
@@ -130,7 +133,7 @@ function EvidenceLinks({
               type="button"
               aria-expanded={expanded}
               onClick={() => setExpanded(!expanded)}
-              className={cn(EVIDENCE_LINK, UNDERLINED, "cursor-pointer")}
+              className={TOGGLE}
             >
               {expanded ? "Show fewer" : `Show ${rest} more`}
             </button>
@@ -141,7 +144,14 @@ function EvidenceLinks({
   );
 }
 
-/** `finding` as a card. `persona` is the one picked on the report, if any. */
+/**
+ * `finding` as a card. `persona` is the one picked on the report, if any.
+ *
+ * At rest (#241) the card is short enough for three columns to be read side by side: the persona,
+ * the title in two lines, its tags in one quiet line, the detail's first line, and the evidence.
+ * "Show more" opens the whole title and detail, and what to change. The clamp is CSS only, so a screen
+ * reader hears the title and the detail whole either way.
+ */
 export function FindingCard({
   finding,
   runOf,
@@ -152,32 +162,74 @@ export function FindingCard({
   persona?: ProfileId | undefined;
 }) {
   const line = findingLine(finding);
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  // The tags under the title: soft, the axe rule, each basis rule and its source. No row when none.
+  const tags = [
+    line === "soft" ? (
+      <Tag key="soft" variant="soft">
+        soft
+      </Tag>
+    ) : null,
+    finding.axeRuleId === undefined ? null : <Tag key="axe">{`axe · ${finding.axeRuleId}`}</Tag>,
+    ...finding.basis.map((entry) => (
+      <span key={`${entry.rule}-${entry.provenance}`} className="contents">
+        <Tag variant="rule">{entry.rule}</Tag>
+        <ProvenanceTag provenance={entry.provenance} />
+      </span>
+    )),
+  ].filter((tag) => tag !== null);
   return (
     <article
       data-line={line}
-      className={cn("grid gap-(--space-3) rounded-md bg-surface px-5 py-4", BORDER[line])}
+      className={cn(
+        "grid gap-(--space-2) rounded-md bg-surface px-5 py-4 wrap-anywhere",
+        BORDER[line],
+      )}
     >
-      <div className="flex flex-wrap items-center gap-2">
-        {finding.personaIds.map((id) => (
-          <PersonaName key={id} profileId={id} />
-        ))}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {line === "soft" ? <Tag variant="soft">soft</Tag> : null}
-          {finding.axeRuleId === undefined ? null : <Tag>{`axe · ${finding.axeRuleId}`}</Tag>}
-          {finding.basis.map((entry) => (
-            <span key={`${entry.rule}-${entry.provenance}`} className="contents">
-              <Tag variant="rule">{entry.rule}</Tag>
-              <ProvenanceTag provenance={entry.provenance} />
-            </span>
+      {finding.personaIds.length === 0 ? null : (
+        <div className="flex flex-wrap items-center gap-2">
+          {finding.personaIds.map((id) => (
+            <PersonaName key={id} profileId={id} />
           ))}
         </div>
+      )}
+      <h3
+        id={`${id}-title`}
+        className={cn("body font-semibold text-balance text-ink", !open && "line-clamp-2")}
+      >
+        {finding.title}
+      </h3>
+      {tags.length === 0 ? null : <div className="flex flex-wrap items-center gap-2">{tags}</div>}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-(--space-2)">
+        <p
+          id={`${id}-detail`}
+          className={cn("body max-w-[68ch] text-pretty text-ink-2", !open && "line-clamp-1")}
+        >
+          {finding.detail}
+        </p>
+        <button
+          type="button"
+          aria-expanded={open}
+          // The title and the detail, and once open the change it shows: an id only while it is drawn.
+          aria-controls={`${id}-title ${id}-detail${open ? ` ${id}-change` : ""}`}
+          // One "Show more" a card: the title, whole even while clamped, says which finding it opens.
+          aria-describedby={`${id}-title`}
+          onClick={() => setOpen(!open)}
+          className={TOGGLE}
+        >
+          {open ? "Show less" : "Show more"}
+        </button>
       </div>
-      <h3 className="title text-balance text-ink">{finding.title}</h3>
-      <p className="body max-w-[68ch] text-pretty text-ink-2">{finding.detail}</p>
-      <p className="grid grid-cols-[auto_1fr] items-start gap-2 border-t border-line pt-(--space-3) body text-ink">
-        <span className="mono text-ink-3">change →</span>
-        <span>{finding.recommendation}</span>
-      </p>
+      {open ? (
+        <p
+          id={`${id}-change`}
+          className="grid grid-cols-[auto_1fr] items-start gap-2 border-t border-line pt-(--space-2) body text-ink"
+        >
+          <span className="mono text-ink-3">change →</span>
+          <span>{finding.recommendation}</span>
+        </p>
+      ) : null}
       <EvidenceLinks evidence={finding.evidence} runOf={runOf} persona={persona} />
     </article>
   );

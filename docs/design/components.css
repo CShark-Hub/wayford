@@ -232,12 +232,16 @@ button.wf-avatar:hover, a.wf-avatar:hover { transform: translateY(-2px); }
 }
 
 /* ---------- Findings and evidence ---------- */
-.wf-finding { background: var(--surface); border: var(--stroke-hair) solid var(--line); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); display: grid; gap: var(--space-3); }
+.wf-finding { background: var(--surface); border: var(--stroke-hair) solid var(--line); border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); display: grid; gap: var(--space-2); overflow-wrap: anywhere; }
 .wf-finding--hypothesis { border: var(--stroke-rule) dashed var(--line-strong); }
 .wf-finding--soft { border: var(--stroke-rule) dotted var(--line-strong); }
-.wf-finding__title { font: 600 22px/28px var(--font-sans); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.wf-finding__title { font: 600 16px/24px var(--font-sans); margin: 0; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .wf-finding__detail { margin: 0; color: var(--ink-2); max-width: 68ch; text-wrap: pretty; }
-.wf-finding__change { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2); align-items: start; margin: 0; padding-top: var(--space-3); border-top: var(--stroke-hair) solid var(--line); }
+/* At rest (#241): the detail's first line, with "Show more" at its end; .wf-finding--open shows the title and the detail whole */
+.wf-finding__rest { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: baseline; }
+.wf-finding__rest .wf-finding__detail { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+.wf-finding--open .wf-finding__title, .wf-finding--open .wf-finding__rest .wf-finding__detail { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.wf-finding__change { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2); align-items: start; margin: 0; padding-top: var(--space-2); border-top: var(--stroke-hair) solid var(--line); }
 .wf-finding__change b { font: 500 16px/24px var(--font-mono); color: var(--ink-3); }
 .wf-evchip {
   display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: var(--radius-sm);

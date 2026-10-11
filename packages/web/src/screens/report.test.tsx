@@ -567,7 +567,7 @@ describe("a persona picked", () => {
       "Kai, seed 3 · Over budget",
     ]);
     // The other six runs of the nine are still there, behind the toggle.
-    expect(buttonsOf(measurement)).toEqual(["Show 6 more"]);
+    expect(buttonsOf(measurement)).toEqual(["Show more", "Show 6 more"]);
   });
 
   test("says so above the findings, with Show all", async () => {

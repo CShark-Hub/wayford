@@ -134,20 +134,46 @@ describe("FindingCard", () => {
     expect(card.class).not.toBe(measured.class);
   });
 
-  test("the card reads tags, title, detail, the change, then the evidence last", () => {
+  test("at rest the card reads the persona, the title, its tags, the detail and Show more, then the evidence; the change waits behind Show more (#241)", () => {
     const html = render(<FindingCard finding={P1} runOf={runOf} />);
     expect(lineOf(html.match(/<h3(?:\s[^>]*)?>(.*?)<\/h3>/s)?.[1] ?? "")).toBe(P1.title);
     const text = lineOf(html);
     const order = [
       "Vera",
-      "P1",
       P1.title,
+      "P1 wcag22",
       P1.detail,
-      `change → ${P1.recommendation}`,
+      "Show more",
       "evidence Vera, seed 2 · Gave up",
     ].map((part) => text.indexOf(part));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(text).not.toContain("change →");
+    expect(text).not.toContain(P1.recommendation);
+  });
+
+  test("at rest Show more is a closed button that controls the title and the detail, by ids the card holds, and is described by the title", () => {
+    const html = render(<FindingCard finding={P1} runOf={runOf} />);
+    const more = html.match(/<button(\s[^>]*)>Show more<\/button>/)?.[1];
+    expect(more).toBeDefined();
+    const {
+      "aria-expanded": expanded,
+      "aria-controls": controls,
+      "aria-describedby": describedBy,
+    } = attributesOf(more ?? "");
+    expect(expanded).toBe("false");
+    // It controls the title and the detail, each by an id the card holds. The change it opens is
+    // not drawn yet, so it is named only once open (the browser test opens it).
+    const ids = (controls ?? "").split(" ");
+    expect(ids).toHaveLength(2);
+    for (const id of ids) expect(html).toContain(`id="${id}"`);
+    // Each card has one, so the title says which finding this one opens.
+    expect(html).toContain(`<h3 id="${describedBy}"`);
+  });
+
+  test("a finding naming no persona draws no persona row: the title comes first", () => {
+    const html = render(<FindingCard finding={AXE} runOf={runOf} />);
+    expect(html).toMatch(/^<article[^>]*><h3/);
   });
 
   test("several steps of one run are one link, at the earliest step cited, in whatever order", () => {
@@ -177,7 +203,8 @@ describe("FindingCard", () => {
       />,
     );
     expect(linksOf(html)).toHaveLength(3);
-    expect(buttonsOf(html)).toEqual(toggle);
-    if (toggle.length > 0) expect(html).toMatch(/<button [^>]*aria-expanded="false"/);
+    // The card's own Show more comes first; the evidence's toggle, when there is one, after it.
+    expect(buttonsOf(html)).toEqual(["Show more", ...toggle]);
+    if (toggle.length > 0) expect(html).toMatch(/<button [^>]*aria-expanded="false"[^>]*>Show/);
   });
 });

@@ -209,7 +209,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | JevDraw | Options laid end to end on 0–1, the rolled needle in signal, the drawn segment filled | `s3-10` |
 | SeedStrip | One 32 px cell per seed: border = route open (solid) or closed (dashed), fill = got through, slash = error | `s3-08` |
 | Readout | The two numbers, k/n in `readout`; got through with a dashed underline; the gap bar | `s3-08` |
-| Finding | Persona chips and basis tags, title, detail, `change →`, then the evidence, lighter: one link per run, `Kai, seed 1 · Gave up`, the picked persona's first, three before "Show N more"; dashed for hypothesis, dotted for soft | `s3-08` |
+| Finding | At rest: persona chips, the title in semibold `body` clamped to two lines, the soft, axe and basis tags in one wrapping row under it, the detail's first line with "Show more", then the evidence, lighter: one link per run, `Kai, seed 1 · Gave up`, the picked persona's first, three before "Show N more". "Show more" opens the whole title and detail and `change →`, and "Show less" folds them (#241). Dashed for hypothesis, dotted for soft | `s3-08`, #241 |
 | EmptyState | A label, a sentence, a line, an action | `s3-08` |
 | SweepChart | Plain SVG, see "Charts" | `s3-09` |
 | CastCard | One persona's spec sheet, where a persona is shown alone | `s3-14` |
