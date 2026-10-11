@@ -19,7 +19,9 @@ permissions:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The tests alone took 460 to 552 s on 2026-10-11, so 10 minutes cut runs off
+    # with every test passed.
+    timeout-minutes: 15
     steps:
       # Actions are pinned to commit SHAs, since tags can move or lag behind:
       # pnpm 12 needs pnpm/action-setup v6.1.0, and in 2026-09 its v6 tag was
