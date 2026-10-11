@@ -30,7 +30,9 @@ export function Banner({
         strokeWidth={1.75}
         aria-hidden="true"
       />
-      <p>{children}</p>
+      {/* Breaks anywhere, so a message quoting a long URL keeps its column, and the action, in
+          the window (#245). */}
+      <p className="[overflow-wrap:anywhere]">{children}</p>
       {action ? <div>{action}</div> : null}
     </div>
   );

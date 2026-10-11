@@ -9,7 +9,7 @@ test("a stored banner is a status, dashed on the sunken paper, with the archive 
   expect(html).toContain("border-dashed");
   expect(html).toContain("bg-paper-sunken");
   expect(html).toContain("lucide-archive");
-  expect(html).toContain("<p>Showing a saved run.</p>");
+  expect(html).toContain('<p class="[overflow-wrap:anywhere]">Showing a saved run.</p>');
 });
 
 test("a fault banner is an alert, on the fault tint, with the octagon icon", () => {
@@ -20,7 +20,7 @@ test("a fault banner is an alert, on the fault tint, with the octagon icon", () 
   expect(html).toContain("bg-fault-soft");
   expect(html).toContain("text-fault");
   expect(html).toContain("lucide-octagon-alert");
-  expect(html).toContain("<p>The run failed.</p>");
+  expect(html).toContain('<p class="[overflow-wrap:anywhere]">The run failed.</p>');
 });
 
 test("the icon is decorative", () => {

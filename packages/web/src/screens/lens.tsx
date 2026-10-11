@@ -563,11 +563,20 @@ function AxeCard({ page, note }: { page: string; note: string }) {
           </>
         ) : scan.isError ? (
           <>
-            <p className="basis-full body text-ink">{`axe did not run on ${page}`}</p>
-            <p className="basis-full body text-ink-2">{scan.error.message}</p>
+            {/* A long URL is cut short on its line, whole in its `title`, and io's message breaks
+                anywhere, so neither widens the Lens (#245). */}
+            <p className="min-w-0 basis-full truncate body text-ink" title={page}>
+              {`axe did not run on ${page}`}
+            </p>
+            <p className="basis-full body text-ink-2 [overflow-wrap:anywhere]">
+              {scan.error.message}
+            </p>
           </>
         ) : (
-          <p className="body text-ink-2">{`axe-core is scanning ${page}…`}</p>
+          // Cut short, not wrapped: a wrapped line would grow the strip and shrink the page (#224).
+          <p className="min-w-0 truncate body text-ink-2" title={page}>
+            {`axe-core is scanning ${page}…`}
+          </p>
         )}
       </div>
     </section>
@@ -976,7 +985,8 @@ export function LensScreen() {
             />
           ) : stage.kind === "measuring" ? (
             <>
-              <p role="status" className="body text-ink-2">
+              {/* No page is drawn yet, so a long URL wraps here at no cost (#245). */}
+              <p role="status" className="body text-ink-2 [overflow-wrap:anywhere]">
                 {state.onTargetApp
                   ? `Measuring ${state.page} on the target app, on ${device}…`
                   : `Measuring ${state.page} on ${device}…`}
@@ -995,13 +1005,18 @@ export function LensScreen() {
               evidence={state.view === "evidence"}
               subject={subject}
               // The `Live:` line, under the page, where it costs the stage no height (#224). A
-              // stored page has none: its banner says where it came from.
+              // stored page has none: its banner says where it came from. One line whatever the
+              // URL: a long one is cut short with an ellipsis, whole in its `title` and its text,
+              // so it neither widens the page nor grows the caption and shrinks the page (#245).
               source={
                 liveLine ? (
-                  <>
-                    Live: <span className="font-mono">{stage.observation.url}</span> on {device},{" "}
-                    {opened}.
-                  </>
+                  <span className="flex whitespace-pre">
+                    Live:{" "}
+                    <span className="min-w-0 truncate font-mono" title={stage.observation.url}>
+                      {stage.observation.url}
+                    </span>
+                    {` on ${device}, ${opened}.`}
+                  </span>
                 ) : undefined
               }
             />

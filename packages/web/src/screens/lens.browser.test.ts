@@ -94,7 +94,13 @@ async function spiedPage(): Promise<Page> {
     (url) => url.pathname.startsWith("/api/"),
     (route) => {
       const url = new URL(route.request().url());
-      if (url.pathname === "/api/measure") return route.fulfill({ json: measurementFixture });
+      if (url.pathname === "/api/measure") {
+        // A URL page is measured at its own URL, so its `Live:` line names it (#245).
+        const at = url.searchParams.get("url");
+        return route.fulfill({
+          json: at === null ? measurementFixture : { ...measurementFixture, url: at },
+        });
+      }
       if (url.pathname === "/api/axe") {
         return route.fulfill({ json: axeScanOf(url.searchParams.get("page") ?? "") });
       }
@@ -231,6 +237,114 @@ test("beat 2 reads at 1280 × 720: the page is drawn at half its size or more, O
     expect(fontPx, query).toBeGreaterThanOrEqual(8);
   }
   await page.close();
+});
+
+test("a long URL with no hyphens scrolls nothing at 1280 × 720 and draws the page as large as a short one does, in either view (#245)", async () => {
+  // #245: a URL of `/`, `?` and letters has no break point, so its `Live:` line ran to x 1601.
+  // Wrapped, it grew the caption and shrank the frame from 663 to 535 px wide, so it is cut short
+  // on one line instead, whole in its text and its `title`.
+  const long = `https://example.com/${"segment/".repeat(14)}?q=${"x".repeat(40)}`;
+  const page = await spiedPage();
+  expect(page.viewportSize()).toEqual({ width: 1280, height: 720 });
+  const viewport = { x: 0, y: 0, width: 1280, height: 720 };
+  const frames: Record<string, Bbox | null> = {};
+  for (const url of [long, "https://example.com/"]) {
+    for (const view of ["", "&evidence=true"]) {
+      const at = `${url === long ? "long" : "short"}${view}`;
+      await page.goto(
+        `${origin}/lens?persona=prof_vera&seed=1&url=${encodeURIComponent(url)}${view}`,
+      );
+      const live = page.locator("figcaption p", { hasText: "Live:" });
+      await live.waitFor();
+      await page.getByRole("region", { name: "axe-core" }).getByText("0 violations").waitFor();
+      // The URL's own span, the issue's culprit: the paragraph keeps its column's width however
+      // far its content runs past it, so its box would pass on the broken layout too.
+      const span = live.locator(".font-mono");
+      expect(inside(await span.boundingBox(), viewport), at).toBe(true);
+      expect(await fitsOf(page), at).toEqual({ down: true, across: true });
+      expect(await live.textContent(), at).toBe(`Live: ${url} on desktop, opened as given.`);
+      expect(await span.getAttribute("title"), at).toBe(url);
+      frames[at] = await page.locator("[data-lens-stage]").boundingBox();
+    }
+  }
+  expect(frames.short?.width ?? 0).toBeGreaterThanOrEqual(640);
+  for (const at of ["short&evidence=true", "long", "long&evidence=true"]) {
+    expect(frames[at], at).toEqual(frames.short);
+  }
+  await page.close();
+});
+
+/** An answer held back until `release` says whether it fails. */
+function held(): { failed: Promise<boolean>; release: (fail: boolean) => void } {
+  let release: (fail: boolean) => void = () => {};
+  const failed = new Promise<boolean>((resolve) => {
+    release = resolve;
+  });
+  return { failed, release };
+}
+
+test("a long URL scrolls nothing at 1280 × 720 while it is measured and scanned, or when either fails (#245)", async () => {
+  // #245 review: the `Live:` line was not the only one to quote the URL. The measuring line, the
+  // axe card's scanning and failure lines and the fault banner, with io's messages, which quote it
+  // too, each ran the document up to 2064 px wide.
+  const long = `https://example.com/${"segment/".repeat(14)}?q=${"x".repeat(40)}`;
+  const failure = (code: string) =>
+    `${code}: the page at ${long} did not load: page.goto: net::ERR_NAME_NOT_RESOLVED at ${long}`;
+  const viewport = { x: 0, y: 0, width: 1280, height: 720 };
+  const card = (page: Page) => page.getByRole("region", { name: "axe-core" });
+
+  for (const measureFails of [false, true]) {
+    const page = await spiedPage();
+    const measure = held();
+    const axe = held();
+    // Registered after `spiedPage`'s, so these answer first.
+    await page.route(
+      (url) => url.pathname === "/api/measure",
+      async (route) =>
+        (await measure.failed)
+          ? route.fulfill({ status: 502, json: { error: failure("page_unavailable") } })
+          : route.fulfill({ json: { ...measurementFixture, url: long } }),
+    );
+    await page.route(
+      (url) => url.pathname === "/api/axe",
+      async (route) =>
+        (await axe.failed)
+          ? route.fulfill({ status: 502, json: { error: failure("axe_failed") } })
+          : route.fulfill({ json: axeScanOf("/") }),
+    );
+    await page.goto(`${origin}/lens?persona=prof_vera&seed=1&url=${encodeURIComponent(long)}`);
+
+    await page.getByRole("status").getByText(`Measuring ${long} on desktop…`).waitFor();
+    const scanning = card(page).getByText(`axe-core is scanning ${long}…`);
+    await scanning.waitFor();
+    expect(await fitsOf(page), "measuring").toEqual({ down: true, across: true });
+
+    measure.release(measureFails);
+    const at = measureFails ? "measurement failed" : "page drawn, axe scanning";
+    if (measureFails) {
+      await page.getByRole("alert").getByText("The page could not be measured").waitFor();
+    } else {
+      await page.locator("figcaption p", { hasText: "Live:" }).waitFor();
+    }
+    expect(await fitsOf(page), at).toEqual({ down: true, across: true });
+    expect(await scanning.getAttribute("title"), at).toBe(long);
+
+    axe.release(true);
+    const notRun = card(page).getByText(`axe did not run on ${long}`);
+    await notRun.waitFor();
+    const both = measureFails ? "both failed" : "axe failed";
+    // With both failed, no page is drawn and the banner's and the card's messages each wrap onto
+    // their next line, so the document may run a line or so down. It never runs across.
+    const fits = await fitsOf(page);
+    expect(fits.across, both).toBe(true);
+    if (!measureFails) expect(fits.down, both).toBe(true);
+    expect(await notRun.getAttribute("title"), both).toBe(long);
+    if (measureFails) {
+      const again = page.getByRole("button", { name: "Try again" });
+      expect(inside(await again.boundingBox(), viewport), both).toBe(true);
+    }
+    await page.close();
+  }
 });
 
 test("a slider move that fires one rule more keeps the drawn page's size", async () => {
