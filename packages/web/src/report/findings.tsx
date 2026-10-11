@@ -9,7 +9,9 @@
  * measurement holds for whoever is looking, and its count reads "N of M", so nothing left out is
  * hidden. A finding's evidence leads with that persona's runs.
  */
+import { useLocation } from "@tanstack/react-router";
 import type { Finding, FindingType, ProfileId, Report, RunId } from "@wayford/core";
+import { useEffect } from "react";
 import { CertaintyGlyph, type CertaintyLine } from "../components/certainty.js";
 import { type CitedRun, FindingCard } from "../components/finding.js";
 import { personaLabel } from "../components/persona-avatar.js";
@@ -73,8 +75,11 @@ function Group({
             : `None of ${personaLabel(persona)}'s in this group.`}
         </p>
       ) : (
+        // Each card under its finding's id, the anchor a cast row's why line links to (#238).
         findings.map((finding) => (
-          <FindingCard key={finding.id} finding={finding} runOf={runOf} persona={persona} />
+          <div key={finding.id} id={finding.id} tabIndex={-1} className="scroll-mt-(--space-4)">
+            <FindingCard finding={finding} runOf={runOf} persona={persona} />
+          </div>
         ))
       )}
     </section>
@@ -106,6 +111,14 @@ export function runsOf(report: Report): (runId: RunId) => CitedRun {
 /** `report`'s findings in their three groups, narrowed to `persona`'s when one is picked. */
 export function Findings({ report, persona }: { report: Report; persona: ProfileId | undefined }) {
   const runOf = runsOf(report);
+  // The router scrolls to a hash once, on its first render, which on a fresh load is the skeleton:
+  // so the card a why line links to is scrolled to here, once drawn, and takes focus (#238).
+  const hash = useLocation({ select: (location) => location.hash });
+  useEffect(() => {
+    const card = hash === "" ? null : document.getElementById(hash);
+    card?.scrollIntoView();
+    card?.focus({ preventScroll: true });
+  }, [hash]);
   return (
     <div className="grid gap-(--space-4) lg:grid-cols-3">
       {GROUPS.map(({ type, line, name, what }) => {

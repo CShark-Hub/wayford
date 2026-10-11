@@ -10,16 +10,28 @@
  * on the goal (no runs filter selects route-open seeds), got through the runs that got through.
  * The persona's name picks it (`?persona=`), which narrows the findings below to theirs.
  *
+ * Under a persona that did not get through on every seed, a why line (#238, `WhyRow`) names a
+ * finding but does not claim it is why a seed ended.
+ *
  * Each row sets its persona's slot variables, which the seed strip and the gap bar fill from. Every
  * text cell holds its text in a `<p>`, so `check:self` measures it.
  */
 import { Link } from "@tanstack/react-router";
-import type { PersonaResult, Report } from "@wayford/core";
+import type {
+  Finding,
+  FindingType,
+  PersonaResult,
+  ProfileId,
+  Report,
+  RunOutcome,
+} from "@wayford/core";
 import { cn } from "cn";
+import { Fragment, type ReactNode } from "react";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { CertaintyGlyph } from "../components/certainty.js";
-import { count } from "../components/outcome-words.js";
+import { findingLine } from "../components/finding.js";
+import { count, OUTCOME_WORDS } from "../components/outcome-words.js";
 import { PersonaAvatar, PersonaName, personaLabel } from "../components/persona-avatar.js";
 import { GapBar, NoValue, Readout } from "../components/readout.js";
 import { SeedStrip } from "../components/seed-strip.js";
@@ -42,6 +54,11 @@ function seedSpan(seeds: readonly number[], to = "–"): string {
   return first === last ? `seed ${first}` : `seeds ${first}${to}${last}`;
 }
 
+/**
+ * A persona's rows light together: each persona's rows are a `<tbody>` of their own, which draws
+ * the rule under them.
+ */
+const ROW = "transition-colors group-hover:bg-paper-sunken";
 const HEAD = "px-(--space-3) py-(--space-2) align-bottom whitespace-nowrap label text-ink-3";
 const CELL = "px-(--space-3) py-(--space-2)";
 
@@ -116,10 +133,7 @@ function CastRow({
     <tr
       data-persona={profileId}
       style={slotStyle(slotOf(profileId))}
-      className={cn(
-        "border-b border-line transition-colors hover:bg-paper-sunken",
-        picked && "bg-paper-sunken",
-      )}
+      className={cn(ROW, picked && "bg-paper-sunken")}
     >
       <td className={CELL}>
         <PersonaCell taskId={taskId} profileId={profileId} picked={picked} />
@@ -160,7 +174,124 @@ function CastRow({
   );
 }
 
-/** `report`'s personas, one row each, with `picked`'s row marked. */
+/** The seed endings a why line counts, in its order: the persona's own two, then the tool's. */
+const ENDINGS: readonly RunOutcome[] = ["gave_up", "budget_exceeded", "error"];
+
+/** A finding type's rank on a why line: a filter decision, then a measurement, a guess last. */
+const RANK: Record<FindingType, number> = { deterministic: 0, measurement: 1, hypothesis: 2 };
+
+const WHY_LINK =
+  "inline-flex min-h-8 items-center text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-ink";
+
+/**
+ * The finding a why line names for `profileId`: the first that names the persona by type
+ * (`RANK`), then in the report's order. Undefined when none names it.
+ */
+function leadFindingOf(findings: readonly Finding[], profileId: ProfileId): Finding | undefined {
+  // A stable sort: findings of one type keep the report's order.
+  return findings
+    .filter((finding) => finding.personaIds.includes(profileId))
+    .sort((a, b) => RANK[a.type] - RANK[b.type])[0];
+}
+
+/**
+ * The line under `result`'s row, or nothing when every seed got through: its seeds by how they
+ * ended, then the finding that names the persona, or why there is none to show.
+ */
+function WhyRow({
+  taskId,
+  result,
+  findings,
+  picked,
+}: {
+  taskId: string;
+  result: PersonaResult;
+  findings: readonly Finding[];
+  picked: boolean;
+}) {
+  const { profileId, seeds } = result;
+  const ended = ENDINGS.map((outcome) => ({
+    outcome,
+    n: seeds.filter((seed) => seed.outcome === outcome).length,
+  })).filter(({ n }) => n > 0);
+  if (ended.length === 0) return null;
+  const name = personaLabel(profileId);
+  // A finding is offered only where the persona ended a seed itself: none explains an error.
+  const onlyErrors = ended.every(({ outcome }) => outcome === "error");
+  const finding = onlyErrors ? undefined : leadFindingOf(findings, profileId);
+  const ownRuns = (
+    <Link to="/runs" search={{ taskId, profileId }} className={WHY_LINK}>
+      {`Open ${name}'s runs`}
+    </Link>
+  );
+  let reason: ReactNode;
+  if (finding !== undefined) {
+    const line = findingLine(finding);
+    reason = (
+      <>
+        <CertaintyGlyph line={line} />
+        {/* The word beside the glyph, which assistive technology does not read. */}
+        <span className="mono text-ink-3">{line === "measured" ? "measurement" : line}</span>
+        <Link
+          to="/report/$taskId"
+          params={{ taskId }}
+          search={{ persona: profileId }}
+          hash={finding.id}
+          // With the persona picked, the link is current only once followed, hash and all.
+          activeOptions={{ exact: true, includeHash: true }}
+          className={cn(WHY_LINK, "min-w-0 text-pretty")}
+        >
+          {finding.title}
+        </Link>
+      </>
+    );
+  } else {
+    reason = (
+      <>
+        <span>
+          {onlyErrors ? `An error is the tool's, not ${name}'s.` : `No finding names ${name}.`}
+        </span>
+        {ownRuns}
+      </>
+    );
+  }
+  return (
+    <tr data-why={profileId} className={cn(ROW, picked && "bg-paper-sunken")}>
+      <td />
+      <td colSpan={5} className={cn(CELL, "pt-0")}>
+        {/* Two parts, the counts and the finding: on a narrow row the finding wraps whole, flush left. */}
+        <p className="flex flex-wrap items-center gap-x-(--space-5) body text-ink-2">
+          <span className="inline-flex flex-wrap items-center gap-x-(--space-2)">
+            <span>{`${count(seeds.length, "seed")}:`}</span>
+            {ended.map(({ outcome, n }, i) => (
+              <Fragment key={outcome}>
+                {i === 0 ? null : <span className="text-ink-3">·</span>}
+                <Link
+                  to="/runs"
+                  search={{ taskId, profileId, outcome }}
+                  // The filter is by outcome, not by this report's seeds, as the readouts' is.
+                  title={`Every stored run of ${name} on this goal marked ${OUTCOME_WORDS[outcome]}, which can include runs this report leaves out`}
+                  className={WHY_LINK}
+                >
+                  {/* One flex item, so the space before the count is not trimmed at its edge. */}
+                  <span>
+                    {`${OUTCOME_WORDS[outcome]} in `}
+                    <span className="mono">{n}</span>
+                  </span>
+                </Link>
+              </Fragment>
+            ))}
+          </span>
+          <span className="inline-flex min-w-0 flex-wrap items-center gap-x-(--space-2)">
+            {reason}
+          </span>
+        </p>
+      </td>
+    </tr>
+  );
+}
+
+/** `report`'s personas, one row each, with `picked`'s row marked and a why line where one is due. */
 export function CastTable({ report, picked }: { report: Report; picked: string | undefined }) {
   const span = seedSpan(report.personas.flatMap((result) => result.seeds.map((s) => s.seed)));
   return (
@@ -193,16 +324,17 @@ export function CastTable({ report, picked }: { report: Report; picked: string |
           </th>
         </tr>
       </thead>
-      <tbody>
-        {report.personas.map((result) => (
-          <CastRow
-            key={result.profileId}
+      {report.personas.map((result) => (
+        <tbody key={result.profileId} className="group border-b border-line">
+          <CastRow taskId={report.taskId} result={result} picked={result.profileId === picked} />
+          <WhyRow
             taskId={report.taskId}
             result={result}
+            findings={report.findings}
             picked={result.profileId === picked}
           />
-        ))}
-      </tbody>
+        </tbody>
+      ))}
     </table>
   );
 }

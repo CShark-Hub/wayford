@@ -6,6 +6,7 @@
  *
  * - Beat 5's click path: Kai's row, then the evidence link of his failed run, opens run detail at
  *   the step his finding cites.
+ * - A why line's finding link opened in a fresh tab lands on its card, below the fold, with focus.
  * - A finding backed by ten runs shows three evidence links and "Show 7 more", which shows the
  *   rest with focus on the first of them, and folds them again.
  * - "Analyse again" shows it running while io's `POST` is held, posts the report's own backend, and
@@ -178,6 +179,21 @@ test("Kai's row, then his failed run's evidence, opens run detail at that step",
   await page.getByRole("heading", { name: "Step 1", exact: true }).waitFor();
 });
 
+test("a why line's finding link, opened in a fresh tab, lands on its card with focus on it", async () => {
+  // Ten seeds a persona, so the card sits below the fold, as on the demo's report.
+  const page = await servedPage((request, pathname) =>
+    get(request, pathname, REPORT_PATH, tenSeedReport()),
+  );
+  const id = "fnd_vera-order-archive-p1";
+  await page.goto(`${origin}/report/${TASK_ID}?persona=prof_vera#${id}`);
+  const card = page.locator(`[id="${id}"]`);
+  await card.waitFor();
+  await page.waitForFunction((cardId) => document.activeElement?.id === cardId, id);
+  const top = await card.evaluate((element) => element.getBoundingClientRect().top);
+  expect(top).toBeGreaterThanOrEqual(0);
+  expect(top).toBeLessThan(100);
+});
+
 test("a finding backed by ten runs shows three evidence links, and Show 7 more shows the rest", async () => {
   const report = tenSeedReport();
   const a1 = report.findings.find((finding) => finding.id === "fnd_kai-order-archive-a1");
@@ -249,7 +265,7 @@ test("Analyse again shows it running, posts the report's backend, then shows the
   await page.getByText("io answered 502: llm_timeout: the Analyst did not answer").waitFor();
   await page.getByRole("button", { name: "Analyse again" }).waitFor();
   await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
-  expect(await page.locator("table tbody tr").count()).toBe(3);
+  expect(await page.locator("table tr[data-persona]").count()).toBe(3);
 
   await page.getByRole("button", { name: "Try again" }).click();
   await expect.poll(() => posts.length).toBe(2);

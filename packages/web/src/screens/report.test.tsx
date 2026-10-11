@@ -296,6 +296,180 @@ describe("the cast table", () => {
   });
 });
 
+/** The why line under `profileId`'s cast row (#238): its markup, or undefined when it has none. */
+function whyOf(html: string, profileId: string): string | undefined {
+  return html.match(new RegExp(`<tr [^>]*data-why="${profileId}"[^>]*>(.*?)</tr>`, "s"))?.[1];
+}
+
+/** The why line under `profileId`'s row, which must be there. */
+function whyLineOf(html: string, profileId: string): string {
+  const why = whyOf(html, profileId);
+  if (why === undefined) throw new Error(`no why line under ${profileId}'s row`);
+  return why;
+}
+
+describe("the why line under a cast row (#238)", () => {
+  test("a persona who got through on every seed has none", async () => {
+    const html = await render("/report/task_past-order", HARD);
+    expect(whyOf(html, "prof_ada")).toBeUndefined();
+    // The two who did not get through on every seed each have one, under their own row.
+    const order = [...html.matchAll(/<tr [^>]*data-(persona|why)="([^"]+)"/g)].map(
+      (m) => `${m[1]}:${m[2]}`,
+    );
+    expect(order).toEqual([
+      "persona:prof_ada",
+      "persona:prof_kai",
+      "why:prof_kai",
+      "persona:prof_vera",
+      "why:prof_vera",
+    ]);
+  });
+
+  test("Vera's: her seeds by how they ended, then her deterministic finding, linked to its card with her picked", async () => {
+    const why = whyLineOf(await render("/report/task_past-order", HARD), "prof_vera");
+    expect(lineOf(why)).toMatch(/^3 seeds: Gave up in 2 · Over budget in 1 deterministic /);
+    // Each count opens the runs of its outcome, and says they can include runs the report leaves
+    // out (the hard goal's report leaves out 2 older runs), as the readouts do.
+    const counts = [...linksReading(why, "Gave up in 2"), ...linksReading(why, "Over budget in 1")];
+    expect(counts.map((a) => a.href)).toEqual([
+      "/runs?taskId=task_past-order&profileId=prof_vera&outcome=gave_up",
+      "/runs?taskId=task_past-order&profileId=prof_vera&outcome=budget_exceeded",
+    ]);
+    expect(counts.map((a) => a.title)).toEqual([
+      "Every stored run of Vera on this goal marked Gave up, which can include runs this report leaves out",
+      "Every stored run of Vera on this goal marked Over budget, which can include runs this report leaves out",
+    ]);
+    const p1 = HARD.findings.find((finding) => finding.id === "fnd_vera-order-archive-p1");
+    expect(linksReading(why, p1?.title ?? "").map((a) => a.href)).toEqual([
+      "/report/task_past-order?persona=prof_vera#fnd_vera-order-archive-p1",
+    ]);
+    expect(why).toMatch(/<span aria-hidden="true" data-line="deterministic"/);
+  });
+
+  test("Kai's finding rests on a folk threshold, so it keeps its soft line and says so", async () => {
+    const why = whyLineOf(await render("/report/task_past-order", HARD), "prof_kai");
+    expect(lineOf(why)).toMatch(/^3 seeds: Gave up in 1 · Over budget in 1 soft /);
+    expect(why).toMatch(/<span aria-hidden="true" data-line="soft"/);
+    expect(linksOf(why).at(-1)?.href).toBe(
+      "/report/task_past-order?persona=prof_kai#fnd_kai-order-archive-a1",
+    );
+  });
+
+  test("a hypothesis keeps its dashed glyph", async () => {
+    const why = whyLineOf(await render("/report/task_next-parcel", EASY), "prof_kai");
+    expect(lineOf(why)).toMatch(/^2 seeds: Gave up in 1 hypothesis /);
+    expect(why).toMatch(/<span aria-hidden="true" data-line="hypothesis"/);
+    expect(linksOf(why).at(-1)?.href).toBe(
+      "/report/task_next-parcel?persona=prof_kai#fnd_kai-passes-over-address-on-account",
+    );
+  });
+
+  test("the deterministic finding leads, wherever the report lists it", async () => {
+    // Vera's hypothesis moved ahead of her deterministic finding.
+    const report = Report.parse({ ...HARD, findings: [...HARD.findings].reverse() });
+    const why = whyLineOf(await render("/report/task_past-order", report), "prof_vera");
+    expect(linksOf(why).at(-1)?.href).toBe(
+      "/report/task_past-order?persona=prof_vera#fnd_vera-order-archive-p1",
+    );
+  });
+
+  test("a persona no finding names says so, and opens its runs instead", async () => {
+    const report = Report.parse({
+      ...HARD,
+      findings: HARD.findings.filter((finding) => !finding.personaIds.includes("prof_vera")),
+    });
+    const why = whyLineOf(await render("/report/task_past-order", report), "prof_vera");
+    expect(lineOf(why)).toBe(
+      "3 seeds: Gave up in 2 · Over budget in 1 No finding names Vera. Open Vera's runs",
+    );
+    expect(linksReading(why, "Open Vera's runs").map((a) => a.href)).toEqual([
+      "/runs?taskId=task_past-order&profileId=prof_vera",
+    ]);
+    expect(why).not.toMatch(/data-line=/);
+  });
+
+  test("a persona whose only failed seed errored: the error is the tool's, and no finding is offered", async () => {
+    // Every finding names Vera too, so a finding is there to offer, and is not.
+    const report = Report.parse({
+      ...EASY,
+      findings: EASY.findings.map((finding) => ({
+        ...finding,
+        personaIds: [...finding.personaIds, "prof_vera"],
+      })),
+    });
+    const why = whyLineOf(await render("/report/task_next-parcel", report), "prof_vera");
+    expect(lineOf(why)).toBe(
+      "2 seeds: Error in 1 An error is the tool's, not Vera's. Open Vera's runs",
+    );
+    expect(why).not.toMatch(/data-line=/);
+    expect(linksOf(why).some((a) => a.href?.includes("#"))).toBe(false);
+    expect(linksReading(why, "Error in 1").map((a) => a.href)).toEqual([
+      "/runs?taskId=task_next-parcel&profileId=prof_vera&outcome=error",
+    ]);
+  });
+
+  test("a crash among Vera's own failed seeds still offers her finding", async () => {
+    const vera = HARD.personas.find((result) => result.profileId === "prof_vera");
+    if (vera === undefined) throw new Error("the hard goal's report has no Vera");
+    const seeds = vera.seeds.map((seed) =>
+      seed.outcome === "budget_exceeded" ? { ...seed, outcome: "error" as const } : seed,
+    );
+    const report = Report.parse({
+      ...HARD,
+      personas: HARD.personas.map((result) =>
+        result.profileId === "prof_vera" ? { ...vera, seeds, errors: 1 } : result,
+      ),
+    });
+    const why = whyLineOf(await render("/report/task_past-order", report), "prof_vera");
+    expect(lineOf(why)).toMatch(/^3 seeds: Gave up in 2 · Error in 1 deterministic /);
+  });
+
+  test("every finding a line links to is a card on the page, under that id", async () => {
+    for (const report of [HARD, EASY]) {
+      const html = await render(`/report/${report.taskId}`, report);
+      const anchors = report.personas.flatMap((result) =>
+        linksOf(whyOf(html, result.profileId) ?? "")
+          .map((a) => a.href?.split("#")[1])
+          .filter((hash) => hash !== undefined),
+      );
+      expect(anchors.length).toBeGreaterThan(0);
+      for (const id of anchors) {
+        const card = html.match(new RegExp(`<div [^>]*id="${id}"[^>]*>\\s*<article`));
+        expect(card, id).not.toBeNull();
+      }
+    }
+  });
+
+  test("a picked persona's line shares its row's ground", async () => {
+    const html = await render("/report/task_past-order?persona=prof_vera", HARD);
+    const tag = html.match(/<tr [^>]*data-why="prof_vera"[^>]*>/)?.[0] ?? "";
+    expect(attributesOf(tag).class?.split(/\s+/)).toContain("bg-paper-sunken");
+    const kai = html.match(/<tr [^>]*data-why="prof_kai"[^>]*>/)?.[0] ?? "";
+    expect(attributesOf(kai).class?.split(/\s+/)).not.toContain("bg-paper-sunken");
+    // The finding's link, which picks Vera and lands on its card, is not current until followed.
+    for (const link of linksOf(whyLineOf(html, "prof_vera"))) {
+      expect(link["aria-current"], link.href).toBeUndefined();
+    }
+  });
+
+  test("no line diagnoses the persona, claims a closed route, or restates got through", async () => {
+    const empty = Report.parse({ ...HARD, findings: [] });
+    for (const [taskId, report] of [
+      ["task_past-order", HARD],
+      ["task_past-order", empty],
+      ["task_next-parcel", EASY],
+    ] as const) {
+      const html = await render(`/report/${taskId}`, report);
+      for (const result of report.personas) {
+        const text = lineOf(whyOf(html, result.profileId) ?? "");
+        expect(text).not.toMatch(
+          /can't|cannot|could not|unable|impaired|disabled|blind|confused|predict|unreachable|route closes|got through|because/i,
+        );
+      }
+    }
+  });
+});
+
 describe("the findings", () => {
   test("on the hard goal's report, each finding is in its own group", async () => {
     const html = await render("/report/task_past-order", HARD);

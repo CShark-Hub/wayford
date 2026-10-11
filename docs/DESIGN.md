@@ -69,7 +69,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
 | `/cast` | Cast | Personas | Who crosses: a lineup over a capability matrix | `screens/cast.html` | `s3-14` (optional) |
 | `/lens` | Lens | Preview | The hero: the page as the persona's filter leaves it. Demo beats 1–3 | `screens/lens.html` | `s3-11` |
 | `/race` | Race | Arena | Three to five personas live on one goal. Beat 4. Each race keeps its URL, `/race/$raceId`, and the History under the start panel lists them all (issue #194) | `screens/race.html` | `s3-12` |
-| `/report/$taskId` | Report | — | Ten seeds, two numbers, findings by certainty. Beat 5 | `screens/report.html` | `s3-08` |
+| `/report/$taskId` | Report | — | Ten seeds, two numbers, findings by certainty. Beat 5. Under a persona not through on every seed, one line: its seeds by how they ended, each count opening every stored run of the persona on the goal with that outcome, then the first finding naming it, with its glyph and certainty word, linked to its card; or that none names it; or, when its only failed seeds errored, that an error is the tool's (issue #238) | `screens/report.html` | `s3-08` |
 | `/runs/$runId` | Run detail | Run detail | One run step by step: screenshot beside what the model read | `screens/run-detail.html` | `s3-12` |
 | `/boundary` | Boundary | Sweep | The first threshold where fewer than half of a persona's runs get through. Beat 6 | `screens/boundary.html` | `s3-09` |
 | `/runs` | Runs | Runs | The archive table, off the story path | — | `s3-14` (optional) |
