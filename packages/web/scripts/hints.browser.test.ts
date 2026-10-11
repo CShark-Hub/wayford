@@ -1,9 +1,9 @@
 /**
  * The Report's hints in a real browser (#240), for what a static render cannot show: each of the
- * five opens on hover, on keyboard focus, on a click and on a tap, stays open while the pointer is
- * on it or while its button has focus, closes on Esc (WCAG 2.2, 1.4.13) and when another opens, and
- * is drawn inside the viewport; the findings headers hold their words whole. The hard goal's report
- * is served from core's fixtures, as the self-check serves it.
+ * five opens on hover and on keyboard focus, inside the viewport; a click and a tap open one too. A
+ * hint stays open while the pointer is on it or while its button has focus, and closes on Esc (WCAG
+ * 2.2, 1.4.13) and when another opens; the findings headers hold their words whole. The hard goal's
+ * report is served from core's fixtures, as the self-check serves it.
  *
  * In `scripts/` because it starts the app with `startWebApp`, which sits beside the self-check.
  */
