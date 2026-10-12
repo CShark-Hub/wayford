@@ -803,9 +803,10 @@ test("a finding's tag wider than its card breaks inside it, and keeps one line w
   ] as const) {
     await page.setViewportSize({ width, height: 720 });
     const layout = await page.evaluate((text) => {
-      // The row under a card's title; a basis rule's two tags sit in a `display: contents` span.
+      // The row under a card's title; a basis rule's two tags sit in a `display: contents` span, and
+      // a provenance tag's hint keeps its words in a `hidden` one (#243), neither of them a tag.
       const tags = [...document.querySelectorAll("main article h3 + div span")].filter(
-        (span) => getComputedStyle(span).display !== "contents",
+        (span) => !["contents", "none"].includes(getComputedStyle(span).display),
       );
       const tag = tags.find((span) => span.textContent === text);
       const card = tag?.closest("article");

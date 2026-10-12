@@ -8,7 +8,9 @@
  *
  * Every number opens the runs behind it: a seed cell its run, route open every run of the persona
  * on the goal (no runs filter selects route-open seeds), got through the runs that got through.
- * The persona's name picks it (`?persona=`), which narrows the findings below to theirs.
+ * The runs screen's filters can select more runs than a number counts, so each number link is
+ * described by what it opens (#264). The persona's name picks it (`?persona=`), which narrows the
+ * findings below to theirs.
  *
  * Under a persona that did not get through on every seed, a why line (#238, `WhyRow`) names a
  * finding but does not claim it is why a seed ended.
@@ -16,15 +18,14 @@
  * Each row sets its persona's slot variables, which the seed strip and the gap bar fill from. Every
  * text cell holds its text in a `<p>`, so `check:self` measures it.
  *
- * The headers of the two numbers each carry a hint saying what the number counts and how far to
- * trust it (#240). Each header is named by its label alone, so a screen reader does not repeat the
- * hint button's name with every cell of the column.
+ * The headers of the two numbers each carry a hint saying what the number counts, how far to trust
+ * it (#240) and what its numbers open (#264). Each header is named by its label alone, so a screen
+ * reader does not repeat the hint button's name with every cell of the column. A "—" carries its
+ * own hint saying why there is no number, and each why line one saying what its counts open.
  *
  * In a window narrower than the table, the table scrolls sideways in a box of its own, not the page
  * (#265). In the page column's grid a scroll container's minimum width is 0, so the table no longer
- * sets the column's width, and the header, the findings and the footer keep to the window. The box
- * is `relative`, so a `NoValue`'s `sr-only` reason, positioned absolutely, is placed in the box and
- * not against the page.
+ * sets the column's width, and the header, the findings and the footer keep to the window.
  */
 import { Link } from "@tanstack/react-router";
 import type {
@@ -73,14 +74,16 @@ const ROW = "transition-colors group-hover:bg-paper-sunken";
 const HEAD = "px-(--space-3) py-(--space-2) align-bottom whitespace-nowrap label text-ink-3";
 
 /**
- * What each of the two numbers counts, in its header's hint. Each says its certainty in words, as
- * the glyph beside the label is hidden from assistive technology.
+ * What each of the two numbers counts, in its header's hint, and what each number opens. Each says
+ * its certainty in words, as the glyph beside the label is hidden from assistive technology. The
+ * runs screen never lists a sweep's runs (io's `GET /runs` shows them only under `?sweepId=`), so
+ * they are left out of what a number opens.
  */
 const NUMBER_HINTS = {
   routeOpen:
-    "Seeds where at least one route to the goal stayed open, out of the persona's seeds. Deterministic: the filter decides it in code, from the persona's limits and the seed, with no model.",
+    "Seeds where at least one route to the goal stayed open, out of the persona's seeds. Deterministic: the filter decides it in code, from the persona's limits and the seed, with no model. Each number opens every stored run of the persona on this goal, counted in this report or not, except sweep runs.",
   gotThrough:
-    "Runs that reached the goal, out of those that did not error. Code checks the goal; the way there is the agent's and varies, so read it as a hypothesis.",
+    "Runs that reached the goal, out of those that did not error. Code checks the goal; the way there is the agent's and varies, so read it as a hypothesis. Each number above 0 opens every stored run of the persona on this goal that got through, counted in this report or not, except sweep runs.",
 } as const;
 const CELL = "px-(--space-3) py-(--space-2)";
 
@@ -120,9 +123,10 @@ function PersonaCell({
 }
 
 /**
- * The median's cell: the median simulated time over the runs that got through, or "—" with why
- * there is none: no run got through, or one that did carries no time, as runs stored before s2-09
- * do not. `medianSimulatedMs` is absent on a report stored before it.
+ * The median's cell: the median simulated time over the runs that got through, or "—" with a hint
+ * saying why there is none: no run got through, or one that did carries no time, as runs stored
+ * before s2-09 do not. One untimed run is enough to leave the median out. `medianSimulatedMs` is
+ * absent on a report stored before it.
  */
 function MedianCell({
   successes,
@@ -131,9 +135,14 @@ function MedianCell({
   successes: number;
   median: number | null | undefined;
 }) {
-  if (successes === 0) return <NoValue reason="no run got through" className="mono" />;
+  if (successes === 0) return <NoValue reason="No run got through." className="mono" />;
   if (median === null || median === undefined) {
-    return <NoValue reason="not timed: runs stored before simulated time" className="mono" />;
+    return (
+      <NoValue
+        reason="Not timed: a run that got through was stored before simulated time was recorded."
+        className="mono"
+      />
+    );
   }
   return <p className="mono text-ink">{formatSeconds(median)}</p>;
 }
@@ -174,7 +183,7 @@ function CastRow({
           kind="routeOpen"
           value={routeOpenSeeds === null ? null : { k: routeOpenSeeds, n: seeds.length }}
           to={{ to: "/runs", search: { taskId, profileId } }}
-          opens={`Every stored run of ${name} on this goal, which can include runs this report leaves out`}
+          opens={`Every stored run of ${name} on this goal, counted in this report or not, except sweep runs`}
         />
       </td>
       <td className={cn(CELL, "text-right")}>
@@ -182,7 +191,7 @@ function CastRow({
           kind="gotThrough"
           value={counted === 0 ? null : { k: successes, n: counted }}
           to={{ to: "/runs", search: { taskId, profileId, outcome: "success" } }}
-          opens={`Every stored run of ${name} on this goal that got through, which can include runs this report leaves out`}
+          opens={`Every stored run of ${name} on this goal that got through, counted in this report or not, except sweep runs`}
         />
         {errors > 0 ? <p className="mono text-ink-2">{count(errors, "error")}</p> : null}
       </td>
@@ -218,7 +227,8 @@ function leadFindingOf(findings: readonly Finding[], profileId: ProfileId): Find
 
 /**
  * The line under `result`'s row, or nothing when every seed got through: its seeds by how they
- * ended, then the finding that names the persona, or why there is none to show.
+ * ended, then the finding that names the persona, or why there is none to show. Each count link is
+ * described by what it opens, and a hint after the counts says what they count and open.
  */
 function WhyRow({
   taskId,
@@ -232,6 +242,7 @@ function WhyRow({
   picked: boolean;
 }) {
   const { profileId, seeds } = result;
+  const countsId = useId();
   const ended = ENDINGS.map((outcome) => ({
     outcome,
     n: seeds.filter((seed) => seed.outcome === outcome).length,
@@ -292,7 +303,7 @@ function WhyRow({
                   to="/runs"
                   search={{ taskId, profileId, outcome }}
                   // The filter is by outcome, not by this report's seeds, as the readouts' is.
-                  title={`Every stored run of ${name} on this goal marked ${OUTCOME_WORDS[outcome]}, which can include runs this report leaves out`}
+                  aria-describedby={`${countsId}-${outcome}`}
                   className={WHY_LINK}
                 >
                   {/* One flex item, so the space before the count is not trimmed at its edge. */}
@@ -301,8 +312,15 @@ function WhyRow({
                     <span className="mono">{n}</span>
                   </span>
                 </Link>
+                <span hidden id={`${countsId}-${outcome}`}>
+                  {`Every stored run of ${name} on this goal marked ${OUTCOME_WORDS[outcome]}, counted in this report or not, except sweep runs`}
+                </span>
               </Fragment>
             ))}
+            <Hint
+              label={`Explain ${name}'s counts`}
+              hint={`Each count is how many of ${name}'s seeds in this report ended that way. It opens every stored run of ${name} on this goal with that ending, counted in this report or not, except sweep runs.`}
+            />
           </span>
           <span className="inline-flex min-w-0 flex-wrap items-center gap-x-(--space-2)">
             {reason}
@@ -319,7 +337,7 @@ export function CastTable({ report, picked }: { report: Report; picked: string |
   const routeOpenId = useId();
   const gotThroughId = useId();
   return (
-    <div className="relative overflow-x-auto">
+    <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-line-strong">

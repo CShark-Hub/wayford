@@ -13,6 +13,7 @@ import { cn } from "cn";
 import type { ReactNode } from "react";
 import { runLabel } from "../runs/run-label.js";
 import { OUTCOME_WORDS } from "./outcome-words.js";
+import { LinkHint } from "./ui/tooltip.js";
 
 /** Whether the filter left a route open in a seed, closed every one, or had no route table. */
 export type RouteState = "open" | "closed" | "none";
@@ -28,13 +29,37 @@ const BORDER: Record<RouteState, string> = {
   none: "border border-solid border-line-strong",
 };
 
+/** What a seed cell says: its name, and the same words for its bubble. */
+export type CellWords = { label: string; bubble: ReactNode };
+
+/**
+ * A cell's words from their three parts, `ended` the middle one: "seed 1: Gave up, routes open: B,
+ * C. Opens run_kai-past-order-1". `label` names the link. `bubble` is the same words, with the seed
+ * and the run set in `mono`, as DESIGN's Copy sets them on Wayford's own surfaces, and the run kept
+ * on one line.
+ */
+export function cellWords(seed: number, ended: string, runId: string): CellWords {
+  const run = runLabel(runId);
+  return {
+    label: `seed ${seed}: ${ended}. Opens ${run}`,
+    bubble: (
+      <>
+        {"seed "}
+        <span className="mono">{seed}</span>
+        {`: ${ended}. Opens `}
+        <span className="mono whitespace-nowrap">{run}</span>
+      </>
+    ),
+  };
+}
+
 /** What a cell says: "seed 1: Gave up, routes open: B, C. Opens run_kai-past-order-1". */
-function seedLabel(seed: ReportSeed): string {
+function seedLabel(seed: ReportSeed): CellWords {
   const routes =
     seed.openRoutes === null
       ? "no route table"
       : `routes open: ${seed.openRoutes.length > 0 ? seed.openRoutes.join(", ") : "none"}`;
-  return `seed ${seed.seed}: ${OUTCOME_WORDS[seed.outcome]}, ${routes}. Opens ${runLabel(seed.runId)}`;
+  return cellWords(seed.seed, `${OUTCOME_WORDS[seed.outcome]}, ${routes}`, seed.runId);
 }
 
 /** The strip, a fieldset named by `label`: a group, as the runs screen's filters are. */
@@ -48,7 +73,7 @@ export function SeedStrip({ seeds, label }: { seeds: readonly ReportSeed[]; labe
           route={routeState(seed)}
           through={seed.outcome === "success"}
           slashed={seed.outcome === "error"}
-          label={seedLabel(seed)}
+          words={seedLabel(seed)}
         />
       ))}
     </fieldset>
@@ -56,37 +81,37 @@ export function SeedStrip({ seeds, label }: { seeds: readonly ReportSeed[]; labe
 }
 
 /**
- * One seed's cell, a link to its run: `route` sets its border, `through` its fill, and `slashed`
- * draws the fault slash.
+ * One seed's cell, a link to its run, named and shown by `words`: `route` sets its border,
+ * `through` its fill, and `slashed` draws the fault slash.
  */
 export function SeedCell({
   runId,
   route,
   through,
   slashed,
-  label,
+  words,
 }: {
   runId: string;
   route: RouteState;
   through: boolean;
   slashed: boolean;
-  label: string;
+  words: CellWords;
 }) {
   return (
-    <Link
-      to="/runs/$runId"
-      params={{ runId }}
-      aria-label={label}
-      title={label}
-      data-route={route}
-      className={cn(
-        "relative block size-8 shrink-0 rounded-xs transition-colors hover:bg-paper-sunken",
-        BORDER[route],
-        through && "bg-(--p) hover:bg-(--p)",
-      )}
-    >
-      {slashed ? <FaultSlash /> : null}
-    </Link>
+    <LinkHint label={words.label} bubble={words.bubble}>
+      <Link
+        to="/runs/$runId"
+        params={{ runId }}
+        data-route={route}
+        className={cn(
+          "relative block size-8 shrink-0 rounded-xs transition-colors hover:bg-paper-sunken",
+          BORDER[route],
+          through && "bg-(--p) hover:bg-(--p)",
+        )}
+      >
+        {slashed ? <FaultSlash /> : null}
+      </Link>
+    </LinkHint>
   );
 }
 

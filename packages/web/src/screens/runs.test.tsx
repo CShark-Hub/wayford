@@ -16,6 +16,7 @@ import {
   attributesOf,
   classesOf,
   lineOf,
+  mainOf,
   rowsOf,
   withoutNested,
 } from "../preview/rendered-markup.js";
@@ -94,13 +95,6 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // Reading the markup
 // ---------------------------------------------------------------------------
-
-/** The screen: the page's `<main>`, without the top bar. */
-function mainOf(html: string): string {
-  const inner = html.match(/<main(?:\s[^>]*)?>(.*)<\/main>/s)?.[1];
-  if (inner === undefined) throw new Error("No <main>");
-  return inner;
-}
 
 /** The content of the first `<tag>` in `html`, read as `elementOf` reads it. */
 function firstOf(html: string, tag: string): string {

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { attributesOf, classesOf, lineOf } from "../../preview/rendered-markup.js";
-import { Hint } from "./tooltip.js";
+import { Hint, LinkHint } from "./tooltip.js";
 
 const HINT = "Measured by axe-core, an accessibility scanner.";
 
@@ -58,4 +58,22 @@ test("given a face, the button holds it in place of the icon, named by its label
     expect.arrayContaining(["h-(--target-min)", "min-w-(--target-min)", "-my-0.75", "px-0"]),
   );
   expect(classesOf(attributes)).not.toContain("size-(--target-min)");
+});
+
+const CELL = "seed 1: Gave up, routes open: B, C. Opens run_kai-past-order-1";
+
+test("closed, a LinkHint is its link alone, named by the label", () => {
+  const html = renderToStaticMarkup(
+    <LinkHint label={CELL} bubble={<span className="mono">{CELL}</span>}>
+      {/* biome-ignore lint/a11y/useAnchorContent: LinkHint names the link, as it names a seed cell */}
+      <a href="/runs/r" />
+    </LinkHint>,
+  );
+  // No button, no hidden span and no bubble. Its description, open, is case (f) of the hints test.
+  const link = html.match(/^<a(\s[^>]*)><\/a>$/);
+  expect(link, html).not.toBeNull();
+  const attributes = attributesOf(link?.[1] ?? "");
+  expect(attributes.href).toBe("/runs/r");
+  expect(attributes["aria-label"]).toBe(CELL);
+  expect(attributes["data-state"]).toBe("closed");
 });

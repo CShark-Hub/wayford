@@ -4,7 +4,7 @@ import { reportFixture } from "@wayford/core/fixtures";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import { attributesOf, lineOf } from "../preview/rendered-markup.js";
+import { attributesOf, describedBy, lineOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import { GapBar, gapCounts, Readout } from "./readout.js";
 
@@ -35,6 +35,19 @@ function linksOf(html: string): Record<string, string>[] {
   return [...html.matchAll(/<a(\s[^>]*)?>/g)].map((m) => attributesOf(m[1] ?? ""));
 }
 
+/**
+ * `html` is a "—" that a hint explains: a `<p>` that reads "—" and holds one button, named "Explain
+ * the missing number" and described by `reason`. The markup holds the reason once, so no title or
+ * `sr-only` copy gives a screen reader it twice.
+ */
+function expectExplained(html: string, reason: string) {
+  expect(lineOf(html)).toBe("—");
+  const buttons = [...html.matchAll(/<button(\s[^>]*)>/g)].map((m) => attributesOf(m[1] ?? ""));
+  expect(buttons.map((button) => button["aria-label"])).toEqual(["Explain the missing number"]);
+  expect(describedBy(html, buttons[0] ?? {})).toBe(reason);
+  expect(html.split(reason)).toHaveLength(2);
+}
+
 const KAI = { taskId: "task_past-order", profileId: "prof_kai" } as const;
 const OPENS = "Every stored run of Kai on this goal";
 
@@ -54,8 +67,11 @@ describe("Readout", () => {
     expect(linksOf(html).map((a) => a.href)).toEqual([
       "/runs?taskId=task_past-order&profileId=prof_kai",
     ]);
-    // The runs screen can only select a superset of what the number counts, so the link says so.
-    expect(linksOf(html).map((a) => a.title)).toEqual([OPENS]);
+    // The runs screen can only select a superset of what the number counts, so the link is
+    // described by what it opens. No native title says it: the header's hint does, for the eye.
+    const [link] = linksOf(html);
+    expect(link?.title).toBeUndefined();
+    expect(describedBy(html, link ?? {})).toBe(OPENS);
     expect(html).not.toContain("border-dashed");
   });
 
@@ -86,6 +102,9 @@ describe("Readout", () => {
     );
     expect(lineOf(html).replace(/ /g, "")).toBe("0/3");
     expect(linksOf(html)).toEqual([]);
+    // With no link, nothing is described by what it opens.
+    expect(html).not.toContain("aria-describedby");
+    expect(html).not.toMatch(/<span[^>]*\shidden=""/);
     expect(html).toContain("border-dashed");
   });
 
@@ -105,17 +124,19 @@ describe("Readout", () => {
   });
 
   test.each([
-    ["routeOpen", "no route table for this goal"],
-    ["gotThrough", "every run errored"],
-  ] as const)("%s with no value reads — with its reason, and opens nothing", (kind, reason) => {
-    const html = render(
-      <Readout kind={kind} value={null} to={{ to: "/runs", search: KAI }} opens={OPENS} />,
-    );
-    expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*>—<\/span>/);
-    expect(attributesOf(html.match(/^<p(\s[^>]*)>/)?.[1] ?? "").title).toBe(reason);
-    expect(html).toMatch(new RegExp(`<span class="sr-only">${reason}</span>`));
-    expect(linksOf(html)).toEqual([]);
-  });
+    ["routeOpen", "No route table for this goal."],
+    ["gotThrough", "Every run errored."],
+  ] as const)(
+    "%s with no value reads — with a hint saying why, and opens nothing",
+    (kind, reason) => {
+      const html = render(
+        <Readout kind={kind} value={null} to={{ to: "/runs", search: KAI }} opens={OPENS} />,
+      );
+      expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*>—<\/span>/);
+      expectExplained(html, reason);
+      expect(linksOf(html)).toEqual([]);
+    },
+  );
 });
 
 describe("gapCounts", () => {
@@ -192,12 +213,11 @@ describe("GapBar", () => {
   });
 
   test.each([
-    ["no route table", seedsOf("task_next-parcel", "prof_kai"), "no route table for this goal"],
-    ["every seed errored", [seed(1, "error", ["A"])], "every run errored"],
-  ])("with %s it reads — with its reason", (_, seeds, reason) => {
+    ["no route table", seedsOf("task_next-parcel", "prof_kai"), "No route table for this goal."],
+    ["every seed errored", [seed(1, "error", ["A"])], "Every run errored."],
+  ])("with %s it reads — with a hint saying why", (_, seeds, reason) => {
     const html = render(<GapBar seeds={seeds} />);
     expect(html).not.toContain('role="img"');
-    expect(attributesOf(html.match(/^<p(\s[^>]*)>/)?.[1] ?? "").title).toBe(reason);
-    expect(lineOf(html)).toBe(`— ${reason}`);
+    expectExplained(html, reason);
   });
 });

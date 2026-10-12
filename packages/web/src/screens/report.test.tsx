@@ -6,7 +6,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import { reportQuery } from "../api/reports.js";
 import { storedTaskQuery } from "../api/runs.js";
-import { attributesOf, lineOf, rowsOf, textOf } from "../preview/rendered-markup.js";
+import {
+  attributesOf,
+  decode,
+  describedBy,
+  lineOf,
+  mainOf,
+  rowsOf,
+} from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 
 const HARD = reportFixture("task_past-order");
@@ -102,6 +109,10 @@ function groupOf(
   throw new Error(`no group headed ${GROUP[type]}`);
 }
 
+/** `docs/DEMO.md`'s "Words we do not use", as a hint or a description could hold them. */
+const DEMO_WORDS =
+  /can't|cannot|predict|real (user|people)|impaired|disabled|blind|confused|route closes/i;
+
 /** Each hint's words, by its button's name (#240). */
 const HINTS = {
   "Explain Measurement":
@@ -111,24 +122,21 @@ const HINTS = {
   "Explain Hypothesis":
     "Written by the Analyst, a model, from what the agent did in the runs. A reading worth checking, not a measured fact.",
   "Explain route open":
-    "Seeds where at least one route to the goal stayed open, out of the persona's seeds. Deterministic: the filter decides it in code, from the persona's limits and the seed, with no model.",
+    "Seeds where at least one route to the goal stayed open, out of the persona's seeds. Deterministic: the filter decides it in code, from the persona's limits and the seed, with no model. Each number opens every stored run of the persona on this goal, counted in this report or not, except sweep runs.",
   "Explain got through":
-    "Runs that reached the goal, out of those that did not error. Code checks the goal; the way there is the agent's and varies, so read it as a hypothesis.",
+    "Runs that reached the goal, out of those that did not error. Code checks the goal; the way there is the agent's and varies, so read it as a hypothesis. Each number above 0 opens every stored run of the persona on this goal that got through, counted in this report or not, except sweep runs.",
 } as const;
 
 /**
  * The words that describe the hint button named `label` in `html`: the text of the span its
- * `aria-describedby` names, which holds text alone. Throws when there is no such button.
+ * `aria-describedby` names. Throws when there is no such button.
  */
 function hintOf(html: string, label: string): string | undefined {
   const button = [...html.matchAll(/<button(\s[^>]*)>/g)]
     .map((m) => attributesOf(m[1] ?? ""))
     .find((a) => a["aria-label"] === label);
   if (button === undefined) throw new Error(`no hint button named ${label}`);
-  const at = html.indexOf(` id="${button["aria-describedby"]}"`);
-  if (at < 0) return undefined;
-  const close = html.indexOf(">", at);
-  return textOf(html.slice(close + 1, html.indexOf("</span>", close)));
+  return describedBy(html, button);
 }
 
 /** Each finding card in `html`: its attributes and its text on one line. */
@@ -169,7 +177,7 @@ function footerLines(html: string): string[] {
   return [...footer.matchAll(/<(p|li)(?:\s[^>]*)?>(.*?)<\/\1>/gs)].map((m) => lineOf(m[2] ?? ""));
 }
 
-/** A readout's figure with its spaces gone: "3/3", or "—" and its reason. */
+/** A readout's figure with its spaces gone: "3/3", or "—", whose reason is its button's description. */
 function figure(cell: string): string {
   return lineOf(cell).replace(/ /g, "");
 }
@@ -268,7 +276,7 @@ describe("the cast table", () => {
     // The simulated medians, not the wall-clock ones the report also keeps: 10.4 s and 31.6 s.
     ["prof_ada", "3/3", "3/3", "4.5 s"],
     ["prof_kai", "3/3", "1/3", "11.2 s"],
-    ["prof_vera", "1/3", "0/3", "—no run got through"],
+    ["prof_vera", "1/3", "0/3", "—"],
   ])("%s reads route open %s and got through %s, median %s", async (id, open, through, median) => {
     const cells = castRowOf(await render("/report/task_past-order", HARD), id);
     expect(figure(cells[2] ?? "")).toBe(open);
@@ -289,14 +297,16 @@ describe("the cast table", () => {
       personas: [adaBefore, { ...kai, medianSimulatedMs: null }, vera],
     });
     const html = await render("/report/task_past-order", report);
+    const untimed =
+      "Not timed: a run that got through was stored before simulated time was recorded.";
     for (const [id, reason] of [
-      ["prof_ada", "not timed: runs stored before simulated time"],
-      ["prof_kai", "not timed: runs stored before simulated time"],
-      ["prof_vera", "no run got through"],
+      ["prof_ada", untimed],
+      ["prof_kai", untimed],
+      ["prof_vera", "No run got through."],
     ] as const) {
       const cell = castRowOf(html, id)[5] ?? "";
-      expect(figure(cell), id).toBe(`—${reason.replace(/ /g, "")}`);
-      expect(attributesOf(cell.match(/<p(\s[^>]*)>/)?.[1] ?? "").title, id).toBe(reason);
+      expect(figure(cell), id).toBe("—");
+      expect(hintOf(cell, "Explain the missing number"), id).toBe(reason);
     }
   });
 
@@ -308,15 +318,25 @@ describe("the cast table", () => {
     expect(linksOf(cells[3] ?? "").map((a) => a.href)).toEqual([
       "/runs?taskId=task_past-order&profileId=prof_kai&outcome=success",
     ]);
+    // Each link is described by what it opens, which is more than the number counts.
+    expect(describedBy(cells[2] ?? "", linksOf(cells[2] ?? "")[0] ?? {})).toBe(
+      "Every stored run of Kai on this goal, counted in this report or not, except sweep runs",
+    );
+    expect(describedBy(cells[3] ?? "", linksOf(cells[3] ?? "")[0] ?? {})).toBe(
+      "Every stored run of Kai on this goal that got through, counted in this report or not, except sweep runs",
+    );
   });
 
-  test("on the easy goal, route open reads — with its reason", async () => {
+  test("on the easy goal, route open and the gap read — with a hint saying why", async () => {
     const html = await render("/report/task_next-parcel", EASY);
+    const reason = "No route table for this goal.";
     for (const persona of EASY.personas) {
-      const cell = castRowOf(html, persona.profileId)[2] ?? "";
-      expect(figure(cell)).toBe("—noroutetableforthisgoal");
-      expect(cell).toMatch(/title="no route table for this goal"/);
-      expect(linksOf(cell)).toEqual([]);
+      const cells = castRowOf(html, persona.profileId);
+      for (const cell of [cells[2] ?? "", cells[4] ?? ""]) {
+        expect(figure(cell), persona.profileId).toBe("—");
+        expect(hintOf(cell, "Explain the missing number"), persona.profileId).toBe(reason);
+        expect(linksOf(cell)).toEqual([]);
+      }
     }
   });
 
@@ -382,16 +402,17 @@ describe("the why line under a cast row (#238)", () => {
   test("Vera's: her seeds by how they ended, then her deterministic finding, linked to its card with her picked", async () => {
     const why = whyLineOf(await render("/report/task_past-order", HARD), "prof_vera");
     expect(lineOf(why)).toMatch(/^3 seeds: Gave up in 2 · Over budget in 1 deterministic /);
-    // Each count opens the runs of its outcome, and says they can include runs the report leaves
-    // out (the hard goal's report leaves out 2 older runs), as the readouts do.
+    // Each count opens the runs of its outcome, and is described by what it opens, which is more
+    // than it counts, as the readouts are.
     const counts = [...linksReading(why, "Gave up in 2"), ...linksReading(why, "Over budget in 1")];
     expect(counts.map((a) => a.href)).toEqual([
       "/runs?taskId=task_past-order&profileId=prof_vera&outcome=gave_up",
       "/runs?taskId=task_past-order&profileId=prof_vera&outcome=budget_exceeded",
     ]);
-    expect(counts.map((a) => a.title)).toEqual([
-      "Every stored run of Vera on this goal marked Gave up, which can include runs this report leaves out",
-      "Every stored run of Vera on this goal marked Over budget, which can include runs this report leaves out",
+    expect(counts.map((a) => a.title)).toEqual([undefined, undefined]);
+    expect(counts.map((a) => describedBy(why, a))).toEqual([
+      "Every stored run of Vera on this goal marked Gave up, counted in this report or not, except sweep runs",
+      "Every stored run of Vera on this goal marked Over budget, counted in this report or not, except sweep runs",
     ]);
     const p1 = HARD.findings.find((finding) => finding.id === "fnd_vera-order-archive-p1");
     expect(linksReading(why, p1?.title ?? "").map((a) => a.href)).toEqual([
@@ -399,6 +420,44 @@ describe("the why line under a cast row (#238)", () => {
     ]);
     expect(why).toMatch(/<span aria-hidden="true" data-line="deterministic"/);
   });
+
+  test.each([
+    [
+      "prof_kai",
+      "Kai",
+      "3 seeds: Gave up in 1 · Over budget in 1 soft",
+      "fnd_kai-order-archive-a1",
+    ],
+    [
+      "prof_vera",
+      "Vera",
+      "3 seeds: Gave up in 2 · Over budget in 1 deterministic",
+      "fnd_vera-order-archive-p1",
+    ],
+  ] as const)(
+    "%s's line explains its counts in a hint, between the last count and the finding",
+    async (id, name, counts, findingId) => {
+      const why = whyLineOf(await render("/report/task_past-order", HARD), id);
+      const label = `Explain ${name}'s counts`;
+      const tags = [...why.matchAll(/<(a|button)(\s[^>]*)>/g)].map((m) => ({
+        tag: m[1],
+        at: m.index,
+        attributes: attributesOf(m[2] ?? ""),
+      }));
+      const button = tags.find((t) => t.tag === "button" && t.attributes["aria-label"] === label);
+      if (button === undefined) throw new Error(`no ${label} in ${name}'s why line`);
+      const lastCount = tags.filter((t) => t.attributes.href?.includes("outcome=")).at(-1);
+      const finding = tags.find((t) => t.attributes.href?.endsWith(`#${findingId}`));
+      expect(button.at).toBeGreaterThan(lastCount?.at ?? Number.POSITIVE_INFINITY);
+      expect(button.at).toBeLessThan(finding?.at ?? -1);
+      expect(hintOf(why, label)).toBe(
+        `Each count is how many of ${name}'s seeds in this report ended that way. It opens every stored run of ${name} on this goal with that ending, counted in this report or not, except sweep runs.`,
+      );
+      // The button holds no text and its hint is hidden, so the line reads as it did without it.
+      const title = HARD.findings.find((f) => f.id === findingId)?.title;
+      expect(lineOf(why)).toBe(`${counts} ${title}`);
+    },
+  );
 
   test("Kai's finding rests on a folk threshold, so it keeps its soft line and says so", async () => {
     const why = whyLineOf(await render("/report/task_past-order", HARD), "prof_kai");
@@ -564,9 +623,8 @@ describe("the findings", () => {
     for (const label of Object.keys(HINTS)) {
       const text = hintOf(html, label) ?? "";
       expect(text, label).not.toBe("");
-      expect(text, label).not.toMatch(
-        /\b(Ada|Kai|Milo|Vera|Zoya)\b|can't|cannot|predict|real (user|people)|impaired|disabled|blind|confused|route closes/i,
-      );
+      expect(text, label).not.toMatch(/\b(Ada|Kai|Milo|Vera|Zoya)\b/);
+      expect(text, label).not.toMatch(DEMO_WORDS);
     }
   });
 
@@ -682,6 +740,31 @@ describe("a persona picked", () => {
     ]);
     expect(linksOf(html).some((a) => a["aria-current"] === "true")).toBe(false);
     expect(linksReading(html, "Show all")).toEqual([]);
+  });
+});
+
+describe("what explains itself (#264)", () => {
+  test.each([
+    ["the hard goal", "/report/task_past-order", HARD],
+    ["the easy goal", "/report/task_next-parcel", EASY],
+    ["the hard goal with Kai picked", "/report/task_past-order?persona=prof_kai", HARD],
+  ])("on %s, no element explains itself in a native title", async (_, path, report) => {
+    // The top bar's titles are names, not explanations, so the issue keeps them: `<main>` alone.
+    const main = mainOf(await render(path, report));
+    expect([...main.matchAll(/<[a-z][^>]*\stitle="[^"]*"/g)].map((m) => m[0])).toEqual([]);
+  });
+
+  test.each([
+    ["the hard goal", HARD],
+    ["the easy goal", EASY],
+  ])("on %s, every description and hint passes docs/DEMO.md's words", async (_, report) => {
+    const main = mainOf(await render(`/report/${report.taskId}`, report));
+    const hidden = [...main.matchAll(/<span(?=[^>]*\shidden="")[^>]*>([^<]*)<\/span>/g)].map((m) =>
+      decode(m[1] ?? ""),
+    );
+    expect(hidden.length).toBeGreaterThan(0);
+    // The persona names are allowed here: the why lines and the links' descriptions name theirs.
+    for (const text of hidden) expect(text).not.toMatch(DEMO_WORDS);
   });
 });
 

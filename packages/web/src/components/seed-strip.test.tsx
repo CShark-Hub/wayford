@@ -4,9 +4,9 @@ import { reportFixture } from "@wayford/core/fixtures";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { attributesOf } from "../preview/rendered-markup.js";
+import { attributesOf, textOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
-import { SeedStrip } from "./seed-strip.js";
+import { cellWords, SeedStrip } from "./seed-strip.js";
 
 /** `ui` inside the app's router, so its links build their hrefs. A static render runs no effect. */
 function render(ui: ReactNode): string {
@@ -54,9 +54,12 @@ test("each cell says its seed, its outcome word, its open routes and the run it 
     "seed 2: Got through, routes open: B, C. Opens run_kai-past-order-2",
     "seed 3: Over budget, routes open: B, C. Opens run_kai-past-order-3",
   ]);
-  expect(kai.map((cell) => cell.attributes.title)).toEqual(
-    kai.map((cell) => cell.attributes["aria-label"]),
-  );
+  // The words show in a bubble on hover and focus (`LinkHint`, whose `data-state` the cell
+  // carries). They are the cell's name, so no native title repeats them.
+  for (const cell of kai) {
+    expect(cell.attributes.title).toBeUndefined();
+    expect(cell.attributes["data-state"]).toBe("closed");
+  }
 
   const vera = cellsOf(
     render(<SeedStrip seeds={seedsOf("task_past-order", "prof_vera")} label="Vera" />),
@@ -71,6 +74,13 @@ test("each cell says its seed, its outcome word, its open routes and the run it 
     "seed 1: Got through, no route table. Opens run_vera-next-parcel-1",
     "seed 2: Error, no route table. Opens run_vera-next-parcel-2",
   ]);
+});
+
+test("a cell's words: its name as a string, and the same words for its bubble", () => {
+  const words = cellWords(1, "Gave up, routes open: B, C", "run_kai-past-order-1");
+  expect(words.label).toBe("seed 1: Gave up, routes open: B, C. Opens run_kai-past-order-1");
+  // The bubble's mono spans are checked in the real bubble, by the hints browser test.
+  expect(textOf(renderToStaticMarkup(words.bubble))).toBe(words.label);
 });
 
 test("a seed whose run id was minted says it opens the run's label, not its whole id", () => {

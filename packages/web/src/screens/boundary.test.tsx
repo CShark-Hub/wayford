@@ -14,6 +14,7 @@ import {
   decode,
   elementOf,
   lineOf,
+  mainOf,
   rowsOf,
   textOf,
 } from "../preview/rendered-markup.js";
@@ -66,13 +67,6 @@ function h1Of(html: string): string {
  */
 function said(html: string): string {
   return textOf(html).replace(/\s+/g, " ").trim();
-}
-
-/** The page's `<main>`: the screen without the top bar. */
-function mainOf(html: string): string {
-  const main = html.match(/<main(?:\s[^>]*)?>(.*)<\/main>/s)?.[1];
-  if (main === undefined) throw new Error("no <main>");
-  return main;
 }
 
 /**
@@ -468,6 +462,8 @@ describe("the runs behind a value", () => {
       "seed 3: error, every route closed. Opens run_swp-vera-30-s3",
       "seed 4: not stored, every route closed. Opens run_swp-vera-30-s4",
     ]);
+    // Read (1 to 3), not stored (4) and loading (5 to 10): no cell's words are a native title.
+    expect(cells.map((cell) => cell.attributes.title)).toEqual(cells.map(() => undefined));
   });
 
   test("a budget run out's label names the limit that cut it off, or over budget when none is recorded", async () => {

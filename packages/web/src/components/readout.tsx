@@ -2,7 +2,7 @@
  * A persona's two numbers, never merged (`docs/DESIGN.md`, "Readout", Principle 4): route open, the
  * filter's, and got through, the agent's, each k/n in `readout` and each a link to the runs behind
  * it. Got through carries a dashed underline: it is the number a hypothesis speaks to. A number the
- * report does not have reads "—", with its reason for a hover and a screen reader, never 0.
+ * report does not have reads "—", never 0, beside a hint saying why (#264).
  *
  * Under them, the gap bar: per seed, whether the persona got through, had a route open and did not
  * get through (hatched: the agent's own wayfinding), or had every route closed (the sunken rest).
@@ -11,40 +11,45 @@
 import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReportSeed } from "@wayford/core";
 import { cn } from "cn";
+import { useId } from "react";
 import { count } from "./outcome-words.js";
+import { Hint } from "./ui/tooltip.js";
 
 /** Which of the two numbers a readout is. */
 export type ReadoutKind = "routeOpen" | "gotThrough";
 
 /**
- * Why a number is missing. Route open is null only on a goal with no route table; got through only
- * when every run errored, since its denominator leaves the errored runs out.
+ * Why a number is missing, as a hint's sentence. Route open is null only on a goal with no route
+ * table; got through only when every run errored, since its denominator leaves the errored runs out.
  */
 const NO_VALUE: Record<ReadoutKind, string> = {
-  routeOpen: "no route table for this goal",
-  gotThrough: "every run errored",
+  routeOpen: "No route table for this goal.",
+  gotThrough: "Every run errored.",
 };
 
 /**
- * "—" in place of a number, with the reason as a hover and as text a screen reader reads. The dash
- * is set in `readout`, or in `className` for a smaller number such as the median time.
+ * "—" in place of a number, then a hint whose words are the reason, as each number header holds its
+ * label and then its hint. The dash is hidden from assistive technology, and the hint's button is
+ * described by the reason, so a screen reader gets it once. The dash is set in `readout`, or in
+ * `className` for a smaller number such as the median time.
  */
 export function NoValue({ reason, className = "readout" }: { reason: string; className?: string }) {
   return (
-    <p title={reason} className="text-ink-2">
+    <p className="inline-flex items-center gap-(--space-2) text-ink-2">
       <span aria-hidden="true" className={className}>
         —
       </span>
-      <span className="sr-only">{reason}</span>
+      <Hint label="Explain the missing number" hint={reason} />
     </p>
   );
 }
 
 /**
- * One of the two numbers, k/n, linked through `to` to the runs behind it, with `opens` as the link's
- * title: the runs screen's filters can only select a superset of what the number counts, so the
- * link says what it opens. A got-through count of 0 stays plain text: its link would open no run,
- * as on the runs screen.
+ * One of the two numbers, k/n, linked through `to` to the runs behind it, and described by `opens`
+ * through a `hidden` span, as a hint's button is: the runs screen's filters can only select a
+ * superset of what the number counts, so the link says what it opens. The column's header hint says
+ * the same for the eye. A got-through count of 0 stays plain text: its link would open no run, as on
+ * the runs screen.
  */
 export function Readout({
   kind,
@@ -57,6 +62,7 @@ export function Readout({
   to: LinkProps;
   opens: string;
 }) {
+  const opensId = useId();
   if (value === null) return <NoValue reason={NO_VALUE[kind]} />;
   const figure = (
     <span
@@ -74,13 +80,18 @@ export function Readout({
       {kind === "gotThrough" && value.k === 0 ? (
         figure
       ) : (
-        <Link
-          {...to}
-          title={opens}
-          className="inline-block rounded-sm transition-colors hover:bg-paper-sunken"
-        >
-          {figure}
-        </Link>
+        <>
+          <Link
+            {...to}
+            aria-describedby={opensId}
+            className="inline-block rounded-sm transition-colors hover:bg-paper-sunken"
+          >
+            {figure}
+          </Link>
+          <span hidden id={opensId}>
+            {opens}
+          </span>
+        </>
       )}
     </p>
   );

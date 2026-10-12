@@ -20,10 +20,16 @@ import { runQuery } from "../api/runs.js";
 import { Banner } from "../components/banner.js";
 import { OUTCOME_WORDS, outcomeKind } from "../components/outcome.js";
 import { count } from "../components/outcome-words.js";
-import { type RouteState, SeedCell, SeedLegend } from "../components/seed-strip.js";
+import {
+  type CellWords,
+  cellWords,
+  type RouteState,
+  SeedCell,
+  SeedLegend,
+} from "../components/seed-strip.js";
 import { Skeleton } from "../components/skeleton.js";
 import { Button, buttonVariants } from "../components/ui/button.js";
-import { runLabel } from "../runs/run-label.js";
+import { LinkHint } from "../components/ui/tooltip.js";
 import { gridValue } from "./axis.js";
 import { ValueLink } from "./value-table.js";
 
@@ -63,29 +69,37 @@ function routeOn(row: SweepValue, seed: number): RouteState {
 }
 
 /**
- * The cell's label: the seed, what happened, route open, and the run it opens. A run read says how
- * it ended as run detail does, a budget run out by the limit its record names.
+ * The cell's words (`cellWords`): the seed, what happened, route open, and the run it opens. A run
+ * read says how it ended as run detail does, a budget run out by the limit its record names.
  */
-function cellLabel(seed: number, runId: string, route: RouteState, state: RunState): string {
+function cellLabel(seed: number, runId: string, route: RouteState, state: RunState): CellWords {
   const outcome =
     state.kind === "read"
       ? OUTCOME_WORDS[outcomeKind(state.run.outcome, state.run.limit)].toLowerCase()
       : UNREAD_WORDS[state.kind];
-  return `seed ${seed}: ${outcome}, ${ROUTE_WORDS[route]}. Opens ${runLabel(runId)}`;
+  return cellWords(seed, `${outcome}, ${ROUTE_WORDS[route]}`, runId);
 }
 
 /** A cell with no outcome to draw: a skeleton while its run loads, blank once it failed to. */
-function UnreadCell({ runId, label, loading }: { runId: string; label: string; loading: boolean }) {
+function UnreadCell({
+  runId,
+  words,
+  loading,
+}: {
+  runId: string;
+  words: CellWords;
+  loading: boolean;
+}) {
   return (
-    <Link
-      to="/runs/$runId"
-      params={{ runId }}
-      aria-label={label}
-      title={label}
-      className="block size-8 rounded-xs bg-paper-sunken"
-    >
-      {loading ? <Skeleton className="size-full" /> : null}
-    </Link>
+    <LinkHint label={words.label} bubble={words.bubble}>
+      <Link
+        to="/runs/$runId"
+        params={{ runId }}
+        className="block size-8 rounded-xs bg-paper-sunken"
+      >
+        {loading ? <Skeleton className="size-full" /> : null}
+      </Link>
+    </LinkHint>
   );
 }
 
@@ -127,18 +141,18 @@ export function ValueRuns({ sweep, row }: { sweep: Sweep; row: SweepValue }) {
           const query = runs[i];
           const state = query === undefined ? { kind: "loading" as const } : stateOf(query);
           const route = routeOn(row, seed);
-          const label = cellLabel(seed, runId, route, state);
+          const words = cellLabel(seed, runId, route, state);
           return (
             <li key={seed}>
               {state.kind === "loading" || state.kind === "failed" ? (
-                <UnreadCell runId={runId} label={label} loading={state.kind === "loading"} />
+                <UnreadCell runId={runId} words={words} loading={state.kind === "loading"} />
               ) : (
                 <SeedCell
                   runId={runId}
                   route={route}
                   through={state.kind === "read" && state.run.outcome === "success"}
                   slashed={state.kind === "missing" || state.run.outcome === "error"}
-                  label={label}
+                  words={words}
                 />
               )}
             </li>

@@ -1,9 +1,10 @@
 /**
- * The Report's hints in a real browser (#240), for what a static render cannot show: each of the
- * five opens on hover and on keyboard focus, inside the viewport; a click and a tap open one too. A
- * hint stays open while the pointer is on it or while its button has focus, and closes on Esc (WCAG
- * 2.2, 1.4.13) and when another opens; the findings headers hold their words whole. The hard goal's
- * report is served from core's fixtures, as the self-check serves it.
+ * The Report's hints in a real browser (#240, #264), for what a static render cannot show: each of
+ * the eight opens on hover and on keyboard focus, inside the viewport; a click and a tap open one
+ * too. A seed cell shows its words on a hover that rests on it and on focus, and a tap follows its
+ * link. A hint stays open while the pointer is on it or while its trigger has focus, and closes on
+ * Esc (WCAG 2.2, 1.4.13) and when another opens; the findings headers hold their words whole. The
+ * hard goal's report is served from core's fixtures, as the self-check serves it.
  *
  * In `scripts/` because it starts the app with `startWebApp`, which sits beside the self-check.
  */
@@ -15,10 +16,17 @@ import { SELF_CHECK_SCREENS, startWebApp } from "./self-check.js";
 // 5 s hook default.
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
-/** The five hints, by their button's name, in the order Tab reaches them. */
+/**
+ * The hard goal's eight hints, by their button's name, in the order Tab reaches them: the two
+ * number headers', Kai's why line's, the "—" of Vera's median, Vera's why line's (#264), then the
+ * three findings headers'. Each is the only button of its name on the page.
+ */
 const LABELS = [
   "Explain route open",
   "Explain got through",
+  "Explain Kai's counts",
+  "Explain the missing number",
+  "Explain Vera's counts",
   "Explain Measurement",
   "Explain Deterministic",
   "Explain Hypothesis",
@@ -178,7 +186,7 @@ test("Tab opens each hint in turn; Enter and Space keep it; Esc closes it with f
   await page.keyboard.press("Tab");
   expect(await focused(page)).toBe(LABELS[1]);
   await expect.poll(() => openHints(page)).toEqual([await described(page, LABELS[1])]);
-  // Tab past the last hint of the table: its hint closes.
+  // Tab past the header's last hint, to a link with none: its hint closes.
   await page.keyboard.press("Tab");
   await expect.poll(() => openHints(page)).toEqual([]);
 });
@@ -395,4 +403,251 @@ test("the two number headers are named by their labels alone", async () => {
   for (const name of ["route open", "got through"]) {
     expect(await page.getByRole("columnheader", { name, exact: true }).count(), name).toBe(1);
   }
+});
+
+// ---------------------------------------------------------------------------
+// The "—", the why lines and the seed cells (#264)
+// ---------------------------------------------------------------------------
+//
+// A "—" and each why line carry a Hint, which `LABELS` holds, so the cases above cover them. A seed
+// cell is its own trigger (`LinkHint`): it shows its words after a 300 ms rest or on focus, and a
+// tap, a click or Enter follows its link. The cases below cover those, and what Chromium exposes.
+
+/** The seed cell in `persona`'s row that opens `runId`. */
+function seedCell(persona: string, runId: string): string {
+  return `tr[data-persona="${persona}"] a[href="/runs/${runId}"]`;
+}
+
+const ADA_1 = seedCell("prof_ada", "run_ada-past-order-1");
+const KAI_1 = seedCell("prof_kai", "run_kai-past-order-1");
+const KAI_2 = seedCell("prof_kai", "run_kai-past-order-2");
+const VERA_1 = seedCell("prof_vera", "run_vera-past-order-1");
+
+/** The name link in `persona`'s row, which picks the persona. */
+function nameLink(persona: string): string {
+  return `tr[data-persona="${persona}"] td:first-child a`;
+}
+
+/** A seed cell's words: its name, which its bubble shows. */
+async function wordsOf(page: Page, selector: string): Promise<string> {
+  const words = await page.locator(selector).getAttribute("aria-label");
+  if (words === null) throw new Error(`${selector} has no name`);
+  return words;
+}
+
+/** The centre of the element `selector` finds. */
+async function middleOf(page: Page, selector: string): Promise<{ x: number; y: number }> {
+  const box = await page.locator(selector).boundingBox();
+  if (box === null) throw new Error(`no box for ${selector}`);
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** The path the page shows, without its origin or search. */
+function pathOf(page: Page): string {
+  return new URL(page.url()).pathname;
+}
+
+/**
+ * A reader of what Chromium's accessibility tree gives the element a selector finds: its name and
+ * its description, through CDP, as a screen reader would get them from the browser.
+ */
+async function treeOf(page: Page) {
+  const cdp = await page.context().newCDPSession(page);
+  return async (selector: string): Promise<{ name: string; description: string }> => {
+    const { root } = await cdp.send("DOM.getDocument", { depth: 0 });
+    const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector });
+    if (nodeId === 0) throw new Error(`nothing matches ${selector}`);
+    const { nodes } = await cdp.send("Accessibility.getPartialAXTree", {
+      nodeId,
+      fetchRelatives: false,
+    });
+    return {
+      name: String(nodes[0]?.name?.value ?? ""),
+      description: String(nodes[0]?.description?.value ?? ""),
+    };
+  };
+}
+
+test("a seed cell's words open on a hover that rests on it, inside the viewport, with its seed and run in mono, and stay while the pointer is on them", async () => {
+  const page = await openReport();
+  const words = await wordsOf(page, KAI_1);
+  const { x, y } = await middleOf(page, KAI_1);
+  await page.mouse.move(AWAY.x, AWAY.y);
+  await page.mouse.move(x, y, { steps: 8 });
+  await expect.poll(() => openHints(page)).toEqual([words]);
+  expect(await hintInView(page)).toBe(true);
+  // DESIGN's Copy sets seeds and run ids in `mono`.
+  expect(await page.getByRole("tooltip").locator(".mono").allInnerTexts()).toEqual([
+    "1",
+    "run_kai-past-order-1",
+  ]);
+  // Onto the bubble, across the gap: it stays.
+  const box = await page.getByRole("tooltip").boundingBox();
+  if (box === null) throw new Error("no bubble");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+  await page.waitForTimeout(300);
+  expect(await openHints(page)).toEqual([words]);
+  await page.mouse.move(AWAY.x, AWAY.y, { steps: 8 });
+  await expect.poll(() => openHints(page)).toEqual([]);
+});
+
+test("Tab to a seed cell opens its words at once; Esc closes them with focus kept; Tab moves them to the next cell; Enter follows its link", async () => {
+  const page = await openReport();
+  await page.locator(nameLink("prof_kai")).focus();
+  await page.keyboard.press("Tab");
+  expect(await focused(page)).toBe(await wordsOf(page, KAI_1));
+  await expect.poll(() => openHints(page)).toEqual([await wordsOf(page, KAI_1)]);
+  await page.keyboard.press("Escape");
+  await expect.poll(() => openHints(page)).toEqual([]);
+  expect(await focused(page)).toBe(await wordsOf(page, KAI_1));
+  await page.keyboard.press("Tab");
+  expect(await focused(page)).toBe(await wordsOf(page, KAI_2));
+  await expect.poll(() => openHints(page)).toEqual([await wordsOf(page, KAI_2)]);
+  await page.keyboard.press("Enter");
+  await expect.poll(() => pathOf(page)).toBe("/runs/run_kai-past-order-2");
+});
+
+test("a seed cell's words focus opened stay through the scroll its Tab makes, and through a wheel scroll", async () => {
+  // At 400 px high Vera's row starts below the fold, so the Tab that reaches her seed 1 scrolls.
+  const page = await openReport({ viewport: { width: 1280, height: 400 } });
+  const words = await wordsOf(page, VERA_1);
+  await page.evaluate((selector) => {
+    document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }, nameLink("prof_vera"));
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await page.keyboard.press("Tab");
+  expect(await focused(page)).toBe(words);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.waitForTimeout(300);
+  expect(await openHints(page)).toEqual([words]);
+  await page.mouse.move(AWAY.x, AWAY.y);
+  await page.mouse.wheel(0, 120);
+  await page.waitForTimeout(300);
+  expect(await openHints(page)).toEqual([words]);
+  await page.keyboard.press("Escape");
+  await expect.poll(() => openHints(page)).toEqual([]);
+  expect(await focused(page)).toBe(words);
+});
+
+test("a tap opens each new hint and a second closes it, and a tap on a seed cell follows its link", async () => {
+  const page = await openReport({ context: { hasTouch: true } });
+  for (const label of [
+    "Explain Kai's counts",
+    "Explain the missing number",
+    "Explain Vera's counts",
+  ]) {
+    await trigger(page, label).tap();
+    await expect
+      .poll(() => openHints(page), { message: label })
+      .toEqual([await described(page, label)]);
+    await page.waitForTimeout(800);
+    expect(await openHints(page), label).toHaveLength(1);
+    await trigger(page, label).tap();
+    await expect.poll(() => openHints(page), { message: label }).toEqual([]);
+  }
+  await page.locator(KAI_1).tap();
+  await expect.poll(() => pathOf(page)).toBe("/runs/run_kai-past-order-1");
+});
+
+test("one hint at a time across both kinds: a hover on a hint closes the seed cell focus holds, and a seed cell's words close the hint focus holds", async () => {
+  const page = await openReport();
+  await page.locator(KAI_2).focus();
+  await expect.poll(() => openHints(page)).toEqual([await wordsOf(page, KAI_2)]);
+  const header = await centreOf(page, "Explain route open");
+  await page.mouse.move(AWAY.x, AWAY.y);
+  await page.mouse.move(header.x, header.y, { steps: 8 });
+  // Focus holds the cell's words against Radix's own close, so only `useHintOpen`'s listener for
+  // another hint opening closes them.
+  await expect.poll(() => openHints(page)).toEqual([await described(page, "Explain route open")]);
+  await trigger(page, "Explain the missing number").focus();
+  await expect
+    .poll(() => openHints(page))
+    .toEqual([await described(page, "Explain the missing number")]);
+  const cell = await middleOf(page, KAI_1);
+  await page.mouse.move(AWAY.x, AWAY.y);
+  await page.mouse.move(cell.x, cell.y, { steps: 8 });
+  await expect.poll(() => openHints(page)).toEqual([await wordsOf(page, KAI_1)]);
+});
+
+test('Chromium names a seed cell by its words and describes it by nothing, open or not; each number link, count link and "—" is described by its words; nothing in main has a title', async () => {
+  const page = await openReport();
+  const tree = await treeOf(page);
+  const seed = {
+    name: "seed 1: Gave up, routes open: B, C. Opens run_kai-past-order-1",
+    description: "",
+  };
+  expect(await tree(KAI_1)).toEqual(seed);
+  expect(await page.locator("main [title]").count()).toBe(0);
+  expect((await tree('tr[data-persona="prof_kai"] p[data-kind="routeOpen"] a')).description).toBe(
+    "Every stored run of Kai on this goal, counted in this report or not, except sweep runs",
+  );
+  expect((await tree('tr[data-persona="prof_kai"] p[data-kind="gotThrough"] a')).description).toBe(
+    "Every stored run of Kai on this goal that got through, counted in this report or not, except sweep runs",
+  );
+  expect((await tree('tr[data-why="prof_vera"] a[href*="outcome=gave_up"]')).description).toBe(
+    "Every stored run of Vera on this goal marked Gave up, counted in this report or not, except sweep runs",
+  );
+  expect(
+    await tree('tr[data-persona="prof_vera"] button[aria-label="Explain the missing number"]'),
+  ).toEqual({ name: "Explain the missing number", description: "No run got through." });
+  // Open by focus, Radix points the link's description at the bubble unless told not to.
+  await page.locator(KAI_1).focus();
+  await expect.poll(() => openHints(page)).toEqual([seed.name]);
+  expect(await tree(KAI_1)).toEqual(seed);
+  expect(await page.locator("main [title]").count()).toBe(0);
+});
+
+test("a pointer that passes over a seed cell, even just after its words closed, opens nothing, so a click on the cell above follows its link", async () => {
+  const page = await openReport();
+  const kai = await middleOf(page, KAI_1);
+  const ada = await middleOf(page, ADA_1);
+  await page.mouse.move(AWAY.x, AWAY.y);
+  await page.mouse.move(kai.x, kai.y, { steps: 8 });
+  await expect.poll(() => openHints(page)).toHaveLength(1);
+  await page.mouse.move(AWAY.x, AWAY.y, { steps: 8 });
+  await expect.poll(() => openHints(page)).toEqual([]);
+  // Short of the 300 ms rest, and Radix's default skip delay would reopen the cell at once for 300
+  // ms after it closed. Opened, Kai's bubble would cover Ada's cells, and as it is hoverable, it
+  // would hold the pointer and catch the click.
+  await page.mouse.move(kai.x, kai.y, { steps: 8 });
+  await page.waitForTimeout(100);
+  await page.mouse.move(ada.x, ada.y, { steps: 8 });
+  expect(await openHints(page)).toEqual([]);
+  await page.mouse.click(ada.x, ada.y);
+  await expect.poll(() => pathOf(page)).toBe("/runs/run_ada-past-order-1");
+});
+
+test("a pointer that passes over a why line's hint opens nothing, so a click on the number above it follows its link", async () => {
+  const page = await openReport();
+  const link = 'tr[data-persona="prof_vera"] p[data-kind="routeOpen"] a';
+  const number = await middleOf(page, link);
+  const box = await trigger(page, "Explain Vera's counts").boundingBox();
+  const linkBox = await page.locator(link).boundingBox();
+  if (box === null || linkBox === null) throw new Error("no box for Vera's route open or counts");
+  // The why line's button sits under the route open number, where the font puts it, so a pointer
+  // going up to the number can cross it. This one goes up through the button's middle.
+  expect(box.x).toBeLessThan(linkBox.x + linkBox.width);
+  expect(box.x + box.width).toBeGreaterThan(linkBox.x);
+  const across = box.x + box.width / 2;
+  await page.mouse.move(across, box.y + box.height + 40);
+  await page.mouse.move(across, box.y - 2, { steps: 6 });
+  await page.mouse.move(number.x, number.y, { steps: 4 });
+  expect(await openHints(page)).toEqual([]);
+  await page.mouse.click(number.x, number.y);
+  await expect.poll(() => pathOf(page)).toBe("/runs");
+});
+
+test("the focus a right click leaves on a seed cell holds nothing: its words close as the pointer leaves", async () => {
+  const page = await openReport();
+  const words = await wordsOf(page, KAI_2);
+  const cell = await middleOf(page, KAI_2);
+  await page.mouse.click(cell.x, cell.y, { button: "right" });
+  expect(await focused(page)).toBe(words);
+  await page.mouse.move(AWAY.x, AWAY.y, { steps: 8 });
+  await page.mouse.move(cell.x, cell.y, { steps: 8 });
+  await expect.poll(() => openHints(page)).toEqual([words]);
+  await page.mouse.move(AWAY.x, AWAY.y, { steps: 8 });
+  await expect.poll(() => openHints(page)).toEqual([]);
+  expect(await focused(page)).toBe(words);
 });

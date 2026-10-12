@@ -1,10 +1,11 @@
 /**
  * A static render, read back for the web tests. No DOM library is installed (`docs/STACK.md`), so
  * the tests render with `renderToStaticMarkup` and read the markup with these: React's escaping
- * undone, a start tag's attributes and inline style, a section by its heading, a `<dl>` and a
- * table's rows, and the preview's drawn boxes, by their `data-ref`, `data-state`, text and the
- * measured px inside each `calc(N * var(--px))`. A style is read one property at a time. No
- * production module imports this file.
+ * undone, a start tag's attributes, the words its `aria-describedby` names and its inline style, a
+ * page's `<main>`, a section by its heading, a `<dl>` and a table's rows, and the preview's drawn
+ * boxes, by their `data-ref`, `data-state`, text and the measured px inside each
+ * `calc(N * var(--px))`. A style is read one property at a time. No production module imports this
+ * file.
  */
 import { type Bbox, type FullObservation, toActorObservation } from "@wayford/core";
 
@@ -72,6 +73,29 @@ export function attributesOf(tag: string): Record<string, string> {
   return Object.fromEntries(
     [...tag.matchAll(/([^\s=]+)="([^"]*)"/g)].map((m) => [m[1] ?? "", decode(m[2] ?? "")]),
   );
+}
+
+/**
+ * The words that describe an element, from its `attributes`: the text of the element in `html`
+ * whose `id` its `aria-describedby` names, read up to that element's first end tag. Undefined when
+ * it names none, or no element in `html` carries the id.
+ */
+export function describedBy(html: string, attributes: Record<string, string>): string | undefined {
+  const id = attributes["aria-describedby"];
+  if (id === undefined) return undefined;
+  const start = [...html.matchAll(/<([a-z]+)(\s[^>]*)>/g)].find(
+    (tag) => attributesOf(tag[2] ?? "").id === id,
+  );
+  if (start === undefined) return undefined;
+  const from = start.index + start[0].length;
+  return textOf(html.slice(from, html.indexOf(`</${start[1]}>`, from)));
+}
+
+/** A page's `<main>`: the screen without the top bar. */
+export function mainOf(html: string): string {
+  const main = html.match(/<main(?:\s[^>]*)?>(.*)<\/main>/s)?.[1];
+  if (main === undefined) throw new Error("no <main>");
+  return main;
 }
 
 /** A `class` attribute, as its list of classes. */
