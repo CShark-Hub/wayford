@@ -9,13 +9,12 @@
  * measurement holds for whoever is looking, and its count reads "N of M", so nothing left out is
  * hidden. A finding's evidence leads with that persona's runs.
  */
-import { useLocation } from "@tanstack/react-router";
 import type { Finding, FindingType, ProfileId, Report, RunId } from "@wayford/core";
-import { useEffect } from "react";
 import { CertaintyGlyph, type CertaintyLine } from "../components/certainty.js";
 import { type CitedRun, FindingCard } from "../components/finding.js";
 import { personaLabel } from "../components/persona-avatar.js";
 import { Hint } from "../components/ui/tooltip.js";
+import { useLandOnHash } from "../land-on-hash.js";
 
 /**
  * Each group's glyph, name, what it is, and the hint its header's Info button opens (#240): where
@@ -144,23 +143,10 @@ export function runsOf(report: Report): (runId: RunId) => CitedRun {
 /** `report`'s findings in their three groups, narrowed to `persona`'s when one is picked. */
 export function Findings({ report, persona }: { report: Report; persona: ProfileId | undefined }) {
   const runOf = runsOf(report);
-  // The router scrolls to a hash once, on its first render, which on a fresh load is the skeleton:
-  // so the card a why line links to is scrolled to here, once drawn, and takes focus (#238). Only
-  // once the fonts have loaded: in a wider fallback font a findings header wraps to two lines, and
-  // the card would move up once it unwraps.
-  const hash = useLocation({ select: (location) => location.hash });
-  useEffect(() => {
-    if (hash === "") return;
-    let current = true;
-    void document.fonts.ready.then(() => {
-      const card = current ? document.getElementById(hash) : null;
-      card?.scrollIntoView();
-      card?.focus({ preventScroll: true });
-    });
-    return () => {
-      current = false;
-    };
-  }, [hash]);
+  // The card a why line links to is scrolled to once drawn, and takes focus (#238). Only once the
+  // fonts have loaded: in a wider fallback font a findings header wraps to two lines, and the card
+  // would move up once it unwraps.
+  useLandOnHash();
   return (
     <div className="grid gap-(--space-4) lg:grid-cols-3">
       {GROUPS.map(({ type, line, name, what, hint }) => {

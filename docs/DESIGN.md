@@ -59,7 +59,7 @@ The name gives the metaphor. A ford has a depth gauge, the water is the same for
      - the Lens says it in the stage: its `Live:` line under the drawn page when io answered, and when it did not, a stored banner on a target-app page or a fault banner on a page opened by URL.
    - A screen whose data can only be stored (Run detail, Runs, Report, Boundary) carries no source badge: a badge that never changes reads as a status of the whole app.
    - The backend a run, report or sweep was on is a word in its own meta line or facts, not a badge. A run that stopped before its first planned action names none: its record cannot tell Jev from the LLM.
-   - Narration is marked as written after the fact. On run detail its heading reads `narration · after the fact`. In the Race's bubble there is no visible label: its outline is dashed (Principle 3), and a visually hidden "Narration, written after the action:" comes before the words (#236).
+   - Narration is marked as written after the fact. On run detail the step's card is headed `narration · after the fact`. Under the replay, the whole run's narration, "What Vera said", carries the same words under its heading: one line per step, the step's name as the strip gives it linking to that step's replay, then its words beside a dashed rule in the persona's fill, a wasted step's refused answers under it (#197). The Report's "What they said", after the findings, carries the label too and links each persona's seeds to those lists; on a report of Jev runs it says in one line that Jev writes none. In the Race's bubble there is no visible label: its outline is dashed (Principle 3), and a visually hidden "Narration, written after the action:" comes before the words (#236).
    - Jev's confidence is labelled as the model's.
 
 ## Screens
@@ -98,7 +98,7 @@ The app follows the system preference until someone flips the one Daylight/Night
 | `paper` | Page ground. |
 | `paper-sunken` | Wells: the Lens stage, table header rows, the gauge track, skeletons. |
 | `surface` | Anything raised: cast cards, findings, race lanes, popovers. |
-| `ink` | Primary text, headings, readouts, the primary button's fill, narration in its bubble, on the Race and run detail. |
+| `ink` | Primary text, headings, readouts, the primary button's fill, narration in its bubble, on the Race and run detail, and in run detail's narration list. |
 | `ink-2` | Secondary text: descriptions, table cells that are not the key value. |
 | `ink-3` | Meta text: captions, units, axis titles. Never a number that is evidence. |
 | `line` | Hairlines that only decorate: panel edges, table rules, chart grid. |
@@ -120,7 +120,7 @@ Text is set only in those text tokens.
 
 **Persona slots.** A persona owns a slot, not a hex. It has three tokens:
 
-- `persona-<slot>`, the fill: series, dots, the lane track, the avatar body, a slider fill, the outline and tail of a narration bubble, on a race lane and on run detail.
+- `persona-<slot>`, the fill: series, dots, the lane track, the avatar body, a slider fill, the outline and tail of a narration bubble, on a race lane and on run detail, and the dashed rule beside each line's words in run detail's narration list.
 - `persona-<slot>-ink`, its name set in colour.
 - `persona-<slot>-soft`, the tint behind its avatar.
 

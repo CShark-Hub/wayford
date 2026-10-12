@@ -230,7 +230,7 @@ describe("a step Jev chose", () => {
   });
 });
 
-describe("narration is interpretation, so it sits under narration · after the fact and nowhere else", () => {
+describe("narration is interpretation, so it sits under narration · after the fact and nowhere else in the replay", () => {
   test("a complete step: step 0's narration, once", () => {
     const html = replay(0);
     const { narration } = fixtureStep(0);

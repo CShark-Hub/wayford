@@ -16,6 +16,7 @@ import {
   METRIC_NAMES,
   type MetricName,
   type PageMeasurement,
+  Report,
   type RunEvent,
   type RunId,
   type RunResult,
@@ -464,9 +465,17 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     name: "report-hint",
     path: "/report/task_past-order",
     // The Measurement column's hint (#240), open while its button is hovered. It renders in a
-    // portal under `<body>`, so it is measured here, in both themes.
+    // portal under `<body>`, so it is measured here, in both themes. The report is the hard goal's
+    // on the LLM, so "What they said" draws its rows of links to each run's narration (#197), and
+    // they are measured too; the `report` entry keeps the Jev report's one line. The rows fetch
+    // no run.
     ready: "role=tooltip",
-    responses: { "/reports/task_past-order": reportFixture("task_past-order") },
+    responses: {
+      "/reports/task_past-order": Report.parse({
+        ...reportFixture("task_past-order"),
+        backend: "llm",
+      }),
+    },
     act: async (page) => {
       await page.getByRole("button", { name: "Explain Measurement", exact: true }).hover();
     },

@@ -4,7 +4,8 @@
  * `persona | seed | run id`, its only number, with the facts under it and the two downloads beside
  * the facts. The steps strip holds the StepTimeline, which ← and → move along, and what the step
  * did. The step replayed is `?step=N`, a `stepIndex` (`src/runs/replay.ts`), so a replay position
- * is a link. Under the replay sits the recording.
+ * is a link. Under the replay sits the whole run's narration, "What Vera said", one line per step
+ * linking to its replay (`src/runs/narration-list.tsx`, #197), and under that the recording.
  *
  * The run comes from io, parsed with core's schema (`src/api/runs.ts`); the screenshots, the video
  * and the trace are files the browser fetches from io itself. The facts name the backend its Actor
@@ -16,7 +17,7 @@ import { createRoute } from "@tanstack/react-router";
 import type { RunResult, RunStep } from "@wayford/core";
 import { cn } from "cn";
 import { Copy, Download } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { runQuery, traceUrl, videoUrl } from "../api/runs.js";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
@@ -26,7 +27,9 @@ import { PersonaAvatar, personaLabel } from "../components/persona-avatar.js";
 import { Skeleton } from "../components/skeleton.js";
 import { StepTimeline } from "../components/step-timeline.js";
 import { Button } from "../components/ui/button.js";
+import { useLandOnHash } from "../land-on-hash.js";
 import { Detail, Details, FACTS, Fact } from "../runs/details.js";
+import { NarrationList } from "../runs/narration-list.js";
 import { describeAction, RunDetailSearch } from "../runs/replay.js";
 import { runLabel } from "../runs/run-label.js";
 import {
@@ -285,8 +288,10 @@ function Recording({ run }: { run: RunResult }) {
 }
 
 /**
- * A stored run: the header, the steps strip, the step replayed and the recording. A `?step` no step
- * holds gets a notice in the strip, no current step and no replay.
+ * A stored run: the header, the steps strip, the step replayed, the narration list and the
+ * recording. A `?step` no step holds gets a notice in the strip, no current step and no replay. A
+ * run with no step has no list. The replayed step's heading is visually hidden, and takes focus
+ * from the list when one of its lines is followed.
  */
 function RunDetail({
   run,
@@ -300,6 +305,9 @@ function RunDetail({
   const shown = requested ?? steps[0]?.stepIndex;
   const position = steps.findIndex((step) => step.stepIndex === shown);
   const current = steps[position];
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  // Drawn with the run, so a hash, such as the narration list's from the Report, lands once it is.
+  useLandOnHash();
   return (
     <div className={PAGE} style={slotStyle(slotOf(run.profileId))}>
       <Header run={run} />
@@ -322,11 +330,14 @@ function RunDetail({
       </div>
       {current === undefined ? null : (
         <section aria-labelledby={STEP_HEADING} className="min-w-0 pt-(--space-1)">
-          <h2 id={STEP_HEADING} className="sr-only">
+          <h2 ref={stepHeading} id={STEP_HEADING} tabIndex={-1} className="sr-only">
             {`Step ${current.stepIndex}`}
           </h2>
           <StepReplay run={run} step={current} />
         </section>
+      )}
+      {steps.length === 0 ? null : (
+        <NarrationList run={run} steps={steps} shown={shown} stepHeading={stepHeading} />
       )}
       <Recording run={run} />
     </div>

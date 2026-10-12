@@ -5,6 +5,7 @@ import { runResultFixture } from "@wayford/core/fixtures";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { runQuery, traceUrl, videoUrl } from "../api/runs.js";
+import { stepLabel } from "../components/step-timeline.js";
 import {
   attributesOf,
   classesOf,
@@ -425,6 +426,166 @@ describe("the steps", () => {
 function h3Of(html: string): string[] {
   return [...html.matchAll(/<h3(?:\s[^>]*)?>(.*?)<\/h3>/gs)].map((h) => lineOf(h[1] ?? ""));
 }
+
+/** The id of every `<h2>`, in page order. */
+function h2Ids(html: string): string[] {
+  return [...html.matchAll(/<h2 [^>]*id="([^"]+)"/g)].map((h) => h[1] ?? "");
+}
+
+describe("the whole run's narration (#197)", () => {
+  /** The list as it reads, its heading first. */
+  const said = (html: string) => lineOf(sectionOf(html, "What Vera said"));
+
+  /** Step 4's line and words, the give-up, as the list reads them after `name`. */
+  const giveUp = (name: string) =>
+    `${name} Nothing here about past orders either. I've looked everywhere I can read. I give up.`;
+
+  /**
+   * The fixture run's list: the heading, the label, then each step's name as the strip gives it and
+   * its words, in step order. The wasted step 3 has no words of its own, so its two refused answers
+   * follow its line, each after the action it named.
+   */
+  const WHOLE_RUN = [
+    "What Vera said",
+    "narration · after the fact",
+    "step 0: / · click e3",
+    "I want to see something I ordered a while back. Deliveries sounds like the place.",
+    "step 1: /deliveries · scroll down",
+    "There is a faint link down the page I can barely make out. Let me look further before touching it.",
+    "step 2: /deliveries · doubleClick e2",
+    "Still can't read that faint one. Settings probably keeps my order history.",
+    "step 3: /settings · wasted",
+    "Answer 1, not shown: click e3",
+    "The faint link from the last page has to be here too. Trying it again.",
+    "Answer 2, not shown: click e5",
+    "Not there. Then it must be further along the menu.",
+    giveUp("step 4: /settings · giveUp"),
+  ].join(" ");
+
+  test.each([
+    ["no ?step", ""],
+    ["?step=1", "?step=1"],
+    ["?step=9", "?step=9"],
+  ])(
+    "at %s, What Vera said reads every step's name and words, in step order",
+    async (_, search) => {
+      expect(said(await render(`/runs/${RUN_ID}${search}`))).toBe(WHOLE_RUN);
+    },
+  );
+
+  test("sits under the replay and above the recording, and holds no <h3>", async () => {
+    const html = await render(`/runs/${RUN_ID}?step=2`);
+    expect(h2Ids(html)).toEqual(["run-step", "run-narration", "run-recording"]);
+    // Every heading of the replay's comes before the list's.
+    expect(html.lastIndexOf("<h3")).toBeLessThan(html.indexOf('id="run-narration"'));
+    // The label is a line, not a heading, so the card's own section is still the one it names.
+    expect(lineOf(sectionOf(html, "narration · after the fact"))).toBe(
+      "narration · after the fact Still can't read that faint one. Settings probably keeps my order history.",
+    );
+    // With no step replayed, the list follows the strip, and the page still holds no <h3>.
+    const none = await render(`/runs/${RUN_ID}?step=9`);
+    expect(h2Ids(none)).toEqual(["run-narration", "run-recording"]);
+    expect(h3Of(none)).toEqual([]);
+  });
+
+  test("the list's region is described by the label, so a screen reader hears it with the name", async () => {
+    const html = await render(`/runs/${RUN_ID}`);
+    const start = html.match(/<section [^>]*aria-labelledby="run-narration"[^>]*>/)?.[0] ?? "";
+    const described = attributesOf(start)["aria-describedby"];
+    expect(described).toBe("run-narration-label");
+    expect(lineOf(elementOf(html, "p", `id="${described}"`))).toBe("narration · after the fact");
+  });
+
+  test("a Jev run's list says in one line that Jev writes none, and links nothing", async () => {
+    const html = await render(`/runs/${fixtureJevRun.id}`, fixtureJevRun, { id: fixtureJevRun.id });
+    expect(said(html)).toBe("What Vera said narration · after the fact Jev writes no narration");
+    expect(sectionOf(html, "What Vera said")).not.toMatch(/<a[\s>]/);
+  });
+
+  test("a run cut short with its action planned ends on its last step's name, then its words", async () => {
+    const line = said(await render(`/runs/${RUN_ID}`, cutShort(true)));
+    expect(line.slice(line.indexOf("step 4:"))).toBe(
+      giveUp("step 4: /settings · giveUp, never landed"),
+    );
+  });
+
+  test("a run cut short before an action was planned ends on its last step's name and No narration", async () => {
+    // The Actor narrates its answer, so a step that got none stores no words.
+    const cut = cutShort(false);
+    const silent = RunResult.parse({
+      ...cut,
+      steps: cut.steps.map((step, i) =>
+        i === cut.steps.length - 1 ? { ...step, narration: "" } : step,
+      ),
+    });
+    const line = said(await render(`/runs/${RUN_ID}`, silent));
+    expect(line.slice(line.indexOf("step 4:"))).toBe("step 4: /settings · stopped No narration");
+  });
+
+  test("a run with no step has no list", async () => {
+    const html = await render(`/runs/${RUN_ID}`, { ...runResultFixture, steps: [] });
+    expect(html).not.toContain("run-narration");
+    expect(lineOf(html)).not.toContain("What Vera said");
+  });
+
+  test("at ?step=2 each line links to its step's replay, named as the strip names it, and only step 2's is current", async () => {
+    const html = await render(`/runs/${RUN_ID}?step=2`);
+    const links = [...sectionOf(html, "What Vera said").matchAll(/<a(\s[^>]*)>(.*?)<\/a>/gs)].map(
+      (a) => {
+        const attributes = attributesOf(a[1] ?? "");
+        return {
+          href: attributes.href,
+          name: lineOf(a[2] ?? ""),
+          current: attributes["aria-current"],
+          weight: classesOf(attributes)
+            .filter((name) => name === "font-semibold" || name === "text-ink")
+            .toSorted(),
+        };
+      },
+    );
+    expect(links).toEqual(
+      runResultFixture.steps.map((step) => ({
+        href: `/runs/${RUN_ID}?step=${step.stepIndex}`,
+        name: stepLabel(step),
+        current: step.stepIndex === 2 ? "step" : undefined,
+        // The line replayed in semibold ink, so the mark is not the attribute alone.
+        weight: step.stepIndex === 2 ? ["font-semibold", "text-ink"] : [],
+      })),
+    );
+    // The strip's links are as they were.
+    expect(currentSteps(html)).toEqual([false, false, true, false, false]);
+  });
+
+  test("each line's words sit beside a dashed rule in the persona's fill, and nothing is signal", async () => {
+    const section = sectionOf(await render(`/runs/${RUN_ID}`), "What Vera said");
+    const ruled = [...section.matchAll(/<div(\s[^>]*)>(.*?)<\/div>/gs)]
+      .map((div) => ({
+        classes: classesOf(attributesOf(div[1] ?? "")),
+        words: lineOf(div[2] ?? ""),
+      }))
+      .filter(({ classes }) => classes.includes("border-dashed"));
+    // The words alone: the rule is beside them, not beside the link, which names what was done.
+    expect(ruled.map(({ words }) => words)).toEqual([
+      "I want to see something I ordered a while back. Deliveries sounds like the place.",
+      "There is a faint link down the page I can barely make out. Let me look further before touching it.",
+      "Still can't read that faint one. Settings probably keeps my order history.",
+      "Answer 1, not shown: click e3 The faint link from the last page has to be here too. Trying it again. Answer 2, not shown: click e5 Not there. Then it must be further along the menu.",
+      "Nothing here about past orders either. I've looked everywhere I can read. I give up.",
+    ]);
+    for (const { classes } of ruled) expect(classes).toContain("border-(--p)");
+    expect(section).not.toContain("signal");
+  });
+
+  test("names a persona that is not bundled by its profile id, set in mono", async () => {
+    const guest = fixtureRuns.find((run) => run.id === "run_guest-hard-1");
+    if (guest === undefined) throw new Error("the fixture runs have run_guest-hard-1");
+    const html = await render(`/runs/${guest.id}`, guest, { id: guest.id });
+    const heading = elementOf(html, "h2", 'id="run-narration"');
+    expect(lineOf(heading)).toBe("What prof_guest said");
+    expect(heading).toMatch(/<span class="font-mono">prof_guest<\/span>/);
+    expect(lineOf(sectionOf(html, "What prof_guest said"))).toContain("step 0: / · click e3");
+  });
+});
 
 describe("the states before a run is shown", () => {
   test("a run io does not have", async () => {

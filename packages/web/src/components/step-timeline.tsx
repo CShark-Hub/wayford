@@ -16,8 +16,11 @@ function stepSummary(step: RunStep): string {
   return "incomplete" in step ? `${action}, never landed` : action;
 }
 
-/** A step's accessible name: `step 2: /deliveries · doubleClick e2`, the path it observed. */
-function stepLabel(step: RunStep): string {
+/**
+ * A step's accessible name: `step 2: /deliveries · doubleClick e2`, the path it observed. Run
+ * detail's narration list shows it as each line's link, so a step has one name in both.
+ */
+export function stepLabel(step: RunStep): string {
   return `step ${step.stepIndex}: ${new URL(step.fullObservation.url).pathname} · ${stepSummary(step)}`;
 }
 
@@ -36,7 +39,8 @@ function StepAnchor({
   return <a {...props} aria-current={current ? "step" : undefined} />;
 }
 
-const StepLink = createLink(StepAnchor);
+/** A link to a step, marking itself current as `StepAnchor` says. The narration list's lines use it too. */
+export const StepLink = createLink(StepAnchor);
 
 // `.wf-kbd`, at full opacity: ink-3 holds 4.5:1 on paper only as drawn.
 const KBD = "rounded-xs border border-current px-1.5 mono-label";

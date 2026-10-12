@@ -17,6 +17,12 @@ export const RunDetailSearch = z.object({ step: StepIndex.optional().catch(undef
 export type RunDetailSearch = z.infer<typeof RunDetailSearch>;
 
 /**
+ * The hash of run detail's narration list, the whole run's narration under the replay (#197): its
+ * heading's id. The Report's "What they said" links each seed's run to it.
+ */
+export const NARRATION_HASH = "run-narration";
+
+/**
  * The step whose action left the page step `stepIndex` observed: the latest earlier step that is
  * not wasted, since a wasted step ran nothing and left the page as it was. None when no such step
  * exists (step 0, or wasted steps from the start): the step observed the start page. A step's own

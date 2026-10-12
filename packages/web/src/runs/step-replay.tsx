@@ -9,10 +9,11 @@
  *
  * The narration is the model's account of its own answer, written as it answered, and so
  * interpretation, never measurement (`AGENTS.md`, "Traps"). It has a section of its own, labelled
- * `narration · after the fact`, and no other section prints it: a wasted step's refused answers
- * are listed under Dice by what they did, and their narrations go under narration with the rest.
- * It leads the right column (#239): it is what makes a step readable at a glance, and a long page's
- * text would push it below the fold.
+ * `narration · after the fact`, and no other section of the replay prints it: a wasted step's
+ * refused answers are listed under Dice by what they did, and their narrations go under narration
+ * with the rest. It leads the right column (#239): it is what makes a step readable at a glance,
+ * and a long page's text would push it below the fold. Under the replay, run detail's narration
+ * list prints the whole run's, each step through the same `StepNarration` (#197).
  *
  * The screenshot, the click point, the filtered elements and the model's text describe the page the
  * step observed. A step's own screenshot is taken after its action landed, so that page is the one
@@ -45,6 +46,9 @@ import { SEGMENT_GROUP, SegmentedControl, segmentItem } from "../components/segm
 import { ConfidenceNote, DecisionPanel } from "./decision-panel.js";
 import { Detail, Details, FACTS, Fact, Mark, NOTE, shortNumber, TABLE, TD, TH } from "./details.js";
 import { describeAction, observedFrom } from "./replay.js";
+
+/** How narration is labelled wherever it is shown (`docs/DESIGN.md`, Principle 6). */
+export const NARRATION_LABEL = "narration · after the fact";
 
 /**
  * The id of each section's `<h3>`. One replay is drawn per page, so fixed ids are unique, and the
@@ -919,25 +923,33 @@ function Narration({ run, step }: { run: RunResult; step: RunStep }) {
         )}
       >
         <h3 id={HEADING.narration} className="mono-label text-ink-3">
-          narration · after the fact
+          {NARRATION_LABEL}
         </h3>
-        {"wasted" in step ? (
-          <ol className="flex flex-col gap-3">
-            {step.rejected.map((answer, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: the answers keep the order given, so the index is the answer's identity
-              <li key={index} className="flex flex-col gap-1">
-                <p className="mono text-ink-3">
-                  {`Answer ${index + 1}, not shown: ${describeAction(answer.action)}`}
-                </p>
-                <NarrationText text={answer.narration} jev={jev} />
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <NarrationText text={step.narration} jev={jev} />
-        )}
+        <StepNarration step={step} jev={jev} />
       </section>
     </div>
+  );
+}
+
+/**
+ * A step's narration as the card prints it: its words, or on a wasted step each refused answer's,
+ * after the action it named. Run detail's narration list prints every step of the run with it
+ * (#197), so the words read the same in both.
+ */
+export function StepNarration({ step, jev }: { step: RunStep; jev: boolean }) {
+  if (!("wasted" in step)) return <NarrationText text={step.narration} jev={jev} />;
+  return (
+    <ol className="flex flex-col gap-3">
+      {step.rejected.map((answer, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the answers keep the order given, so the index is the answer's identity
+        <li key={index} className="flex flex-col gap-1">
+          <p className="mono text-ink-3">
+            {`Answer ${index + 1}, not shown: ${describeAction(answer.action)}`}
+          </p>
+          <NarrationText text={answer.narration} jev={jev} />
+        </li>
+      ))}
+    </ol>
   );
 }
 

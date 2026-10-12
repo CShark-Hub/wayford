@@ -1,7 +1,8 @@
 /**
  * One task's report (`docs/PLAN.md` F8, `docs/DEMO.md` beat 5, `docs/design/screens/report.html`):
- * the goal and Scout's line, per persona the two numbers side by side, and the findings grouped by
- * certainty, each opening its evidence step in run detail.
+ * the goal and Scout's line, per persona the two numbers side by side, the findings grouped by
+ * certainty, each opening its evidence step in run detail, and under them "What they said", a link
+ * per persona and seed to the run's narration, or on a Jev report the line that it has none (#197).
  *
  * The report is stored by io's Analyst (`api/reports.ts`), and its meta line names the backend it
  * read. "Analyse again" asks io to build it anew; io's `POST` is synchronous with no progress, so
@@ -43,6 +44,7 @@ import { Skeleton } from "../components/skeleton.js";
 import { Button } from "../components/ui/button.js";
 import { CastTable, EXACT } from "../report/cast-table.js";
 import { Findings } from "../report/findings.js";
+import { WhatTheySaid } from "../report/what-they-said.js";
 import { usd } from "../runs/step-replay.js";
 import { rootRoute } from "../shell.js";
 
@@ -151,7 +153,10 @@ function ReportFooter({ report }: { report: Report }) {
   );
 }
 
-/** The report, top to bottom: the cast table, the pick line, the findings, the footer. */
+/**
+ * The report, top to bottom: the cast table, the pick line, the findings, what they said, the
+ * footer.
+ */
 function ReportBody({ report, persona }: { report: Report; persona: ProfileId | undefined }) {
   return (
     <>
@@ -171,6 +176,7 @@ function ReportBody({ report, persona }: { report: Report; persona: ProfileId | 
         </p>
       )}
       <Findings report={report} persona={persona} />
+      <WhatTheySaid report={report} />
       <ReportFooter report={report} />
     </>
   );

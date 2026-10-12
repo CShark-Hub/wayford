@@ -63,15 +63,23 @@ export function personaLabel(profileId: string): string {
   return LABELS.get(profileId) ?? profileId;
 }
 
+/** A persona's label in a line of text: a bundled profile's, or the id itself, set in monospace. */
+export function PersonaLabel({ profileId }: { profileId: string }) {
+  return (
+    <span className={LABELS.has(profileId) ? undefined : "font-mono"}>
+      {personaLabel(profileId)}
+    </span>
+  );
+}
+
 /**
  * A persona as a screen names it: its chip, a square in its slot's colour, then its label. A
  * persona that is not bundled takes the fallback slot, and its id is set in monospace.
  */
 export function PersonaName({ profileId }: { profileId: string }) {
-  const bundled = LABELS.has(profileId);
   return (
     <PersonaChip slot={slotOf(profileId)}>
-      <span className={bundled ? undefined : "font-mono"}>{personaLabel(profileId)}</span>
+      <PersonaLabel profileId={profileId} />
     </PersonaChip>
   );
 }

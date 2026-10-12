@@ -57,11 +57,40 @@ export type CitedRun = { profileId: ProfileId; seed: Seed; outcome: RunOutcome }
 /** How many evidence links a card shows before "Show N more". */
 const SHOWN = 3;
 
-const EVIDENCE_LINK =
+/** An evidence link's look, which the Report's "What they said" links share. */
+export const EVIDENCE_LINK =
   "inline-flex min-h-8 items-center gap-1.5 body text-ink-2 transition-colors hover:text-ink";
-const UNDERLINED = "underline decoration-line-strong underline-offset-4";
+export const UNDERLINED = "underline decoration-line-strong underline-offset-4";
 /** A button that shows or hides part of the card: "Show more" and "Show N more" look alike. */
 const TOGGLE = cn(EVIDENCE_LINK, UNDERLINED, "cursor-pointer");
+
+/**
+ * A run link's words, underlined, then an arrow: `Kai, seed 1 · Gave up →`, with `lead` before the
+ * seed. The evidence links and the Report's "What they said" both read so.
+ */
+export function RunLinkText({
+  lead = "",
+  seed,
+  outcome,
+}: {
+  lead?: string;
+  seed: Seed;
+  outcome: RunOutcome;
+}) {
+  return (
+    <>
+      <span className={UNDERLINED}>
+        {`${lead}seed `}
+        <span className="mono">{seed}</span>
+        {` · ${OUTCOME_WORDS[outcome]}`}
+      </span>
+      {/* A span, not CSS content: a pseudo-element's text joins the link's accessible name. */}
+      <span aria-hidden="true" className="font-sans text-ink-3">
+        →
+      </span>
+    </>
+  );
+}
 
 /**
  * The runs `evidence` cites, in the order it first names them but `persona`'s first, each at the
@@ -115,15 +144,11 @@ function EvidenceLinks({
                 search={{ step: stepIndex }}
                 className={EVIDENCE_LINK}
               >
-                <span className={UNDERLINED}>
-                  {`${personaLabel(run.profileId)}, seed `}
-                  <span className="mono">{run.seed}</span>
-                  {` · ${OUTCOME_WORDS[run.outcome]}`}
-                </span>
-                {/* A span, not CSS content: a pseudo-element's text joins the link's accessible name. */}
-                <span aria-hidden="true" className="font-sans text-ink-3">
-                  →
-                </span>
+                <RunLinkText
+                  lead={`${personaLabel(run.profileId)}, `}
+                  seed={run.seed}
+                  outcome={run.outcome}
+                />
               </Link>
             </li>
           );
