@@ -17,11 +17,19 @@
  */
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import type { AxeScan, Bbox } from "@wayford/core";
-import { axeScanFixture, axeScanFixtures, measurementFixture } from "@wayford/core/fixtures";
+import type { AxeScan, Bbox, RuleId } from "@wayford/core";
+import {
+  axeScanFixture,
+  axeScanFixtures,
+  measurementFixture,
+  targetAppJargon,
+} from "@wayford/core/fixtures";
+import { perceive } from "@wayford/filter/perceive";
 import { type Browser, chromium, type Page } from "playwright";
 import { createServer, type ViteDevServer } from "vite";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { RULE_HINTS } from "../components/filter-states.js";
+import { PreviewSearch, resolvePreview } from "../preview/search.js";
 
 // Starting Vite, its first transform of the app and launching Chromium take longer than vitest's
 // 5 s hook default.
@@ -466,16 +474,116 @@ test("a slider move that fires one rule more keeps the drawn page's size", async
   await page.locator("[data-state]").first().waitFor();
   const card = page.getByRole("region", { name: "axe-core" });
   await card.getByText("1 violation").waitFor();
-  const rules = page
-    .getByText("rules fired")
-    .locator("xpath=ancestor::div[1]")
-    .getByRole("listitem");
-  await expect.poll(() => rules.allTextContents()).toEqual(["P1 contrast", "P3 font size"]);
+  const cell = rulesCell(page);
+  const rules = cell.getByRole("listitem");
+  await expect.poll(() => namesOf(rules)).toEqual(["Explain P1 contrast", "Explain P3 font size"]);
   const frame = page.locator("[data-lens-stage]");
   const before = await frame.boundingBox();
   await press(page, "preview-targetPx", "End", 1);
   await expect.poll(() => rules.count()).toBe(3);
   expect(await frame.boundingBox()).toEqual(before);
+  // Each tag sits in a 32 px button whose margins cost its row no height (#244): three rows are
+  // still the strip's floor, and the first tag still stands 6 px under the label.
+  expect((await cell.boundingBox())?.height).toBe(116);
+  expect(await underLabel(cell, cell.locator("li .mono-label").first())).toBe(6);
+  await page.close();
+});
+
+test("'none' and the rules' skeleton stand 6 px under the label (#244)", async () => {
+  // Ada at her defaults fires nothing: the demo's Lens tab opens on her.
+  const page = await spiedPage();
+  await page.goto(`${origin}/lens?persona=prof_ada&seed=1`);
+  const cell = rulesCell(page);
+  await cell.getByText("none", { exact: true }).waitFor();
+  expect(await underLabel(cell, cell.getByText("none", { exact: true }))).toBe(6);
+  // A measurement that never answers holds the skeleton.
+  const loading = await spiedPage();
+  await loading.route(
+    (url) => url.pathname === "/api/measure",
+    () => undefined,
+  );
+  await loading.goto(`${origin}/lens?persona=prof_ada&seed=1`);
+  const waiting = rulesCell(loading);
+  const skeleton = waiting.locator("dd > *").first();
+  await skeleton.waitFor();
+  expect(await underLabel(waiting, skeleton)).toBe(6);
+  await page.close();
+  await loading.close();
+});
+
+/** The strip's rules fired cell: its label and its list. */
+function rulesCell(page: Page) {
+  return page.getByText("rules fired").locator("xpath=ancestor::div[1]");
+}
+
+/** How far `below` starts under the bottom of `cell`'s "rules fired" label, in px. */
+async function underLabel(
+  cell: ReturnType<Page["locator"]>,
+  below: ReturnType<Page["locator"]>,
+): Promise<number | undefined> {
+  const label = await cell.getByText("rules fired").boundingBox();
+  const box = await below.boundingBox();
+  if (label === null || box === null) return undefined;
+  return box.y - (label.y + label.height);
+}
+
+/** The name of the one button in each of `items`: a rule's tag (#244). */
+function namesOf(items: ReturnType<Page["locator"]>): Promise<(string | null)[]> {
+  return items
+    .locator("button")
+    .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
+}
+
+/** The name of the element that has focus. */
+function focusedName(page: Page): Promise<string | null | undefined> {
+  return page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+}
+
+/**
+ * The elements carrying `rule`'s decision on the measurement fixture, as the Lens perceives it at
+ * `search`: the count a fired rule's hint must say.
+ */
+function firedOn(rule: RuleId, search: Record<string, unknown>): number {
+  const { profile, seed } = resolvePreview(PreviewSearch.parse(search));
+  const observation = perceive(measurementFixture, profile, seed, { jargon: targetAppJargon });
+  return observation.elements.filter((e) => e.decisions.some((d) => d.rule === rule)).length;
+}
+
+/** "On this page it fired on 3 elements.", as a fired rule's hint ends. */
+function firedWords(count: number): string {
+  return `On this page it fired on ${count === 1 ? "1 element" : `${count} elements`}.`;
+}
+
+test("a fired rule's tag says what the rule did and on how many elements, on hover and on focus, inside the window (#244)", async () => {
+  const search = { persona: "prof_ada", seed: 1, contrast: 2.1, fontPx: 18 };
+  const page = await spiedPage();
+  await page.goto(`${origin}/lens?persona=prof_ada&seed=1&contrast=2.1&fontPx=18`);
+  await page.locator("[data-state]").first().waitFor();
+  const cell = rulesCell(page);
+  const contrast = cell.getByRole("button", { name: "Explain P1 contrast", exact: true });
+  const font = cell.getByRole("button", { name: "Explain P3 font size", exact: true });
+  await font.waitFor();
+  const hints = page.getByRole("tooltip");
+
+  // Hover: one hint, the rule's words and its count, inside the window, and nothing scrolls.
+  const box = await contrast.boundingBox();
+  if (box === null) throw new Error("no box for P1 contrast");
+  await page.mouse.move(8, 8);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+  await expect
+    .poll(() => hints.allInnerTexts())
+    .toEqual([`${RULE_HINTS.P1} ${firedWords(firedOn("P1", search))}`]);
+  expect(inside(await hints.boundingBox(), { x: 0, y: 0, width: 1280, height: 720 })).toBe(true);
+  expect(await fitsOf(page)).toEqual({ down: true, across: true });
+
+  // Keyboard: Tab from P1 reaches P3 and opens its hint.
+  await page.mouse.move(8, 8, { steps: 8 });
+  await contrast.focus();
+  await page.keyboard.press("Tab");
+  expect(await focusedName(page)).toBe("Explain P3 font size");
+  await expect
+    .poll(() => hints.allInnerTexts())
+    .toEqual([`${RULE_HINTS.P3} ${firedWords(firedOn("P3", search))}`]);
   await page.close();
 });
 

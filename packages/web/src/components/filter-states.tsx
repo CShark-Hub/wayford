@@ -1,6 +1,8 @@
 import type { Bbox, RuleId } from "@wayford/core";
 import { cn } from "cn";
 import type { CSSProperties, ReactNode } from "react";
+import { Tag } from "./tag.js";
+import { Hint } from "./ui/tooltip.js";
 
 /** How the Lens draws one element: the filter's decision, never a new one. */
 export type FilterState = "visible" | "degraded" | "renamed" | "removed" | "cut";
@@ -29,6 +31,48 @@ export const RULE_WORDS: ReadonlyMap<RuleId, string> = new Map<RuleId, string>([
   ["A1", "attention"],
   ["A3", "options"],
 ]);
+
+/** Said after a description by a rule the code does not build yet: it removed nothing. */
+const NOT_BUILT = "Not built yet: it changes nothing today.";
+
+/**
+ * What each rule does to what reaches the model, in plain words, for its tag's hint (#244). Only
+ * the rules a screen can draw a tag for: the Lens strip lists `RULE_WORDS`' rules, and a finding's
+ * basis holds only those io gives a source (`provenanceOf`), the same eleven. Each is its
+ * `docs/RULES.md` row, checked against the code where the two differ (P1, P3), and in
+ * docs/DEMO.md's words: "doesn't reach the model", never what a person sees.
+ */
+export const RULE_HINTS: Partial<Record<RuleId, string>> = {
+  P1: "Text with contrast under the persona's threshold doesn't reach the model, nor does a control whose text fails. On a soft cut, a seeded roll may let text in a band below it through, partly masked.",
+  P2: `Controls whose borders and icons have less contrast than the persona's threshold would not reach the model. ${NOT_BUILT}`,
+  P3: "Text smaller than the persona's threshold in CSS px doesn't reach the model, nor does a control whose text fails. On a soft cut, a seeded roll may let text in a band below it through, partly masked.",
+  P4: "A control smaller than the persona's threshold on its shorter side, its label included, doesn't reach the model. On a soft cut, a seeded roll may let one in a band below it through, partly masked.",
+  V2: `Only elements on screen at the current scroll position reach the model, for every persona. Those further down that the persona's other rules would let through are counted as "N more below".`,
+  V3: "An element the page paints something over where a click on it would land, such as a cookie wall, a dialog or a sticky header, doesn't reach the model for any persona, Ada included. It isn't counted.",
+  K1: `A control that draws no text and matches a UI pattern the persona's profile lists as unknown reaches the model by its bare role, such as button "button". It always fires with K4; only hamburger and kebab are detected today.`,
+  K2: "For a persona whose profile sets a vocabulary, a term from the target app's jargon list that the vocabulary lacks reaches the model as [unfamiliar term]. The rest of the element's name stays as written.",
+  K4: "The same rename as K1, on the same controls: an icon-only control whose pattern the persona's profile lists as unknown reaches the model by its bare role. The two read one input, so they always fire together.",
+  A1: "The persona's profile caps how many elements reach the model, ranked by size, contrast and position on the page and read in that order. Past the cap, the lowest-ranked are dropped and counted as hidden.",
+  A3: `In a list or menu longer than the persona's option cap, only the first entries would reach the model, the rest counted. ${NOT_BUILT}`,
+};
+
+/**
+ * A rule's tag that explains itself (#244): the rule `Tag`, `P4` or with `words` `P4 target`, as
+ * the face of a `Hint` named "Explain" and what it reads. The hint is the rule's description, and
+ * with a `count`, the elements it fired on this page. A rule with no description is the plain tag.
+ */
+export function RuleTag({ rule, words, count }: { rule: RuleId; words?: boolean; count?: number }) {
+  const word = words ? RULE_WORDS.get(rule) : undefined;
+  const text = word === undefined ? rule : `${rule} ${word}`;
+  const tag = <Tag variant="rule">{text}</Tag>;
+  const hint = RULE_HINTS[rule];
+  if (hint === undefined) return tag;
+  const fired =
+    count === undefined
+      ? ""
+      : ` On this page it fired on ${count === 1 ? "1 element" : `${count} elements`}.`;
+  return <Hint label={`Explain ${text}`} hint={`${hint}${fired}`} face={tag} />;
+}
 
 /**
  * Each state's look, `.wf-el--*` in components.css. Degraded is hatched and muted, renamed is mono

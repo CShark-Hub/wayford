@@ -50,7 +50,7 @@ import {
   useState,
 } from "react";
 import { Banner } from "#components/banner";
-import { type Look, RULE_WORDS, StateSwatch } from "#components/filter-states";
+import { type Look, RULE_WORDS, RuleTag, StateSwatch } from "#components/filter-states";
 import { PersonaAvatar } from "#components/persona-avatar";
 import { SEGMENT_GROUP, SegmentedControl, segmentItem } from "#components/segmented-control";
 import { Skeleton } from "#components/skeleton";
@@ -604,17 +604,26 @@ export function lensCounts(observation: FullObservation): Record<Look, number> {
 }
 
 /**
- * The rules that fired on the observation, each once, in `RULE_WORDS`' order and words:
- * `P1 contrast`, `A1 attention`. A rule fired when any element carries its decision, whatever
- * state it gave.
+ * The rules that fired on the observation, each once, in `RULE_WORDS`' order, with the elements
+ * each fired on. A rule fired on an element that carries its decision, whatever state it gave: a
+ * K2 renames, a P1 may degrade, so the count is not of elements removed (#244). A knowledge rule
+ * counts only on an element that reaches the model: the filter renames removed ones too, and a
+ * rename nothing reads did nothing.
  */
-export function rulesFired(observation: FullObservation): string[] {
-  const fired = new Set<RuleId>(
-    observation.elements.flatMap((element) => element.decisions.map((d) => d.rule)),
-  );
-  return [...RULE_WORDS]
-    .filter(([rule]) => fired.has(rule))
-    .map(([rule, word]) => `${rule} ${word}`);
+export function rulesFired(observation: FullObservation): { rule: RuleId; count: number }[] {
+  const counts = new Map<RuleId, number>();
+  for (const element of observation.elements) {
+    const decisions = element.decisions.filter(
+      (d) => d.stage !== "knowledge" || element.state !== "invisible",
+    );
+    for (const rule of new Set(decisions.map((d) => d.rule))) {
+      counts.set(rule, (counts.get(rule) ?? 0) + 1);
+    }
+  }
+  return [...RULE_WORDS.keys()].flatMap((rule) => {
+    const count = counts.get(rule);
+    return count === undefined ? [] : [{ rule, count }];
+  });
 }
 
 const COUNTED: readonly Look[] = ["visible", "degraded", "removed"];
@@ -678,9 +687,9 @@ function ReadoutStrip({ stage, page, axeNote }: { stage: Stage; page: string; ax
                   TAG_ROWS[Math.min(rules.length, 3) - 1],
                 )}
               >
-                {rules.map((rule) => (
+                {rules.map(({ rule, count }) => (
                   <li key={rule}>
-                    <Tag variant="rule">{rule}</Tag>
+                    <RuleTag rule={rule} words count={count} />
                   </li>
                 ))}
               </ul>

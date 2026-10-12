@@ -27,6 +27,7 @@ import {
 import { cn } from "cn";
 import { useEffect, useId, useRef, useState } from "react";
 import type { CertaintyLine } from "./certainty.js";
+import { RuleTag } from "./filter-states.js";
 import { OUTCOME_WORDS } from "./outcome-words.js";
 import { PersonaName, personaLabel } from "./persona-avatar.js";
 import { ProvenanceTag, Tag } from "./tag.js";
@@ -179,7 +180,7 @@ export function FindingCard({
     ),
     ...finding.basis.map((entry) => (
       <span key={`${entry.rule}-${entry.provenance}`} className="contents">
-        <Tag variant="rule">{entry.rule}</Tag>
+        <RuleTag rule={entry.rule} />
         <ProvenanceTag provenance={entry.provenance} />
       </span>
     )),

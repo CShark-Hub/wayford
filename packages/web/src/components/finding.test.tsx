@@ -8,6 +8,7 @@ import { attributesOf, lineOf } from "../preview/rendered-markup.js";
 import { runsOf } from "../report/findings.js";
 import { createAppRouter } from "../router.js";
 import type { CertaintyLine } from "./certainty.js";
+import { RULE_HINTS } from "./filter-states.js";
 import { FindingCard, findingLine } from "./finding.js";
 
 /** `ui` inside the app's router, so its links build their hrefs. A static render runs no effect. */
@@ -119,6 +120,37 @@ describe("FindingCard", () => {
     expect(tagsOf(html)).toEqual(["P1", "wcag22"]);
   });
 
+  test("each basis rule is a button that explains its id, its hint what the rule does, with no count (#244)", () => {
+    const html = render(
+      <FindingCard
+        finding={{ ...P1, basis: [{ rule: "P4", provenance: "wcag22" }] }}
+        runOf={runOf}
+      />,
+    );
+    const named = [...html.matchAll(/<button(\s[^>]*)>(.*?)<\/button>/gs)]
+      .filter((m) => attributesOf(m[1] ?? "")["aria-label"] === "Explain P4")
+      .map((m) => ({ attributes: attributesOf(m[1] ?? ""), text: lineOf(m[2] ?? "") }));
+    expect(named).toHaveLength(1);
+    expect(named[0]?.text).toBe("P4");
+    const id = named[0]?.attributes["aria-describedby"];
+    const hint = html.match(new RegExp(`<span hidden="" id="${id}">(.*?)</span>`, "s"))?.[1];
+    // A finding is about runs, not one page: the hint holds no count.
+    expect(lineOf(hint ?? "")).toBe(RULE_HINTS.P4);
+  });
+
+  test("a basis rule with no hint is its plain tag, no button", () => {
+    // io gives no basis a source for M1, so it never reaches a card, but a hand-built one may.
+    const html = render(
+      <FindingCard
+        finding={{ ...P1, basis: [{ rule: "M1", provenance: "folk" }] }}
+        runOf={runOf}
+      />,
+    );
+    expect(tagsOf(html)).toEqual(["soft", "M1", "folk · no source"]);
+    expect(buttonsOf(html)).not.toContain("Explain M1");
+    expect(buttonsOf(html)).not.toContain("M1");
+  });
+
   test("a measurement names its axe rule and is a hairline", () => {
     const html = render(<FindingCard finding={AXE} runOf={runOf} />);
     const card = cardOf(html);
@@ -207,9 +239,14 @@ describe("FindingCard", () => {
       />,
     );
     expect(linksOf(html)).toHaveLength(3);
-    // The source tag's hint comes first, in the tags row (#243), then the card's own Show more;
-    // the evidence's toggle, when there is one, after it.
-    expect(buttonsOf(html)).toEqual(["Explain folk · no source", "Show more", ...toggle]);
+    // The basis rule's tag explains itself (#244), then the source tag's hint in the tags row
+    // (#243), then the card's own Show more; the evidence's toggle, when there is one, after it.
+    expect(buttonsOf(html)).toEqual([
+      "Explain A1",
+      "Explain folk · no source",
+      "Show more",
+      ...toggle,
+    ]);
     if (toggle.length > 0) expect(html).toMatch(/<button [^>]*aria-expanded="false"[^>]*>Show/);
   });
 });

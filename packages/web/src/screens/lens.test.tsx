@@ -41,6 +41,7 @@ import { expect, test, vi } from "vitest";
 import { axeQuery } from "../api/axe.js";
 import { illustrationQuery } from "../api/illustration.js";
 import { measurementQuery } from "../api/measure.js";
+import { RULE_HINTS, RULE_WORDS } from "../components/filter-states.js";
 import {
   attributesOf,
   captionLinesOf,
@@ -886,16 +887,43 @@ function stripOf(html: string): Record<string, string> {
   return detailsOf(list);
 }
 
+/** The rules fired on `observation` as their tags read: `P1 contrast`, `A1 attention`. */
+function firedTags(observation: FullObservation): string[] {
+  return rulesFired(observation).map(({ rule }) => `${rule} ${RULE_WORDS.get(rule)}`);
+}
+
 /** What the strip reads for `observation`, by `lensCounts` and `rulesFired`. */
 function expectedStrip(observation: FullObservation): Record<string, string> {
   const counts = lensCounts(observation);
-  const rules = rulesFired(observation);
+  const rules = firedTags(observation);
   return {
     visible: String(counts.visible),
     degraded: String(counts.degraded),
     removed: String(counts.removed),
     "rules fired": rules.length === 0 ? "none" : rules.join(" "),
   };
+}
+
+/**
+ * The rules fired cell's list items, each as its one button reads: its name, its text, and the
+ * words that describe it, its hint.
+ */
+function firedButtons(html: string): { name: string; text: string; hint: string }[] {
+  const list = html.match(/<dl(?:\s[^>]*)?>(.*?)<\/dl>/s)?.[1] ?? "";
+  const items = [...list.matchAll(/<li(?:\s[^>]*)?>(.*?)<\/li>/gs)].map((m) => m[1] ?? "");
+  return items.map((item) => {
+    expect(item.match(/<button/g)).toHaveLength(1);
+    const button = item.match(/<button(\s[^>]*)>(.*?)<\/button>/s);
+    const attributes = attributesOf(button?.[1] ?? "");
+    const hint = item.match(
+      new RegExp(`<span hidden="" id="${attributes["aria-describedby"]}">(.*?)</span>`, "s"),
+    );
+    return {
+      name: attributes["aria-label"] ?? "",
+      text: lineOf(button?.[2] ?? ""),
+      hint: lineOf(hint?.[1] ?? ""),
+    };
+  });
 }
 
 test("a moved threshold reads folk with no source and what it was; the persona's own, her source", async () => {
@@ -947,10 +975,33 @@ test("the strip's counts and rules fired are those of the observation drawn", as
 
 test("Kai's strip names the attention cap that cut his page", async () => {
   const expected = realPerceive(measurementFixture, kai, 1, { jargon: targetAppJargon });
-  expect(rulesFired(expected)).toContain("A1 attention");
+  expect(firedTags(expected)).toContain("A1 attention");
   expect(stripOf(await render("/lens?persona=prof_kai"))["rules fired"]).toBe(
-    rulesFired(expected).join(" "),
+    firedTags(expected).join(" "),
   );
+});
+
+test("each fired rule is a button that explains its tag, its hint what the rule does and how many elements it fired on here (#244)", async () => {
+  const cases = [
+    { url: VERA, profile: vera },
+    { url: "/lens?persona=prof_kai", profile: kai },
+  ];
+  for (const { url, profile } of cases) {
+    const expected = realPerceive(measurementFixture, profile, 1, { jargon: targetAppJargon });
+    const fired = rulesFired(expected);
+    expect(fired.length, url).toBeGreaterThan(0);
+    expect(firedButtons(await render(url)), url).toEqual(
+      fired.map(({ rule, count }) => {
+        const tag = `${rule} ${RULE_WORDS.get(rule)}`;
+        const elements = count === 1 ? "1 element" : `${count} elements`;
+        return {
+          name: `Explain ${tag}`,
+          text: tag,
+          hint: `${RULE_HINTS[rule]} On this page it fired on ${elements}.`,
+        };
+      }),
+    );
+  }
 });
 
 test("while the page is measured, the strip's counts and rules are skeletons", async () => {
@@ -967,22 +1018,100 @@ test("lensCounts splits an observation by how the stage draws it", () => {
   expect(lensCounts(renamedArchive())).toEqual({ visible: 6, degraded: 0, removed: 10 });
 });
 
-test("rulesFired names each rule that fired once, in the strip's order", () => {
+test("rulesFired names each rule that fired once, in the strip's order, with the elements it fired on", () => {
   // P1 on three elements and P3 on one, A1 on three, V2 on five: each once, perception first.
   expect(rulesFired(observationFixture)).toEqual([
-    "P1 contrast",
-    "P3 font size",
-    "V2 viewport",
-    "A1 attention",
+    { rule: "P1", count: 3 },
+    { rule: "P3", count: 1 },
+    { rule: "V2", count: 5 },
+    { rule: "A1", count: 3 },
   ]);
+  // K1 renamed one, and the degraded link it renamed still counts for P1.
   expect(rulesFired(renamedArchive())).toEqual([
-    "P1 contrast",
-    "P3 font size",
-    "V2 viewport",
-    "K1 pattern",
-    "A1 attention",
+    { rule: "P1", count: 3 },
+    { rule: "P3", count: 1 },
+    { rule: "V2", count: 5 },
+    { rule: "K1", count: 1 },
+    { rule: "A1", count: 3 },
   ]);
   expect(rulesFired({ ...observationFixture, elements: [] })).toEqual([]);
+});
+
+/**
+ * Vera's kebab on `/account`: 28 px, under her 32 px floor, so P4 removed it, and K1 and K4, which
+ * the filter records on every element, renamed what never reached the model.
+ */
+const CUT_KEBAB: ObservedElement = {
+  key: "main//button:More options",
+  role: "button",
+  name: "More options",
+  bbox: { x: 900, y: 100, width: 28, height: 28 },
+  metrics: { targetPx: 28 },
+  state: "invisible",
+  decisions: [
+    {
+      stage: "perception",
+      rule: "P4",
+      metric: "targetPx",
+      value: 28,
+      threshold: 32,
+      state: "invisible",
+    },
+    { stage: "knowledge", rule: "K1", pattern: "kebab" },
+    { stage: "knowledge", rule: "K4", pattern: "kebab" },
+  ],
+  renamedName: "button",
+};
+
+/** A jargon link a dragged contrast slider cut: P1 removed it, and K2 renamed it all the same. */
+const CUT_LEDGER: ObservedElement = {
+  key: "main//link:Fulfilment ledger",
+  role: "link",
+  name: "Fulfilment ledger",
+  bbox: { x: 24, y: 100, width: 140, height: 36 },
+  metrics: { contrast: 2.1, fontPx: 16, targetPx: 36 },
+  state: "invisible",
+  decisions: [
+    {
+      stage: "perception",
+      rule: "P1",
+      metric: "contrast",
+      value: 2.1,
+      threshold: 4.5,
+      state: "invisible",
+    },
+    { stage: "knowledge", rule: "K2", terms: ["Fulfilment ledger"] },
+  ],
+  renamedName: "[unfamiliar term]",
+};
+
+test("a knowledge rule counts only on the elements that reach the model, and is left out with none (#244)", async () => {
+  const cases = [
+    { element: CUT_KEBAB, fired: [{ rule: "P4", count: 1 }], strip: "P4 target" },
+    { element: CUT_LEDGER, fired: [{ rule: "P1", count: 1 }], strip: "P1 contrast" },
+  ];
+  for (const { element, fired, strip } of cases) {
+    const observation: FullObservation = { ...observationFixture, elements: [element] };
+    expect(rulesFired(observation), element.name).toEqual(fired);
+    perceiveSpy.mockImplementation(() => observation);
+    try {
+      expect(stripOf(await render(VERA))["rules fired"], element.name).toBe(strip);
+    } finally {
+      perceiveSpy.mockImplementation(realPerceive);
+    }
+  }
+  // Shown, the kebab reaches the model by its bare role: K1 and K4 count.
+  const shown: ObservedElement = {
+    ...CUT_KEBAB,
+    ref: "e1",
+    state: "visible",
+    decisions: CUT_KEBAB.decisions.slice(1),
+  };
+  expect(rulesFired({ ...observationFixture, elements: [CUT_KEBAB, shown] })).toEqual([
+    { rule: "P4", count: 1 },
+    { rule: "K1", count: 1 },
+    { rule: "K4", count: 1 },
+  ]);
 });
 
 /** The observation fixture with its degraded archive link renamed by K1. */
