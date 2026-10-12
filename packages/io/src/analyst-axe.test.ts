@@ -195,7 +195,7 @@ describe("axeDrafts: the drafts", () => {
       type: "measurement",
       axeRuleId: "color-contrast",
       title:
-        "axe-core: Elements must meet minimum color contrast ratio thresholds (color-contrast) on /deliveries",
+        "/deliveries: Elements must meet minimum color contrast ratio thresholds (color-contrast)",
       detail:
         "axe-core 4.13.0 reports color-contrast on /deliveries, scanned on desktop at the app's ?contrast=2&fontPx=16&targetPx=36: 1 element, impact serious, WCAG tags wcag2aa, wcag143. 2 of the report's runs stood on the page.",
       evidence: [
@@ -300,8 +300,7 @@ describe("axeDrafts: off the target app", () => {
           taskId: TASK.id,
           type: "measurement",
           axeRuleId: "image-alt",
-          title:
-            "axe-core: Images must have alternative text (image-alt) on http://localhost:8080/deliveries",
+          title: "http://localhost:8080/deliveries: Images must have alternative text (image-alt)",
           detail:
             "axe-core 4.13.0 reports image-alt on http://localhost:8080/deliveries, scanned on desktop: 2 elements, impact critical, WCAG tags wcag2a, wcag111. 2 of the report's runs stood on the page.",
           evidence: [
@@ -338,7 +337,7 @@ describe("axeDrafts: off the target app", () => {
     expect(result).toMatchObject([
       {
         finding: {
-          title: `axe-core: ${contrast.help} (color-contrast) on ${www}/docs`,
+          title: `${www}/docs: ${contrast.help} (color-contrast)`,
           evidence: [{ runId: "run_vera-site", stepIndex: 1 }],
         },
       },
@@ -368,8 +367,8 @@ describe("axeDrafts: off the target app", () => {
 
     expect(axe.asked).toEqual([1, 3, 4, 6, 7, 8, 9, 10, 11, 12].map(page));
     expect(result.map((d) => d.finding.title)).toEqual([
-      `axe-core: ${contrast.help} (color-contrast) on ${page(1)}`,
-      `axe-core: ${contrast.help} (color-contrast) on ${page(12)}`,
+      `${page(1)}: ${contrast.help} (color-contrast)`,
+      `${page(12)}: ${contrast.help} (color-contrast)`,
     ]);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({

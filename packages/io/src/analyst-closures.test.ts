@@ -263,7 +263,7 @@ describe("closureFindings: the finding", () => {
       taskId: "task_past-order",
       type: "deterministic",
       personaIds: ["prof_vera"],
-      title: 'The link "Order archive" on /deliveries is cut by P1 for Vera in 2 of 3 seeds',
+      title: 'Vera, 2 of 3 seeds: the link "Order archive" on /deliveries is cut by P1',
     });
     expect(draft?.finding.id).toMatch(/^fnd_/);
   });
@@ -339,7 +339,7 @@ describe("closureFindings: the finding", () => {
     }).drafts;
     expect(draft?.finding.basis.map((b) => b.rule)).toEqual(["V2", "P1", "A1"]);
     expect(draft?.finding.title).toBe(
-      'The link "Order archive" on /deliveries is cut by V2, P1, A1 for Vera in 3 of 10 seeds',
+      'Vera, 3 of 10 seeds: the link "Order archive" on /deliveries is cut by V2, P1, A1',
     );
     expect(draft?.finding.detail).toContain("cap of 20 elements");
     expect(draft?.finding.detail).toContain("below the viewport");

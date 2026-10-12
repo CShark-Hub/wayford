@@ -618,9 +618,9 @@ describe("a persona picked", () => {
 
   test("narrows the findings to Kai's and keeps the measurement", async () => {
     const titles = cardsOf(await render(PATH, HARD)).map((card) => card.text);
-    expect(titles.some((t) => t.includes("cut by A1 for Kai"))).toBe(true);
+    expect(titles.some((t) => t.includes("Kai, 3 of 3 seeds: "))).toBe(true);
     expect(titles.some((t) => t.includes("measures 2.005:1"))).toBe(true);
-    expect(titles.some((t) => t.includes("for Vera"))).toBe(false);
+    expect(titles.some((t) => t.includes("Vera, 2 of 3 seeds: "))).toBe(false);
     expect(titles.some((t) => t.includes("masked name"))).toBe(false);
   });
 

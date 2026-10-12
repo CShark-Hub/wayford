@@ -201,7 +201,7 @@ describe("analystCase: the findings", () => {
       taskId: TASK.id,
       type: "measurement",
       title:
-        "axe-core: Elements must meet minimum color contrast ratio thresholds (color-contrast)",
+        "/deliveries: Elements must meet minimum color contrast ratio thresholds (color-contrast)",
       detail: "axe-core 4.13.0 reports color-contrast on /deliveries.",
       evidence,
       basis: [],
@@ -216,7 +216,7 @@ describe("analystCase: the findings", () => {
       id: newId("finding"),
       taskId: TASK.id,
       type: "deterministic",
-      title: 'The link "Order archive" on /deliveries is cut by P1 for Vera in 1 of 1 seed',
+      title: 'Vera, 1 of 1 seeds: the link "Order archive" on /deliveries is cut by P1',
       detail: "Route A closes at this step.",
       evidence,
       basis: [{ rule: "P1", provenance: "wcag22" }],

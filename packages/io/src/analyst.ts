@@ -249,9 +249,9 @@ async function analyseTask(input: AnalysisInput): Promise<Report> {
   const recommended = drafts.map((draft): Finding => {
     const written = answer.recommendations[draft.key]?.trim() ?? "";
     if (written !== "") return { ...draft.finding, recommendation: written };
-    const { title, personaIds } = draft.finding;
+    const { type, title, personaIds, axeRuleId } = draft.finding;
     logger.warn(
-      { finding: draft.key, title, personaIds },
+      { finding: draft.key, type, title, personaIds, axeRuleId },
       "the Analyst left a recommendation blank; code wrote its fallback",
     );
     return { ...draft.finding, recommendation: draft.fallback };

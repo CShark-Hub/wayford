@@ -231,7 +231,7 @@ describe("the report on the hard goal, over Ada, Kai and Vera on seeds 1 to 4", 
     const findings = deterministic(vera);
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
-      title: `The link "Order archive" on /deliveries is cut by P1 for Vera in ${cut.length} of 4 seeds`,
+      title: `Vera, ${cut.length} of 4 seeds: the link "Order archive" on /deliveries is cut by P1`,
       basis: [{ rule: "P1", provenance: "wcag22" }],
       personaIds: [vera.id],
       recommendation: expect.stringMatching(/^Recommendation d\d+\.$/),
@@ -247,7 +247,7 @@ describe("the report on the hard goal, over Ada, Kai and Vera on seeds 1 to 4", 
     const [finding, ...more] = deterministic(kai);
     expect(more).toStrictEqual([]);
     expect(finding).toMatchObject({
-      title: 'The link "Order archive" on /deliveries is cut by A1 for Kai in 4 of 4 seeds',
+      title: 'Kai, 4 of 4 seeds: the link "Order archive" on /deliveries is cut by A1',
       basis: [{ rule: "A1", provenance: "folk" }],
       evidence: SEEDS.map((seed) => ({ runId: idOf(kai, seed), stepIndex: 1 })),
     });

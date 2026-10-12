@@ -138,8 +138,10 @@ describe("FindingCard", () => {
     const html = render(<FindingCard finding={P1} runOf={runOf} />);
     expect(lineOf(html.match(/<h3(?:\s[^>]*)?>(.*?)<\/h3>/s)?.[1] ?? "")).toBe(P1.title);
     const text = lineOf(html);
+    // The chip by its markup: the title starts with the persona's name too.
+    expect(html.indexOf(">Vera<")).toBeGreaterThanOrEqual(0);
+    expect(html.indexOf(">Vera<")).toBeLessThan(html.indexOf("<h3"));
     const order = [
-      "Vera",
       P1.title,
       "P1 wcag22",
       P1.detail,

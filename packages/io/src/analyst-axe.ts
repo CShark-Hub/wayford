@@ -186,7 +186,8 @@ function draftOf(
       id: newId("finding"),
       taskId,
       type: "measurement",
-      title: `axe-core: ${help} (${ruleId}) on ${name}`,
+      // The page first: a card clamps its title to two lines (#241). Its axe tag names the source.
+      title: `${name}: ${help} (${ruleId})`,
       detail: `axe-core ${scan.axeVersion} reports ${ruleId} on ${name}, scanned on ${scannedOn}: ${plural(nodes, "element")}, impact ${impact ?? "not given"}, WCAG tags ${wcag}. ${evidence.length} of the report's runs stood on the page.`,
       evidence: [...evidence],
       basis: [],

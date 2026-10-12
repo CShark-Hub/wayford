@@ -404,7 +404,7 @@ const DELIVERIES = targetAppPage(
 const deliveriesScan = axeScanFixture("/deliveries");
 
 const CONTRAST_TITLE =
-  "axe-core: Elements must meet minimum color contrast ratio thresholds (color-contrast) on /deliveries";
+  "/deliveries: Elements must meet minimum color contrast ratio thresholds (color-contrast)";
 
 /** The answer schema's draft keys: one recommendation asked per draft. */
 function draftKeys(fake: FakeLlm): string[] {

@@ -166,7 +166,10 @@ export function closureFindings(input: {
         id: newId("finding"),
         taskId,
         type: "deterministic",
-        title: `The ${group.role} "${group.name}" on ${group.page} is cut by ${rules.join(", ")} for ${profile.label} in ${closedIn} of ${seeds} seeds`,
+        // The persona, the count and the page first: a card clamps its title to two lines (#241),
+        // and the count is what keeps the claim small. The rules come last; the card's basis tags
+        // name them too.
+        title: `${profile.label}, ${closedIn} of ${seeds} seeds: the ${group.role} "${group.name}" on ${group.page} is cut by ${rules.join(", ")}`,
         detail: detailOf(group, rules, closedIn, profile, scout),
         evidence,
         basis,

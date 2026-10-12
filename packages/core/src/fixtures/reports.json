@@ -109,7 +109,7 @@
         "id": "fnd_kai-order-archive-a1",
         "taskId": "task_past-order",
         "type": "deterministic",
-        "title": "The link \"Order archive\" on /deliveries is cut by A1 for Kai in 3 of 3 seeds",
+        "title": "Kai, 3 of 3 seeds: the link \"Order archive\" on /deliveries is cut by A1",
         "detail": "Route A closes at this step. A1: Kai's attention cap of 11 elements cuts the link, so it does not reach the model.",
         "evidence": [
           { "runId": "run_kai-past-order-1", "stepIndex": 1 },
@@ -123,7 +123,7 @@
         "id": "fnd_vera-order-archive-p1",
         "taskId": "task_past-order",
         "type": "deterministic",
-        "title": "The link \"Order archive\" on /deliveries is cut by P1 for Vera in 2 of 3 seeds",
+        "title": "Vera, 2 of 3 seeds: the link \"Order archive\" on /deliveries is cut by P1",
         "detail": "Route A closes at this step. P1: contrast 2.005:1, below Vera's threshold of 3:1. Vera's cut has a band from 1.5:1 to 3:1, inside which the seed's roll decides between degraded and cut. In those 2 seeds the link does not reach the model.",
         "evidence": [
           { "runId": "run_vera-past-order-2", "stepIndex": 1 },
@@ -137,7 +137,7 @@
         "id": "fnd_order-archive-contrast-ratio",
         "taskId": "task_past-order",
         "type": "measurement",
-        "title": "The link \"Order archive\" on /deliveries measures 2.005:1, below the WCAG 2.2 minimum for text",
+        "title": "/deliveries: Elements must meet minimum color contrast ratio thresholds (color-contrast)",
         "detail": "The link's 16 px text measures 2.005:1 against its background. WCAG 2.2 Contrast (Minimum) asks for 4.5:1 at that size, and axe reports it as color-contrast.",
         "evidence": [{ "runId": "run_ada-past-order-1", "stepIndex": 1 }],
         "basis": [],
