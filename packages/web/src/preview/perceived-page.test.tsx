@@ -533,14 +533,18 @@ test("a removal a perception rule made is drawn in signal; a cut that measured n
 });
 
 test("a flag sits beside its element, on the side with more room", () => {
-  // Zoya's target cut removes the nav links, at the page's right: their flags go left.
+  // Zoya's target cut removes the four nav links, side by side at the page's right: they share
+  // one flag (#225), carried by Home, the leftmost, and it goes left.
   const zoyaHtml = render(observe(measurementFixture, zoya, 1), { evidence: true });
+  const home = outlineOf(zoyaHtml, measured("banner/navigation:Main//link:Home").name);
+  expect(flagSideOf(home)).toBe("left");
+  expect(home.count).toBe("×4");
   for (const key of [
-    "banner/navigation:Main//link:Home",
     "banner/navigation:Main//link:Your account",
+    "banner/navigation:Main//link:Deliveries",
     "banner/navigation:Main//link:Settings",
   ]) {
-    expect(flagSideOf(outlineOf(zoyaHtml, measured(key).name)), key).toBe("left");
+    expect(flagged(outlineOf(zoyaHtml, measured(key).name)), key).toBe(false);
   }
   // Order archive, at the left of the page, takes its flag on the right.
   const removing = render(veraRemoving(), { evidence: true });
@@ -611,8 +615,9 @@ test("a run breaks where the lines differ, the boxes miss each other across, or 
   // so three runs, the first of two.
   const mixed = flagRuns([cutAt(0), cutAt(43), cutAt(60, { decisions: [BELOW] }), cutAt(86)]);
   expect([0, 1, 2, 3].map((index) => mixed.get(index)?.count ?? null)).toEqual([2, null, 1, 1]);
-  // Side by side, as nav links: no overlap across, so two flags.
-  const across = flagRuns([cutAt(12, { x: 821, width: 76 }), cutAt(12, { x: 905, width: 134 })]);
+  // Side by side, as nav links, but too far apart to make a row: no overlap across, so no column
+  // either, and two flags. Nearer, they make a row (the row tests below).
+  const across = flagRuns([cutAt(12, { x: 821, width: 76 }), cutAt(12, { x: 945, width: 134 })]);
   expect([across.get(0)?.count, across.get(1)?.count]).toEqual([1, 1]);
   // 47 px apart is a run; 48 px apart is not.
   expect(flagRuns([cutAt(0), cutAt(47)]).get(0)?.count).toBe(2);
@@ -625,6 +630,99 @@ test("a run never reaches past an element with different lines between its membe
   const box = { x: 0, width: 100 };
   const runs = flagRuns([cutAt(0, box), cutAt(20, { ...box, decisions: [BELOW] }), cutAt(40, box)]);
   expect([0, 1, 2].map((index) => runs.get(index)?.count ?? null)).toEqual([1, 1, 1]);
+});
+
+/**
+ * The target app's nav, Home to Settings, side by side at the page's right, 8 px apart, as Zoya's
+ * target cut or Vera's at 48 px removes it, each a different width.
+ */
+const NAV = [
+  [821, 76],
+  [905, 134],
+  [1047, 107],
+  [1162, 94],
+].map(([x = 0, width = 0]) => cutAt(12, { x, width }));
+
+test("removed neighbours side by side, as a nav, share one flag, carried by the leftmost", () => {
+  const runs = flagRuns(NAV);
+  expect(runs.get(0)).toEqual({ count: 4, box: { x: 821, y: 12, width: 435, height: 30 } });
+  for (const index of [1, 2, 3]) expect(runs.get(index), `link ${index}`).toBeNull();
+  // In any order, and with the links a little out of line, as cshark's header measures them.
+  const shuffled = [2, 0, 3, 1].flatMap((n, i) => {
+    const cut = NAV[n];
+    return cut === undefined ? [] : [{ ...cut, bbox: { ...cut.bbox, y: 12 + (i % 2) * 1.5 } }];
+  });
+  const reordered = flagRuns(shuffled);
+  expect(reordered.get(1)).toMatchObject({ count: 4 });
+  expect([0, 2, 3].map((index) => reordered.get(index))).toEqual([null, null, null]);
+});
+
+test("a row breaks where the lines differ, the boxes miss each other down, or a gap apart", () => {
+  // A V2 cut between two A1 cuts 30 px apart, close enough to join: the V2 breaks the row.
+  const mixed = flagRuns([
+    cutAt(0, { x: 0, width: 100 }),
+    cutAt(0, { x: 110, width: 10, decisions: [BELOW] }),
+    cutAt(0, { x: 130, width: 100 }),
+  ]);
+  expect([0, 1, 2].map((index) => mixed.get(index)?.count ?? null)).toEqual([1, 1, 1]);
+  // A column of two with the same lines lands between two A1 cuts 35 px apart: its top member
+  // ends the row, so the column keeps its flag and the two cuts keep one each.
+  const column = flagRuns([
+    cutAt(0, { x: 0, width: 100 }),
+    cutAt(0, { x: 105, width: 20 }),
+    cutAt(30, { x: 105, width: 20 }),
+    cutAt(0, { x: 135, width: 100 }),
+  ]);
+  expect([0, 1, 2, 3].map((index) => column.get(index)?.count ?? null)).toEqual([1, 2, null, 1]);
+  // One under the other's bottom edge, side by side: no overlap down, so two flags.
+  const down = flagRuns([cutAt(0, { x: 0, width: 100 }), cutAt(30, { x: 108, width: 100 })]);
+  expect([down.get(0)?.count, down.get(1)?.count]).toEqual([1, 1]);
+  // 39 px apart is a row; 40 px apart is not.
+  expect(flagRuns([cutAt(0, { x: 0, width: 100 }), cutAt(0, { x: 139 })]).get(0)?.count).toBe(2);
+  expect(flagRuns([cutAt(0, { x: 0, width: 100 }), cutAt(0, { x: 140 })]).get(0)?.count).toBe(1);
+});
+
+const COVERED: ElementDecision = { stage: "viewport", rule: "V3" };
+
+/** A removed element at its measured `bbox`; A1 removed it unless told otherwise. */
+function cutIn(bbox: Bbox, decisions?: ElementDecision[]): ObservedElement {
+  const cut = cutAt(bbox.y, { x: bbox.x, width: bbox.width });
+  return { ...cut, bbox, decisions: decisions ?? cut.decisions };
+}
+
+test("an element behind a row, not between its members, never ends it: cshark's cookie banner", () => {
+  // cshark.com at 1280 × 720, as io measures it for the Lens, removed alike for Kai (A1) and for
+  // Vera (P3): the banner's paragraph and its three buttons, 15, 8 and 8 px apart. The "Our
+  // commitment…" paragraph that V3 removed lies behind the banner, from x 196 to 1084, overlapping
+  // it down and starting right of the banner paragraph's left edge, but not right of its edge, so
+  // it is not between two members. One row of four, and the covered paragraph keeps its own flag.
+  const runs = flagRuns([
+    cutIn({ x: 196, y: 596, width: 888, height: 76.78125 }, [COVERED]),
+    cutIn({ x: 25, y: 654.5, width: 825.875, height: 48 }),
+    cutIn({ x: 865.875, y: 656.5, width: 128.328125, height: 44 }),
+    cutIn({ x: 1002.203125, y: 656.5, width: 119.21875, height: 44 }),
+    cutIn({ x: 1129.421875, y: 656.5, width: 125.578125, height: 44 }),
+  ]);
+  expect([0, 1, 2, 3, 4].map((index) => runs.get(index)?.count ?? null)).toEqual([
+    1,
+    4,
+    null,
+    null,
+    null,
+  ]);
+  expect(runs.get(1)?.box).toEqual({ x: 25, y: 654.5, width: 1230, height: 48 });
+});
+
+test("a column wins over a row: entries of a list, each a label and a button, stay two columns", () => {
+  // Label and button side by side, 8 px apart, in entries 43 px apart. #270's columns take them
+  // first, so the flags are the two columns', at the list's middle, never one per entry.
+  const runs = flagRuns([
+    cutAt(0, { x: 224, width: 150 }),
+    cutAt(0, { x: 382, width: 100 }),
+    cutAt(43, { x: 224, width: 150 }),
+    cutAt(43, { x: 382, width: 100 }),
+  ]);
+  expect([0, 1, 2, 3].map((index) => runs.get(index)?.count ?? null)).toEqual([2, 2, null, null]);
 });
 
 /** Kai's observation of the fixture with `elements` in place of its own. */
@@ -704,6 +802,28 @@ test("a run at the page's right takes its flag on the left, at the run's left ed
   expect(top && flagSideOf(top)).toBe("left");
   expect(measuredPx(top?.flagStyle.top)).toBe(101);
   expect(measuredPx(top?.flagStyle.right)).toBe(167);
+});
+
+test("a row's flag sits beside the whole row, at its middle, past its outer edge", () => {
+  // The nav, at the page's right, has more room to its left: the flag goes left of Home, at the
+  // row's left edge, 76 px in from Home's right, and 15 px down, the middle of the row's 30 px.
+  const drawn = outlines(render(kaiWith(NAV), { evidence: true }));
+  expect(drawn.map((outline) => outline.bbox)).toEqual(NAV.map((cut) => cut.bbox));
+  const [home, ...rest] = drawn;
+  expect(home?.tag).toEqual(["A1 · attention"]);
+  expect(home?.count).toBe("×4");
+  expect(home && flagSideOf(home)).toBe("left");
+  expect(measuredPx(home?.flagStyle.top)).toBe(15);
+  expect(measuredPx(home?.flagStyle.right)).toBe(76);
+  for (const outline of rest) {
+    expect(flagged(outline), outline.name).toBe(false);
+    expect(outline.tag, outline.name).toEqual(["A1 · attention"]);
+  }
+  // At the page's left, the flag goes right, past Settings' right edge, 435 px from Home's left.
+  const atLeft = NAV.map((cut) => ({ ...cut, bbox: { ...cut.bbox, x: cut.bbox.x - 797 } }));
+  const [left] = outlines(render(kaiWith(atLeft), { evidence: true }));
+  expect(left && flagSideOf(left)).toBe("right");
+  expect(measuredPx(left?.flagStyle.left)).toBe(435);
 });
 
 test("a run with too little room on either side takes its flag inside, at CutFlag's own place", () => {

@@ -12,7 +12,8 @@
  * - An element with no `ref` was removed and is not drawn. In the evidence view it is a dashed
  *   outline at its bbox, with its name for screen readers and a flag beside it listing every
  *   decision that removed it, in its removed or cut look (`FILTER_STATE_CLASS`). Neighbours removed
- *   alike, stacked as a list's entries, share one flag with their count (`flagRuns`, #225).
+ *   alike, stacked as a list's entries or side by side as a header's links, share one flag with
+ *   their count (`flagRuns`, #225).
  * - Every length on the page is a measured CSS px times `--px`, the frame's width over the
  *   viewport's, so the drawing scales with no script and the markup carries the measured numbers.
  *   A flag is not on the page: it is drawn at full size beside its element, so it reads at any
@@ -245,65 +246,136 @@ function removalsOf(element: ObservedElement): ElementDecision[] {
  */
 const RUN_PITCH_PX = 48;
 
+/**
+ * How far right of a row's last element the next may start and still join it, in measured CSS
+ * px. The headers the rehearsal hit: the target app's nav links are 8 px apart, cshark.com's
+ * 35.5 px. On those two, the next gap holds a link that stays, so the row stops short of it. That
+ * was measured there, not promised: a row reads removed elements only, so a shown one narrower
+ * than this between two removed ones does not end it (#225).
+ */
+const ROW_GAP_PX = 40;
+
 /** A flag that speaks for a run of removed neighbours: how many, and the box around them all. */
 export type FlagRun = { count: number; box: Bbox };
 
 /**
+ * A removed element as `chain` reads it: its index in the observation, and its flag lines, or
+ * `undefined` for a column's member in the row pass: it joins no row with lines, and ends one it
+ * lands between; a row it leads is dropped.
+ */
+type Member = { element: ObservedElement; index: number; lines: string | undefined };
+
+/**
+ * Chains `members`, in their order, into runs: each joins the first open run with its lines whose
+ * last member it `follows`. One with other lines, or none, that `blocks` a run's last member ends
+ * that run, since a later member would put the run's flag beside this element's own.
+ */
+function chain(
+  members: readonly Member[],
+  follows: (last: ObservedElement, next: ObservedElement) => boolean,
+  blocks: (last: ObservedElement, next: ObservedElement) => boolean,
+): Member[][] {
+  const runs: { members: Member[]; open: boolean }[] = [];
+  const lastOf = (run: Member[]) => run[run.length - 1]?.element;
+  for (const member of members) {
+    const run = runs.find((r) => {
+      const last = lastOf(r.members);
+      if (last === undefined || !r.open) return false;
+      return r.members[0]?.lines === member.lines && follows(last, member.element);
+    });
+    for (const r of runs) {
+      const last = lastOf(r.members);
+      if (
+        last !== undefined &&
+        r.members[0]?.lines !== member.lines &&
+        blocks(last, member.element)
+      )
+        r.open = false;
+    }
+    if (run === undefined) runs.push({ members: [member], open: true });
+    else run.members.push(member);
+  }
+  return runs.map((r) => r.members);
+}
+
+/** Whether two boxes overlap across, as a list's entries one under another do. */
+function across(a: ObservedElement, b: ObservedElement): boolean {
+  return a.bbox.x < b.bbox.x + b.bbox.width && b.bbox.x < a.bbox.x + a.bbox.width;
+}
+
+/** Whether two boxes overlap down, as a nav's links side by side do. */
+function down(a: ObservedElement, b: ObservedElement): boolean {
+  return a.bbox.y < b.bbox.y + b.bbox.height && b.bbox.y < a.bbox.y + a.bbox.height;
+}
+
+/**
  * Which removed element carries a flag, by its index in the observation (#225). Removed elements
- * stacked one under another, each starting less than `RUN_PITCH_PX` below the top of the one above
- * it and overlapping it across, that the same decisions removed with the same lines, as the
- * entries of a list an attention cap left out, share one flag: the topmost carries it, for the
- * whole run, and the rest map to `null`. Every one of them is still outlined; only their flags are
- * merged. A removed element with other lines that lands between two of them, overlapping across,
- * ends the run. It reads the measured boxes alone, never the scale, so a page draws the same flags
- * fitted or at full size.
+ * that the same decisions removed with the same lines share one flag when they are neighbours:
+ *
+ * - a column, stacked one under another as the entries of a list an attention cap left out, each
+ *   starting less than `RUN_PITCH_PX` below the top of the one above it and overlapping it across;
+ * - else a row, side by side as a header's links, each overlapping the one before it down and
+ *   starting less than `ROW_GAP_PX` right of its edge.
+ *
+ * Columns are taken first, and a row only joins elements no column took, so a list whose entries
+ * hold a removed label and button stays two columns, never a flag per entry. The first member, the
+ * topmost or the leftmost, carries the run's flag, for the whole run, and the rest map to `null`.
+ * Every one of them is still outlined; only their flags are merged. A removed element with other
+ * lines that lands between two of them ends the run. It reads the measured boxes alone, never the
+ * scale, so a page draws the same flags fitted or at full size.
  */
 export function flagRuns(elements: readonly ObservedElement[]): Map<number, FlagRun | null> {
-  const removed = elements
-    .map((element, index) => ({ element, index }))
-    .filter(({ element }) => element.ref === undefined)
-    .sort((a, b) => a.element.bbox.y - b.element.bbox.y || a.element.bbox.x - b.element.bbox.x);
-  const runs: { lines: string; members: ObservedElement[]; leader: number; open: boolean }[] = [];
+  const removed: Member[] = elements
+    .map((element, index) => ({
+      element,
+      index,
+      lines: removalsOf(element).map(flagLine).join("\n"),
+    }))
+    .filter(({ element }) => element.ref === undefined);
+  const x = (member: Member) => member.element.bbox.x;
+  const y = (member: Member) => member.element.bbox.y;
+  const columns = chain(
+    [...removed].sort((a, b) => y(a) - y(b) || x(a) - x(b)),
+    (last, next) => across(last, next) && next.bbox.y - last.bbox.y < RUN_PITCH_PX,
+    across,
+  );
+  const inColumn = new Set(columns.flatMap((run) => (run.length > 1 ? run : [])));
+  const rows = chain(
+    removed
+      .map((member) => (inColumn.has(member) ? { ...member, lines: undefined } : member))
+      .sort((a, b) => x(a) - x(b) || y(a) - y(b)),
+    (last, next) => down(last, next) && next.bbox.x - (last.bbox.x + last.bbox.width) < ROW_GAP_PX,
+    // Between: past the last member's right edge, so before any later member, in this order. One
+    // that starts under the last member lies behind the row, as a covered paragraph behind a
+    // cookie banner does, and ends nothing.
+    (last, next) => down(last, next) && next.bbox.x >= last.bbox.x + last.bbox.width,
+  );
   const result = new Map<number, FlagRun | null>();
-  for (const { element, index } of removed) {
-    const lines = removalsOf(element).map(flagLine).join("\n");
-    const { x, y, width } = element.bbox;
-    const across = ({ bbox }: ObservedElement) => x < bbox.x + bbox.width && bbox.x < x + width;
-    const run = runs.find((r) => {
-      const last = r.members[r.members.length - 1];
-      if (last === undefined || !r.open || r.lines !== lines) return false;
-      return across(last) && y - last.bbox.y < RUN_PITCH_PX;
-    });
-    // An element with other lines below a run, overlapping it across, ends it: a later member
-    // would put the run's flag beside this element's own.
-    for (const r of runs) {
-      const last = r.members[r.members.length - 1];
-      if (last !== undefined && r.lines !== lines && across(last)) r.open = false;
-    }
-    if (run === undefined) {
-      runs.push({ lines, members: [element], leader: index, open: true });
-    } else {
-      run.members.push(element);
-      result.set(index, null);
-    }
-  }
-  for (const { members, leader } of runs) {
+  const runs = [
+    ...columns.filter((run) => run.length > 1),
+    ...rows.filter((run) => run[0]?.lines !== undefined),
+  ];
+  for (const run of runs) {
+    const members = run.map((member) => member.element);
     const left = Math.min(...members.map((m) => m.bbox.x));
     const top = Math.min(...members.map((m) => m.bbox.y));
     const right = Math.max(...members.map((m) => m.bbox.x + m.bbox.width));
     const bottom = Math.max(...members.map((m) => m.bbox.y + m.bbox.height));
-    result.set(leader, {
-      count: members.length,
+    const [leader, ...rest] = run;
+    if (leader === undefined) continue;
+    result.set(leader.index, {
+      count: run.length,
       box: { x: left, y: top, width: right - left, height: bottom - top },
     });
+    for (const { index } of rest) result.set(index, null);
   }
   return result;
 }
 
 /**
- * Where a run's flag sits, from its topmost element: beside the whole run, at its middle, past its
- * widest edge, so it covers none of the run's outlines. One element's flag, or one inside its
- * outline, keeps `CutFlag`'s own place.
+ * Where a run's flag sits, from the element that carries it: beside the whole run, at its middle,
+ * past its outer edge, so it covers none of the run's outlines. One element's flag, or one inside
+ * its outline, keeps `CutFlag`'s own place.
  */
 function runStyle(
   element: ObservedElement,
@@ -324,7 +396,7 @@ function runStyle(
  * that removed it, in the removed or cut look by what removed it (`FILTER_STATE_CLASS`). A changed
  * one draws in from the hatch, which fades off it, while its flag drops in.
  *
- * The flag of a run of neighbours is drawn once, by its topmost element, with the run's count in a
+ * The flag of a run of neighbours is drawn once, by its first element, with the run's count in a
  * column of its own beside the lines (`A1 · attention │ ×5`), so it never reads as part of a value
  * and adds no line to the flag's height; each other element of the run keeps its lines for screen
  * readers only, a comma between them (#225).
@@ -336,7 +408,10 @@ function RemovedOutline({
   animate,
 }: {
   element: ObservedElement;
-  /** The run whose flag it carries, or `null` when the element above it carries its flag. */
+  /**
+   * The run whose flag it carries, or `null` when the element above it, or to its left in a row,
+   * carries its flag.
+   */
   run: FlagRun | null;
   viewportWidth: number;
   animate: boolean;
