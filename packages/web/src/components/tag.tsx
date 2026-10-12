@@ -17,19 +17,31 @@ const tagVariants = cva(
         rule: "border-current bg-transparent text-signal-ink",
         plain: "border-transparent bg-paper-sunken",
       },
+      breaks: {
+        true: "whitespace-normal wrap-anywhere",
+        false: "",
+      },
     },
     defaultVariants: {
       variant: "default",
+      breaks: false,
     },
   },
 );
 
-/** A small mono label: a rule id, a source, a certainty. `soft` is dotted, for what is unsourced. */
+/**
+ * A small mono label: a rule id, a source, a certainty. `soft` is dotted, for what is unsourced.
+ * A tag keeps to one line. With `breaks` it may wrap (`white-space: normal`) and break anywhere
+ * (`overflow-wrap: anywhere`), so it keeps its one line while it fits and, wider than its container,
+ * breaks over lines instead of running past it, even inside a word. For a tag whose text is free
+ * data, such as an axe rule id (#269).
+ */
 export function Tag({
   variant = "default",
+  breaks = false,
   children,
 }: VariantProps<typeof tagVariants> & { children: ReactNode }) {
-  return <span className={cn(tagVariants({ variant }))}>{children}</span>;
+  return <span className={cn(tagVariants({ variant, breaks }))}>{children}</span>;
 }
 
 /**

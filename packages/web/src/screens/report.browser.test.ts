@@ -25,6 +25,8 @@
  *   (#265): at 768 and 375 px the page is as wide as the window, at 320 px nothing in `<main>`
  *   outside the box ends past it, and the findings' Info buttons stay in view. At 375 px, Tab
  *   reaches the table's two Info buttons, scrolling the box, and each hint opens in view.
+ * - A finding's tag wider than its card breaks inside it, at 1280, 375 and 320 px, and keeps one
+ *   line where it fits, at 768 px (#269).
  * - Finding cards at rest (#241): titles no larger than `lead` in two lines, the columns at most
  *   60 % as tall as before, and "Show more" opens the whole title, the whole detail and the change.
  *   Opened with a long page URL, a card stays in its column and Show less takes the click.
@@ -750,19 +752,14 @@ test.each([
     for (const width of [1280, 768, 375, 320]) {
       await page.setViewportSize({ width, height: 720 });
       const layout = await narrowLayout(page);
-      // At 320 px two things besides the table outgrow the column. The top bar runs past the window
-      // on every screen, so the page is checked by what `<main>` holds. And a finding card is as
-      // wide as its widest tag, which never breaks, plus its padding: the Measurement card's "axe ·
-      // color-contrast" makes it 253 px on Windows and 261 px on Linux, against a 256 px column. So
-      // there the parts may run 8 px into the right gutter, and no further, until #269 lets a tag
-      // break and the slack goes.
-      const narrowest = width === 320;
-      if (!narrowest) expect(layout.page, `the page at ${width} px`).toBe(width);
+      // At 320 px the top bar runs past the window on every screen, so the page is checked by what
+      // `<main>` holds.
+      if (width !== 320) expect(layout.page, `the page at ${width} px`).toBe(width);
       expect(layout.past, `past the window at ${width} px`).toEqual([]);
       // The table scrolls only where it is wider than the column, and never down.
       expect(layout.box.across, `the table scrolls at ${width} px`).toBe(width < 1280);
       expect(layout.box.down, `the table scrolls down at ${width} px`).toBe(false);
-      const room = width - 2 * layout.gutter + (narrowest ? 8 : 0);
+      const room = width - 2 * layout.gutter;
       for (const [part, partWidth] of Object.entries(layout.widths)) {
         expect(partWidth, `${part} at ${width} px`).toBeLessThanOrEqual(room);
       }
@@ -777,6 +774,68 @@ test.each([
     }
   },
 );
+
+test("a finding's tag wider than its card breaks inside it, and keeps one line where it fits (#269)", async () => {
+  // A real axe rule id whose tag, 390 px on one line on macOS, is wider than a card in three
+  // columns at 1280 px and in one at 375 and 320 px, and fits the one column at 768 px. It stands
+  // in for "axe · color-contrast": 208 to 211 px on macOS and Windows, which fits the 214 px a
+  // 320 px window leaves a tag, but 219 px on Linux, which does not.
+  const rule = "landmark-no-duplicate-contentinfo";
+  const report = reportFixture(TASK_ID);
+  const long = Report.parse({
+    ...report,
+    findings: report.findings.map((finding) =>
+      finding.axeRuleId === undefined ? finding : { ...finding, axeRuleId: rule },
+    ),
+  });
+  const page = await servedPage((request, pathname) => get(request, pathname, REPORT_PATH, long));
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+
+  for (const [width, breaks] of [
+    [1280, true],
+    [768, false],
+    [375, true],
+    [320, true],
+  ] as const) {
+    await page.setViewportSize({ width, height: 720 });
+    const layout = await page.evaluate((text) => {
+      // The row under a card's title; a basis rule's two tags sit in a `display: contents` span.
+      const tags = [...document.querySelectorAll("main article h3 + div span")].filter(
+        (span) => getComputedStyle(span).display !== "contents",
+      );
+      const tag = tags.find((span) => span.textContent === text);
+      const card = tag?.closest("article");
+      const column = card?.closest("section");
+      const page = document.querySelector("main > div");
+      if (tag === undefined || card == null || column == null || page === null) {
+        throw new Error(`no tag ${text}`);
+      }
+      const right = (element: Element) => element.getBoundingClientRect().right;
+      return {
+        tag: { right: right(tag), height: tag.getBoundingClientRect().height },
+        card: right(card),
+        column: right(column),
+        room: innerWidth - Number.parseFloat(getComputedStyle(page).paddingRight),
+        others: tags
+          .filter((span) => span !== tag)
+          .map((span) => span.getBoundingClientRect().height),
+      };
+    }, `axe · ${rule}`);
+    // Every other tag on the page is one line, so the shortest of them is a line's height.
+    expect(layout.others.length).toBeGreaterThan(0);
+    const line = Math.min(...layout.others);
+    for (const height of layout.others) expect(height, `a tag at ${width} px`).toBe(line);
+    const lines = layout.tag.height > line ? "more than one line" : "one line";
+    expect(lines, `the long tag at ${width} px`).toBe(breaks ? "more than one line" : "one line");
+    expect(layout.tag.right, `the long tag at ${width} px`).toBeLessThanOrEqual(layout.card);
+    expect(layout.card, `its card at ${width} px`).toBeLessThanOrEqual(layout.column);
+    expect(layout.column, `its column at ${width} px`).toBeLessThanOrEqual(layout.room);
+  }
+});
 
 test("at 375 px, Tab reaches the cast table's two Info buttons, scrolling its box, and each hint opens in view (#265)", async () => {
   const page = await servedPage((request, pathname) =>

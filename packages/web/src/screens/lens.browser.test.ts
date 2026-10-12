@@ -340,6 +340,50 @@ test("a long URL with no hyphens scrolls nothing at 1280 × 720 and draws the pa
   await page.close();
 });
 
+test("an axe violation tag wider than the axe-core card breaks inside it, and nothing scrolls at 1280 × 720 (#269)", async () => {
+  // The #269 review: a real axe rule id, as a URL page can fire it. On one line its tag, 455 px,
+  // ran 97 px past the card and the page scrolled sideways to 1353 px.
+  const rule = "landmark-no-duplicate-contentinfo";
+  const page = await spiedPage();
+  expect(page.viewportSize()).toEqual({ width: 1280, height: 720 });
+  const scan = axeScanOf("/deliveries");
+  // Registered after `spiedPage`'s handler, so Playwright asks this one first.
+  await page.route(
+    (url) => url.pathname === "/api/axe",
+    (route) =>
+      route.fulfill({
+        json: {
+          ...scan,
+          violations: [
+            {
+              ruleId: rule,
+              impact: "moderate",
+              tags: ["cat.semantics", "best-practice"],
+              help: "Document should not have more than one contentinfo landmark",
+              nodes: 2,
+            },
+          ],
+        } satisfies AxeScan,
+      }),
+  );
+  await page.goto(`${origin}/lens?persona=prof_vera&seed=1`);
+  const card = page.getByRole("region", { name: "axe-core" });
+  const tag = card.getByText(`${rule}, 2 elements`, { exact: true });
+  await tag.waitFor();
+  await page.locator("[data-lens-stage]").waitFor();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  expect(inside(await tag.boundingBox(), await card.boundingBox()), "the tag in its card").toBe(
+    true,
+  );
+  expect(await fitsOf(page), "the page scrolls").toEqual({ down: true, across: true });
+  // Two lines in the strip keep the page drawn at half its size or more (#224).
+  const frame = await page.locator("[data-lens-stage]").boundingBox();
+  expect(frame?.width ?? 0, "the stage's width").toBeGreaterThanOrEqual(640);
+  await page.close();
+});
+
 /** An answer held back until `release` says whether it fails. */
 function held(): { failed: Promise<boolean>; release: (fail: boolean) => void } {
   let release: (fail: boolean) => void = () => {};

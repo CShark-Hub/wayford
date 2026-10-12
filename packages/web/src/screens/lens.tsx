@@ -557,7 +557,8 @@ function AxeCard({ page, note }: { page: string; note: string }) {
               <ul className="flex flex-wrap gap-1.5">
                 {scan.data.violations.map((violation) => (
                   <li key={violation.ruleId}>
-                    <Tag variant="plain">
+                    {/* Any axe rule id: one wider than the card breaks inside it (#269). */}
+                    <Tag variant="plain" breaks>
                       {`${violation.ruleId}, ${counted(violation.nodes, "element")}`}
                     </Tag>
                   </li>

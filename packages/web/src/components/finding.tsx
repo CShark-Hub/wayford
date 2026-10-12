@@ -165,13 +165,18 @@ export function FindingCard({
   const [open, setOpen] = useState(false);
   const id = useId();
   // The tags under the title: soft, the axe rule, each basis rule and its source. No row when none.
+  // The axe tag breaks inside the card when wider than it (#269): its rule id is any axe rule, and
+  // "axe · color-contrast" alone is wider than a card in a 320 px window on Linux. The other tags
+  // come from fixed lists and the widest, "folk · no source", fits the narrowest card.
   const tags = [
     line === "soft" ? (
       <Tag key="soft" variant="soft">
         soft
       </Tag>
     ) : null,
-    finding.axeRuleId === undefined ? null : <Tag key="axe">{`axe · ${finding.axeRuleId}`}</Tag>,
+    finding.axeRuleId === undefined ? null : (
+      <Tag key="axe" breaks>{`axe · ${finding.axeRuleId}`}</Tag>
+    ),
     ...finding.basis.map((entry) => (
       <span key={`${entry.rule}-${entry.provenance}`} className="contents">
         <Tag variant="rule">{entry.rule}</Tag>
