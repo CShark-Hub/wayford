@@ -108,12 +108,14 @@ describe("DimensionValue", () => {
   test("without card, an llm threshold takes the dotted soft tag, as folk does", () => {
     const llm: Dimension = { ...row("prof_vera", "targetPx"), provenance: "llm" };
     const html = renderToStaticMarkup(<DimensionValue dimension={llm} />);
-    expect(html).toMatch(/<p[^>]*><span class="[^"]*border-dotted[^"]*">llm<\/span><\/p>/);
+    expect(html).toMatch(
+      /<button[^>]*><span class="[^"]*border-dotted[^"]*">llm<\/span><\/button>/,
+    );
   });
 
   test("without card, a sourced threshold takes the solid tag, and no softness", () => {
     const html = renderToStaticMarkup(<DimensionValue dimension={row("prof_vera", "contrast")} />);
-    expect(html).toMatch(/<p[^>]*><span class="[^"]*">wcag22<\/span><\/p>/);
+    expect(html).toMatch(/<button[^>]*><span class="[^"]*">wcag22<\/span><\/button>/);
     expect(html).not.toContain("border-dotted");
     expect(html).not.toContain("soft 0.5");
     expect(lineOf(html)).toBe("3.0:1 wcag22");

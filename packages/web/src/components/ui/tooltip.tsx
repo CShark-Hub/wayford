@@ -6,13 +6,23 @@
  */
 import { Info } from "lucide-react";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
-import { useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Button } from "./button.js";
+
+/**
+ * A face's button: the 32 px box around a flag about 26 px tall, its margins giving the row back
+ * the 6 px, so the row is as high as with the bare flag. The flag takes the hover ground.
+ */
+const FACE = "-my-0.75 min-w-(--target-min) px-0 hover:bg-transparent hover:*:bg-paper-sunken";
 
 /**
  * An Info button named `label`, and `hint` beside it while open. The button is described by the
  * hint at all times, through a `hidden` span: Radix names the bubble only while it is open, and a
  * screen reader cursor that does not move focus never opens it.
+ *
+ * `face`, when given, is drawn in place of the Info icon: a thing that explains itself, such as a
+ * provenance tag (#243). `label` must then hold the face's words, so a voice command naming them
+ * reaches the button (WCAG 2.2, 2.5.3).
  *
  * Radix opens on hover and focus but never on a tap, since it closes on pointerdown and on click,
  * so the hint holds its own state:
@@ -26,7 +36,7 @@ import { Button } from "./button.js";
  * - The bubble never grows wider than Popper leaves inside the collision padding, so it reflows on
  *   a 320 px screen.
  */
-export function Hint({ label, hint }: { label: string; hint: string }) {
+export function Hint({ label, hint, face }: { label: string; hint: string; face?: ReactNode }) {
   const [open, setOpen] = useState(false);
   /** The last press on the button: whether the hint was open as it began, and its pointer. */
   const press = useRef({ open: false, pointer: "" });
@@ -62,7 +72,8 @@ export function Hint({ label, hint }: { label: string; hint: string }) {
             ref={button}
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size={face === undefined ? "icon-sm" : "sm"}
+            className={face === undefined ? undefined : FACE}
             aria-label={label}
             aria-describedby={descriptionId}
             onPointerDown={(event) => {
@@ -88,7 +99,7 @@ export function Hint({ label, hint }: { label: string; hint: string }) {
               setOpen(next);
             }}
           >
-            <Info aria-hidden="true" className="size-5" strokeWidth={1.75} />
+            {face ?? <Info aria-hidden="true" className="size-5" strokeWidth={1.75} />}
           </Button>
         </TooltipPrimitive.Trigger>
         <TooltipPrimitive.Portal>

@@ -10,8 +10,9 @@
  * rows line up across the matrix.
  *
  * Each column is one link to the Lens on its persona. The tile is a `<Link>` whose `::after` is
- * stretched over the column, so a click anywhere in it opens `/lens?persona=<id>`, and the column
- * draws the hover ground and the focus ring for it. The link is named by the persona's name and
+ * stretched over the column, so a click anywhere in it opens `/lens?persona=<id>`, except on a
+ * threshold's source tag, raised over the stretch to open its hint (#243). The column draws the
+ * hover ground and the focus ring for the link. The link is named by the persona's name and
  * "open in the Lens", and described by the description. The tile itself is raised above the
  * stretch: hovering it opens the persona's CastCard beside it, and hovering the matrix does not.
  *

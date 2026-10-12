@@ -196,7 +196,7 @@ Each is built once under `packages/web/src/components/` and reused. The ones sev
 | Button | Ink primary (one per view), outlined default, ghost; 40 px, never under 32 px | `s3-13` |
 | PersonaAvatar, PersonaChip | The existing avatar in slot colours on a squircle tile; 12 px square and name | `s3-13` |
 | SegmentedControl | Two to five sibling views; mono variant for paths and ids | `s3-13` |
-| Tag | Square mono flag: provenance, rule id. `folk`/`llm` dotted with "no source" | `s3-13` |
+| Tag | Square mono flag: provenance, rule id. `folk`/`llm` dotted with "no source". A provenance tag is a Hint's button in place of the Info icon, on the Cast, the Lens and finding cards: its words name the source, what it anchors in Wayford and its citation, or that it has none. The button is a 32 px box around the flag that costs its row no height, and the flag takes the hover ground (#243) | `s3-13`, #243 |
 | Hint | A 32 px ghost Info button and a few plain words beside it, on `surface` with a hairline and `shadow-pop`. Opens on hover, keyboard focus, a click and a tap, and a second tap closes it; stays open while hovered or while the button has focus, until Esc, a press elsewhere or another hint opening. The button is described by the words even when closed. Never a native `title` for an explanation; the Report's older `title=` explanations (readouts, "—", seed cells, why-line counts) are still to move to it | #240 |
 | SourceBadge | `live` or `stored`, from the screen's own data; dashed when stored. Only in the page, beside data that can be either: the Race header | `s3-13` |
 | Banner | Stored-page notice (dashed) or fault (`fault-soft`), one action | `s3-13` |

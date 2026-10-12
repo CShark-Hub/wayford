@@ -45,9 +45,11 @@ function linksOf(html: string): { href: string | undefined; text: string }[] {
   }));
 }
 
-/** Each button's text in `html`. */
+/** Each button's name in `html`: its `aria-label`, or else its text. */
 function buttonsOf(html: string): string[] {
-  return [...html.matchAll(/<button(?:\s[^>]*)?>(.*?)<\/button>/gs)].map((m) => lineOf(m[1] ?? ""));
+  return [...html.matchAll(/<button(\s[^>]*)?>(.*?)<\/button>/gs)].map(
+    (m) => attributesOf(m[1] ?? "")["aria-label"] ?? lineOf(m[2] ?? ""),
+  );
 }
 
 test("an evidence link's arrow is drawn but hidden from its accessible name", () => {
@@ -205,8 +207,9 @@ describe("FindingCard", () => {
       />,
     );
     expect(linksOf(html)).toHaveLength(3);
-    // The card's own Show more comes first; the evidence's toggle, when there is one, after it.
-    expect(buttonsOf(html)).toEqual(["Show more", ...toggle]);
+    // The source tag's hint comes first, in the tags row (#243), then the card's own Show more;
+    // the evidence's toggle, when there is one, after it.
+    expect(buttonsOf(html)).toEqual(["Explain folk · no source", "Show more", ...toggle]);
     if (toggle.length > 0) expect(html).toMatch(/<button [^>]*aria-expanded="false"[^>]*>Show/);
   });
 });

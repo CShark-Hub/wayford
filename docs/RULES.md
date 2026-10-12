@@ -293,7 +293,7 @@ question the sweep exists for: at which value does the path come back.
 
 ## Source registry
 
-Ids used in `provenance`. Each entry: id, what it anchors, citation.
+Ids used in `provenance`. Each entry: id, what it anchors, citation. The screens explain each tag in words drawn from this table and the rules that cite each source, narrowed to what the built rules take from it (`packages/web/src/components/provenance-words.ts`, #243): a change to a row must be checked there.
 
 | Id | Anchors | Citation |
 |---|---|---|

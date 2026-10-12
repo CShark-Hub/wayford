@@ -7,7 +7,7 @@
  * and list items, measures it. The gauge and the pips are drawings beside a value that says the
  * number, so they are hidden from a screen reader.
  */
-import { constraintCount, isUnsourced, type Profile } from "@wayford/core";
+import { constraintCount, type Profile } from "@wayford/core";
 import { cn } from "cn";
 import { slotOf, slotStyle } from "../avatar/slots.js";
 import { castDimensions, type Dimension, PATTERN_COUNT } from "../cast/dimensions.js";
@@ -66,7 +66,8 @@ function Pips({ known }: { known: number }) {
 /**
  * One dimension's cell, for the Cast's matrix and the CastCard's plate. Unset, it reads `—`, and
  * "not set" to a screen reader. Set, it reads its value in mono; a threshold adds its provenance
- * tag and its mini gauge, and K1 draws its 12 pips before the count.
+ * tag and its mini gauge, and K1 draws its 12 pips before the count. The tag explains its source in
+ * a hint (#243).
  *
  * `card` is the CastCard's room: the tag says "· no source" for `folk` and `llm`, a soft threshold
  * shows its softness, and patterns read against 12. The matrix's narrow cell gets the bare id,
@@ -99,12 +100,10 @@ export function DimensionValue({
         <p className="mono text-ink-3">{`soft ${softness}`}</p>
       ) : null}
       {provenance === undefined ? null : (
-        <p className="ms-auto flex">
-          {card ? (
-            <ProvenanceTag provenance={provenance} />
-          ) : (
-            <Tag variant={isUnsourced(provenance) ? "soft" : "default"}>{provenance}</Tag>
-          )}
+        // In the matrix, raised over the link the Cast stretches over the column (`z-1`), so the
+        // tag takes the pointer: hovering it opens its hint, and a click on it opens no Lens.
+        <p className={cn("ms-auto flex", !card && "relative z-2")}>
+          <ProvenanceTag provenance={provenance} bare={!card} />
         </p>
       )}
       {gauge === undefined ? null : <MiniGauge share={gauge} />}
