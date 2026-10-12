@@ -19,6 +19,12 @@
  * The headers of the two numbers each carry a hint saying what the number counts and how far to
  * trust it (#240). Each header is named by its label alone, so a screen reader does not repeat the
  * hint button's name with every cell of the column.
+ *
+ * In a window narrower than the table, the table scrolls sideways in a box of its own, not the page
+ * (#265). In the page column's grid a scroll container's minimum width is 0, so the table no longer
+ * sets the column's width, and the header, the findings and the footer keep to the window. The box
+ * is `relative`, so a `NoValue`'s `sr-only` reason, positioned absolutely, is placed in the box and
+ * not against the page.
  */
 import { Link } from "@tanstack/react-router";
 import type {
@@ -313,48 +319,50 @@ export function CastTable({ report, picked }: { report: Report; picked: string |
   const routeOpenId = useId();
   const gotThroughId = useId();
   return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="border-b border-line-strong">
-          <th scope="col" className={cn(HEAD, "text-left")}>
-            <p>persona</p>
-          </th>
-          <th scope="col" className={cn(HEAD, "text-left")}>
-            <p>{span}</p>
-          </th>
-          <th scope="col" aria-labelledby={routeOpenId} className={cn(HEAD, "text-right")}>
-            <p className="inline-flex items-center gap-(--space-2)">
-              <CertaintyGlyph line="deterministic" />
-              <span id={routeOpenId}>route open</span>
-              <Hint label="Explain route open" hint={NUMBER_HINTS.routeOpen} />
-            </p>
-          </th>
-          <th scope="col" aria-labelledby={gotThroughId} className={cn(HEAD, "text-right")}>
-            <p className="inline-flex items-center gap-(--space-2)">
-              <CertaintyGlyph line="hypothesis" />
-              <span id={gotThroughId}>got through</span>
-              <Hint label="Explain got through" hint={NUMBER_HINTS.gotThrough} />
-            </p>
-          </th>
-          <th scope="col" className={cn(HEAD, "ps-(--space-6) text-left")}>
-            <p>gap</p>
-          </th>
-          <th scope="col" className={cn(HEAD, "text-right")}>
-            <p>median simulated time</p>
-          </th>
-        </tr>
-      </thead>
-      {report.personas.map((result) => (
-        <tbody key={result.profileId} className="group border-b border-line">
-          <CastRow taskId={report.taskId} result={result} picked={result.profileId === picked} />
-          <WhyRow
-            taskId={report.taskId}
-            result={result}
-            findings={report.findings}
-            picked={result.profileId === picked}
-          />
-        </tbody>
-      ))}
-    </table>
+    <div className="relative overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b border-line-strong">
+            <th scope="col" className={cn(HEAD, "text-left")}>
+              <p>persona</p>
+            </th>
+            <th scope="col" className={cn(HEAD, "text-left")}>
+              <p>{span}</p>
+            </th>
+            <th scope="col" aria-labelledby={routeOpenId} className={cn(HEAD, "text-right")}>
+              <p className="inline-flex items-center gap-(--space-2)">
+                <CertaintyGlyph line="deterministic" />
+                <span id={routeOpenId}>route open</span>
+                <Hint label="Explain route open" hint={NUMBER_HINTS.routeOpen} />
+              </p>
+            </th>
+            <th scope="col" aria-labelledby={gotThroughId} className={cn(HEAD, "text-right")}>
+              <p className="inline-flex items-center gap-(--space-2)">
+                <CertaintyGlyph line="hypothesis" />
+                <span id={gotThroughId}>got through</span>
+                <Hint label="Explain got through" hint={NUMBER_HINTS.gotThrough} />
+              </p>
+            </th>
+            <th scope="col" className={cn(HEAD, "ps-(--space-6) text-left")}>
+              <p>gap</p>
+            </th>
+            <th scope="col" className={cn(HEAD, "text-right")}>
+              <p>median simulated time</p>
+            </th>
+          </tr>
+        </thead>
+        {report.personas.map((result) => (
+          <tbody key={result.profileId} className="group border-b border-line">
+            <CastRow taskId={report.taskId} result={result} picked={result.profileId === picked} />
+            <WhyRow
+              taskId={report.taskId}
+              result={result}
+              findings={report.findings}
+              picked={result.profileId === picked}
+            />
+          </tbody>
+        ))}
+      </table>
+    </div>
   );
 }

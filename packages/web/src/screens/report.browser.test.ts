@@ -21,6 +21,10 @@
  *   effect included, and not again while it runs, which shows as running.
  * - Back on a goal whose analysis ended, while another goal's runs, the status region says nothing.
  * - A ten-seed report fits: the findings' headings end above 720 px, and nothing scrolls sideways.
+ * - In a window narrower than the cast table, only the table scrolls sideways, in a box of its own
+ *   (#265): at 768 and 375 px the page is as wide as the window, at 320 px nothing in `<main>`
+ *   outside the box ends past it, and the findings' Info buttons stay in view. At 375 px, Tab
+ *   reaches the table's two Info buttons, scrolling the box, and each hint opens in view.
  * - Finding cards at rest (#241): titles no larger than `lead` in two lines, the columns at most
  *   60 % as tall as before, and "Show more" opens the whole title, the whole detail and the change.
  *   Opened with a long page URL, a card stays in its column and Show less takes the click.
@@ -688,4 +692,132 @@ test("a ten-seed report fits 1280 × 720", async () => {
   for (const bottom of bottoms) expect(bottom).toBeLessThanOrEqual(720);
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(scrollWidth).toBeLessThanOrEqual(1280);
+});
+
+/**
+ * The page at its current width (#265): how wide it scrolls, the column's gutter, the box the cast
+ * table sits in and whether it scrolls, the widths of the header, the findings and the footer, and
+ * every element in `<main>` that ends past the window, the table's content left out, as its box
+ * clips it.
+ */
+function narrowLayout(page: Page) {
+  return page.evaluate(() => {
+    const box = document.querySelector("main table")?.parentElement;
+    const column = document.querySelector("main > div");
+    const findings = document.querySelector("section[aria-labelledby^='findings-']")?.parentElement;
+    if (box == null || column === null || findings == null) throw new Error("no report drawn");
+    const widthOf = (selector: string) =>
+      document.querySelector(selector)?.getBoundingClientRect().width;
+    return {
+      page: document.documentElement.scrollWidth,
+      gutter: Number.parseFloat(getComputedStyle(column).paddingLeft),
+      box: {
+        across: box.scrollWidth > box.clientWidth,
+        down: box.scrollHeight > box.clientHeight,
+      },
+      widths: {
+        header: widthOf("main > div > header"),
+        findings: findings.getBoundingClientRect().width,
+        footer: widthOf("main > div > footer"),
+      },
+      past: [...document.querySelectorAll("main *")]
+        .filter((element) => element === box || !box.contains(element))
+        .filter((element) => element.getBoundingClientRect().right > innerWidth)
+        .map((element) => element.outerHTML.slice(0, 120)),
+    };
+  });
+}
+
+test.each([
+  ["the self-check's report", () => reportFixture(TASK_ID)],
+  ["a ten-seed report", tenSeedReport],
+])(
+  "with %s, a window narrower than the cast table scrolls the table in its own box, not the page (#265)",
+  async (_, build) => {
+    const report = build();
+    const page = await servedPage((request, pathname) =>
+      get(request, pathname, REPORT_PATH, report),
+    );
+    await page.goto(`${origin}/report/${TASK_ID}`);
+    await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+
+    const findingsHints = page.getByRole("button", {
+      name: /^Explain (Measurement|Deterministic|Hypothesis)$/,
+    });
+    for (const width of [1280, 768, 375, 320]) {
+      await page.setViewportSize({ width, height: 720 });
+      const layout = await narrowLayout(page);
+      // At 320 px two things besides the table outgrow the column. The top bar runs past the window
+      // on every screen, so the page is checked by what `<main>` holds. And a finding card is as
+      // wide as its widest tag, which never breaks, plus its padding: the Measurement card's "axe ·
+      // color-contrast" makes it 253 px on Windows and 261 px on Linux, against a 256 px column. So
+      // there the parts may run 8 px into the right gutter, and no further, until #269 lets a tag
+      // break and the slack goes.
+      const narrowest = width === 320;
+      if (!narrowest) expect(layout.page, `the page at ${width} px`).toBe(width);
+      expect(layout.past, `past the window at ${width} px`).toEqual([]);
+      // The table scrolls only where it is wider than the column, and never down.
+      expect(layout.box.across, `the table scrolls at ${width} px`).toBe(width < 1280);
+      expect(layout.box.down, `the table scrolls down at ${width} px`).toBe(false);
+      const room = width - 2 * layout.gutter + (narrowest ? 8 : 0);
+      for (const [part, partWidth] of Object.entries(layout.widths)) {
+        expect(partWidth, `${part} at ${width} px`).toBeLessThanOrEqual(room);
+      }
+      const hints = await findingsHints.evaluateAll((buttons) =>
+        buttons.map((button) => button.getBoundingClientRect().toJSON()),
+      );
+      expect(hints).toHaveLength(3);
+      for (const box of hints) {
+        expect(box.left).toBeGreaterThanOrEqual(0);
+        expect(box.right, `a findings Info button at ${width} px`).toBeLessThanOrEqual(width);
+      }
+    }
+  },
+);
+
+test("at 375 px, Tab reaches the cast table's two Info buttons, scrolling its box, and each hint opens in view (#265)", async () => {
+  const page = await servedPage((request, pathname) =>
+    get(request, pathname, REPORT_PATH, reportFixture(TASK_ID)),
+  );
+  await page.setViewportSize({ width: 375, height: 720 });
+  await page.goto(`${origin}/report/${TASK_ID}`);
+  await page.getByRole("heading", { name: /^Measurement/ }).waitFor();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+
+  type Box = { x: number; y: number; width: number; height: number };
+  const within = (inner: Box | null, outer: Box | null) =>
+    inner !== null &&
+    outer !== null &&
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height;
+  const viewport = { x: 0, y: 0, width: 375, height: 720 };
+  const table = page.locator("main table");
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+  for (const label of ["Explain route open", "Explain got through"]) {
+    for (let tabs = 0; (await focused()) !== label; tabs++) {
+      if (tabs === 40) throw new Error(`Tab never reached ${label}`);
+      await page.keyboard.press("Tab");
+    }
+    const button = page.getByRole("button", { name: label, exact: true });
+    const described = await button.getAttribute("aria-describedby");
+    const hint = await page.locator(`[id="${described}"]`).textContent();
+    await expect
+      .poll(() => page.getByRole("tooltip").allInnerTexts(), { message: label })
+      .toEqual([hint]);
+    // The button shows in the part of the table its box scrolled to, inside the window.
+    const at = await button.boundingBox();
+    const shown = await table.locator("xpath=..").boundingBox();
+    const visible = within(at, shown) && within(at, viewport);
+    expect(visible, `${label} at ${JSON.stringify(at)}`).toBe(true);
+    const bubble = await page.getByRole("tooltip").boundingBox();
+    expect(within(bubble, viewport), `${label}'s hint at ${JSON.stringify(bubble)}`).toBe(true);
+  }
+  expect(await table.evaluate((element) => element.parentElement?.scrollLeft)).toBeGreaterThan(0);
 });
