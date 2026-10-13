@@ -10,7 +10,7 @@ Depends on: s3-02. Only the real-key acceptance box needs s4-03 merged; everythi
 Read first, in this order:
 
 - `docs/PLAN.md` F3, F6, assumption A7, and section "UI" (the playful input register, the race track)
-- `KONCEPCJA.md` section "Demo, 90 sekund", steps 3 and 4
+- `tasks/KONCEPCJA.md` section "Demo, 90 sekund", steps 3 and 4
 - `packages/core/src/run.ts` — `RunEvent`
 - `packages/io/src/` after s4-03 — `POST /tasks`, `POST /runs`, the run event streams
 - `packages/web/src/` after s3-02 — avatars and the shell
@@ -31,7 +31,7 @@ An arena screen takes a goal in one sentence and three to five personas, starts 
 - One `EventSource` per run, at most five runs: browsers allow six connections per origin. A comment in the code says so.
 - Avatar state is a pure function of the events seen so far: idle before the first step, moving after an action, stuck when the last N steps stayed on one URL (N stated in the code), done on `success`, gave up on `gave_up` or `budget_exceeded`, error on `runFailed`. Tested without a browser.
 - Finish order and elapsed time come from event timestamps, never the local clock (F6 AC3).
-- Each tile shows its run's latest step screenshot, served by io, and the latest narration line under a "narration" label: the Actor talking is step 4 of the demo (`KONCEPCJA.md`, "Demo, 90 sekund"). A Jev run has no narration, and the line stays empty. No live video: cut in `m0-08`.
+- Each tile shows its run's latest step screenshot, served by io, and the latest narration line under a "narration" label: the Actor talking is step 4 of the demo (`tasks/KONCEPCJA.md`, "Demo, 90 sekund"). A Jev run has no narration, and the line stays empty. No live video: cut in `m0-08`.
 - No motion: each avatar state is a static variant of the avatar from s3-02, swapped when the state changes. Every control has an accessible name.
 
 ## Acceptance

@@ -10,7 +10,7 @@ Depends on: m0-01
 Read first, in this order:
 
 - `AGENTS.md` sections "Decisions and rationale" (persona is a filter, randomness rules, provenance)
-- `KONCEPCJA.md` section "Profil = wiązka zdolności, nie zawód" (the YAML example is the starting point)
+- `tasks/KONCEPCJA.md` section "Profil = wiązka zdolności, nie zawód" (the YAML example is the starting point)
 - `docs/PLAN.md` F1 and assumptions A11, A12
 - `docs/RULES.md` — the pipeline, the rule ids and the source registry the profile refers to
 - `packages/core/src/primitives.ts` — `ProvenanceId`, `MetricName`, `Seed`, `DeviceKind`, `VisionDeficiency`, `UiPattern`, `ProfileId` already exist (from `m0-00`). Import them, do not redefine them.
@@ -31,7 +31,7 @@ The names are a system, not decoration. The initial is the dimension the persona
 
 ## Constraints
 
-- Field names in English. The YAML in `KONCEPCJA.md` is Polish and is a sketch, not the contract.
+- Field names in English. The YAML in `tasks/KONCEPCJA.md` is Polish and is a sketch, not the contract.
 - Three sections: `perception`, `behaviour`, `knowledge`. Plus `id`, `label`, `description`, `seed`, `device`.
 - `label` is the persona's bare name, nothing else. The sentence describing the bundle lives in `description`, in English. No job title, no "able-bodied" or "impaired" wording (see `AGENTS.md`, "English only, no locales").
 - Perception thresholds: `contrast` (ratio, WCAG 2.2), `fontPx`, `targetPx`, each with `threshold` and optional `softness` in 0..1. Plus `emulation` from the CDP vision deficiency enum.

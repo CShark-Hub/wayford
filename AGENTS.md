@@ -1,7 +1,7 @@
 # AGENTS.md — Wayford project context
 
 For any AI agent (Claude Code, Codex, other) picking up work on this repo.
-The product description lives in `KONCEPCJA.md`. **This file holds what that one doesn't: why these choices and not others.**
+The product description lives in `tasks/KONCEPCJA.md`. **This file holds what that one doesn't: why these choices and not others.**
 
 ---
 
@@ -76,7 +76,7 @@ Payoff: we defend "someone with a 3:1 contrast threshold", not "this is how plum
 
 The whole application is English: UI copy, API, schemas, identifiers, comments, fixtures, descriptions, reports. There is no i18n layer, no locale switch and no translated strings, and none are planned for the hackathon.
 
-Persona names are English too: Ada, Kai, Milo, Vera, Zoya. The initial names each one's dimension. Ada, the control persona, comes first and Zoya, the boundary, last; the names in between sort alphabetically. Polish belongs in `KONCEPCJA.md` alone.
+Persona names are English too: Ada, Kai, Milo, Vera, Zoya. The initial names each one's dimension. Ada, the control persona, comes first and Zoya, the boundary, last; the names in between sort alphabetically. Polish belongs in `tasks/KONCEPCJA.md` alone.
 
 Why: a locale layer is a week of work that wins no point in the pitch, and half-translated UI is worse than an English one. If the demo needs Polish, it needs a translated target app, not a translated tool.
 
@@ -216,7 +216,7 @@ Usage: product name **Wayford**, workspace scope `@wayford/*`, repo may keep its
 
 ## Note to the agent
 
-Three sentences repeat deliberately across this file and `KONCEPCJA.md`:
+Three sentences repeat deliberately across this file and `tasks/KONCEPCJA.md`:
 
 > The persona is a filter, not a prompt.
 > The Actor must be our own loop.

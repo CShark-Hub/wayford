@@ -39,7 +39,7 @@ Week 1 split, one person per stream, about 4 h each including reviews:
 | D | 4 input, output | `m0-04` Task and Finding, then API half of `m0-07`, `m0-08` with A | Task and Finding shape the Extractor and Analyst D will own. |
 
 Schema tasks touch separate files in `packages/core/src`; the only shared file is the index re-export, so merge conflicts stay trivial.
-Every PR gets one reviewer from a different stream. `m0-03` gets all three others within 48 h; that review replaces the "whole team over one file" hour from `KONCEPCJA.md`.
+Every PR gets one reviewer from a different stream. `m0-03` gets all three others within 48 h; that review replaces the "whole team over one file" hour from `tasks/KONCEPCJA.md`.
 
 ## Week 1 — M0: contracts frozen, skeleton runs
 

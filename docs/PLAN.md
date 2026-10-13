@@ -1,6 +1,6 @@
 # Wayford — PLAN: what we build and how we know it is done
 
-Companion to `KONCEPCJA.md` (product idea, Polish) and `AGENTS.md` (decisions and rationale).
+Companion to `tasks/KONCEPCJA.md` (product idea, Polish) and `AGENTS.md` (decisions and rationale).
 This file turns the idea into requirements with acceptance criteria, a UI outline, an architecture and a stack.
 `docs/ROADMAP.md` puts it on a calendar. `tasks/` breaks it into agent-sized work.
 

@@ -10,7 +10,7 @@ Depends on: m0-01
 Read first, in this order:
 
 - `docs/PLAN.md` assumption A5, F2, F9
-- `KONCEPCJA.md` section "Przykład działania" for the flavour of goals, ignoring the energy domain
+- `tasks/KONCEPCJA.md` section "Przykład działania" for the flavour of goals, ignoring the energy domain
 - `AGENTS.md` rejected item "Domain context"
 
 ## Goal

@@ -16,7 +16,7 @@ Installing Wayford and a first run are in the [README](../README.md). The guides
 | Document | What it holds |
 |---|---|
 | [`AGENTS.md`](../AGENTS.md) | Product rationale, the untouchable core, what was rejected and why. Read it first, whether you are a person or an agent |
-| [`KONCEPCJA.md`](../KONCEPCJA.md) | The product concept, in Polish |
+| [`tasks/KONCEPCJA.md`](../tasks/KONCEPCJA.md) | The product concept, in Polish |
 | [`PLAN.md`](PLAN.md) | Requirements F1 to F12 with acceptance criteria, hackathon scope, architecture |
 | [`RULES.md`](RULES.md) | The filter pipeline, every rule with its source, the persona bundles, calibration |
 | [`DEMO.md`](DEMO.md) | The 90-second demo script, and the words we do not use |

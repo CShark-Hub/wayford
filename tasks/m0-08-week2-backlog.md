@@ -26,7 +26,7 @@ Eight task files for week 2, one owner per stream, so nobody waits on Monday of 
 
 ## Constraints
 
-- Split by the four streams in `KONCEPCJA.md`. Stream 1 gets the strongest deliverer.
+- Split by the four streams in `tasks/KONCEPCJA.md`. Stream 1 gets the strongest deliverer.
 - Each task follows `TEMPLATE.md`, sized S to L, with acceptance commands.
 - Total week 2 tasks: 8, roughly two per person.
 - Suggested set: s1-01 DOM metrics collector, s1-02 contrast and threshold decisions with seed, s2-01 LLM adapter, s2-02 fake cursor and evidence capture, s3-01 preview screen on fixtures, s3-02 procedural avatar, s4-01 Extractor, s4-02 Drizzle schema for all tables.

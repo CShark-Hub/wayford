@@ -10,7 +10,7 @@ Depends on: s1-01, s3-02
 Read first, in this order:
 
 - `docs/PLAN.md` F2 and section "UI"
-- `KONCEPCJA.md` section "Demo, 90 sekund", steps 1 and 2
+- `tasks/KONCEPCJA.md` section "Demo, 90 sekund", steps 1 and 2
 - `packages/core/src/measurement.ts` and `observation.ts` after s1-01
 - `packages/filter/src/` after s1-01 — the `./perceive` entry, and `packages/web/src/` after s3-02 — the router and the bundled fixtures
 - `docs/STACK.md` sections "Web" and "Package import rules"

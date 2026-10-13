@@ -1,6 +1,6 @@
 # DEMO — the 90-second script
 
-Status: draft, 2026-10-01; Jev added 2026-10-04; screen names from the redesign, 2026-10-06 (`docs/DESIGN.md`, "Screens": the Lens was the preview, the Race the arena, the Boundary screen the sweep screen). The team agrees on it or changes it by PR by Friday 2026-10-09 (`demo-1` in `tasks/BOARD.md`), and week 4 builds the screens its beats need. It replaces the first sketch in `KONCEPCJA.md`, "Demo, 90 sekund".
+Status: draft, 2026-10-01; Jev added 2026-10-04; screen names from the redesign, 2026-10-06 (`docs/DESIGN.md`, "Screens": the Lens was the preview, the Race the arena, the Boundary screen the sweep screen). The team agrees on it or changes it by PR by Friday 2026-10-09 (`demo-1` in `tasks/BOARD.md`), and week 4 builds the screens its beats need. It replaces the first sketch in `tasks/KONCEPCJA.md`, "Demo, 90 sekund".
 
 Backends: the live race (beat 4) runs on the LLM, for its narration. `seed:demo` and both sweeps, which beats 5 and 6 read, run on Jev, a decision model that returns a probability per option (`docs/adr/0001-jev-actor-backend.md`).
 

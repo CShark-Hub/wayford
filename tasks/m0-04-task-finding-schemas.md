@@ -12,7 +12,7 @@ Read first, in this order:
 - `AGENTS.md` sections "A task must not contain the solution" and "Every verdict clickable through to evidence"
 - `docs/PLAN.md` F3, F8, assumption A9
 - `packages/core/src/primitives.ts` — ids, provenance, shared enums (from `m0-00`)
-- `KONCEPCJA.md` section "Przykład działania"
+- `tasks/KONCEPCJA.md` section "Przykład działania"
 
 ## Goal
 
