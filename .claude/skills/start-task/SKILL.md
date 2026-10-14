@@ -73,7 +73,7 @@ The branch is `feature/<task-id>-<slug>`, for example `feature/s2-01-llm-adapter
 
    Every agent you spawn from here on gets this worktree's absolute path, because an agent starts in the session's working directory, which is not always the worktree.
 2. `pnpm install`, then the baseline: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Record the result; red here is a blocker.
-3. Claim the task, unless its row already names an owner: owner name (default `git config user.name`) and status `doing` in `tasks/BOARD.md`, committed straight to `main` as `tasks/README.md` asks (`Board: <task-id> to <name>, doing`). Commit from a detached scratch worktree of `origin/main`, push, and remove that worktree. Manual: it pushes to `main`, so offer it and ask first. Auto: claim without asking.
+3. Claim the task, unless its row already names an owner: owner name (default `git config user.name`) and status `doing` in `tasks/BOARD.md`, in a small pull request as `tasks/README.md` asks (`Board: <task-id> to <name>, doing`), since `main` takes no direct pushes. Commit from a scratch worktree on a new branch `board/<task-id>` cut from `origin/main`, push it, open the pull request, and remove that worktree. Manual: it opens a pull request, so offer it and ask first. Auto: claim without asking.
 
 ## 3. Read
 
@@ -153,6 +153,6 @@ The next step, in order:
 
 1. Merge `origin/main` into the branch. Settle a conflict inside the task's files; a conflict anywhere else is a blocker. When anything came in, rerun the verify commands of phase 7 and commit; red is a blocker.
 2. Push the branch and open a ready PR, not a draft: title `<task-id>: <task title>`, body from `.github/pull_request_template.md` filled from the summary. For an S task, copy the plan's decision log into the body under a "Decisions" heading. In auto, add one line to the body: the plan, and the spec when there is one, were approved by the agent in start-task's auto mode, and no human has read them yet.
-3. Set the task to `review` on the board (`Board: <task-id> review (PR #<n>)`), committed to `main` the way the claim was.
+3. Set the task to `review` on the board (`Board: <task-id> review (PR #<n>)`), in a small pull request the way the claim was.
 
 Manual: give the user the summary, then offer the next step; it reaches outside this machine, so ask first. Auto: take the next step without asking, then give the user the summary with the PR link.

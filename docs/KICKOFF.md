@@ -35,7 +35,7 @@ Second wave, after the first merges: `m0-05` (Dev 2), `m0-07` (Dev 3 takes web, 
 
 ## How to run a task
 
-1. Claim it: put your name in `tasks/BOARD.md`, status `doing`, commit straight to `main`. Ten seconds, prevents two people on one task.
+1. Claim it: put your name in `tasks/BOARD.md`, status `doing`, in a small pull request. `main` takes no direct pushes; the open pull request already prevents two people on one task.
 2. Branch: `git checkout -b feature/s2-01-llm-adapter` (`feature/`, the task id, a short slug).
 3. Start your agent with this, and nothing else:
 
@@ -53,7 +53,7 @@ Second wave, after the first merges: `m0-05` (Dev 2), `m0-07` (Dev 3 takes web, 
 
 4. Review the diff yourself before the PR. You are responsible for it, not the agent.
 5. PR against `main`, title starts with the task id, body from the template. One reviewer who did not work on the task. The filter contract (`observation.ts`, `measurement.ts`, `docs/RULES.md`) took two until week 4; from week 4 it takes one (`docs/CONVENTIONS.md`, "Git").
-6. After merge, set the task to `done` in `tasks/BOARD.md`.
+6. After merge, set the task to `done` in `tasks/BOARD.md`, through a pull request as well.
 
 ## Rules that keep four agents from fighting
 

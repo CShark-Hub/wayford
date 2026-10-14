@@ -1,6 +1,6 @@
 # BOARD
 
-Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you grab a task. Commit this file directly to `main`.
+Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you grab a task. Change this file through a pull request, like any other: `main` takes no direct pushes.
 
 `done` means merged **and** every acceptance box ticked in the task file. Anyone picking up a task reads the row here and the boxes there; if the two disagree, the boxes are the truth.
 
