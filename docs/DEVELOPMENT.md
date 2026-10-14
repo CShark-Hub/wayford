@@ -97,12 +97,10 @@ Browser tests (`*.browser.test.ts`) launch Chromium through Playwright inside Vi
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs `pnpm lint`, `pnpm typecheck` and `pnpm test` on every pull request and every push to `main`, on the Node version in `.node-version`, with Chromium installed for the browser tests.
 
-Claude runs only for someone with the admin or maintain role on the repository:
+Claude runs only when the team asks for it:
 
-- **The review** runs only when asked: Actions → Claude Code Review → Run workflow, with the pull request's number, or `gh workflow run claude-code-review.yml -f pr=<number>` ([`claude-code-review.yml`](../.github/workflows/claude-code-review.yml)). It reviews pull requests from this repository's branches, not from forks.
-- **An `@claude` mention** in an issue, a pull request, a comment or a review gets a reply ([`claude.yml`](../.github/workflows/claude.yml)).
-
-GitHub shows Run workflow to everyone with write access; both workflows stop before Claude starts for anyone else.
+- **The review** waits on every push to a pull request until someone approves it: on the pull request, the Claude Code Review check → Details → Review deployments ([`claude-code-review.yml`](../.github/workflows/claude-code-review.yml)). The `claude-review` environment (Settings → Environments) lets the hackathon_promptozaury team approve, and any admin bypass. The check is not required, so a review nobody approves never blocks a merge. It reviews pull requests from this repository's branches, not from forks or drafts.
+- **An `@claude` mention** in an issue, a pull request, a comment or a review gets a reply, for someone with the admin or maintain role on the repository ([`claude.yml`](../.github/workflows/claude.yml)). It stops before Claude starts for anyone else.
 
 ## Determinism
 
