@@ -408,11 +408,13 @@ a { color: inherit; }
 }
 .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .st-lbl { font-family: var(--font-mono); font-weight: 500; }
-.hero__cap { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
-.hero__cap .stack { flex: 1 1 240px; gap: var(--space-1); }
+/* Under the stage: the rules a line stops on, what the drawing is, and a replay icon beside them. */
+.hero__cap { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.hero__cap .stack { flex: 1 1 auto; gap: var(--space-1); }
+.btn--replay { flex: none; padding-inline: 0; }
+.btn--replay svg { width: 20px; height: 20px; }
 .hero__key { color: var(--ink-2); }
 .hero__key .m { color: var(--signal-ink); font-weight: 600; }
-.flyer { position: fixed; left: 0; top: 0; width: 3px; background: var(--signal); border-radius: 1px; z-index: 50; pointer-events: none; transform-origin: top left; }
 
 /* ---------- Why ---------- */
 .facts { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding-inline: var(--space-5); padding-block: var(--space-5); display: grid; gap: var(--space-5); align-content: start; }
@@ -747,7 +749,7 @@ a { color: inherit; }
 
 <header class="top" id="topbar">
   <div class="top__in">
-    <a class="wordmark" href="#top"><span class="wordmark__posts" id="wordmark-post" aria-hidden="true"><i></i><i></i></span><span>Wayford</span></a>
+    <a class="wordmark" href="#top"><span class="wordmark__posts" aria-hidden="true"><i></i><i></i></span><span>Wayford</span></a>
     <nav class="top__nav" aria-label="Sections">
       <a href="#why">Why</a><span class="dot" aria-hidden="true">·</span>
       <a href="#what">How it works</a><span class="dot" aria-hidden="true">·</span>
@@ -814,10 +816,10 @@ a { color: inherit; }
       </div>
       <figcaption class="hero__cap">
         <div class="stack">
-          <p class="hero__key">Where a line stops: <button type="button" class="term" data-tip="p1"><span class="m">P1</span> contrast too low</button> · <button type="button" class="term" data-tip="p3"><span class="m">P3</span> text too small</button> · <span class="nw"><button type="button" class="term" data-tip="p4"><span class="m">P4</span> target too small</button>.</span></p>
-          <p class="cap" id="stage-cap"><button type="button" class="term" data-tip="quillmere">Quillmere, our test shop</button> · <button type="button" class="term" data-tip="hard-goal">hard goal</button> · <button type="button" class="term" data-tip="seed">seed <span data-seed-default>2</span></button> · <button type="button" class="term" data-tip="filter-decisions">the filter alone, no AI run</button></p>
+          <p class="hero__key"><button type="button" class="term" data-tip="p1"><span class="m">P1</span> contrast</button> · <button type="button" class="term" data-tip="p3"><span class="m">P3</span> text size</button> · <span class="nw"><button type="button" class="term" data-tip="p4"><span class="m">P4</span> target size</button></span></p>
+          <p class="cap" id="stage-cap"><button type="button" class="term" data-tip="quillmere">Quillmere</button> · <button type="button" class="term" data-tip="seed">seed <span data-seed-default>2</span></button> · <button type="button" class="term" data-tip="filter-decisions">filter only</button></p>
         </div>
-        <button class="btn btn--ghost btn--replay" type="button" id="replay">Replay</button>
+        <button class="btn btn--ghost btn--replay" type="button" id="replay" aria-label="Replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
       </figcaption>
     </figure>
   </section>
@@ -1556,9 +1558,8 @@ const TIPS = {
   p3: { t: "Rule P3, text size: text smaller than the persona's limit is filtered out. The limits are set against Legge & Bigelow's 2011 review of print size and sight.", links: [SRC.legge] },
   p4: { t: "Rule P4, target size: a link or button whose shorter side is under the persona's limit is filtered out. Anchors: WCAG 2.2, Apple and Google's Material.", links: [SRC.t258] },
   quillmere: { t: "Quillmere is our own small demo shop, built for testing Wayford. We know every route to each of its goals, so a result can be checked against the truth.", links: [SRC.quill] },
-  "hard-goal": { t: "Quillmere's hard goal, hard as in hardest to reach: “you want to see what you ordered three months ago”. Three routes lead to the order archive, each testing a different limit.", links: [SRC.quill] },
   seed: { t: "A number that fixes every chance decision in a test run, from what the filter removes to habits such as a double click. The AI's own answers still vary, so we report a rate over ten seeds." },
-  "filter-decisions": { t: "This drawing shows where the filter closes each persona's routes at this seed. No AI ran for it: whether an agent gets through is a separate, stored number." },
+  "filter-decisions": { t: "This drawing is the filter alone: where it closes each persona's routes to Quillmere's hard goal, “you want to see what you ordered three months ago”, at this seed. No AI ran for it: whether an agent gets through is a separate, stored number.", links: [SRC.quill] },
   hard: { t: "A hard limit: anything under it is filtered out on every seed, with no roll.", links: [SRC.band] },
   soft: { t: "A soft limit: just under it, the seed decides once per element whether it is removed or reaches the AI partly legible. Further under, it is always removed.", links: [SRC.band] },
   folk: { t: "Our assumption: no published source gives this number, so we say so instead of borrowing one. You can argue with it, and a sweep shows how much it matters.", links: [SRC.rules] },
@@ -1756,7 +1757,8 @@ const stage = (() => {
     }
   }
   const lin = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
-  let flyer = null, flyFrom = null, flyTo = null;
+  // The crossing ends when the water has drained to the rule.
+  const END = 2.4;
   function render(t) {
     for (const lane of lanes) {
       const p = lin(t, lane.start, lane.end);
@@ -1786,35 +1788,22 @@ const stage = (() => {
     const top = 220 + 110 * lin(t, 1.8, 2.4);
     river.setAttribute("y", top.toFixed(1));
     river.setAttribute("height", (330 - top).toFixed(1));
-    // A copy of the post flies to the wordmark's post.
-    if (t >= 2.4 && t < 3 && !reduceMotion.matches) {
-      if (!flyer) {
-        const a = post.getBoundingClientRect(), b = $("#wordmark-post").getBoundingClientRect();
-        flyFrom = { x: a.left, y: a.top, h: a.height }; flyTo = { x: b.left, y: b.top, h: b.height };
-        flyer = document.createElement("div"); flyer.className = "flyer"; flyer.setAttribute("aria-hidden", "true");
-        document.body.append(flyer);
-      }
-      const q = lin(t, 2.4, 3);
-      const x = flyFrom.x + (flyTo.x - flyFrom.x) * q, y = flyFrom.y + (flyTo.y - flyFrom.y) * q;
-      flyer.style.height = `${flyFrom.h + (flyTo.h - flyFrom.h) * q}px`;
-      flyer.style.transform = `translate(${x}px, ${y}px)`;
-    } else if (flyer) { flyer.remove(); flyer = null; }
   }
   let raf = 0, t0 = 0, played = false;
   function play() {
     cancelAnimationFrame(raf);
-    if (reduceMotion.matches) { render(3); return; }
+    if (reduceMotion.matches) { render(END); return; }
     t0 = performance.now();
     const step = (now) => {
       const t = (now - t0) / 1000;
-      render(Math.min(t, 3));
-      if (t < 3) raf = requestAnimationFrame(step);
+      render(Math.min(t, END));
+      if (t < END) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
   }
   function init() {
     layout();
-    render(reduceMotion.matches ? 3 : 0);
+    render(reduceMotion.matches ? END : 0);
     if (reduceMotion.matches) return;
     const io = new IntersectionObserver((entries) => {
       if (!played && entries.some((e) => e.intersectionRatio >= 0.5)) { played = true; play(); io.disconnect(); }
@@ -1822,7 +1811,7 @@ const stage = (() => {
     io.observe($("#stage"));
   }
   $("#replay").addEventListener("click", play);
-  reduceMotion.addEventListener("change", () => render(3));
+  reduceMotion.addEventListener("change", () => render(END));
   return { init, layout, render };
 })();
 
