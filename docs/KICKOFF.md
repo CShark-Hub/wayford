@@ -5,7 +5,7 @@ One page. Read it once, then work from your task file.
 ## Before you touch anything
 
 ```bash
-git clone git@github.com:CShark-Hub/promptozaury.git && cd promptozaury
+git clone git@github.com:CShark-Hub/wayford.git && cd wayford
 npm install -g pnpm          # pnpm 12, once per machine
 pnpm install
 pnpm --filter @wayford/filter exec playwright install --only-shell chromium   # once per machine, for the browser tests

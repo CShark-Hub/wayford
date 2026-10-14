@@ -212,7 +212,7 @@ Wayford gave up after 1:50.
 Wayford clicked twice. Twice.
 ```
 
-Usage: product name **Wayford**, workspace scope `@wayford/*`, repo may keep its current name. In narration and report copy the persona name is used, not "Wayford", unless the report speaks about the tool itself.
+Usage: product name **Wayford**, workspace scope `@wayford/*`, repository `CShark-Hub/wayford`. In narration and report copy the persona name is used, not "Wayford", unless the report speaks about the tool itself.
 
 ## Note to the agent
 

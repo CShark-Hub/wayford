@@ -4,7 +4,7 @@ Wayford is a hackathon project, built in September and October 2026, and a tool 
 
 ## Reporting a vulnerability
 
-Report it privately, with **Report a vulnerability** on the repository's [Security tab](https://github.com/CShark-Hub/promptozaury/security). Do not put the details in a public issue, pull request or discussion. If the button is not there, open an issue that asks for a contact, without the details.
+Report it privately, with **Report a vulnerability** on the repository's [Security tab](https://github.com/CShark-Hub/wayford/security). Do not put the details in a public issue, pull request or discussion. If the button is not there, open an issue that asks for a contact, without the details.
 
 Say what you found, how to reproduce it and what it lets someone do. The team is four people with a few hours a week each, so a reply comes when one of us can look; there is no schedule we can promise.
 
