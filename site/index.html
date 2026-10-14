@@ -12,13 +12,13 @@
 <meta name="theme-color" content="#f5f3ef" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="canonical" href="https://cshark-hub.github.io/promptozaury/">
+<link rel="canonical" href="https://cshark-hub.github.io/wayford/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Wayford">
 <meta property="og:title" content="It works perfectly. For Ada.">
 <meta property="og:description" content="Wayford sends an AI agent through your web app toward one goal, under five sets of limits enforced in code, and shows who gets across, and the assumption behind every no.">
-<meta property="og:url" content="https://cshark-hub.github.io/promptozaury/">
-<meta property="og:image" content="https://cshark-hub.github.io/promptozaury/og.png">
+<meta property="og:url" content="https://cshark-hub.github.io/wayford/">
+<meta property="og:image" content="https://cshark-hub.github.io/wayford/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Wayford: five persona lines cross an orange threshold post; some stop at it.">
@@ -998,7 +998,7 @@ a { color: inherit; }
         <div class="stopcard__body">
           <p class="stopcard__h"><button type="button" class="term stopcard__who" data-tip="milo">Milo</button> stops here</p>
           <p>On <span class="nw"><button type="button" class="term" data-tip="quillmere">Quillmere, our test shop</button>,</span> every way to your past orders goes through a link under 44&nbsp;px; Order archive is <b class="m">36&nbsp;px</b>. Milo's limit is <b class="m">44&nbsp;px</b>, so none of those links ever reaches his AI.</p>
-          <p class="stopcard__meta"><button type="button" class="term term--tag" data-tip="milo-target"><span class="rid">P4</span> · target · Apple HIG</button><span class="stopcard__src"><span class="repo-tag">evidence (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/docs/RULES.md#calibration-how-we-know-the-engine-is-not-broken" target="_blank" rel="noopener">the route table</a></span></p>
+          <p class="stopcard__meta"><button type="button" class="term term--tag" data-tip="milo-target"><span class="rid">P4</span> · target · Apple HIG</button><span class="stopcard__src"><span class="repo-tag">evidence:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/docs/RULES.md#calibration-how-we-know-the-engine-is-not-broken" target="_blank" rel="noopener">the route table</a></span></p>
         </div>
       </div>
     </div>
@@ -1022,7 +1022,7 @@ a { color: inherit; }
         </div>
         <h3 class="title" id="pil-filter">Filter</h3>
         <p class="body">Plain code between the browser and the model. An element below a <button type="button" class="term" data-tip="hard">hard limit</button> on contrast, text or target size never reaches the model. Under a <span class="nw"><button type="button" class="term" data-tip="soft">soft limit</button>,</span> the run seed decides, once per element. Zero <button type="button" class="term" data-tip="llm">LLM</button> inside. Every limit names its source, or says it's our assumption.</p>
-        <p class="proofline"><span class="repo-tag">proof in our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/perceive.ts#L1-L17" target="_blank" rel="noopener">perceive.ts</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/docs/RULES.md#source-registry" target="_blank" rel="noopener">every source</a></p>
+        <p class="proofline"><span class="repo-tag">proof in our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/perceive.ts#L1-L17" target="_blank" rel="noopener">perceive.ts</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/docs/RULES.md#source-registry" target="_blank" rel="noopener">every source</a></p>
       </article>
       <article class="pillar p-vera" aria-labelledby="pil-seed">
         <div class="glyph" aria-hidden="true">
@@ -1031,7 +1031,7 @@ a { color: inherit; }
         </div>
         <h3 class="title" id="pil-seed">Seed</h3>
         <p class="body">Every perception decision and <button type="button" class="term" data-tip="behaviour">behaviour roll</button> comes from the run <span class="nw"><button type="button" class="term" data-tip="seed">seed</button>.</span> Same seed, same page, same decisions. The model's answers don't replay, so we report a rate.</p>
-        <p class="proofline"><span class="repo-tag">proof in our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/perceive.test.ts#L190-L207" target="_blank" rel="noopener">same seed, same text</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/random.test.ts#L22-L28" target="_blank" rel="noopener">seeded numbers</a></p>
+        <p class="proofline"><span class="repo-tag">proof in our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/perceive.test.ts#L190-L207" target="_blank" rel="noopener">same seed, same text</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/random.test.ts#L22-L28" target="_blank" rel="noopener">seeded numbers</a></p>
       </article>
       <article class="pillar p-vera" aria-labelledby="pil-dial">
         <div class="glyph" aria-hidden="true">
@@ -1046,12 +1046,12 @@ a { color: inherit; }
         </div>
         <h3 class="title" id="pil-dial">Dial</h3>
         <p class="body">Tighten one limit over the same seeds and get the first value where fewer than half the runs get through: the <span class="nw"><button type="button" class="term" data-tip="boundary">boundary</button>.</span> A number for a feature.</p>
-        <p class="proofline"><span class="repo-tag">proof in our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/sweep.ts#L137-L158" target="_blank" rel="noopener">boundaryOf</a></p>
+        <p class="proofline"><span class="repo-tag">proof in our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/sweep.ts#L137-L158" target="_blank" rel="noopener">boundaryOf</a></p>
       </article>
     </div>
     <div class="claimline stack"><p class="lead">Of the tools we checked, none had all three. Same instructions for every persona, word for word, enforced by a test.</p>
       <p class="proofline"><span class="repo-tag">the closest we found, UXAgent:</span> <a class="src" href="https://arxiv.org/abs/2504.09407" target="_blank" rel="noopener">its paper</a> · <a class="src" href="https://github.com/neuhai/UXAgent" target="_blank" rel="noopener">its code</a></p>
-      <p class="proofline"><span class="repo-tag">proof in our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/AGENTS.md#prior-art-verified-research" target="_blank" rel="noopener">the tools we checked</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/agent/src/actor-loop.browser.test.ts#L1134-L1164" target="_blank" rel="noopener">the same-request test</a></p></div>
+      <p class="proofline"><span class="repo-tag">proof in our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/AGENTS.md#prior-art-verified-research" target="_blank" rel="noopener">the tools we checked</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/agent/src/actor-loop.browser.test.ts#L1134-L1164" target="_blank" rel="noopener">the same-request test</a></p></div>
   </section>
 
   <!-- ===================== Proof: VAR ===================== -->
@@ -1062,7 +1062,7 @@ a { color: inherit; }
         <h2 class="dl" id="proof-h">It's right there.</h2>
         <p class="intro" id="proof-intro"><b>What you're looking at:</b> Quillmere, our own small demo shop, built for testing Wayford. We know every route to each of its goals, so a result can be checked against the truth. Below, a copy of its Deliveries page, and what the AI was given about it.</p>
         <p class="lead">The goal: "you want to see what you ordered three months ago". For <span class="nw"><button type="button" class="term" data-tip="vera">Vera</button>,</span> the last way there is the pale Order archive link. It's on the page. But at <button type="button" class="term" data-tip="seed">seed <span data-seed-default>2</span></button>, one of our ten test seeds, the AI testing as Vera never received it: her contrast limit filtered it out before the AI read the page.</p>
-        <p class="proofline"><span class="repo-tag">about Quillmere, in our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/target-app/README.md#goals" target="_blank" rel="noopener">its goals and three routes</a></p>
+        <p class="proofline"><span class="repo-tag">about Quillmere, in our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/target-app/README.md#goals" target="_blank" rel="noopener">its goals and three routes</a></p>
       </div>
     </div>
     <div class="proof-grid" id="proof-grid">
@@ -1087,11 +1087,11 @@ a { color: inherit; }
           <div class="stopcard__body">
             <p class="stopcard__h"><button type="button" class="term stopcard__who" data-tip="vera">Vera</button> stops here</p>
             <p>The pale Order archive link measures <b class="m">2.0:1</b>, under Vera's <b class="m">3:1</b>. Her limit is <span class="nw"><button type="button" class="term" data-tip="soft">soft</button>:</span> between 1.5:1 and 3:1, the seed decides. At seed <b class="m" data-seed-default>2</b> the link never reaches her AI; on <span id="stop-vera-open">4</span> of our <span id="stop-vera-n">10</span> seeds it arrives <button type="button" class="term" data-tip="partly-legible">partly legible</button>.</p>
-            <p class="stopcard__meta"><button type="button" class="term term--tag" data-tip="vera-contrast"><span class="rid">P1</span> · contrast · WCAG 2.2</button><span class="stopcard__src"><span class="repo-tag">evidence (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/docs/RULES.md#calibration-how-we-know-the-engine-is-not-broken" target="_blank" rel="noopener">the calibration</a></span></p>
+            <p class="stopcard__meta"><button type="button" class="term term--tag" data-tip="vera-contrast"><span class="rid">P1</span> · contrast · WCAG 2.2</button><span class="stopcard__src"><span class="repo-tag">evidence:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/docs/RULES.md#calibration-how-we-know-the-engine-is-not-broken" target="_blank" rel="noopener">the calibration</a></span></p>
           </div>
         </div>
         <p class="cap">Quillmere's /deliveries, in its own colours. The filter runs on this copy in your browser, with the engine's seeded code as it stood on 10 Oct 2026, copied from it. The same seed gives the same filter decisions; the AI's answers can differ.</p>
-        <p class="proofline"><span class="repo-tag">copied from our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/random.ts#L30-L59" target="_blank" rel="noopener">random.ts</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/band.ts#L1-L46" target="_blank" rel="noopener">band.ts</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/mask.ts#L1-L45" target="_blank" rel="noopener">mask.ts</a></p>
+        <p class="proofline"><span class="repo-tag">copied from our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/random.ts#L30-L59" target="_blank" rel="noopener">random.ts</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/band.ts#L1-L46" target="_blank" rel="noopener">band.ts</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/mask.ts#L1-L45" target="_blank" rel="noopener">mask.ts</a></p>
       </div>
       <div class="proof-side">
         <div class="panel">
@@ -1143,7 +1143,7 @@ a { color: inherit; }
     </div>
     <ul class="rates" id="rates" aria-label="Route open, per persona"></ul>
     <p class="cap" id="rates-cap" style="margin-top: var(--space-4)"></p>
-    <p class="proofline"><span class="repo-tag">how route open is computed, in our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/route-table.ts#L221-L239" target="_blank" rel="noopener">routeOpenSeeds</a></p>
+    <p class="proofline"><span class="repo-tag">how route open is computed, in our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/route-table.ts#L221-L239" target="_blank" rel="noopener">routeOpenSeeds</a></p>
     <p class="agent-note" id="rates-note"><b>Got through is the agent's half.</b> It comes from stored runs and sits beside each strip in the app's report. This page draws only the filter's half, the part that reproduces exactly.</p>
   </section>
 
@@ -1167,7 +1167,7 @@ a { color: inherit; }
       </div>
       <div class="stack" style="margin-top: var(--space-5)">
         <p class="body">The sweep tightens one limit over the same seeds and marks the first value where fewer than half get through. Kai's <button type="button" class="term" data-tip="cap">attention cap</button> is <span class="nw"><button type="button" class="term" data-tip="folk">our assumption</button>,</span> so we swept it on Quillmere's hard goal. Today the sweep runs on contrast and attention.</p>
-        <p class="proofline"><span class="repo-tag">the sweep, in our repo (team access):</span> <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/sweep.ts#L28-L36" target="_blank" rel="noopener">its two axes</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/sweep.ts#L137-L158" target="_blank" rel="noopener">the boundary rule</a></p>
+        <p class="proofline"><span class="repo-tag">the sweep, in our repo:</span> <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/sweep.ts#L28-L36" target="_blank" rel="noopener">its two axes</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/sweep.ts#L137-L158" target="_blank" rel="noopener">the boundary rule</a></p>
         <p class="cap" id="sweep-cap"></p>
         <div class="stopcard p-kai" id="stop-kai" hidden>
           <span class="stopcard__lead" aria-hidden="true"><i></i></span>
@@ -1285,21 +1285,21 @@ a { color: inherit; }
           </ol>
         </div>
         <div class="stack">
-          <h3 class="title" id="src-ours">Our own proofs, in our repo (team access)</h3>
+          <h3 class="title" id="src-ours">Our own proofs, in our repo</h3>
           <p class="body">The repo is private for now, so these links open for our team only. Line numbers are as of 10 Oct 2026.</p>
           <ol aria-labelledby="src-ours">
-            <li><div class="stack" style="gap: var(--space-1)"><p>The filter is plain code: zero LLM, no clock, no random numbers but the seed's.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/perceive.ts#L1-L17" target="_blank" rel="noopener">packages/filter/src/perceive.ts</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>Hard and soft limits: the band and the roll.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/band.ts#L1-L46" target="_blank" rel="noopener">packages/filter/src/band.ts</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>Same measurement, persona and seed give the same text for the AI, byte for byte, for every persona over 100 seeds.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/perceive.test.ts#L190-L207" target="_blank" rel="noopener">packages/filter/src/perceive.test.ts</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>A seed gives the same numbers forever; the tests pin them.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/random.test.ts#L22-L28" target="_blank" rel="noopener">packages/core/src/random.test.ts</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>Same instructions for every persona, word for word: every persona sends the AI the same first request on the same page.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/agent/src/actor-loop.browser.test.ts#L1134-L1164" target="_blank" rel="noopener">packages/agent/src/actor-loop.browser.test.ts</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>This page's seeded draw and letter mask, copied from the engine.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/random.ts#L30-L59" target="_blank" rel="noopener">packages/core/src/random.ts</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/mask.ts#L1-L45" target="_blank" rel="noopener">packages/filter/src/mask.ts</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>Route open, per seed: the filter's route table.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/filter/src/route-table.ts#L221-L239" target="_blank" rel="noopener">packages/filter/src/route-table.ts</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>The Order archive link's measured contrast (2.005:1) and size (36 px), and what the filter leaves on each route for each persona.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/docs/RULES.md#calibration-how-we-know-the-engine-is-not-broken" target="_blank" rel="noopener">docs/RULES.md, calibration and route table</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>The boundary, and the two axes the sweep moves today.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/sweep.ts#L137-L158" target="_blank" rel="noopener">packages/core/src/sweep.ts, the boundary</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/core/src/sweep.ts#L28-L36" target="_blank" rel="noopener">the two axes</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>Every rule and every limit, with its source, or “folk” (our assumption) where there is none.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/docs/RULES.md#source-registry" target="_blank" rel="noopener">docs/RULES.md, source registry</a> · <a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/docs/RULES.md#persona-composition" target="_blank" rel="noopener">the five personas</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>Quillmere, its two goals and the three routes to the hard one.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/packages/target-app/README.md#goals" target="_blank" rel="noopener">packages/target-app/README.md</a></p></div></li>
-            <li><div class="stack" style="gap: var(--space-1)"><p>"Of the tools we checked, none had all three": our notes on each, and the closest we found, UXAgent.</p><p><a class="src" href="https://github.com/CShark-Hub/promptozaury/blob/main/AGENTS.md#prior-art-verified-research" target="_blank" rel="noopener">AGENTS.md, prior art</a> · UXAgent: <a class="src" href="https://arxiv.org/abs/2504.09407" target="_blank" rel="noopener">arXiv 2504.09407</a> · <a class="src" href="https://github.com/neuhai/UXAgent" target="_blank" rel="noopener">GitHub</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>The filter is plain code: zero LLM, no clock, no random numbers but the seed's.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/perceive.ts#L1-L17" target="_blank" rel="noopener">packages/filter/src/perceive.ts</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>Hard and soft limits: the band and the roll.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/band.ts#L1-L46" target="_blank" rel="noopener">packages/filter/src/band.ts</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>Same measurement, persona and seed give the same text for the AI, byte for byte, for every persona over 100 seeds.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/perceive.test.ts#L190-L207" target="_blank" rel="noopener">packages/filter/src/perceive.test.ts</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>A seed gives the same numbers forever; the tests pin them.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/random.test.ts#L22-L28" target="_blank" rel="noopener">packages/core/src/random.test.ts</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>Same instructions for every persona, word for word: every persona sends the AI the same first request on the same page.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/agent/src/actor-loop.browser.test.ts#L1134-L1164" target="_blank" rel="noopener">packages/agent/src/actor-loop.browser.test.ts</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>This page's seeded draw and letter mask, copied from the engine.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/random.ts#L30-L59" target="_blank" rel="noopener">packages/core/src/random.ts</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/mask.ts#L1-L45" target="_blank" rel="noopener">packages/filter/src/mask.ts</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>Route open, per seed: the filter's route table.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/filter/src/route-table.ts#L221-L239" target="_blank" rel="noopener">packages/filter/src/route-table.ts</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>The Order archive link's measured contrast (2.005:1) and size (36 px), and what the filter leaves on each route for each persona.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/docs/RULES.md#calibration-how-we-know-the-engine-is-not-broken" target="_blank" rel="noopener">docs/RULES.md, calibration and route table</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>The boundary, and the two axes the sweep moves today.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/sweep.ts#L137-L158" target="_blank" rel="noopener">packages/core/src/sweep.ts, the boundary</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/core/src/sweep.ts#L28-L36" target="_blank" rel="noopener">the two axes</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>Every rule and every limit, with its source, or “folk” (our assumption) where there is none.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/docs/RULES.md#source-registry" target="_blank" rel="noopener">docs/RULES.md, source registry</a> · <a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/docs/RULES.md#persona-composition" target="_blank" rel="noopener">the five personas</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>Quillmere, its two goals and the three routes to the hard one.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/packages/target-app/README.md#goals" target="_blank" rel="noopener">packages/target-app/README.md</a></p></div></li>
+            <li><div class="stack" style="gap: var(--space-1)"><p>"Of the tools we checked, none had all three": our notes on each, and the closest we found, UXAgent.</p><p><a class="src" href="https://github.com/CShark-Hub/wayford/blob/main/AGENTS.md#prior-art-verified-research" target="_blank" rel="noopener">AGENTS.md, prior art</a> · UXAgent: <a class="src" href="https://arxiv.org/abs/2504.09407" target="_blank" rel="noopener">arXiv 2504.09407</a> · <a class="src" href="https://github.com/neuhai/UXAgent" target="_blank" rel="noopener">GitHub</a></p></div></li>
           </ol>
         </div>
       </div>
@@ -1494,7 +1494,7 @@ syncThemeLabel();
    and to say what the sentence claims (10 Oct 2026). Repo links point at main.
    ===================================================================== */
 const WCAG = "https://www.w3.org/WAI/WCAG22/Understanding/";
-const REPO = "https://github.com/CShark-Hub/promptozaury/blob/main/";
+const REPO = "https://github.com/CShark-Hub/wayford/blob/main/";
 const SRC = {
   c143: ["WCAG 2.2, SC 1.4.3 Contrast", WCAG + "contrast-minimum.html"],
   c146: ["WCAG 2.2, SC 1.4.6 Contrast (Enhanced)", WCAG + "contrast-enhanced.html"],
@@ -1573,7 +1573,7 @@ const tips = (() => {
   const used = {};
   function link([label, href, repo]) {
     const a = document.createElement("a"); a.className = "src"; a.href = href; a.textContent = label;
-    return repo ? [a, Object.assign(document.createElement("span"), { className: "tip__repo", textContent: "in our repo (team access)" })] : [a];
+    return repo ? [a, Object.assign(document.createElement("span"), { className: "tip__repo", textContent: "in our repo" })] : [a];
   }
   function mount(scope = document) {
     scope.querySelectorAll("button.term:not([aria-controls])").forEach((btn) => {

@@ -13,7 +13,7 @@ The question is not "does it work". The question is **who does it work for**.
 *The Actor must be our own loop.*<br>
 *Claim less than you'd like to.*
 
-[![CI](https://github.com/CShark-Hub/promptozaury/actions/workflows/ci.yml/badge.svg)](https://github.com/CShark-Hub/promptozaury/actions/workflows/ci.yml)
+[![CI](https://github.com/CShark-Hub/wayford/actions/workflows/ci.yml/badge.svg)](https://github.com/CShark-Hub/wayford/actions/workflows/ci.yml)
 [![Licence: Apache 2.0](https://img.shields.io/badge/licence-Apache%202.0-blue)](LICENSE)
 ![Node 24+](https://img.shields.io/badge/node-%E2%89%A524-339933?logo=node.js&logoColor=white)
 ![pnpm 12](https://img.shields.io/badge/pnpm-12-F69220?logo=pnpm&logoColor=white)
@@ -60,8 +60,8 @@ Five personas ship with it, each named for the dimension it is defined by: **Ada
 You need Node 24 or newer ([`.node-version`](.node-version)) and pnpm 12 (`npm install -g pnpm`; the exact version is the `packageManager` field in [`package.json`](package.json)). Playwright's Chromium is installed below. A model key is needed only for live runs, and the first path below needs none.
 
 ```bash
-git clone https://github.com/CShark-Hub/promptozaury.git
-cd promptozaury
+git clone https://github.com/CShark-Hub/wayford.git
+cd wayford
 pnpm install
 pnpm --filter @wayford/agent exec playwright install --only-shell chromium   # once per machine
 cp .env.example .env

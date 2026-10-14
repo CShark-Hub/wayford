@@ -6,7 +6,7 @@ One JSON file per review. Both `scripts/create_issues.py` and `scripts/build_pag
 {
   "meta": {
     "title": "Wayford m0-06 Review",
-    "repo": "CShark-Hub/promptozaury",
+    "repo": "CShark-Hub/wayford",
     "ref": "m0-06-target-app",
     "commit": "96fb9d5",
     "date": "2026-09-24",
