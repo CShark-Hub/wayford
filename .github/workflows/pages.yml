@@ -1,9 +1,9 @@
 name: Pages
 
 # Publishes the landing page, and nothing else, to GitHub Pages: only the site/ folder is uploaded.
-# The repository is private and its Pages site is public, so Pages must be set to "GitHub Actions"
-# (Settings → Pages → Build and deployment → Source). Publishing from a branch would serve the
-# whole repository: docs, tasks and source code.
+# Pages must be set to "GitHub Actions" (Settings → Pages → Build and deployment → Source).
+# Publishing from a branch would serve the whole repository as the site, docs, tasks and source
+# code, whether the repository is private or public.
 on:
   push:
     branches: [main]

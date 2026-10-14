@@ -119,6 +119,7 @@ On the target app, `pnpm seed:demo` stores the demo's two goals with their runs,
 | [How it works](docs/HOW-IT-WORKS.md) | The claim, the loop, the filter pipeline, the personas and their provenance, the screens |
 | [Development](docs/DEVELOPMENT.md) | Configuration, every command, the packages, checks, CI and the determinism rules |
 | [Contributing](CONTRIBUTING.md) | How work is organised, and how a change gets from a task to `main` |
+| [Security](SECURITY.md) | Where to run Wayford, what a run touches, and how to report a vulnerability |
 | [About](docs/ABOUT.md) | Project status, the name, prior art and acknowledgements |
 
 The plan, the rules, the design system and every decision behind them are indexed in [`docs/`](docs/README.md). Start with [`AGENTS.md`](AGENTS.md), whether you are a person or an agent.
