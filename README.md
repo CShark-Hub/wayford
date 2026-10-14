@@ -19,7 +19,7 @@ The question is not "does it work". The question is **who does it work for**.
 ![pnpm 12](https://img.shields.io/badge/pnpm-12-F69220?logo=pnpm&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-ESM-3178C6?logo=typescript&logoColor=white)
 
-[Quick start](#quick-start) · [Usage](#usage) · [How it works](docs/HOW-IT-WORKS.md) · [Development](docs/DEVELOPMENT.md) · [Documentation](#documentation)
+[Quick start](#quick-start) · [Usage](#usage) · [What next](docs/WHAT-NEXT.md) · [How it works](docs/HOW-IT-WORKS.md) · [Development](docs/DEVELOPMENT.md) · [Documentation](#documentation)
 
 </div>
 
@@ -53,42 +53,100 @@ Out of scope for the hackathon: pass/fail regression, CI pipelines, accounts, ex
 - **It tells broken from hard to find.** Scout walks each goal with no limits, so the report can separate "the feature is broken" from "the feature works, and this persona did not find it".
 - **Every finding opens its evidence.** Findings are grouped by certainty (measurement, deterministic, hypothesis), and each opens what it rests on. A run opens step by step: the screenshot beside the text the model read, the action, the dice, the video and the trace.
 
-Five personas ship with it, each named for the dimension it is defined by: **Ada** (all clear, the control), **Kai** (knowledge), **Milo** (mobile and motor), **Vera** (vision) and **Zoya** (the far end). Their bundles, the loop and the claim Wayford makes are in [How it works](docs/HOW-IT-WORKS.md).
+### Meet the cast
+
+Five personas ship with Wayford. Each one is a bundle of thresholds, not a character to play, and its initial names the dimension it is defined by.
+
+| | Persona | In one line |
+|:-:|---|---|
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/personas/ada-dark.svg"><img src="docs/assets/personas/ada-light.svg" alt="Ada's avatar" width="64"></picture> | **Ada**<br><sub>All clear, the control</sub> | Sees everything, knows every pattern, nothing capped. If Ada fails a goal, the Actor or the app is broken, not the filter. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/personas/kai-dark.svg"><img src="docs/assets/personas/kai-light.svg" alt="Kai's avatar" width="64"></picture> | **Kai**<br><sub>Knowledge</sub> | Sees the page clearly on a desktop, but does not know several common interface patterns or shop jargon, takes in a handful of things at a time and keeps only the last couple of steps in mind. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/personas/milo-dark.svg"><img src="docs/assets/personas/milo-light.svg" alt="Milo's avatar" width="64"></picture> | **Milo**<br><sub>Mobile and motor</sub> | Proficient and in a hurry, on a phone. Controls smaller than 44 px are cut from what Milo is shown. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/personas/vera-dark.svg"><img src="docs/assets/personas/vera-light.svg" alt="Vera's avatar" width="64"></picture> | **Vera**<br><sub>Vision</sub> | Weak sight and little practice with interfaces, on a desktop. Faint text, small print and small targets reach Vera partly masked or not at all. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/personas/zoya-dark.svg"><img src="docs/assets/personas/zoya-light.svg" alt="Zoya's avatar" width="64"></picture> | **Zoya**<br><sub>The far end</sub> | Every dimension at once: strict sight, no interface vocabulary, five things of attention and two steps of memory. |
+
+<sub>Each avatar is drawn from its profile: glasses for a contrast threshold, a phone for a mobile device, an hourglass for the time budget.</sub>
+
+Their full bundles, the loop and the claim Wayford makes are in [How it works](docs/HOW-IT-WORKS.md).
 
 ## Quick start
 
-You need Node 24 or newer ([`.node-version`](.node-version)) and pnpm 12 (`npm install -g pnpm`; the exact version is the `packageManager` field in [`package.json`](package.json)). Playwright's Chromium is installed below. A model key is needed only for live runs, and the first path below needs none.
+Wayford runs on your own machine, and nothing is hosted. One command starts three local processes: the **web UI** you work in; **io**, the API behind it, which drives the browser and calls the models; and **Quillmere**, a small demo shop for the personas to try.
+
+### What you need
+
+- **Node.js 24 or newer.** Check with `node -v`.
+- **pnpm 12.** Install it with `npm install -g pnpm`.
+- **Git.**
+- **A model key, for live runs only.** An [OpenRouter](https://openrouter.ai) key, or a key for any OpenAI-compatible endpoint. The demo data needs no key.
+
+### 1. Install (once)
 
 ```bash
 git clone https://github.com/CShark-Hub/promptozaury.git
 cd promptozaury
 pnpm install
-pnpm --filter @wayford/agent exec playwright install --only-shell chromium   # once per machine
+pnpm --filter @wayford/agent exec playwright install --only-shell chromium
 cp .env.example .env
 ```
 
-### See it with demo data, no key needed
+The fourth command downloads the Chromium that the personas browse with. The last one creates `.env`, your local settings file.
 
-`seed:demo --fake` fills the database with the demo's data on a fake Jev and a fake Analyst: no key, no network, no cost. It serves the target app on 5174 itself, so stop `pnpm dev` first.
-
-```bash
-pnpm --filter @wayford/io db:migrate   # creates wayford.sqlite; pnpm dev also does this at boot
-pnpm seed:demo --fake                  # add --reset to empty runs, reports and sweeps first
-LLM_API_KEY=x pnpm dev                 # io needs a key to boot; browsing calls no model
-```
-
-Open <http://localhost:5173>. `pnpm dev` starts the web app on 5173, io (the HTTP API) on 3000 and Quillmere, the demo shop, on 5174. Look at the Cast, the Lens on `/deliveries`, the Report for the hard goal, the Boundary and a run from Runs. The Race and the Target screen call a model, so they need a real key.
-
-### With a real key
-
-Put an OpenRouter key, or any OpenAI-compatible key with `LLM_BASE_URL`, in `.env` as `LLM_API_KEY`. Every command below calls a model and is billed, so check the key's balance first. Before seeding for real, run Scout so the report opens with its line:
+### 2. Load the demo data (once, no key, no cost)
 
 ```bash
-pnpm --filter @wayford/agent scout   # ground truth for both goals
-pnpm seed:demo --reset               # on Jev by default; --backend llm is the fallback
+pnpm seed:demo --fake
 ```
 
-Every variable `.env` takes is in [Configuration](docs/DEVELOPMENT.md#configuration).
+This fills the local database with the demo's runs, reports and sweeps, using a fake model, in about a minute. While it runs it serves the demo shop on port 5174, so run it while Wayford is stopped. Add `--reset` to start over.
+
+### 3. Start Wayford
+
+Open `.env` and set `LLM_API_KEY`. Use your key, or any placeholder such as `demo` if you only want to browse the demo data: io does not start without a value. Then run:
+
+```bash
+pnpm dev
+```
+
+Keep this terminal open. Ctrl+C stops all three processes.
+
+| Process | Address | What it is |
+|---|---|---|
+| web | <http://localhost:5173> | The UI. Open this one. |
+| io | <http://localhost:3000> | The API behind the UI. It drives Chromium and calls the models. |
+| Quillmere | <http://localhost:5174> | The demo shop the personas try to use. |
+
+### 4. Look around
+
+Open <http://localhost:5173>:
+
+- **Cast**: the five personas and what each one's filter does.
+- **Lens**: a page as one persona's filter leaves it. Try `/deliveries` with Vera.
+- **Report**: what the runs on a goal found, each finding linked to its evidence.
+- **Boundary**: the threshold at which a goal stops being reachable.
+- **Runs**: every run, step by step.
+
+The Target screen and the Race call a model, so they need a real key.
+
+### Live runs with your own key
+
+Put your key in `.env` as `LLM_API_KEY`, restart `pnpm dev`, and follow [Usage](#usage) from the Target screen. Every live run is billed, so check the key's balance first. Every setting `.env` takes is in [Configuration](docs/DEVELOPMENT.md#configuration).
+
+To redo the demo data on a real model, stop `pnpm dev` first, then run:
+
+```bash
+pnpm --filter @wayford/agent scout
+pnpm seed:demo --reset
+```
+
+### If something goes wrong
+
+| You see | Do this |
+|---|---|
+| `LLM_API_KEY: missing` | Set `LLM_API_KEY` in `.env`. Any value works for the demo data. |
+| `the target app could not be served on 5174` | Stop `pnpm dev`, then run `seed:demo` again. |
+| `Chromium did not launch` | Run the `playwright install` command from step 1. |
+| `EADDRINUSE` or "port already in use" | Another program holds 5173, 3000 or 5174. Stop it. |
 
 ## Usage
 
@@ -112,6 +170,17 @@ Off the target app, every run is on the LLM (io refuses Jev there), the report s
 
 On the target app, `pnpm seed:demo` stores the demo's two goals with their runs, reports and sweeps, so the Report, the Boundary and Runs open with data and no form to fill. Every other command is in [Commands](docs/DEVELOPMENT.md#commands).
 
+## What next
+
+None of this is built yet. [What next](docs/WHAT-NEXT.md) holds every idea, with its source and its limits.
+
+- A `wayford` CLI that AI agents and people can drive: JSON output, stable exit codes, no prompts.
+- Your own key per role, and local models: a local model for the Actor, a strong API model for the Analyst.
+- Jev in more places: on any site, and tagging the steps where a run got stuck.
+- Behaviour sets for any persona: stray clicks, unintended scrolls, rage clicks, typos, the wrong field.
+- Text beyond ASCII: emoji, any script, pasted text.
+- Keyboard-only and screen-reader runs.
+
 ## Documentation
 
 | Guide | What it holds |
@@ -120,6 +189,7 @@ On the target app, `pnpm seed:demo` stores the demo's two goals with their runs,
 | [Development](docs/DEVELOPMENT.md) | Configuration, every command, the packages, checks, CI and the determinism rules |
 | [Contributing](CONTRIBUTING.md) | How work is organised, and how a change gets from a task to `main` |
 | [Security](SECURITY.md) | Where to run Wayford, what a run touches, and how to report a vulnerability |
+| [What next](docs/WHAT-NEXT.md) | Ideas for after the hackathon, each with its source and its limits |
 | [About](docs/ABOUT.md) | Project status, the name, prior art and acknowledgements |
 
 The plan, the rules, the design system and every decision behind them are indexed in [`docs/`](docs/README.md). Start with [`AGENTS.md`](AGENTS.md), whether you are a person or an agent.
