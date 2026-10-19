@@ -111,9 +111,10 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s4-07 | `seed:demo`: the demo's data in one command | M | s4-04, s4-05, s2-12 | Marcin | done |
 | s3-18 | The source badge moves into the page | S | s3-12, s3-14 | Tomasz | done |
 | s3-19 | Settings: the gear, the backend switch, and the key and models as placeholders | S | s2-12, s3-13 | Tomasz | done |
-| demo-1 | Agree the 90-second script, `docs/DEMO.md`, and rehearse beats 1 to 4 | — | by Friday 2026-10-09 | team | todo |
-| demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task, #224 | team | todo |
+| demo-1 | Agree the 90-second script, `docs/DEMO.md`, and rehearse beats 1 to 4 | — | by Friday 2026-10-09 | team | done |
+| demo-2 | Rehearse the full demo twice and record the backup video | — | s4-07, every must task, #224 | team | done |
 | demo-4 | Landing page on GitHub Pages: `site/`, published by `pages.yml` and nothing else | S | — | Tomasz | done |
+| demo-5 | Win the hackathon and live in glory | — | demo-1, demo-2, demo-4 | team | done |
 
 `demo-4` was agreed by Tomasz on 2026-10-10 for the pitch, and is outside the 90-second demo (PR #257). Pages builds from GitHub Actions: checked on 2026-10-11, the site serves the landing page, and `AGENTS.md` and `docs/PLAN.md` return 404.
 
@@ -136,7 +137,7 @@ Monday 2026-10-05 to Tuesday 2026-10-13, since week 3 finished a week early. The
 | s2-14 | Follow a tab the action opens, only if a run on our pick hits one | S | s1-07 or s4-08 | | todo |
 | s4-08 | Rehearsal on our site: every screen, from the Target screen | M | s1-07, s4-09, s4-10, s3-15, s3-16, s3-17 | Dawid | done |
 | s4-11 | The Analyst reads what the filter cut, on a goal with no route table | S | s4-04, s4-10 | Tomasz | done |
-| demo-3 | Drill: someone picks a site the presenter has not seen; the presenter takes it from URL to a three-seed report, timed | — | s4-08 | team | todo |
+| demo-3 | Drill: someone picks a site the presenter has not seen; the presenter takes it from URL to a three-seed report, timed | — | s4-08 | team | done |
 
 **Install in two commands, added 2026-10-09** (`docs/adr/0004-install-and-start.md`). From a clone, `pnpm install` and `pnpm start`, with no key needed to boot. A released package waits until after the finals. Nothing in the demo or the finals depends on this, and it may not delay a task above.
 
