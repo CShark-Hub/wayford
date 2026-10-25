@@ -42,6 +42,7 @@ import {
   analystDefaults,
   archiveLink,
   capture,
+  crlfCheckout,
   deliveries,
   FAKE_JEV_MODEL,
   fakeAxe,
@@ -60,7 +61,8 @@ const kai = profileFixture("prof_kai");
 const vera = profileFixture("prof_vera");
 
 const TASK = "task_past-order";
-const PROMPT = readFileSync(ANALYST_PROMPT_FILE, "utf8");
+/** The prompt as the model reads it: line endings as Git stores them, whatever the checkout. */
+const PROMPT = readFileSync(ANALYST_PROMPT_FILE, "utf8").replaceAll("\r\n", "\n");
 const NOTHING = { recommendations: {}, hypotheses: [] };
 const SWEEP: RunSweep = { sweepId: "swp_contrast-test", axis: "contrast", value: 3 };
 
@@ -178,6 +180,18 @@ describe("analyseAndStore: the call", () => {
     expect(report.leftOut).toEqual({ olderRuns: 1, otherBackend: 1, sweepRuns: 1 });
     expect(report.runCount).toBe(2);
     expect(report.personas.map((p) => p.profileId)).toEqual(["prof_ada", "prof_vera"]);
+  });
+
+  test("a prompt checked out with CRLF reaches the model as it does from an LF checkout", async () => {
+    const s = await store();
+    await storeRunSet(s);
+    crlfCheckout();
+    const crlf = await import("./analyst.js");
+    const fake = fakeLlm({ analyst: [NOTHING] });
+
+    await crlf.analyseAndStore(depsOf(s, fake), TASK, "llm");
+
+    expect(fake.calls[0]?.messages[0]).toEqual({ role: "system", content: PROMPT });
   });
 
   test("the report is stored and returned, its run cost summed over the chosen runs only", async () => {

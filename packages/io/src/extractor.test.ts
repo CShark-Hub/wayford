@@ -5,10 +5,13 @@ import { PATH_WORDS, pathWordsIn, Task, TaskId } from "@wayford/core";
 import { taskFixture } from "@wayford/core/fixtures";
 import { describe, expect, onTestFinished, test } from "vitest";
 import { EXTRACTOR_PROMPT_FILE } from "./extractor.js";
-import { postJson, testApp } from "./test-app.js";
+import { crlfCheckout, postJson, testApp } from "./test-app.js";
 
 // The past-order task's own start and success, so they follow the fixture the target app checks.
 const { startUrl, success } = taskFixture("task_past-order");
+
+/** The prompt as the model reads it: line endings as Git stores them, whatever the checkout. */
+const PROMPT = readFileSync(EXTRACTOR_PROMPT_FILE, "utf8").replaceAll("\r\n", "\n");
 
 /**
  * POST a JSON body to `/tasks` on a new app whose only model is `fake`, on its own store, closed
@@ -52,7 +55,7 @@ describe("POST /tasks", () => {
     expect(call?.role).toBe("extractor");
     // The whole array: nothing else, `success` and `startUrl` included, reaches the model.
     expect(call?.messages).toEqual([
-      { role: "system", content: readFileSync(EXTRACTOR_PROMPT_FILE, "utf8") },
+      { role: "system", content: PROMPT },
       { role: "user", content: story },
     ]);
   });
@@ -195,6 +198,17 @@ describe("POST /tasks", () => {
 
     expect(status).toBe(502);
     expect(body.error).toMatch(/^llm_request_failed/);
+  });
+
+  test("a prompt checked out with CRLF reaches the model as it does from an LF checkout", async () => {
+    crlfCheckout();
+    const crlf = await import("./extractor.js");
+    const story = "you want to see what you ordered three months ago";
+    const fake = fakeLlm({ extractor: [{ goal: story, strippedPaths: [] }] });
+
+    await crlf.extractTask(fake, { story, startUrl, success });
+
+    expect(fake.calls[0]?.messages[0]).toEqual({ role: "system", content: PROMPT });
   });
 
   test("the prompt template names no impairment and no persona", () => {

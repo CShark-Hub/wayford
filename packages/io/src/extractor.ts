@@ -43,8 +43,10 @@ export const EXTRACTOR_PROMPT_FILE = fileURLToPath(
   new URL("./extractor-prompt.md", import.meta.url),
 );
 
-// Read once, at module load, so a missing file fails at boot and not on the first request.
-const PROMPT = readFileSync(EXTRACTOR_PROMPT_FILE, "utf8");
+// Read once, at module load, so a missing file fails at boot and not on the first request. Each
+// CRLF is read as LF, so a clone checked out before `.gitattributes`, still holding CRLF
+// (`core.autocrlf`), sends the bytes an LF one does.
+const PROMPT = readFileSync(EXTRACTOR_PROMPT_FILE, "utf8").replaceAll("\r\n", "\n");
 
 // A screen name listed with the word for what it is ("Archive tab") is checked by its name, so a
 // goal keeping a bare "Archive" still fails. The first real run listed exactly that.

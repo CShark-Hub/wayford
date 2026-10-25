@@ -21,12 +21,14 @@ const PLACEHOLDER = /\{\{(\w+)\}\}/g;
 
 /**
  * A prompt file, read once at load. Found from this file, as `models.ts` finds `models.yaml`,
- * because pnpm starts a script inside the package and vitest runs from the root. Trimmed, so the
- * file's last newline does not reach the model.
+ * because pnpm starts a script inside the package and vitest runs from the root. Each CRLF is read
+ * as LF, so a clone checked out before `.gitattributes`, still holding CRLF (`core.autocrlf`), sends
+ * the model the bytes an LF one does, and the text is trimmed, so the file's last newline does not
+ * reach the model.
  */
 export function readPrompt(file: string): Template {
   const path = fileURLToPath(new URL(`../prompts/${file}`, import.meta.url));
-  return { file, text: readFileSync(path, "utf8").trim() };
+  return { file, text: readFileSync(path, "utf8").replaceAll("\r\n", "\n").trim() };
 }
 
 /**
