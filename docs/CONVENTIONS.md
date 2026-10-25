@@ -40,6 +40,7 @@ One error class per package boundary, `WayfordError` in `core` (`packages/core/s
 - Behaviour decisions: rolled per action from one stream of the run seed, logged with the rolled value.
 - The Jev Actor's choice: drawn from Jev's probabilities by its own stream derived from the run seed, never the behaviour stream, logged with the rolled value.
 - `Date.now()` never influences a decision, only timestamps.
+- A prompt file reaches a model as the same bytes on every OS: `.gitattributes` checks text out with LF, and each prompt file is read with each CRLF as LF (agent's `readPrompt`, io's `analyst.ts` and `extractor.ts`).
 
 ## Tests
 

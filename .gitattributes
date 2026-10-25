@@ -1,0 +1,4 @@
+# Text is stored and checked out with LF on every platform, whatever core.autocrlf says, so a
+# Windows clone lints clean and sends a model the prompt bytes a Linux one does. Git tells the
+# binaries (png, webp, woff2) apart by their content and leaves them alone.
+* text=auto eol=lf

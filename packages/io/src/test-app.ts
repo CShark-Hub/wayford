@@ -7,7 +7,8 @@
  * `readSse` and `readEvents`, which read a server-sent event stream message by message;
  * `noIllustration`, the default picture, which throws; `noAxeViolations`, the default axe-core
  * scan, which finds nothing; `noScout`, the default Scout, which throws; `quiet` and `capture`, a
- * logger that writes nothing and one that keeps every warning; for the Analyst's tests,
+ * logger that writes nothing and one that keeps every warning; `crlfCheckout`, files read with
+ * CRLF, as a clone checked out before `.gitattributes` holds them; for the Analyst's tests,
  * `storedRun`, `fakeAxe` and Vera's `/deliveries` as the filter gives it; and for the browser tests
  * on any page, `anyPage`, a site's page with a 404 stylesheet, a 404 font face and an endless
  * animation, `FAINT_TEXT`, its paragraph, `FAILED_FONT_PAGE`, a page whose only fault is its font,
@@ -56,6 +57,7 @@ import {
 } from "@wayford/core/fixtures";
 import { perceive } from "@wayford/filter/perceive";
 import pino from "pino";
+import { onTestFinished, vi } from "vitest";
 import { type AppOptions, createApp } from "./app.js";
 import type { AxeLookup, AxeScanFn } from "./axe.js";
 import { type Db, migrateDatabase, openDatabase } from "./db/database.js";
@@ -199,6 +201,30 @@ export function capture() {
     { write: (line: string) => void lines.push(JSON.parse(line)) },
   );
   return { lines, logger };
+}
+
+/**
+ * To the end of the test, a module imported afresh reads every file with `readFileSync` as a clone
+ * checked out before `.gitattributes` holds it (`core.autocrlf`), each LF as CRLF, whatever this
+ * checkout holds: no checkout holds CRLF any more, CI's included. Import the module under test with
+ * `await import(...)` after the call.
+ */
+export function crlfCheckout(): void {
+  vi.resetModules();
+  vi.doMock("node:fs", async (importOriginal) => {
+    const fs = await importOriginal<typeof import("node:fs")>();
+    const readFileSync = ((...args: Parameters<typeof fs.readFileSync>) => {
+      const read = fs.readFileSync(...args);
+      return typeof read === "string" ? read.replace(/\r?\n/g, "\r\n") : read;
+    }) as typeof fs.readFileSync;
+    // The default export too, so `import fs from "node:fs"` reads with CRLF as well.
+    const crlf = { ...fs, readFileSync };
+    return { ...crlf, default: crlf };
+  });
+  onTestFinished(() => {
+    vi.doUnmock("node:fs");
+    vi.resetModules();
+  });
 }
 
 /** The target app's origin in io's tests: the one the core task fixtures start on. */

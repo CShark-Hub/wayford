@@ -69,8 +69,10 @@ import { loadTaskOrFixture } from "./db/tasks.js";
 /** The prompt template, a file so a test can read what the model is told. */
 export const ANALYST_PROMPT_FILE = fileURLToPath(new URL("./analyst-prompt.md", import.meta.url));
 
-// Read once, at module load, so a missing file fails at boot and not on the first request.
-const PROMPT = readFileSync(ANALYST_PROMPT_FILE, "utf8");
+// Read once, at module load, so a missing file fails at boot and not on the first request. Each
+// CRLF is read as LF, so a clone checked out before `.gitattributes`, still holding CRLF
+// (`core.autocrlf`), sends the bytes an LF one does.
+const PROMPT = readFileSync(ANALYST_PROMPT_FILE, "utf8").replaceAll("\r\n", "\n");
 
 /** The most hypotheses a report keeps (task: "up to five"). */
 const MAX_HYPOTHESES = 5;
