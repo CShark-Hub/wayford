@@ -14,7 +14,7 @@ Wayford's three servers are for one person on one machine. None has authenticati
 
 | Server | Port | Notes |
 |---|---|---|
-| io, the HTTP API | 3000 | Answers to its own host names only, and refuses a request another site sent, a page the browser opened on its own, and a `POST` whose body is not JSON ([`app.ts`](packages/io/src/app.ts), [ADR 0003](docs/adr/0003-any-target.md) D7) |
+| io, the HTTP API | 3000 | Answers to its own host names only, and refuses a request another site sent, a page the browser opened on its own, a `POST` whose body is not JSON, and a body over 64 KiB ([`app.ts`](packages/io/src/app.ts), [ADR 0003](docs/adr/0003-any-target.md) D7) |
 | web, the UI | 5173 | A Vite dev server, which reaches io through its proxy |
 | Quillmere, the demo shop | 5174 | A Vite dev server |
 

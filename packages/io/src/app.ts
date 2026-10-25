@@ -1,5 +1,6 @@
 import type { Llm } from "@wayford/agent";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import type { RouteFacts } from "./analyst-runs.js";
 import { type AxeScanFn, axeLookup } from "./axe.js";
@@ -65,6 +66,14 @@ const JSON_BODY = /^application\/json\s*(;|$)/i;
 const OTHER_SITES = ["cross-site", "same-site"];
 
 /**
+ * The largest request body io reads, in bytes. Its largest body is a task request, whose story is
+ * at most 2,000 characters (`TaskRequest`), about 12 KB of JSON even with every character escaped.
+ * The start URL and the success condition have no cap of their own, but no real one comes near the
+ * rest of the 64 KiB.
+ */
+export const MAX_BODY_BYTES = 64 * 1024;
+
+/**
  * io's HTTP surface. Each resource lives in its own file under `routes/`; this builds the app's
  * one `Runner`, so its five slots hold for every request, its one axe-core lookup, which `/axe`
  * and `/reports` share, so requests for one page share one scan, and its one set of Scout jobs, so
@@ -91,6 +100,12 @@ const OTHER_SITES = ["cross-site", "same-site"];
  * A `POST` whose body is not `application/json` is a 415. A page under test can send `text/plain`
  * to `localhost` without a CORS preflight, and Hono's JSON validator reads such a body as `{}`, so
  * without this check only a route's required fields would keep that page from starting runs.
+ *
+ * A body over `MAX_BODY_BYTES` is a 413, on any method that carries one (`@hono/node-server` gives
+ * `GET` and `HEAD` none). A declared `Content-Length` over it is refused before a byte is read, and
+ * a body sent without one is counted as it arrives and refused once the count passes it. So a body
+ * sent to exhaust memory reaches neither `JSON.parse` nor zod, which collects one issue per failing
+ * element of an array (CShark-Hub/wayford#17).
  *
  * Every error answers `{ error }`, as the routes' own answers do. Hono's own 400s, such as a JSON
  * body that does not parse, keep their status and message. Anything else is a 500, logged whole.
@@ -120,6 +135,12 @@ export function createApp(options: AppOptions) {
       }
       await next();
     })
+    .use(
+      bodyLimit({
+        maxSize: MAX_BODY_BYTES,
+        onError: (c) => c.json({ error: `send a body of at most ${MAX_BODY_BYTES} bytes` }, 413),
+      }),
+    )
     .route("/axe", axeRoute({ ...options, axe }))
     .route("/health", healthRoute())
     .route("/illustration", illustrationRoute(options))

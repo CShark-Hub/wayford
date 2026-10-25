@@ -1,5 +1,6 @@
 import { measurementFixture, runEventFixtures, taskFixture } from "@wayford/core/fixtures";
 import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from "vitest";
+import { MAX_BODY_BYTES } from "./app.js";
 import type { AxeScanFn } from "./axe.js";
 import { saveTask } from "./db/tasks.js";
 import type { MeasureFn } from "./routes/measure.js";
@@ -192,4 +193,63 @@ describe("a request to another host or from another site", () => {
     expect(await status("http://localhost:3000/health", "localhost:9999")).toBe(403);
     expect(await status("http://localhost:9999/health", "localhost:3000")).toBe(403);
   });
+});
+
+describe("a request body over the limit", () => {
+  const task = taskFixture("task_next-parcel");
+
+  /** An app whose run counts its calls, with the easy goal stored. Closed after the test. */
+  async function withTask() {
+    const run = fakeRun();
+    const app = await testApp({ run });
+    onTestFinished(() => app.close());
+    await saveTask(app.db, task);
+    return { ...app, run };
+  }
+
+  /** A `POST /runs` body for one run, padded with spaces to `bytes` bytes: still valid JSON. */
+  function runsBody(bytes: number) {
+    const body = JSON.stringify({ taskId: task.id, profileIds: ["prof_ada"], seeds: [1] });
+    return body.padEnd(bytes, " ");
+  }
+
+  /** `POST /runs` with `body`, its length in a header when `declared`. */
+  function postRuns(app: TestApp["app"], body: string, declared: boolean) {
+    return app.request("/runs", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(declared ? { "content-length": String(body.length) } : {}),
+      },
+      body,
+    });
+  }
+
+  // Hono reads a declared length off the header and counts a body sent without one as it streams.
+  const LENGTHS = [
+    ["sent with its length", true],
+    ["sent without a length", false],
+  ] as const;
+
+  test.each(LENGTHS)(
+    "one byte over, %s, is a 413 { error }, and nothing runs",
+    async (_, declared) => {
+      const { app, run } = await withTask();
+      const res = await postRuns(app, runsBody(MAX_BODY_BYTES + 1), declared);
+      expect(res.status).toBe(413);
+      expect(typeof (await res.json()).error).toBe("string");
+      expect(run.calls).toStrictEqual([]);
+    },
+  );
+
+  test.each(LENGTHS)(
+    "a body of exactly the limit, %s, is read, and its run starts",
+    async (_, declared) => {
+      const { app, run } = await withTask();
+      const res = await postRuns(app, runsBody(MAX_BODY_BYTES), declared);
+      expect(res.status).toBe(202);
+      // The runner starts the run after answering.
+      await vi.waitFor(() => expect(run.calls).toHaveLength(1));
+    },
+  );
 });
