@@ -8,9 +8,10 @@
  *   seed-major, every run on the Actor backend the request names, or the runner's default; the
  *   set is stored as a race under `raceId` (`routes/races.ts`).
  *   400 `{ error }` for a body that is not a `RunsRequest`; 404 `{ error }` naming every unknown
- *   task and profile id; 415 from `createApp` for a body that is not `application/json`; 422
- *   `{ error }` naming `docs/adr/0003-any-target.md` D9 for Jev, named or the default, on a task
- *   off the target app. On a 400, 404, 415 or 422 no run starts.
+ *   task and profile id; 415 from `createApp` for a body that is not `application/json`, and 413
+ *   for one over `MAX_BODY_BYTES`; 422 `{ error }` naming `docs/adr/0003-any-target.md` D9 for
+ *   Jev, named or the default, on a task off the target app. On a 400, 404, 413, 415 or 422 no run
+ *   starts.
  * - `GET /`: every stored run matching the query's `taskId`, `profileId` and `outcome`, newest
  *   first, as `RunResult[]`. A sweep's runs are listed only under `?sweepId=`, never with the
  *   persona's own. Any other key is a 400, so a misspelt filter never lists every run.

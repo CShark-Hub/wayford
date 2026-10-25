@@ -12,7 +12,8 @@
  *   asked.
  * - 404 `{ error }`: no such task, or no run of it on `backend`; the error names the other
  *   backend's count. No model is asked.
- * - 415 `{ error }`, from `createApp`: the body is not `application/json`. No model is asked.
+ * - 415 `{ error }`, from `createApp`: the body is not `application/json`, or 413 for one over
+ *   `MAX_BODY_BYTES`. No model is asked.
  * - 502 `{ error }`: the Analyst call failed. Nothing is stored.
  * - 500, from `createApp`'s `onError`, logged: bad stored data, such as a ground-truth file that is
  *   no `GroundTruth` (`invalid_ground_truth`). Nothing is stored.

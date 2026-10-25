@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { createRequire } from "node:module";
 import { dirname } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
@@ -44,5 +45,13 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
+  },
+  test: {
+    // Vitest 5.0.4 caches each module's transform on disk and skips the cache
+    // only for a source that spells `import.meta.glob(` exactly. The typed
+    // `import.meta.glob<unknown>(` in src/bundled-fixtures.ts would be cached
+    // expanded, so a profile added to core's fixtures would stay invisible to
+    // these tests until the cache was cleared.
+    fsModuleCache: false,
   },
 });

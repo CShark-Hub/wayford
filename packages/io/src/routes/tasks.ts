@@ -7,6 +7,7 @@
  * - 201 `{ task, rewritten }`: the goal passed the task check, and the task is stored.
  * - 400 `{ error }`: the body is not a `TaskRequest`, and no model is asked.
  * - 415 `{ error }`, from `createApp`: the body is not `application/json`, and no model is asked.
+ *   413 likewise for a body over `MAX_BODY_BYTES`.
  * - 422 `{ error, goal, survived }`: the goal still failed the check after the repair round.
  *   Nothing is stored.
  * - 502 `{ error }`: the model call failed.
@@ -18,7 +19,8 @@
  * - 202 `ScoutJob`: Scout started, or the one already running on that task.
  * - 400 `{ error }`: `:id` is not a `TaskId`, or the body is not `{}`.
  * - 404 `{ error }`: no task has that id. Nothing starts.
- * - 415 `{ error }`, from `createApp`: the body is not `application/json`.
+ * - 415 `{ error }`, from `createApp`: the body is not `application/json`, or 413 for one over
+ *   `MAX_BODY_BYTES`.
  *
  * `GET /:id/scout`:
  * - 202 `ScoutJob`: Scout runs on that task.
