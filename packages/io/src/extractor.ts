@@ -71,15 +71,6 @@ type ExtractorAnswer = z.infer<typeof ExtractorAnswer>;
  */
 export const STEP_WORDS = ["go to", "then"] as const;
 
-/** Whole words, so "a year ago to the day", "go tomorrow" and "strengthen" pass. */
-const STEP_WORD_MATCHERS = STEP_WORDS.map(
-  (word) => [word, new RegExp(`\\b${word.replaceAll(" ", "\\s+")}\\b`, "iu")] as const,
-);
-
-function stepWordsIn(sentence: string): string[] {
-  return STEP_WORD_MATCHERS.filter(([, matcher]) => matcher.test(sentence)).map(([word]) => word);
-}
-
 /**
  * The names of the controls on the target app's routes to its hard goal, and no others: "Delivery
  * address", the easy goal's own link, is not on a route. An intent worded with one of these names,
@@ -90,10 +81,13 @@ const TARGET_APP_SCREEN_NAMES = [
   ...new Set(TARGET_APP_ROUTES.flatMap(({ steps }) => steps.map(({ name }) => name))),
 ];
 
-/** `Task`, and a goal with none of `screenNames` and no step word, all as whole terms. */
-function intakeTask(screenNames: readonly string[]) {
+/**
+ * `Task`, and a goal with none of `refused`, each as a whole term (core's `strippedPathsIn`), so
+ * "a year ago to the day", "go tomorrow" and "strengthen" pass.
+ */
+function intakeTask(refused: readonly string[]) {
   return Task.superRefine((task, ctx) => {
-    const found = [...stepWordsIn(task.goal), ...strippedPathsIn(task.goal, screenNames)];
+    const found = strippedPathsIn(task.goal, refused);
     if (found.length === 0) return;
     ctx.addIssue({
       code: "custom",
@@ -113,8 +107,10 @@ export async function extractTask(
   targetAppOrigin: string,
 ): Promise<Extraction> {
   const { story, startUrl, success } = request;
-  const screenNames = onTargetApp(request, targetAppOrigin) ? TARGET_APP_SCREEN_NAMES : [];
-  const check = intakeTask(screenNames);
+  const refused = onTargetApp(request, targetAppOrigin)
+    ? [...STEP_WORDS, ...TARGET_APP_SCREEN_NAMES]
+    : STEP_WORDS;
+  const check = intakeTask(refused);
   // Minted once, so a repaired answer keeps the same id.
   const id = newId("task");
   const messages: ChatMessage[] = [
@@ -160,9 +156,8 @@ export async function extractTask(
     goal,
     survived: withoutCaseDuplicates([
       ...pathWordsIn(goal),
-      ...stepWordsIn(goal),
       ...strippedPathsIn(goal, secondCandidate.strippedPaths),
-      ...strippedPathsIn(goal, screenNames),
+      ...strippedPathsIn(goal, refused),
     ]),
   };
 }

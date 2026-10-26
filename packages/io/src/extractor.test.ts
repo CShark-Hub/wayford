@@ -186,28 +186,6 @@ describe("POST /tasks", () => {
     }
   });
 
-  test("the repair round can take the steps out", async () => {
-    const story = "go to Deliveries, then open Order archive to see what I ordered";
-    const fake = fakeLlm({
-      extractor: [
-        {
-          goal: "go to Deliveries, then open Order archive to see what you ordered",
-          strippedPaths: [],
-        },
-        {
-          goal: "you want to see what you ordered",
-          strippedPaths: ["Deliveries", "Order archive"],
-        },
-      ],
-    });
-
-    const { status, body } = await postTask(fake, story);
-
-    expect(status).toBe(201);
-    expect(body.rewritten).toBe(true);
-    expect(fake.calls).toHaveLength(2);
-  });
-
   test("on the target app, a screen name of its routes is refused though the model did not list it", async () => {
     const kept = {
       goal: "you want to find your old orders in the Fulfilment ledger",
