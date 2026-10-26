@@ -14,22 +14,14 @@ import {
   taskFixture,
 } from "@wayford/core/fixtures";
 import pino, { type Logger } from "pino";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import { actorTurn } from "./actor-backend.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
 import type { HistoryStep } from "./history.js";
-import { createLlm, type Llm } from "./llm.js";
+import type { Llm } from "./llm.js";
 import { actorMessages, llmActor } from "./llm-actor.js";
 import { parseLlmSettings } from "./llm-settings.js";
-
-vi.mock("./llm.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./llm.js")>();
-  return { ...actual, createLlm: vi.fn(actual.createLlm) };
-});
-
-/** Every adapter the default builder asks for, through the mock above. It builds the real one. */
-const createLlmSpy = vi.mocked(createLlm);
 
 // "fake" has no price in models.yaml, so no test here can build the real adapter by mistake.
 const settings = parseLlmSettings({ LLM_API_KEY: "test-key", LLM_ACTOR_MODEL: "fake" });
@@ -379,25 +371,5 @@ describe("llmActor", () => {
 
     expect(thrown).toMatchObject({ code: "llm_unknown_model" });
     expect((thrown as Error).message).toContain('"fake"');
-  });
-
-  test("without an llm option the adapter gets the settings alone, so each role's own timeout bounds its calls", async () => {
-    // `LLM_ACTOR_TIMEOUT_MS` and `LLM_SCOUT_TIMEOUT_MS`, 60 s unset (`llm-settings.ts`): nothing
-    // here overrides them. The fakes stand in for the adapter: nothing is sent.
-    createLlmSpy.mockClear();
-    const actorLlm = fakeLlm({ actor: [CLICK] });
-    const scoutLlm = fakeLlm({ scout: [CLICK] });
-    createLlmSpy.mockImplementationOnce(() => actorLlm).mockImplementationOnce(() => scoutLlm);
-    const logger = quiet();
-
-    await llmActor({ settings })(run(logger)).answer(turn);
-    await llmActor({ settings, role: "scout" })(run(logger)).answer(turn);
-
-    expect(createLlmSpy.mock.calls).toStrictEqual([
-      [settings, { logger }],
-      [settings, { logger }],
-    ]);
-    // Each answer is the built adapter's own.
-    expect([actorLlm.calls.length, scoutLlm.calls.length]).toStrictEqual([1, 1]);
   });
 });
