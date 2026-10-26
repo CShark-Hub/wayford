@@ -154,7 +154,7 @@ Run through the API in `s1-07` (`docs/specs/2026-10-07-s1-07-our-pick-gaps.md`).
 
 The new G2 and G3 name the Lead .NET Developer (Full-Stack) offer, at the same depth: the "Careers" menu, "Job Offers", the role's card, second of six on the listing, then "Read More" and "Apply Now!". "Apply Now!" opens the form in the same tab. G2 keeps the success `s4-08` widened to the listing, the one the finals type on the Target screen. Both patterns were checked against a copy of `packages/agent/src/url-glob.ts`: G2 matches the listing and the offer, not another offer, `/careers/` or the home page; G3 matches the form and not another role's.
 
-No run, Scout or Extractor check has used the new goals yet. Both passes below ran the retired G2 and G3, and the rehearsal the retired G2.
+The new G2 has had one check, three seeds on 2026-10-26: "New G2, first check", below. The new G3 has not been run. Both passes below ran the retired G2 and G3, and the rehearsal the retired G2.
 
 #### First pass, 2026-10-07
 
@@ -471,6 +471,44 @@ Leads from the first pass, checked:
   - The site may change.
   - G1 and G2 succeed on reaching a page, not on reading it.
   - The wall times are this machine's, five runs at a time.
+
+#### New G2, first check, 2026-10-26
+
+The new G2 through the API, from a worktree of `main` with the goal change, with io on its own database. Every run is on the LLM, and the Actor is `openai/gpt-6-luna`. No Analyst report.
+
+- **The Extractor** kept the goal word for word: 201, `rewritten: false`, nothing stripped, in 2.7 s. Task `task_01m5x1cfyes3kgfdjvbwehb9e4`.
+- **Scout** reached it 3/3. Its shortest route is 2 steps, "Careers" then "Job Offers", as on the retired G2, so the step cap is 10 again. About 70 s, $0.0013.
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | got through, 3 steps, 0:06.2 | got through, 3 steps, 0:06.2 | got through, 3 steps, 0:06.2 |
+| Kai | step cap, 10 steps, 0:15.9 | error, no answer in 30 s, 7 steps, 0:11.3 | step cap, 10 steps, 0:15.9 |
+| Vera | got through, 5 steps, 0:16.8 | got through, 6 steps, 0:20.4 | step cap, 10 steps, 0:33.6 |
+
+- **The set:** `race_01m5x1fb6914fjrcw9cfrkryga`, 9 runs, five at a time, about 4 min 35 s wall, $0.0075. Times in the table are simulated.
+- **Runs:**
+  - Ada: `run_01m5x1fb69amk2r3v1q4nrvqpf`, `run_01m5x1fb69sr899e3gmwkagg10`, `run_01m5x1fb6925qamx19jgag3pq7`.
+  - Kai: `run_01m5x1fb69168nf6gbts2t3cpk`, `run_01m5x1fb69m201zwbpg0nhj9ha`, `run_01m5x1fb69v7qv0f9anc08pb8a`.
+  - Vera: `run_01m5x1fb69qrj3tprswxpztr97`, `run_01m5x1fb699jb0j9ezwadvs2qz`, `run_01m5x1fb694n5djm7wd2pg2t5s`.
+
+Checked against the stored steps:
+
+- **Every success ended on the listing,** on the step that loaded it. No run opened the role's offer, so the role's name decided none of them. That is what the widened success measures: reaching the listing.
+- **Ada** chose "Reject All", "Careers" and "Job Offers" on every seed.
+- **Kai** toggles "Careers" until the cap. At step 1 of seed 1, the open menu's "Job Offers" is cut by A1, as in the rehearsal ("The salience size term (A1), #231").
+- **Vera:**
+  - Her B1 die (0.8) turned each click on "Careers" into a double-click, which opens the menu and shuts it again.
+  - She got through once a die did not fire: on seed 1 at step 3, on seed 2 at step 4.
+  - On seed 3 all ten fired.
+- **Kai's seed 2 error.** After step 6, the home page did not answer within 30,000 ms (`page_not_settled`, `settle`'s bound off the target app, #190). By then the run had toggled "Careers" seven times.
+- **Seed 1 matches the rehearsal's race on the retired G2,** step for step and to the tenth of a second: Ada 3 steps in 0:06.2, Kai 10 in 0:15.9, Vera 5 in 0:16.8. Vera's miss on seed 3 matches the rehearsal's ten seeds too.
+  - Both goals are decided on the way to the listing, which did not change.
+  - The dice replay from the seed. The model's choices matched, but they do not replay.
+- **Weaker claims:**
+  - Three seeds, not ten.
+  - Run ids and the data are local to the worktree that ran them.
+  - The Extractor's cost is not recorded.
+  - The new G3 has not been run.
 
 #### Before the finals
 
