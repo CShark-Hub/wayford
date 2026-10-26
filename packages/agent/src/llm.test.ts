@@ -433,7 +433,7 @@ function timingOut(ms: number): LlmSettings {
 
 // A duplicate Actor or Scout call costs about 0.0001 USD, and losing it ends the run `error`.
 test.each(["actor", "scout"] as const)(
-  "retries a timed-out %s attempt once with the same bytes, and counts it at the answer's usage",
+  "retries a timed-out %s attempt once with the same bytes, and warns that it is not counted",
   async (role) => {
     const { llm, calls, lines, sleeps } = setup(["hang", click()], { settings: timingOut(20) });
     const result = await llm.complete({ ...ACTOR, role });
@@ -445,15 +445,15 @@ test.each(["actor", "scout"] as const)(
     expect(lines).toMatchObject([
       { level: 40, role, attempt: 1, outcome: "timeout", ms },
       { level: 30, role, attempt: 2, outcome: "ok", ms, tokensIn: 1000, tokensOut: 200 },
-      // Said on its own line, so the run's cost is never taken for reported usage alone.
-      { level: 40, role, timedOut: 1, tokensIn: 1000, tokensOut: 200 },
+      // Said on its own line, so the run's cost is read as reported usage, short of the bill.
+      { level: 40, role, timedOut: 1, msg: "llm timed-out attempt billed but not counted" },
     ]);
-    // The provider still generated and billed the request it was not waited for. That request
-    // sent the same bytes, so the answer's usage is the closest figure for it there is.
+    // The provider still billed the request it was not waited for, but reported no usage for it,
+    // so the cost holds the answer's usage alone.
     expect(result.cost).toStrictEqual({
-      tokensIn: 2000,
-      tokensOut: 400,
-      usd: expect.closeTo(lunaUsd(2000, 400), 12),
+      tokensIn: 1000,
+      tokensOut: 200,
+      usd: expect.closeTo(lunaUsd(1000, 200), 12),
     });
   },
 );
@@ -477,7 +477,7 @@ test.each([
   expect(inspect(error, { depth: null })).not.toContain(KEY);
 });
 
-test("the repair round has a timeout retry of its own, counted at its own answer's usage", async () => {
+test("the repair round has a timeout retry of its own", async () => {
   const { llm, calls, lines } = setup(
     [
       "hang",
@@ -497,10 +497,11 @@ test("the repair round has a timeout retry of its own, counted at its own answer
     { round: "repair", outcome: "timeout" },
     { round: "repair", outcome: "ok" },
   ]);
+  // Both rounds' reported usage, and none for the two attempts that timed out.
   expect(result.cost).toStrictEqual({
-    tokensIn: 4600,
-    tokensOut: 600,
-    usd: expect.closeTo(lunaUsd(4600, 600), 12),
+    tokensIn: 2300,
+    tokensOut: 300,
+    usd: expect.closeTo(lunaUsd(2300, 300), 12),
   });
 });
 

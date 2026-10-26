@@ -393,11 +393,9 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
         };
         logger.info(line, "llm attempt");
         if (timedOut) {
-          // The attempt that timed out was billed with no usage to show for it. It sent these
-          // same bytes, so this answer's usage is the closest figure for it there is, and a run's
-          // total that dropped it would under-count. Its own line says the total holds an estimate.
-          call.cost = addCost(call.cost, costOf(call.price, tokens.tokensIn, tokens.tokensOut));
-          logger.warn({ timedOut: 1, ...tokens }, "llm timed-out attempt counted at this usage");
+          // The attempt that timed out was billed with no usage to show for it, so the call's
+          // cost, which holds reported usage only, leaves it out. Its own line says so.
+          logger.warn({ timedOut: 1 }, "llm timed-out attempt billed but not counted");
         }
         return result.value;
       }

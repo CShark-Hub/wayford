@@ -57,10 +57,10 @@ export function actorMessages(turn: ActorTurn): ChatMessage[] {
  *
  * Each answer is one `complete` on that role with `ActorResponse` and the run's provider seed, so
  * every call of a run is sent the same one (A20); repairs and retries are the adapter's own, the
- * one retry of a timed-out attempt included, and their cost is in the answer's. An `LlmError`
- * propagates as it is, so the loop adds the cost it carries and ends the run. The model picks the
- * action itself, so the backend reads nothing from the run's decision stream and its answers carry
- * no `decision`.
+ * one retry of a timed-out attempt included, and the usage they report is in the answer's cost
+ * (`docs/adr/0005-llm-timeout-retry.md`, D5). An `LlmError` propagates as it is, so the loop adds
+ * the cost it carries and ends the run. The model picks the action itself, so the backend reads
+ * nothing from the run's decision stream and its answers carry no `decision`.
  */
 export function llmActor(options: {
   settings: LlmSettings;
