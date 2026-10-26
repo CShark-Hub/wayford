@@ -381,9 +381,9 @@ describe("llmActor", () => {
     expect((thrown as Error).message).toContain('"fake"');
   });
 
-  test("without an llm option every model call is bounded at 60 s an attempt, Scout's too, not the adapter's 300 s", async () => {
-    // A timeout ends the run, so with B3 on the simulated clock this bound and the step cap are
-    // what bound a run's wall time. The fakes stand in for the adapter: nothing is sent.
+  test("without an llm option the adapter gets the settings alone, so each role's own timeout bounds its calls", async () => {
+    // `LLM_ACTOR_TIMEOUT_MS` and `LLM_SCOUT_TIMEOUT_MS`, 60 s unset (`llm-settings.ts`): nothing
+    // here overrides them. The fakes stand in for the adapter: nothing is sent.
     createLlmSpy.mockClear();
     const actorLlm = fakeLlm({ actor: [CLICK] });
     const scoutLlm = fakeLlm({ scout: [CLICK] });
@@ -394,8 +394,8 @@ describe("llmActor", () => {
     await llmActor({ settings, role: "scout" })(run(logger)).answer(turn);
 
     expect(createLlmSpy.mock.calls).toStrictEqual([
-      [settings, { logger, timeoutMs: 60_000 }],
-      [settings, { logger, timeoutMs: 60_000 }],
+      [settings, { logger }],
+      [settings, { logger }],
     ]);
     // Each answer is the built adapter's own.
     expect([actorLlm.calls.length, scoutLlm.calls.length]).toStrictEqual([1, 1]);

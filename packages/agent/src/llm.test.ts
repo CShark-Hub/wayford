@@ -35,7 +35,7 @@ type Answer = Response | Error | "hang";
 type Call = { url: string; init: RequestInit; body: Record<string, unknown> };
 
 /** An adapter on a fake provider that answers from `answers` in order and records every call. */
-function setup(answers: Answer[], options: { settings?: LlmSettings; timeoutMs?: number } = {}) {
+function setup(answers: Answer[], options: { settings?: LlmSettings } = {}) {
   const calls: Call[] = [];
   const lines: Record<string, unknown>[] = [];
   const sleeps: number[] = [];
@@ -57,7 +57,6 @@ function setup(answers: Answer[], options: { settings?: LlmSettings; timeoutMs?:
     sleep: async (ms) => {
       sleeps.push(ms);
     },
-    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   };
   const llm = createLlm(options.settings ?? parseLlmSettings({ LLM_API_KEY: KEY }), deps);
   return { llm, calls, lines, sleeps };
@@ -153,10 +152,15 @@ test("every role sends its own model, temperature and effort", async () => {
     baseUrl: "https://openrouter.ai/api/v1",
     apiKey: KEY,
     roles: {
-      extractor: { model: "openai/gpt-6-sol", temperature: 0.2, effort: "low" },
-      scout: { model: "anthropic/claude-opus-5.5", temperature: 0.7, effort: "xhigh" },
-      actor: { model: "openai/gpt-6-luna", temperature: 1.3, effort: "minimal" },
-      analyst: { model: "llama3.1:8b", temperature: 0 },
+      extractor: { model: "openai/gpt-6-sol", temperature: 0.2, effort: "low", timeoutMs: 300_000 },
+      scout: {
+        model: "anthropic/claude-opus-5.5",
+        temperature: 0.7,
+        effort: "xhigh",
+        timeoutMs: 60_000,
+      },
+      actor: { model: "openai/gpt-6-luna", temperature: 1.3, effort: "minimal", timeoutMs: 60_000 },
+      analyst: { model: "llama3.1:8b", temperature: 0, timeoutMs: 300_000 },
     },
     actorBackend: "llm",
     jevModel: "typesafe/jev-1.13",
@@ -305,15 +309,18 @@ test("retries 429 and 503 with exponential backoff and logs every attempt", asyn
   expect(calls.map(({ init }) => init.body)).toStrictEqual(Array(3).fill(calls[0]?.init.body));
   expect(sleeps).toStrictEqual([1000, 2000]);
   const attempt = { role: "actor", model: "openai/gpt-6-luna", effort: "high", round: "answer" };
+  // Every attempt's wall time, so model time can be told apart from a step's settle and act.
+  const ms = expect.any(Number);
   expect(lines).toMatchObject([
-    { level: 40, ...attempt, attempt: 1, outcome: "http_429", status: 429 },
-    { level: 40, ...attempt, attempt: 2, outcome: "http_503", status: 503 },
+    { level: 40, ...attempt, attempt: 1, outcome: "http_429", status: 429, ms },
+    { level: 40, ...attempt, attempt: 2, outcome: "http_503", status: 503, ms },
     {
       level: 30,
       ...attempt,
       attempt: 3,
       outcome: "ok",
       status: 200,
+      ms,
       tokensIn: 1000,
       tokensOut: 200,
       // Which snapshot and host answered: calls are not pinned to one host.
@@ -376,16 +383,140 @@ test("retries a network error, a body cut off midway included", async () => {
   expect(lines.map(({ outcome }) => outcome)).toStrictEqual(["network", "network", "ok"]);
 });
 
-test("does not retry a timed-out attempt", async () => {
-  const { llm, calls, lines, sleeps } = setup(["hang"], { timeoutMs: 20 });
+// OpenRouter sends 408 when the host timed out, over HTTP or inside a 2xx.
+test("retries 408 like 429", async () => {
+  const { llm, lines, sleeps } = setup([
+    providerError(408),
+    providerError(408, "Provider timed out", 200),
+    click(),
+  ]);
+  const result = await llm.complete(ACTOR);
+
+  expect(result.value).toStrictEqual(CLICK);
+  expect(sleeps).toStrictEqual([1000, 2000]);
+  expect(lines.map(({ outcome }) => outcome)).toStrictEqual([
+    "http_408",
+    "error_in_body_408",
+    "ok",
+  ]);
+});
+
+/** A 429 as OpenRouter sends it, asking for `Retry-After: value`. */
+function rateLimited(value: string): Response {
+  const body = JSON.stringify({ error: { message: "Rate limit exceeded", code: 429 } });
+  return new Response(body, { status: 429, headers: { "retry-after": value } });
+}
+
+test.each([
+  ["7", [7000, 2000]],
+  ["0.5", [500, 2000]],
+  // Capped, so a rate-limited key cannot hold a run asleep for minutes.
+  ["600", [30_000, 2000]],
+  // The date form is not read, so the backoff stands.
+  ["Wed, 21 Oct 2026 07:28:00 GMT", [1000, 2000]],
+])("a 429 with Retry-After: %s waits %j before the next two attempts", async (value, waits) => {
+  const { llm, sleeps } = setup([rateLimited(value), providerError(503), click()]);
+  expect((await llm.complete(ACTOR)).value).toStrictEqual(CLICK);
+  expect(sleeps).toStrictEqual(waits);
+});
+
+/** Every role timed out after `ms`, so a "hang" ends its attempt at once. */
+function timingOut(ms: number): LlmSettings {
+  const variables = LLM_ROLES.map((role) => [`LLM_${role.toUpperCase()}_TIMEOUT_MS`, String(ms)]);
+  return parseLlmSettings({ LLM_API_KEY: KEY, ...Object.fromEntries(variables) });
+}
+
+// A duplicate Actor or Scout call costs about 0.0001 USD, and losing it ends the run `error`.
+test.each(["actor", "scout"] as const)(
+  "retries a timed-out %s attempt once with the same bytes, and counts it at the answer's usage",
+  async (role) => {
+    const { llm, calls, lines, sleeps } = setup(["hang", click()], { settings: timingOut(20) });
+    const result = await llm.complete({ ...ACTOR, role });
+
+    expect(result.value).toStrictEqual(CLICK);
+    expect(calls.map(({ init }) => init.body)).toStrictEqual(Array(2).fill(calls[0]?.init.body));
+    expect(sleeps).toStrictEqual([1000]);
+    const ms = expect.any(Number);
+    expect(lines).toMatchObject([
+      { level: 40, role, attempt: 1, outcome: "timeout", ms },
+      { level: 30, role, attempt: 2, outcome: "ok", ms, tokensIn: 1000, tokensOut: 200 },
+      // Said on its own line, so the run's cost is never taken for reported usage alone.
+      { level: 40, role, timedOut: 1, tokensIn: 1000, tokensOut: 200 },
+    ]);
+    // The provider still generated and billed the request it was not waited for. That request
+    // sent the same bytes, so the answer's usage is the closest figure for it there is.
+    expect(result.cost).toStrictEqual({
+      tokensIn: 2000,
+      tokensOut: 400,
+      usd: expect.closeTo(lunaUsd(2000, 400), 12),
+    });
+  },
+);
+
+test.each([
+  ["two timeouts in a row", ["hang", "hang"] as Answer[]],
+  ["a timeout after a retried 503", ["hang", providerError(503), "hang"] as Answer[]],
+])("a second timeout in a round is not retried (%s)", async (_, answers) => {
+  const attempts = answers.length;
+  const { llm, calls, lines } = setup(answers, { settings: timingOut(20) });
   const error = await failure(llm.complete(ACTOR));
+
+  expect(calls).toHaveLength(attempts);
+  expect(error.code).toBe("llm_request_failed");
+  expect(error.message).toContain(
+    `failed after ${attempts} attempts. The last one got a timeout after 0.02 s, which the provider may still bill`,
+  );
+  expect(lines.at(-1)).toMatchObject({ attempt: attempts, outcome: "timeout" });
+  // No attempt answered, so nothing gives the usage of the ones that timed out.
+  expect(error.cost).toStrictEqual({ tokensIn: 0, tokensOut: 0, usd: 0 });
+  expect(inspect(error, { depth: null })).not.toContain(KEY);
+});
+
+test("the repair round has a timeout retry of its own, counted at its own answer's usage", async () => {
+  const { llm, calls, lines } = setup(
+    [
+      "hang",
+      completion(NO_REF, { prompt_tokens: 1000, completion_tokens: 200 }),
+      "hang",
+      completion(JSON.stringify(CLICK), { prompt_tokens: 1300, completion_tokens: 100 }),
+    ],
+    { settings: timingOut(20) },
+  );
+  const result = await llm.complete(ACTOR);
+
+  expect(result.value).toStrictEqual(CLICK);
+  expect(calls).toHaveLength(4);
+  expect(lines.filter(({ msg }) => msg === "llm attempt")).toMatchObject([
+    { round: "answer", outcome: "timeout" },
+    { round: "answer", outcome: "ok" },
+    { round: "repair", outcome: "timeout" },
+    { round: "repair", outcome: "ok" },
+  ]);
+  expect(result.cost).toStrictEqual({
+    tokensIn: 4600,
+    tokensOut: 600,
+    usd: expect.closeTo(lunaUsd(4600, 600), 12),
+  });
+});
+
+// Both read a large prompt, the Analyst at `max` effort, so a duplicate is expensive. Each is
+// bounded by its own variable.
+test.each([
+  ["extractor", "LLM_EXTRACTOR_TIMEOUT_MS", "30", "0.03 s"],
+  ["analyst", "LLM_ANALYST_TIMEOUT_MS", "40", "0.04 s"],
+] as const)("does not retry a timed-out %s attempt", async (role, variable, ms, bound) => {
+  const settings = parseLlmSettings({ LLM_API_KEY: KEY, [variable]: ms });
+  const { llm, calls, lines, sleeps } = setup(["hang"], { settings });
+  const Ok = z.object({ ok: z.boolean() });
+  const error = await failure(llm.complete({ role, messages: MESSAGES, schema: Ok }));
 
   expect(calls).toHaveLength(1);
   expect(sleeps).toStrictEqual([]);
   expect(error.code).toBe("llm_request_failed");
-  expect(error.message).toMatch(/timeout after 0\.02 s/);
+  expect(error.message).toBe(
+    `The ${role} call to openai/gpt-6-luna failed with a timeout after ${bound}, which the provider may still bill`,
+  );
   expect(lines.map(({ outcome }) => outcome)).toStrictEqual(["timeout"]);
-  expect(inspect(error, { depth: null })).not.toContain(KEY);
 });
 
 test("a 2xx that is not a chat completion is llm_bad_response, not retried", async () => {
@@ -655,15 +786,17 @@ describe("decide", () => {
     );
     expect(retried.sleeps).toStrictEqual([1000, 2000]);
     const attempt = { role: "actor", model: "typesafe/jev-1.13", round: "decide" };
+    const ms = expect.any(Number);
     expect(retried.lines).toMatchObject([
-      { level: 40, ...attempt, attempt: 1, outcome: "http_429", status: 429 },
-      { level: 40, ...attempt, attempt: 2, outcome: "http_503", status: 503 },
+      { level: 40, ...attempt, attempt: 1, outcome: "http_429", status: 429, ms },
+      { level: 40, ...attempt, attempt: 2, outcome: "http_503", status: 503, ms },
       {
         level: 30,
         ...attempt,
         attempt: 3,
         outcome: "ok",
         status: 200,
+        ms,
         tokensIn: 476,
         tokensOut: 70,
         served: "typesafe/jev-1.13-20260917",
