@@ -42,10 +42,17 @@ import { extractTask, TaskRequest } from "../extractor.js";
 import type { ScoutJobs } from "../scout-jobs.js";
 
 /**
- * The Extractor's model, the database the tasks are stored in, the Scout jobs, and the folder
- * they write ground truth to.
+ * The Extractor's model, the database the tasks are stored in, the Scout jobs, the folder they
+ * write ground truth to, and where the target app is served: for a task that starts there, the
+ * Extractor also refuses a goal naming a control on the app's routes.
  */
-type TasksRouteOptions = { llm: Llm; db: Db; scouts: ScoutJobs; groundTruthDir: string };
+type TasksRouteOptions = {
+  llm: Llm;
+  db: Db;
+  scouts: ScoutJobs;
+  groundTruthDir: string;
+  targetAppOrigin: string;
+};
 
 /** The path's `:id`, checked before anything is read with it: 400 when it is no `TaskId`. */
 const taskParams = zValidator("param", z.object({ id: TaskId }), (result, c) => {
@@ -56,7 +63,13 @@ const taskParams = zValidator("param", z.object({ id: TaskId }), (result, c) => 
 const ScoutRequest = z.object({}).strict();
 
 /** The routes above. Only an accepted task is stored, after the model has answered. */
-export function tasksRoute({ llm, db, scouts, groundTruthDir }: TasksRouteOptions) {
+export function tasksRoute({
+  llm,
+  db,
+  scouts,
+  groundTruthDir,
+  targetAppOrigin,
+}: TasksRouteOptions) {
   return new Hono()
     .get("/", async (c) => c.json(await listTasks(db)))
     .post(
@@ -89,7 +102,7 @@ export function tasksRoute({ llm, db, scouts, groundTruthDir }: TasksRouteOption
       }),
       async (c) => {
         try {
-          const extraction = await extractTask(llm, c.req.valid("json"));
+          const extraction = await extractTask(llm, c.req.valid("json"), targetAppOrigin);
           if (extraction.ok) {
             await saveTask(db, extraction.task);
             return c.json({ task: extraction.task, rewritten: extraction.rewritten }, 201);
