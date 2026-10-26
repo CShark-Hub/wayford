@@ -3,8 +3,9 @@
  * to get there (`AGENTS.md`, "A task must not contain the solution"). The model proposes a goal
  * and the screen names it removed; `Task` decides, with core's path-word and stripped-path checks,
  * and so does the intake check here, which no model answers for: the step words, and on the target
- * app the names of the controls on its routes (CShark-Hub/wayford#26). Off the target app code
- * knows no screen names, so there a name the model keeps and does not list goes through.
+ * app the names of the controls on the three routes to its hard goal (CShark-Hub/wayford#26). Code
+ * knows no other screen name, on the target app or off it, so one the model keeps and does not
+ * list goes through.
  *
  * The model sees the prompt and the story, never `startUrl` or `success`: a success pattern is
  * full of screen names (`deliveries/archive`) the goal must not pick up, and a run is never
@@ -73,9 +74,9 @@ export const STEP_WORDS = ["go to", "then"] as const;
 
 /**
  * The names of the controls on the target app's routes to its hard goal, and no others: "Delivery
- * address", the easy goal's own link, is not on a route. An intent worded with one of these names,
- * such as "you want to close your account" or "you want to see your past orders", is refused like
- * a route and goes to the repair round.
+ * address", the last link of the easy goal's route, is not one of them. An intent worded with one
+ * of these names, such as "you want to close your account" or "you want to see your past orders",
+ * is refused like a route and goes to the repair round.
  */
 const TARGET_APP_SCREEN_NAMES = [
   ...new Set(TARGET_APP_ROUTES.flatMap(({ steps }) => steps.map(({ name }) => name))),
