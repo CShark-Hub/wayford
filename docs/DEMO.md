@@ -141,8 +141,20 @@ Run through the API in `s1-07` (`docs/specs/2026-10-07-s1-07-our-pick-gaps.md`).
 | # | Story, kept as the goal (the Extractor rewrote none) | Success | What success proves |
 |---|---|---|---|
 | G1 | "Find the names of the company's board members." | `urlMatches` `https://www.cshark.com/about/**` | The run reached `/about/`, whose "Founders" section names the board about 2,300 px down. Not that the persona read the names. |
-| G2 | "Find out what the salary is for the Senior Performance Test Engineer role." | `urlMatches` `https://www.cshark.com/job-offers/senior-performance-test-engineer/**` | The run reached the job offer, which states the rate near its top. |
-| G3 | "Apply for the Senior Performance Test Engineer role." | `urlMatches` `https://joboffers.cshark.com/**/senior-performance-test-engineer,ja,*` | The run reached the application form. Nothing is filled in or sent. |
+| G2 | "Find out what the salary is for the Lead .NET Developer (Full-Stack) role." | `urlMatches` `https://www.cshark.com/{careers/job-offers/**,job-offers/lead-net-developer-full-stack/**}` | The run reached the listing, whose card for the role states the rate, or the offer itself, which states it near its top. Reaching the listing does not prove the persona found the role's card among the others. |
+| G3 | "Apply for the Lead .NET Developer (Full-Stack) role." | `urlMatches` `https://joboffers.cshark.com/**/lead-net-developer-full-stack,ja,*` | The run reached the application form. Nothing is filled in or sent. |
+| G2, retired 2026-10-26 | "Find out what the salary is for the Senior Performance Test Engineer role." | `urlMatches` `https://www.cshark.com/job-offers/senior-performance-test-engineer/**`, widened in `s4-08` to `https://www.cshark.com/{careers/job-offers/**,job-offers/senior-performance-test-engineer/**}` | The run reached the job offer, which states the rate near its top. Retired: the offer is gone. |
+| G3, retired 2026-10-26 | "Apply for the Senior Performance Test Engineer role." | `urlMatches` `https://joboffers.cshark.com/**/senior-performance-test-engineer,ja,*` | The run reached the application form. Nothing is filled in or sent. Retired: the form is gone. |
+
+**G2 and G3 replaced, 2026-10-26.** The Senior Performance Test Engineer offer has closed:
+
+- `https://www.cshark.com/job-offers/senior-performance-test-engineer/` answers 404, and the listing, `/careers/job-offers/`, no longer names the role.
+- Its form, `https://joboffers.cshark.com/en/senior-performance-test-engineer,ja,336?source=1005`, answers 200 with a page saying the offer is no longer available. The form host answers that way for any closed or unknown offer, so a 200 there proves nothing.
+- A hand check for [wayford PR #35](https://github.com/CShark-Hub/wayford/pull/35) ran the old G2, with the offer page alone as success, on all five personas, seeds 1 to 5, on the LLM. None of the 25 runs succeeded: all 25 hit the 20-step cap, and 11 ended on the listing. Task `task_01m5wx2mpn7r6fe9kt48vnbwhv`, set `race_01m5wx2z9k91de46cyh5dv6g7p`, local to that PR's worktree.
+
+The new G2 and G3 name the Lead .NET Developer (Full-Stack) offer, at the same depth: the "Careers" menu, "Job Offers", the role's card, second of six on the listing, then "Read More" and "Apply Now!". "Apply Now!" opens the form in the same tab. G2 keeps the success `s4-08` widened to the listing, the one the finals type on the Target screen. Both patterns were checked against a copy of `packages/agent/src/url-glob.ts`: G2 matches the listing and the offer, not another offer, `/careers/` or the home page; G3 matches the form and not another role's.
+
+No run, Scout or Extractor check has used the new goals yet. Both passes below ran the retired G2 and G3, and the rehearsal the retired G2.
 
 #### First pass, 2026-10-07
 
@@ -466,7 +478,7 @@ Leads from the first pass, checked:
   1. `pnpm seed:demo`, first: it refuses a store that already holds any run, report or sweep, and `--reset` would delete our pick's.
   2. The two goals on the Target screen, then Scout and ten seeds on each.
   3. The sweep, with the command above (#228).
-- **Check the job offer still answers:** `https://www.cshark.com/job-offers/senior-performance-test-engineer/`.
+- **Check the job offer still answers:** `https://www.cshark.com/job-offers/lead-net-developer-full-stack/`. For G3, check that its form, `https://joboffers.cshark.com/en/lead-net-developer-full-stack,ja,339?source=1005`, still shows the role's title: a closed offer's form answers 200 too, with a page saying it is no longer available.
 
 ## The week 3 rehearsal
 
