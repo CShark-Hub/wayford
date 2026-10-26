@@ -1,7 +1,7 @@
 import { inspect } from "node:util";
 import { ActorResponse, LLM_ROLES } from "@wayford/core";
 import pino from "pino";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import { z } from "zod";
 import { type ChatMessage, type Completion, createLlm, type LlmDeps, LlmError } from "./llm.js";
 import { type LlmSettings, parseLlmSettings } from "./llm-settings.js";
@@ -448,6 +448,9 @@ test.each(["actor", "scout"] as const)(
       // Said on its own line, so the run's cost is read as reported usage, short of the bill.
       { level: 40, role, timedOut: 1, msg: "llm timed-out attempt billed but not counted" },
     ]);
+    // `ms` is the attempt's wall time: the one that timed out waited out its 20 ms, give or take
+    // the millisecond a timer can fire early.
+    expect(lines[0]?.ms).toBeGreaterThanOrEqual(15);
     // The provider still billed the request it was not waited for, but reported no usage for it,
     // so the cost holds the answer's usage alone.
     expect(result.cost).toStrictEqual({
@@ -840,6 +843,24 @@ describe("decide", () => {
     expect(refused.calls).toHaveLength(1);
     expect(error.code).toBe("llm_request_failed");
     expect(refused.lines.map(({ outcome }) => outcome)).toStrictEqual(["error_in_body_400"]);
+  });
+
+  // Jev answers in under a second (ADR 0001), so 30 s is a hang whatever the Actor's chat timeout
+  // is, and a hang is not retried (`docs/adr/0005-llm-timeout-retry.md`, D4).
+  test("a timed-out attempt fails at 30 s, not at the Actor's timeout, and is not retried", async () => {
+    // A thousandth of every bound, so Jev's 30 s passes in 30 ms.
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    const spy = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => timeout(ms / 1000));
+    onTestFinished(() => spy.mockRestore());
+    const { llm, calls, lines, sleeps } = setup(["hang", picked()], { settings: timingOut(20) });
+    const error = await failure(llm.decide(DECIDE));
+
+    expect(calls).toHaveLength(1);
+    expect(sleeps).toStrictEqual([]);
+    expect(error.message).toBe(
+      "The actor call to typesafe/jev-1.13 failed with a timeout after 30 s, which the provider may still bill",
+    );
+    expect(lines.map(({ outcome }) => outcome)).toStrictEqual(["timeout"]);
   });
 
   test("a 2xx that is not a System One answer is llm_bad_response, not retried", async () => {
