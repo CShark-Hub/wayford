@@ -134,7 +134,8 @@ const DECIDE_TIMEOUT_MS = 30_000;
  * is generated and billed whether or not anyone waits for it, so the retry pays twice. A duplicate
  * Actor or Scout call costs about 0.0001 USD (calibration: 0.0019 USD a run), and losing it ends
  * the run `error`. The Extractor and the Analyst read large prompts, the Analyst at `max` effort,
- * so a duplicate is expensive there and their timeout fails the call.
+ * so a duplicate is expensive there and their timeout fails the call
+ * (`docs/adr/0005-llm-timeout-retry.md`).
  */
 const RETRIES_A_TIMEOUT: ReadonlySet<LlmRole> = new Set(["actor", "scout"]);
 

@@ -48,8 +48,8 @@ const EffortSetting = z.enum([...Effort.options, "default"]);
  * to 3.4 s of model time per step on Luna at effort `high` (`tasks/s2-11-calibration-run.md`), so
  * 60 s is about twenty times that; Scout, at `max`, took about a minute for six attempts of two or
  * three steps (`tasks/s2-04-scout.md`). The adapter retries one timeout a round for these two
- * roles (`llm.ts`), so twice this bound and the step cap bound a run's wall time, now that B3
- * reads the simulated clock (`docs/RULES.md`, "B3 in detail").
+ * roles (`docs/adr/0005-llm-timeout-retry.md`), so twice this bound and the step cap bound a run's
+ * wall time, now that B3 reads the simulated clock (`docs/RULES.md`, "B3 in detail").
  */
 const WALK_TIMEOUT_MS = 60_000;
 // The Extractor's and Analyst's, unset: `max` effort on an Analyst-sized prompt can think for
