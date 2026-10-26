@@ -23,7 +23,7 @@ export type RoleSettings = {
   temperature: number;
   /** Absent: the request carries no `reasoning` field and the model uses its own. */
   effort?: Effort;
-  /** The bound on one attempt of a call, in ms. */
+  /** The bound on one attempt of a chat call, in ms. Jev's `decide` keeps its own 30 s. */
   timeoutMs: number;
 };
 
@@ -47,11 +47,10 @@ const EffortSetting = z.enum([...Effort.options, "default"]);
  * The Actor's and Scout's bound on one attempt, unset. Calibration measured a median of about 2.6
  * to 3.4 s of model time per step on Luna at effort `high` (`tasks/s2-11-calibration-run.md`), so
  * 60 s is about twenty times that; Scout, at `max`, took about a minute for six attempts of two or
- * three steps (`tasks/s2-04-scout.md`). The adapter retries one timeout a round for these two
- * roles, so one step can wait about four times this bound plus backoffs: twice in the answer
- * round and twice in the repair round (`docs/adr/0005-llm-timeout-retry.md`, "Wall time"). That
- * and the step cap bound a run's wall time, now that B3 reads the simulated clock
- * (`docs/RULES.md`, "B3 in detail").
+ * three steps (`tasks/s2-04-scout.md`). Each attempt waits at most this bound, and a round makes
+ * at most four, so a step with its repair round waits at most eight times this bound plus
+ * backoffs (`docs/adr/0005-llm-timeout-retry.md`, "Wall time"). That and the step cap bound a
+ * run's wall time, now that B3 reads the simulated clock (`docs/RULES.md`, "B3 in detail").
  */
 const WALK_TIMEOUT_MS = 60_000;
 // The Extractor's and Analyst's, unset: `max` effort on an Analyst-sized prompt can think for

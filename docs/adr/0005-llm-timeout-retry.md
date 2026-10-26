@@ -40,7 +40,7 @@ The delay is at the provider, not on our side. A step sends about 700 tokens and
 
 ## Consequences
 
-- **Wall time.** An Actor round can now wait about 121 s before it fails: 60 s, a 1 s backoff, then 60 s. A step with a repair round can wait twice that. B3 reads the simulated clock, so a slow answer changes only how long a run takes, never its result.
+- **Wall time.** Each attempt waits at most its role's limit, and a round makes at most four attempts, so an Actor round waits at most about 4 min plus backoffs: 1, 2 and 4 s, or up to 30 s each when a `Retry-After` asks. A step with a repair round can wait twice that. The timeout and 408 retries let slow failures use those attempts: two timeouts in a row now fail after about 121 s (60 s, a 1 s backoff, then 60 s) instead of 60 s. B3 reads the simulated clock, so a slow answer changes only how long a run takes, never its result.
 - **Cost.** A retried timeout pays about twice for that call, and the run's cost shows only the half that reported usage (D5). An Actor call costs about 0.0001 USD (calibration: 0.0019 USD a run, `tasks/s2-11-calibration-run.md`).
 - **Replay.** The retry sends the same request and seed, so A20 and replay from stored answers are unaffected. The stored answer is the one that came back.
 - **Measured once, with no timeout.** The hand check in #9 ran on 2026-10-26: 5 personas on seeds 1 to 5 on cshark.com, on the LLM. 0 of 25 runs ended `error`. All 501 Actor attempts answered on their first try, with a p50 of 3.0 s and a maximum of 12.2 s. No timeout occurred, so the retry never fired on a real site and is covered by the unit tests only. It is still unmeasured whether timeouts at a provider come in bursts, in which case one retry helps less than the independent estimate above.
