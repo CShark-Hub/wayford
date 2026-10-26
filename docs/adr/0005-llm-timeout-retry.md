@@ -6,7 +6,7 @@ decided-by: pending, on approval of PR #35
 
 # 0005 — A timed-out Actor call is retried once
 
-The model adapter (`packages/agent/src/llm.ts`) used to fail a call on its first timeout, whatever the role. From #9 part 1, a timed-out Actor or Scout call gets one retry. Every role's timeout is set in `.env`, and the adapter honours a 429's `Retry-After`.
+The model adapter (`packages/agent/src/llm.ts`) used to fail a call on its first timeout, whatever the role. From #9 part 1, a timed-out Actor or Scout call gets one retry. Every role's timeout is set in `.env`, and the adapter honours a `Retry-After`.
 
 ## Context
 
@@ -26,7 +26,7 @@ The delay is at the provider, not on our side. A step sends about 700 tokens and
 | D4 | Jev's `decide` keeps its fixed 30 s limit and gets no timeout retry. Jev answers in 70 to 500 ms (ADR 0001), so a 30 s wait is a hang. `LLM_ACTOR_TIMEOUT_MS` is sized for a chat model and does not apply to it. |
 | D5 | When the retry answers, the timed-out attempt is added to the call's cost at the answering attempt's usage. Both sent the same bytes, so the tokens in are the same, and the answer's tokens out are the closest figure for the timed-out attempt's. A warning line, `llm timed-out attempt counted at this usage`, says that the run's total includes an estimate. When no attempt answers, nothing is added, because no usage exists to estimate from. |
 | D6 | A 408, which OpenRouter returns when the host timed out, is retried on every role, like a 429 or a 5xx. |
-| D7 | A 429's `Retry-After`, in its seconds form, replaces that attempt's backoff, up to 30 s. Its HTTP-date form is not read and the normal backoff applies, because reading it would make the wait depend on the wall clock. |
+| D7 | A `Retry-After`, in its seconds form, replaces the backoff before the next attempt, up to 30 s. OpenRouter sends one on a 429 or a 503 (openrouter.ai/docs, "Errors and debugging"). Its HTTP-date form is not read and the normal backoff applies, because reading it would make the wait depend on the wall clock. |
 | D8 | Every `llm attempt` log line carries `ms`, the attempt's wall time. That separates model time from settle and act, so the next calibration can set the defaults from measured data. |
 
 ## Considered options

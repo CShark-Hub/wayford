@@ -142,8 +142,9 @@ const RETRIES_A_TIMEOUT: ReadonlySet<LlmRole> = new Set(["actor", "scout"]);
 // The first attempt plus the "at most 3" retries of `docs/STACK.md`.
 const MAX_ATTEMPTS = 4;
 const FIRST_BACKOFF_MS = 1000;
-// The longest wait a 429's `Retry-After` gets, so a rate-limited key cannot hold a run asleep for
-// minutes. A longer ask waits this long, and the next attempt finds out whether that was enough.
+// The longest wait a `Retry-After` gets, so a rate-limited key or a provider without capacity
+// cannot hold a run asleep for minutes. A longer ask waits this long, and the next attempt finds
+// out whether that was enough.
 const MAX_RETRY_AFTER_MS = 30_000;
 
 // Enough of a provider's error to act on, without pasting a whole error page into a message.
@@ -272,7 +273,7 @@ type Failure = {
   what: string;
   status?: number;
   tokens?: Tokens;
-  /** What a 429's `Retry-After` asked to wait before the next attempt, capped. */
+  /** What the answer's `Retry-After` asked to wait before the next attempt, capped. */
   retryAfterMs?: number;
   cause?: unknown;
 };
@@ -546,12 +547,13 @@ function classifyDecision(status: number, json: unknown, text: string): Attempt<
 
 /**
  * A status outside 2xx, whatever the endpoint: a 408, a 429 or a 5xx is retried, anything else
- * fails. A 429 waits what its `Retry-After` asks, which OpenRouter asks `fetch` clients to honour.
+ * fails. A retry waits what the answer's `Retry-After` asks: OpenRouter sends one on a 429 or a
+ * 503 and asks `fetch` clients to honour it (openrouter.ai/docs, "Errors and debugging").
  */
 function httpFailure(response: Response, json: unknown, text: string): Failure {
   const { status } = response;
   const result = failure(status, `http_${status}`, `HTTP ${status}: ${providerText(json, text)}`);
-  const wait = status === 429 ? retryAfterMs(response.headers) : undefined;
+  const wait = retryAfterMs(response.headers);
   return wait === undefined ? result : { ...result, retryAfterMs: wait };
 }
 

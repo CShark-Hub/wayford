@@ -401,24 +401,29 @@ test("retries 408 like 429", async () => {
   ]);
 });
 
-/** A 429 as OpenRouter sends it, asking for `Retry-After: value`. */
-function rateLimited(value: string): Response {
-  const body = JSON.stringify({ error: { message: "Rate limit exceeded", code: 429 } });
-  return new Response(body, { status: 429, headers: { "retry-after": value } });
+/** An error answer with `status`, as OpenRouter sends it, asking for `Retry-After: value`. */
+function askingToWait(status: number, value: string): Response {
+  const body = JSON.stringify({ error: { message: "Try again later", code: status } });
+  return new Response(body, { status, headers: { "retry-after": value } });
 }
 
 test.each([
-  ["7", [7000, 2000]],
-  ["0.5", [500, 2000]],
+  [429, "7", [7000, 2000]],
+  [429, "0.5", [500, 2000]],
   // Capped, so a rate-limited key cannot hold a run asleep for minutes.
-  ["600", [30_000, 2000]],
+  [429, "600", [30_000, 2000]],
   // The date form is not read, so the backoff stands.
-  ["Wed, 21 Oct 2026 07:28:00 GMT", [1000, 2000]],
-])("a 429 with Retry-After: %s waits %j before the next two attempts", async (value, waits) => {
-  const { llm, sleeps } = setup([rateLimited(value), providerError(503), click()]);
-  expect((await llm.complete(ACTOR)).value).toStrictEqual(CLICK);
-  expect(sleeps).toStrictEqual(waits);
-});
+  [429, "Wed, 21 Oct 2026 07:28:00 GMT", [1000, 2000]],
+  // OpenRouter sends one on a 503 too, when no provider can take the request.
+  [503, "7", [7000, 2000]],
+])(
+  "a %i with Retry-After: %s waits %j before the next two attempts",
+  async (status, value, waits) => {
+    const { llm, sleeps } = setup([askingToWait(status, value), providerError(503), click()]);
+    expect((await llm.complete(ACTOR)).value).toStrictEqual(CLICK);
+    expect(sleeps).toStrictEqual(waits);
+  },
+);
 
 /** Every role timed out after `ms`, so a "hang" ends its attempt at once. */
 function timingOut(ms: number): LlmSettings {
