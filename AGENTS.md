@@ -11,7 +11,7 @@ The hackathon is over: the demo and the finals took place on 2026-10-14. Four pe
 
 What exists:
 
-- `packages/core` — the seven contracts, and the report, sweep, race and ground-truth schemas beside them.
+- `packages/core` — the seven contracts, and the measurement, report, sweep, race, ground-truth, axe and jargon schemas beside them.
 - `packages/filter` — the collector and the perception filter, with its knowledge, vocabulary and attention stages, and the route table.
 - `packages/agent` — the Actor loop on an LLM or Jev, with memory, behaviour dice, a simulated clock and evidence capture; Scout; the calibration run.
 - `packages/io` — the runs API and database, the Extractor, the Analyst and its report, the sweep, axe-core and `seed:demo`.
@@ -30,11 +30,11 @@ Planning docs:
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
 - `docs/DESIGN.md` — the look every screen follows; `docs/design/` draws it, screen by screen.
 - `docs/adr/` — decisions taken after the plan, one file each: context, rejected options, consequences. Read the matching one before changing what it covers.
-- `tasks/` — agent-sized task files, `BOARD.md` for ownership and status, `TEMPLATE.md` for new tasks.
+- `tasks/` — agent-sized task files and `TEMPLATE.md` for new tasks. `BOARD.md` is the hackathon's record of ownership and status.
 
 Where work stands: `docs/ROADMAP.md` and `tasks/BOARD.md` are the hackathon's record. Work since the finals is in the issues and pull requests on `CShark-Hub/wayford`. Among them are the findings of a whole-repository review of `main` on 2026-10-25.
 
-Next move: the open issues and pull requests, listed by `gh issue list -R CShark-Hub/wayford` and `gh pr list -R CShark-Hub/wayford`. Ideas for later, each with its source and its limits, are in `docs/WHAT-NEXT.md`.
+Next move: the open issues and pull requests, listed by `gh issue list -R CShark-Hub/wayford` and `gh pr list -R CShark-Hub/wayford`. Ideas for later are in `docs/WHAT-NEXT.md`.
 
 If you are an agent picking up a task: read `AGENTS.md`, then `docs/PLAN.md`, then the issue or the task file. Do only what it says.
 
