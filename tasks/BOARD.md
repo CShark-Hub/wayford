@@ -4,6 +4,8 @@ Status: `todo` | `doing` | `review` | `done`. Put your name in Owner when you gr
 
 `done` means merged **and** every acceptance box ticked in the task file. Anyone picking up a task reads the row here and the boxes there; if the two disagree, the boxes are the truth.
 
+**Kept as the hackathon's record, 2026-10-27.** The hackathon ended with the demo and the finals on 2026-10-14. Weeks 1 to 4 below are its tasks; work since then is in the issues and pull requests on `CShark-Hub/wayford`.
+
 ## Week 1 — M0
 
 | Task | Title | Size | Depends on | Owner | Status |
