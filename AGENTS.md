@@ -30,7 +30,7 @@ Planning docs:
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
 - `docs/DESIGN.md` — the look every screen follows; `docs/design/` draws it, screen by screen.
 - `docs/adr/` — decisions taken after the plan, one file each: context, rejected options, consequences. Read the matching one before changing what it covers.
-- `tasks/` — agent-sized task files and `TEMPLATE.md` for new tasks. `BOARD.md` is the hackathon's record of ownership and status.
+- `tasks/` — agent-sized task files and `TEMPLATE.md`, the hackathon's template for them. `BOARD.md` is the hackathon's record of ownership and status.
 
 Where work stands: `docs/ROADMAP.md` and `tasks/BOARD.md` are the hackathon's record. Work since the finals is in the issues and pull requests on `CShark-Hub/wayford`. Among them are the findings of a whole-repository review of `main` on 2026-10-25.
 
