@@ -51,9 +51,10 @@ One error class per package boundary, `WayfordError` in `core` (`packages/core/s
 
 ## Git
 
-- Branch per task, `feature/<task-id>-<slug>`: `feature/s2-01-llm-adapter`. Week 1 branches predate the prefix.
+- Work starts from an issue on `CShark-Hub/wayford`, and its status lives there: whoever takes it assigns themselves (decided 2026-10-27). For a fix or a small change, the issue holds the acceptance boxes. A feature of M or L size also gets a task file in `tasks/` and its spec, both linked from the issue. `tasks/BOARD.md` is the hackathon's record.
+- Branch per change, `<kind>/<slug>`: `fix/goal-check-at-intake`, `docs/after-the-finals`. A task's branch is `feature/<task-id>-<slug>`: `feature/s2-01-llm-adapter`. Week 1 branches predate the prefix.
 - Commit messages: imperative, one line under 72 characters, body if the why is not obvious.
-- One PR per task. Title starts with the task id. Body links the task file.
+- One PR per change. Its title starts with `Fix #n:` or `Part of #n:`, or with the task id for a task. Body links the issue, and the task file if there is one.
 - Reviewer: one, someone who did not work on the task, for every PR. Until week 4 the filter contract (`packages/core/src/observation.ts`, `measurement.ts`, and `docs/RULES.md`) took two; from week 4 it takes one like everything else (decided 2026-10-04, to keep the last weeks' review load small).
 - Spec: an M or L task writes a spec in `docs/specs/` before it is planned. An S task needs none: its task file is the spec, and its decisions go in the PR body (decided 2026-10-04).
 - Squash merge. Most PRs up to #69 went in as merge commits instead. `main` is always green.
@@ -61,25 +62,25 @@ One error class per package boundary, `WayfordError` in `core` (`packages/core/s
 
 ## Definition of Done
 
-- [ ] Every acceptance box in the task file checked, with the command output or a screenshot in the PR.
+- [ ] Every acceptance box in the issue or the task file checked, with the command output or a screenshot in the PR.
 - [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` pass.
 - [ ] No new dependency without a line in `docs/STACK.md`.
 - [ ] Out of scope items untouched.
-- [ ] `tasks/BOARD.md` updated.
+- [ ] The issue closed by the merge, or left open with what remains.
 
 ## PR template
 
 ```
 ## Task
-tasks/<id>.md
+Fixes #<n> or Part of #<n>, and tasks/<id>.md for a task
 
 ## What changed
 
 ## Decisions
-S task: each question you settled, the option taken and why. M or L task: "in the spec".
+A fix, a small change or an S task: each question you settled, the option taken and why. M or L task: "in the spec".
 
 ## Acceptance
-- [ ] <copied from task file, with evidence>
+- [ ] <copied from the issue or the task file, with evidence>
 
 ## Out of scope respected
 yes / explain

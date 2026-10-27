@@ -43,7 +43,7 @@ Give Wayford an application URL, a goal in one sentence ("you want to see what y
 | A filter in code between the browser and the model, the same for every run with the same seed | A prompt that asks a model to pretend |
 | A tool for product teams, UX designers and accessibility specialists | A pass/fail regression suite, a CI gate or an API tester |
 
-Out of scope for the hackathon: pass/fail regression, CI pipelines, accounts, export, native mobile apps (Milo is a phone viewport in Chromium), API testing, MCP, and a profile builder.
+Out of scope: pass/fail regression, CI pipelines, API testing and MCP. Not planned: accounts, export, native mobile apps (Milo is a phone viewport in Chromium) and a profile builder.
 
 ### What makes it different
 
@@ -196,7 +196,7 @@ The plan, the rules, the design system and every decision behind them are indexe
 
 ## Contributing
 
-Wayford is a hackathon project, built in September and October 2026 by a team of four; AI coding agents write most of the code, and humans direct and review it. Every change starts from a task in [`tasks/BOARD.md`](tasks/BOARD.md) and lands as one reviewed pull request. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the steps.
+Wayford is a hackathon project, built in September and October 2026 by a team of four; AI coding agents write most of the code, and humans direct and review it. Every change starts from an [issue](https://github.com/CShark-Hub/wayford/issues) and lands as one reviewed pull request. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the steps.
 
 ## Team
 

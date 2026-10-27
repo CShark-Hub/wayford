@@ -6,9 +6,9 @@
 
 ## Project status
 
-Wayford is a hackathon project, built in September and October 2026 by a team of four in four weekly milestones. The live status is in [`tasks/BOARD.md`](../tasks/BOARD.md).
+Wayford is a hackathon project, built in September and October 2026 by a team of four in four weekly milestones. The live status is in its [issues](https://github.com/CShark-Hub/wayford/issues) and pull requests; [`tasks/BOARD.md`](../tasks/BOARD.md) is the hackathon's record.
 
-What it is not, and what is out of scope for the hackathon, is in the [README](../README.md#what-is-wayford).
+What it is not, what is out of scope and what is not planned are in the [README](../README.md#what-is-wayford).
 
 ## The name
 

@@ -1,13 +1,13 @@
 ## Task
-tasks/<id>.md
+Fixes #<n> or Part of #<n>, and tasks/<id>.md for a task
 
 ## What changed
 
 ## Decisions
-S task: each question you settled, the option taken and why. M or L task: "in the spec".
+A fix, a small change or an S task: each question you settled, the option taken and why. M or L task: "in the spec".
 
 ## Acceptance
-- [ ] <copied from task file, with evidence>
+- [ ] <copied from the issue or the task file, with evidence>
 
 ## Out of scope respected
 yes / explain

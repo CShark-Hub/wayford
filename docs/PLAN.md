@@ -8,7 +8,7 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 
 | # | Assumption | Source |
 |---|---|---|
-| A1 | 4 people, 1 month, up to 4 h per person per week. About 64 human hours total. Work is asynchronous; humans direct and review, AI agents write most code. | Tomasz, 2026-09-17 |
+| A1 | 4 people, 1 month, up to 4 h per person per week. About 64 human hours total. Work is asynchronous; humans direct and review, AI agents write most code. Since the finals there are no fixed hours: the number sized a one-month backlog against a deadline, and maintenance has neither (decided 2026-10-27). | Tomasz, 2026-09-17; 2026-10-27 |
 | A2 | Jury / audience is mixed: technical depth and show both count. Hero screen is the live preview, credibility comes from the boundary sweep. | default |
 | A3 | Code should be clean enough to continue after the hackathon, without over-engineering. | default |
 | A4 | Planning docs and an empty repo skeleton may exist before the hackathon starts. Frameworks and libraries are allowed. | default, verify rules |
@@ -24,11 +24,11 @@ This file turns the idea into requirements with acceptance criteria, a UI outlin
 | A14 | Whole team works in TypeScript. | default |
 | A15 | SQLite through Drizzle at start. Postgres is one config change later. | default |
 | A16 | Actor receives text observation only (filtered accessibility tree). Screenshot input is a flag, off by default. | default |
-| A17 | Tasks live as files in `tasks/`. Status in `tasks/BOARD.md`. | default |
+| A17 | Tasks live as files in `tasks/`. Status in `tasks/BOARD.md`. Since the finals, work starts from an issue and its status lives there. A task file is for a feature of M or L size, and the board is the hackathon's record (decided 2026-10-27, `docs/CONVENTIONS.md`, "Git"). | default; 2026-10-27 |
 | A18 | Team members run different coding agents (Claude Code, Codex, Cursor). Task files follow the `AGENTS.md` convention that all of them read. | default |
 | A19 | Project name is **Wayford**. Workspace scope `@wayford/*`. Rationale in `AGENTS.md`, section "On the name". | Tomasz, 2026-09-17 |
 | A20 | The run seed drives every perception decision and every dice roll. The profile seed only draws the avatar. A run set uses the same seed list for every persona and runs each persona once per seed, so personas are compared on the same dice. The Actor's LLM calls send one provider seed per run, derived from the run seed; a provider may ignore it, so the run records it and nothing relies on it. A sweep runs one run set per swept value and reuses the seed set on purpose (F9 AC3), so every value is compared on the same dice (and is sent the same provider seeds). | m0-08, issues #20 and #22 |
-| A21 | Streams are areas of the code, not people. No task is assigned to a person: whoever has time takes the next unowned task whose dependencies are merged. `tasks/BOARD.md` and the dependency map in `docs/ROADMAP.md` show what can start after what. | Tomasz, 2026-09-25, 2026-10-01 |
+| A21 | Streams are areas of the code, not people. No task is assigned to a person: whoever has time takes the next unowned task whose dependencies are merged. `tasks/BOARD.md` and the dependency map in `docs/ROADMAP.md` show what can start after what. Since the finals, the issues show what is open, and whoever takes one assigns themselves (decided 2026-10-27). | Tomasz, 2026-09-25, 2026-10-01; 2026-10-27 |
 | A22 | The Actor has two backends behind one seam: an LLM, the default, and Jev, a decision model that returns a probability per option instead of text. A run set uses one backend. Decision, limits and gate: `docs/adr/0001-jev-actor-backend.md`. Jev passed its gate (PR #158), so `seed:demo` and the sweeps run on Jev; the live race stays on the LLM, for its narration. | Tomasz, 2026-09-26, 2026-10-04 |
 
 ## Goal
@@ -53,9 +53,12 @@ Stated explicitly in the pitch and the README:
 
 - We do not predict how real people behave. This is a hypothesis generator and a boundary measurement.
 - We do not replace user research.
-- No pass/fail regression, no CI, no accounts, no export, no mobile, no API testing, no MCP.
+- No pass/fail regression, no CI, no API testing, no MCP.
+- Not planned: native mobile apps, more than one project, accounts and export. They were cut for the hackathon, not on principle, so each can come back through an issue that argues for it (decided 2026-10-27).
 
 ## Hackathon scope
+
+**Kept as the hackathon's record, decided 2026-10-27.** This was the demo's scope, and the demo took place on 2026-10-14. Since then, work is bounded by the Goal and the Non-goals above, by `AGENTS.md`'s core and its rejected list, and by one issue per change. Anything cut below can come back through its own issue.
 
 Agreed 2026-10-04, for week 4. What we ship is what `docs/DEMO.md` shows: every beat works on the target app, looks finished, and every number on screen opens its evidence. Each requirement below is built in the simplest form that serves its beat; a task that grows past its beat is cut back, not widened.
 
