@@ -30,9 +30,11 @@ jobs:
     timeout-minutes: 20
     # The approval gate. deployment: false keeps the gate without adding a deployment to the
     # pull request's timeline on every review. pull_request runs this file as the pull request
-    # has it, so read a pull request's changes to .github/ before approving its review. A
-    # collaborator's pull request can still edit the gate out, as any workflow they push can
-    # read repository secrets; the Claude token as a secret of this environment would close that.
+    # has it, so read a pull request's changes to .github/ before approving its review. On one
+    # that changes this file the review skips itself and the check still goes green:
+    # claude-code-action runs only a workflow file identical to main's. A collaborator's pull
+    # request can still edit the gate out, as any workflow they push can read repository secrets;
+    # the Claude token as a secret of this environment would close that.
     environment:
       name: claude-review
       deployment: false
