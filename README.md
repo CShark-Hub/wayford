@@ -187,7 +187,7 @@ None of this is built yet. [What next](docs/WHAT-NEXT.md) holds every idea, with
 |---|---|
 | [How it works](docs/HOW-IT-WORKS.md) | The claim, the loop, the filter pipeline, the personas and their provenance, the screens |
 | [Development](docs/DEVELOPMENT.md) | Configuration, every command, the packages, checks, CI and the determinism rules |
-| [Contributing](CONTRIBUTING.md) | How work is organised, and how a change gets from a task to `main` |
+| [Contributing](CONTRIBUTING.md) | How work is organised, and how a change gets from an issue to `main` |
 | [Security](SECURITY.md) | Where to run Wayford, what a run touches, and how to report a vulnerability |
 | [What next](docs/WHAT-NEXT.md) | Ideas for after the hackathon, each with its source and its limits |
 | [About](docs/ABOUT.md) | Project status, the name, prior art and acknowledgements |
