@@ -152,9 +152,11 @@ Run through the API in `s1-07` (`docs/specs/2026-10-07-s1-07-our-pick-gaps.md`).
 - Its form, `https://joboffers.cshark.com/en/senior-performance-test-engineer,ja,336?source=1005`, answers 200 with a page saying the offer is no longer available. The form host answers that way for any closed or unknown offer, so a 200 there proves nothing.
 - A hand check for [wayford PR #35](https://github.com/CShark-Hub/wayford/pull/35) ran the old G2, with the offer page alone as success, on all five personas, seeds 1 to 5, on the LLM. None of the 25 runs succeeded: all 25 hit the 20-step cap, and 11 ended on the listing. Task `task_01m5wx2mpn7r6fe9kt48vnbwhv`, set `race_01m5wx2z9k91de46cyh5dv6g7p`, local to that PR's worktree.
 
-The new G2 and G3 name the Lead .NET Developer (Full-Stack) offer, at the same depth: the "Careers" menu, "Job Offers", the role's card, second of six on the listing, then "Read More" and "Apply Now!". "Apply Now!" opens the form in the same tab. G2 keeps the success `s4-08` widened to the listing, the one the finals type on the Target screen. Both patterns were checked against a copy of `packages/agent/src/url-glob.ts`: G2 matches the listing and the offer, not another offer, `/careers/` or the home page; G3 matches the form and not another role's.
+The new G2 and G3 name the Lead .NET Developer (Full-Stack) offer, at the same depth: the "Careers" menu, "Job Offers", the role's card, second of six on the listing, then "Read More" and "Apply Now!". "Apply Now!" opens the form in the same tab. G2 keeps the success `s4-08` widened to the listing. Both patterns were checked against a copy of `packages/agent/src/url-glob.ts`: G2 matches the listing and the offer, not another offer, `/careers/` or the home page; G3 matches the form and not another role's.
 
 The new G2 has had one check, three seeds on 2026-10-26: "New G2, first check", below. The new G3 has not been through the Extractor and has not been run. Both passes below ran the retired G2 and G3, and the rehearsal the retired G2.
+
+**Before a run on our pick,** check that the offer still answers: `https://www.cshark.com/job-offers/lead-net-developer-full-stack/`. On `www` a closed offer answers 404.
 
 #### First pass, 2026-10-07
 
@@ -516,7 +518,7 @@ Checked against the stored steps:
   1. `pnpm seed:demo`, first: it refuses a store that already holds any run, report or sweep, and `--reset` would delete our pick's.
   2. The two goals on the Target screen, then Scout and ten seeds on each.
   3. The sweep, with the command above (#228).
-- **Check the job offer still answers:** `https://www.cshark.com/job-offers/lead-net-developer-full-stack/`.
+- **Check the job offer still answers:** `https://www.cshark.com/job-offers/senior-performance-test-engineer/`.
 
 ## The week 3 rehearsal
 
