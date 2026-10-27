@@ -15,9 +15,9 @@ Phases: 0 setup · 1 resolve and mode · 2 worktree · 3 read · 4 spec and revi
 
 ## Issue or task file
 
-`$ARGUMENTS` is an issue (`37`, `#37` or its URL), or a task id (`s2-14`) or task file path. Since the finals the issue is the task, and no new task files are written (`docs/CONVENTIONS.md`, "Git"). An issue whose body links a task file runs as that task. For any other issue, read the rest of this skill this way:
+`$ARGUMENTS` is an issue (`37`, `#37` or its URL), or a task id (`s2-14`) or task file path. Since the finals the issue is the task, and no new task files are written (`docs/CONVENTIONS.md`, "Git"). An issue that links a task file still `todo` on `tasks/BOARD.md` runs as that task. For any other issue, read the rest of this skill this way:
 
-- **The task file** is the issue with its comments (`gh issue view <n> --json title,body,comments`, since a piped `--comments` drops the body): its context, acceptance boxes and out of scope. When it has no out of scope, everything it does not ask for is out of scope. An agent you brief gets the issue number and that command in place of the task id and file.
+- **The task file** is the issue with its comments (`gh issue view <n> --json title,body,comments`, since a piped `--comments` drops the body): its context, acceptance boxes and out of scope. When it has no out of scope, everything it does not ask for is out of scope. Its timeline (`gh api repos/CShark-Hub/wayford/issues/<n>/timeline`) lists the pull requests that name it; one may have done part of it, or be doing it. An agent you brief gets the issue saved to a file outside the worktree, in place of the task file: the spec reviewer reads files, not GitHub.
 - **The task id** is `#<n>` in commit messages and headings, and `<n>` in branch, worktree and file names: `docs/plans/<YYYY-MM-DD>-<n>-<short-name>.md`, as the hackathon's issue plans were named.
 - **Size** is what phase 3 judges.
 - **Depends on** is every issue GitHub lists as blocking it (`gh api repos/CShark-Hub/wayford/issues/<n>/dependencies/blocked_by`) and every issue or PR its text says it waits on.
@@ -39,15 +39,15 @@ Stop, say what blocks and what the options are, and wait for the user when:
 
 - a dependency in the task's "Depends on" is not merged: a task not `done` on `tasks/BOARD.md`, an issue not closed, a PR not merged;
 - no open issue links the task file: work starts from an issue (`docs/CONVENTIONS.md`, "Git");
-- the task's issue is closed, or someone else has it: another assignee, and no branch or worktree for it in phase 1's resume step;
+- the task's issue is closed, or someone else has it: another assignee or another person's open PR for it, and no local branch or worktree for it in phase 1's resume step;
 - the task file conflicts with the code you find, or with `AGENTS.md`;
 - the work needs a dependency `docs/STACK.md` does not list, a change to a file another open task owns, or anything the task's Out of scope excludes;
 - an acceptance box cannot be met as written;
+- the issue has no acceptance boxes: the ones phase 3 drew from it wait for the user's yes;
 - the baseline on `main` is red before you change anything (the user may choose to continue; note it in the summary).
 
 In auto mode, also when:
 
-- the issue has no acceptance boxes: the ones phase 3 drew from it wait for the user's yes;
 - the spec still has blocking findings after its second review round (gate 1);
 - blocking findings remain after the second round of the cold review (phase 8).
 
@@ -64,16 +64,16 @@ Recommended: Opus 5.5 with `/effort ultracode`. Minimum: Opus 5.5 at `xhigh`, sh
 
 Run `git fetch origin` first, and read a task file and the board as `origin/main` has them (`git show origin/main:tasks/BOARD.md`), since the current checkout may be stale.
 
-1. Resolve the task from `$ARGUMENTS` ("Issue or task file" above). When it is empty, list the **takeable** issues: open, with nobody assigned (`gh issue list --state open --search no:assignee --limit 100`), and waiting on nothing open by the checks in step 2. Rank them by what they unblock, then by the severity their title or labels give, oldest first.
-2. For a task file, find its issue: the open issue whose body holds the task file's path. `gh issue list --state open --search "<task-id> in:body" --json number,body` lists the candidates; one that only names the task id does not link the file. Then check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`).
+1. Resolve the task from `$ARGUMENTS` ("Issue or task file" above). When it is empty, list the **takeable** issues: open, with nobody assigned (`gh issue list --state open --search no:assignee --limit 100 --json number,title,author,createdAt`), and waiting on nothing open by the checks in step 2. Rank them by the priority in their title, in `/deep-review`'s order (Critical, Important, Minor, Gap, Recommendation), then oldest first.
+2. Check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`). For a task file, find its issue as well: the open issue whose body holds the task file's path. `gh issue list --state open --search "<task-id> in:body" --json number,body` lists the candidates; one that only names the task id does not link the file.
 3. Ask with one AskUserQuestion call, holding:
-   - **Task**, only when `$ARGUMENTS` was empty: the top four takeable issues, the first marked "(Recommended)". The label is `#<n>`; the description gives the title, the author and what the issue unblocks. When more are takeable, name the rest in the question text; the user can type any issue or task id. When none is, skip the call: say which issues are assigned and what each unassigned one waits on, and stop.
+   - **Task**, only when `$ARGUMENTS` was empty: the top four takeable issues, the first marked "(Recommended)". The label is `#<n>`; the description gives the title and the author. When more are takeable, name the rest in the question text; the user can type any issue or task id. When none is, skip the call: say which issues are assigned and what each unassigned one waits on, and stop.
    - **Mode**, always. "Manual": "You approve the spec, when the task has one, and the plan; I ask before claiming the task, pushing or opening the PR." "Auto": "I approve the spec, when the task has one, and the plan once their reviews pass, claim the task on its issue, and finish with a ready PR. I stop only for a blocker."
-4. **Resume** a task already started. Look for its branch and worktree (`git branch -a`, `git worktree list`): `feature/<task-id>-*` and `<task-id>-*`, or `*/<n>-*` and `<n>-*` for an issue. On the branch, look for its commits and for the spec and plan it adds (`git diff --name-only origin/main...<branch> -- docs/specs docs/plans`). Pick up at the first phase whose output is missing or not yet approved (a spec or plan is approved when its Status line says so), and say where you are resuming. An S task has no phase 4 to resume: without a plan it resumes at phase 5. The mode picked in step 3 applies from there on.
+4. **Resume** a task already started. Look for its branch and worktree (`git branch -a`, `git worktree list`): `feature/<task-id>-*` and `<task-id>-*`, or for an issue `*/<n>-*`, `<n>-*` and the branch of your open PR for it. On the branch, look for its commits and for the spec and plan it adds (`git diff --name-only origin/main...<branch> -- docs/specs docs/plans`). Pick up at the first phase whose output is missing or not yet approved (a spec or plan is approved when its Status line says so), and say where you are resuming. An S task has no phase 4 to resume: without a plan it resumes at phase 5. The mode picked in step 3 applies from there on.
 
 ## 2. Worktree and branch
 
-The branch is `feature/<task-id>-<slug>` for a task file, for example `feature/s2-01-llm-adapter`, and `<kind>/<n>-<slug>` for an issue, for example `fix/37-retired-goals` (`docs/CONVENTIONS.md`, "Git"). The worktree directory drops the prefix: `<task-id>-<slug>` or `<n>-<slug>`.
+The branch is `feature/<task-id>-<slug>` for a task file, for example `feature/s2-01-llm-adapter`, and for an issue `<kind>/<n>-<slug>`, for example `fix/37-retired-goals`: the `<kind>/<slug>` of `docs/CONVENTIONS.md` ("Git"), with the number first so a resume finds it. The worktree directory drops the prefix: `<task-id>-<slug>` or `<n>-<slug>`.
 
 1. Create the worktree next to the others, from the main checkout's root, and move the session into it:
 
