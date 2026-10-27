@@ -436,7 +436,9 @@ test.each(["actor", "scout"] as const)(
   "retries a timed-out %s attempt once with the same bytes, and warns that it is not counted",
   async (role) => {
     const { llm, calls, lines, sleeps } = setup(["hang", click()], { settings: timingOut(20) });
+    const started = performance.now();
     const result = await llm.complete({ ...ACTOR, role });
+    const elapsed = performance.now() - started;
 
     expect(result.value).toStrictEqual(CLICK);
     expect(calls.map(({ init }) => init.body)).toStrictEqual(Array(2).fill(calls[0]?.init.body));
@@ -444,13 +446,14 @@ test.each(["actor", "scout"] as const)(
     const ms = expect.any(Number);
     expect(lines).toMatchObject([
       { level: 40, role, attempt: 1, outcome: "timeout", ms },
-      { level: 30, role, attempt: 2, outcome: "ok", ms, tokensIn: 1000, tokensOut: 200 },
       // Said on its own line, so the run's cost is read as reported usage, short of the bill.
       { level: 40, role, timedOut: 1, msg: "llm timed-out attempt billed but not counted" },
+      { level: 30, role, attempt: 2, outcome: "ok", ms, tokensIn: 1000, tokensOut: 200 },
     ]);
     // `ms` is the attempt's wall time: the one that timed out waited out its 20 ms, give or take
-    // the millisecond a timer can fire early.
+    // the millisecond a timer can fire early, and no longer than the whole call took.
     expect(lines[0]?.ms).toBeGreaterThanOrEqual(15);
+    expect(lines[0]?.ms).toBeLessThanOrEqual(Math.ceil(elapsed));
     // The provider still billed the request it was not waited for, but reported no usage for it,
     // so the cost holds the answer's usage alone.
     expect(result.cost).toStrictEqual({
@@ -475,6 +478,9 @@ test.each([
     `failed after ${attempts} attempts. The last one got a timeout after 0.02 s, which the provider may still bill`,
   );
   expect(lines.at(-1)).toMatchObject({ attempt: attempts, outcome: "timeout" });
+  // The first timeout was retried and billed, so its line is there though no attempt answered.
+  const billed = lines.filter(({ msg }) => msg === "llm timed-out attempt billed but not counted");
+  expect(billed).toHaveLength(1);
   // No attempt answered, so nothing gives the usage of the ones that timed out.
   expect(error.cost).toStrictEqual({ tokensIn: 0, tokensOut: 0, usd: 0 });
   expect(inspect(error, { depth: null })).not.toContain(KEY);

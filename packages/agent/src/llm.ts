@@ -392,11 +392,6 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
           reportedUsd,
         };
         logger.info(line, "llm attempt");
-        if (timedOut) {
-          // The attempt that timed out was billed with no usage to show for it, so the call's
-          // cost, which holds reported usage only, leaves it out. Its own line says so.
-          logger.warn({ timedOut: 1 }, "llm timed-out attempt billed but not counted");
-        }
         return result.value;
       }
       logger.warn(
@@ -405,13 +400,18 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
       );
       const retry =
         result.kind === "retry" || (result.kind === "timeout" && call.retriesTimeout && !timedOut);
-      if (result.kind === "timeout") timedOut = true;
       if (!retry || n === MAX_ATTEMPTS) {
         const says =
           n === 1
             ? `failed with ${result.what}`
             : `failed after ${n} attempts. The last one got ${result.what}`;
         throw failed(call, result, says);
+      }
+      if (result.kind === "timeout") {
+        timedOut = true;
+        // Billed with no usage to show for it, so the call's cost, which holds reported usage
+        // only, leaves it out, whether or not a later attempt answers. Its own line says so.
+        logger.warn({ timedOut: 1 }, "llm timed-out attempt billed but not counted");
       }
       await sleep(result.retryAfterMs ?? FIRST_BACKOFF_MS * 2 ** (n - 1));
     }
