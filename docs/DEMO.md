@@ -501,9 +501,9 @@ Checked against the stored steps:
   - She got through once a die did not fire: on seed 1 at step 3, on seed 2 at step 4.
   - On seed 3 all ten fired.
 - **Kai's seed 2 error.** After step 6, the home page did not answer within 30,000 ms (`page_not_settled`, `settle`'s bound off the target app, #190). By then the run had toggled "Careers" seven times.
-- **Seed 1 matches the rehearsal's race on the retired G2,** step for step and to the tenth of a second: Ada 3 steps in 0:06.2, Kai 10 in 0:15.9, Vera 5 in 0:16.8. Vera's miss on seed 3 matches the rehearsal's ten seeds too.
+- **Seed 1 matches the rehearsal's race on the retired G2** in steps and simulated time, to the tenth of a second: Ada 3 steps in 0:06.2, Kai 10 in 0:15.9, Vera 5 in 0:16.8. Vera's miss on seed 3 matches the rehearsal's ten seeds too.
   - Both goals are decided on the way to the listing, which did not change.
-  - The dice replay from the seed. The model's choices matched, but they do not replay.
+  - The dice replay from the seed. The model's choices gave the same totals, but they do not replay.
 - **Weaker claims:**
   - Three seeds, not ten.
   - Run ids and the data are local to the worktree that ran them.
