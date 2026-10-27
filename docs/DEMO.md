@@ -110,7 +110,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 
 Not part of the 90 seconds. If we reach the finals, on 2026-10-14, Wayford runs on a site someone hands us (`docs/adr/0003-any-target.md`):
 
-- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its goals, the results per persona and the gaps it hit are below, in "Our pick: cshark.com". The finals use G1 and G2.
+- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its goals, the results per persona and the gaps it hit are below, in "Our pick: cshark.com". The finals were to use G1 and the retired G2.
 - **The judges' app.** It should work more or less. If it does not, we say why in one line (a login, a cookie banner in an iframe, a bot check) and switch to our pick.
 
 The flow, from the Target screen:
@@ -156,7 +156,7 @@ The new G2 and G3 name the Lead .NET Developer (Full-Stack) offer, at the same d
 
 The new G2 has had one check, three seeds on 2026-10-26: "New G2, first check", below. The new G3 has not been through the Extractor and has not been run. Both passes below ran the retired G2 and G3, and the rehearsal the retired G2.
 
-**Before a run on our pick,** check that the offer still answers: `https://www.cshark.com/job-offers/lead-net-developer-full-stack/`. On `www` a closed offer answers 404.
+**Before a run on our pick,** check that the offer still answers: `https://www.cshark.com/job-offers/lead-net-developer-full-stack/`. On `www` a closed offer answers 404. Before a run on G3, also check that its form, `https://joboffers.cshark.com/en/lead-net-developer-full-stack,ja,339?source=1005`, still shows the role's title: a closed offer's form answers 200 too.
 
 #### First pass, 2026-10-07
 
