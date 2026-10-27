@@ -101,8 +101,6 @@ export type LlmDeps = {
   fetch?: typeof fetch;
   /** Tests record the backoff instead of waiting it out. */
   sleep?: (ms: number) => Promise<void>;
-  /** Per attempt, for both calls. Unset: 300 s for `complete`, 30 s for `decide`. */
-  timeoutMs?: number;
 };
 
 /**
@@ -126,15 +124,28 @@ export function samplingOf(temperature: number, seed?: number): Sampling {
   return Sampling.parse(seed === undefined ? { temperature } : { temperature, providerSeed: seed });
 }
 
-// `max` effort on an Analyst-sized prompt can think for minutes; a shorter limit cuts real calls.
-const COMPLETE_TIMEOUT_MS = 300_000;
-// Jev answers in 70 to 500 ms (ADR 0001). A timeout is never retried, so a hang must not stall a
-// run for the five minutes `complete` allows.
+// `complete` is bounded by its role's `timeoutMs` (`llm-settings.ts`). Jev answers in 70 to 500 ms
+// (ADR 0001), so 30 s is a hang rather than a slow answer: its timeout is not retried, and
+// `LLM_ACTOR_TIMEOUT_MS`, sized for a chat model, does not apply.
 const DECIDE_TIMEOUT_MS = 30_000;
+
+/**
+ * The roles whose timed-out chat attempt is retried, once a round. A request that does not stream
+ * is generated and billed whether or not anyone waits for it, so the retry pays twice. A duplicate
+ * Actor or Scout call costs about 0.0001 USD (calibration: 0.0019 USD a run), and losing it ends
+ * the run `error`. The Extractor and the Analyst read large prompts, the Analyst at `max` effort,
+ * so a duplicate is expensive there and their timeout fails the call
+ * (`docs/adr/0005-llm-timeout-retry.md`).
+ */
+const RETRIES_A_TIMEOUT: ReadonlySet<LlmRole> = new Set(["actor", "scout"]);
 
 // The first attempt plus the "at most 3" retries of `docs/STACK.md`.
 const MAX_ATTEMPTS = 4;
 const FIRST_BACKOFF_MS = 1000;
+// The longest wait a `Retry-After` gets, so a rate-limited key or a provider without capacity
+// cannot hold a run asleep for minutes. A longer ask waits this long, and the next attempt finds
+// out whether that was enough.
+const MAX_RETRY_AFTER_MS = 30_000;
 
 // Enough of a provider's error to act on, without pasting a whole error page into a message.
 const PROVIDER_TEXT_LIMIT = 300;
@@ -223,7 +234,17 @@ export function choiceAnswer(options: ChoiceQuestion["options"]) {
 }
 
 /** What every attempt of one call shares. `cost` is its running total. */
-type Call = { role: LlmRole; model: string; price: ModelPrice; logger: Logger; cost: Cost };
+type Call = {
+  role: LlmRole;
+  model: string;
+  price: ModelPrice;
+  logger: Logger;
+  cost: Cost;
+  /** The bound on one attempt. */
+  timeoutMs: number;
+  /** Whether a round retries one timed-out attempt (`RETRIES_A_TIMEOUT`). */
+  retriesTimeout: boolean;
+};
 
 /** Token counts as each endpoint's usage maps onto them, before they are priced. */
 type Tokens = { tokensIn: number; tokensOut: number };
@@ -244,20 +265,22 @@ type Attempt<T> =
     }
   | Failure;
 
+/** A `timeout` is retried or not by the call (`Call.retriesTimeout`), the other kinds as named. */
 type Failure = {
-  kind: "retry" | "fail";
+  kind: "retry" | "fail" | "timeout";
   code: "llm_request_failed" | "llm_bad_response";
   outcome: string;
   what: string;
   status?: number;
   tokens?: Tokens;
+  /** What the answer's `Retry-After` asked to wait before the next attempt, capped. */
+  retryAfterMs?: number;
   cause?: unknown;
 };
 
 /** Where one kind of call goes, and how its answers are read. */
 type Endpoint<T> = {
   url: string;
-  timeoutMs: number;
   /** Reads a 2xx. `attempt` fails or retries every other status before it gets here. */
   classify: (status: number, json: unknown, text: string) => Attempt<T>;
 };
@@ -276,14 +299,9 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
   const baseUrl = settings.baseUrl.replace(/\/+$/, "");
   const chat: Endpoint<string | null> = {
     url: `${baseUrl}/chat/completions`,
-    timeoutMs: deps.timeoutMs ?? COMPLETE_TIMEOUT_MS,
     classify: classifyChat,
   };
-  const systemOne: Endpoint<unknown> = {
-    url: `${baseUrl}/systemone`,
-    timeoutMs: deps.timeoutMs ?? DECIDE_TIMEOUT_MS,
-    classify: classifyDecision,
-  };
+  const systemOne: Endpoint<unknown> = { url: `${baseUrl}/systemone`, classify: classifyDecision };
   const headers = {
     authorization: `Bearer ${settings.apiKey}`,
     "content-type": "application/json",
@@ -292,36 +310,51 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
   const sleep =
     deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
-  async function attempt<T>(endpoint: Endpoint<T>, payload: string): Promise<Attempt<T>> {
-    const { url, timeoutMs } = endpoint;
+  async function attempt<T>(
+    endpoint: Endpoint<T>,
+    payload: string,
+    timeoutMs: number,
+  ): Promise<Attempt<T>> {
     const signal = AbortSignal.timeout(timeoutMs);
     let response: Response;
     let text: string;
     try {
-      response = await send(url, { method: "POST", headers, body: payload, signal });
+      response = await send(endpoint.url, { method: "POST", headers, body: payload, signal });
       // Whole, before anything uses it: a body cut off midway rejects here and is retried as a
       // network error, never parsed as half an answer.
       text = await response.text();
     } catch (error) {
-      // A timeout is not retried: an aborted request that does not stream is still generated and
-      // billed, so a retry would pay for the same tokens twice, with no usage to record either.
+      // An aborted request that does not stream is still generated and billed, so a retry pays
+      // for the same tokens twice, with no usage to record for the first. Whether to pay is the
+      // call's to decide (`RETRIES_A_TIMEOUT`).
       if (signal.aborted) {
         const what = `a timeout after ${timeoutMs / 1000} s, which the provider may still bill`;
-        return { kind: "fail", code: "llm_request_failed", outcome: "timeout", what, cause: error };
+        return {
+          kind: "timeout",
+          code: "llm_request_failed",
+          outcome: "timeout",
+          what,
+          cause: error,
+        };
       }
       const what = `a network error: ${networkReason(error)}`;
       return { kind: "retry", code: "llm_request_failed", outcome: "network", what, cause: error };
     }
     const json = parseJson(text);
-    if (!response.ok) return httpFailure(response.status, json, text);
+    if (!response.ok) return httpFailure(response, json, text);
     return endpoint.classify(response.status, json, text);
   }
 
   /** A new call on `model`, at zero cost. `bindings` join the role and model on its log lines. */
-  function newCall(role: LlmRole, model: string, bindings: object = {}): Call {
+  function newCall(
+    role: LlmRole,
+    model: string,
+    bounds: Pick<Call, "timeoutMs" | "retriesTimeout">,
+    bindings: object = {},
+  ): Call {
     const logger = deps.logger.child({ role, model, ...bindings });
     const cost = { tokensIn: 0, tokensOut: 0, usd: 0 };
-    return { role, model, price: priceOf(prices, model), logger, cost };
+    return { role, model, price: priceOf(prices, model), logger, cost, ...bounds };
   }
 
   /** One round: the same bytes until an answer, or until retrying cannot help. */
@@ -336,24 +369,53 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
     // Serialised once, so every attempt sends the same complete request, whatever the caller
     // does with its message array or its options meanwhile.
     const payload = JSON.stringify(body);
+    let timedOut = false;
     for (let n = 1; ; n++) {
-      if (n > 1) await sleep(FIRST_BACKOFF_MS * 2 ** (n - 2));
-      const result = await attempt(endpoint, payload);
+      const started = performance.now();
+      const result = await attempt(endpoint, payload, call.timeoutMs);
+      // Logged only, so model time can be told apart from a step's settle and act.
+      const ms = Math.round(performance.now() - started);
       if (result.tokens !== undefined) {
         const { tokensIn, tokensOut } = result.tokens;
         call.cost = addCost(call.cost, costOf(call.price, tokensIn, tokensOut));
       }
       if (result.kind === "ok") {
         const { status, tokens, served, host, reportedUsd } = result;
-        const line = { attempt: n, outcome: "ok", status, ...tokens, served, host, reportedUsd };
+        const line = {
+          attempt: n,
+          outcome: "ok",
+          status,
+          ms,
+          ...tokens,
+          served,
+          host,
+          reportedUsd,
+        };
         logger.info(line, "llm attempt");
         return result.value;
       }
-      logger.warn({ attempt: n, outcome: result.outcome, status: result.status }, "llm attempt");
-      if (result.kind === "fail") throw failed(call, result, `failed with ${result.what}`);
-      if (n === MAX_ATTEMPTS) {
-        throw failed(call, result, `failed after ${n} attempts. The last one got ${result.what}`);
+      logger.warn(
+        { attempt: n, outcome: result.outcome, status: result.status, ms },
+        "llm attempt",
+      );
+      const retry =
+        result.kind === "retry" || (result.kind === "timeout" && call.retriesTimeout && !timedOut);
+      if (!retry || n === MAX_ATTEMPTS) {
+        const says =
+          n === 1
+            ? `failed with ${result.what}`
+            : `failed after ${n} attempts. The last one got ${result.what}`;
+        throw failed(call, result, says);
       }
+      if (result.kind === "timeout") {
+        timedOut = true;
+        // Billed with no usage to show for it, so the call's cost, which holds reported usage
+        // only, leaves it out, whether or not a later attempt answers. Its own line says so.
+        logger.warn({ timedOut: 1 }, "llm timed-out attempt billed but not counted");
+      }
+      // What a `Retry-After` asks, but never sooner than the backoff: a `0` would otherwise send
+      // the retries at once.
+      await sleep(Math.max(result.retryAfterMs ?? 0, FIRST_BACKOFF_MS * 2 ** (n - 1)));
     }
   }
 
@@ -363,8 +425,9 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
     const { role, messages, schema, seed } = request;
     const config = settings.roles[role];
     const sampling = samplingOf(config.temperature, seed);
+    const bounds = { timeoutMs: config.timeoutMs, retriesTimeout: RETRIES_A_TIMEOUT.has(role) };
     // The effort is on every line because the run record has no field for it yet.
-    const call = newCall(role, config.model, { effort: config.effort });
+    const call = newCall(role, config.model, bounds, { effort: config.effort });
     const body = {
       model: config.model,
       messages,
@@ -406,7 +469,7 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
     const model = settings.jevModel;
     // Built before the call, from the keys offered then, whatever the caller does meanwhile.
     const answerSchema = choiceAnswer(question.options);
-    const call = newCall(role, model);
+    const call = newCall(role, model, { timeoutMs: DECIDE_TIMEOUT_MS, retriesTimeout: false });
     const body = {
       model,
       state,
@@ -482,9 +545,27 @@ function classifyDecision(status: number, json: unknown, text: string): Attempt<
   };
 }
 
-/** A status outside 2xx, whatever the endpoint: a 429 or a 5xx is retried, anything else fails. */
-function httpFailure(status: number, json: unknown, text: string): Failure {
-  return failure(status, `http_${status}`, `HTTP ${status}: ${providerText(json, text)}`);
+/**
+ * A status outside 2xx, whatever the endpoint: a 408, a 429 or a 5xx is retried, anything else
+ * fails. A retry waits what the answer's `Retry-After` asks when that is longer than the backoff:
+ * OpenRouter sends one on a 429 or a 503 and asks `fetch` clients to honour it
+ * (openrouter.ai/docs, "Errors and debugging").
+ */
+function httpFailure(response: Response, json: unknown, text: string): Failure {
+  const { status } = response;
+  const result = failure(status, `http_${status}`, `HTTP ${status}: ${providerText(json, text)}`);
+  const wait = retryAfterMs(response.headers);
+  return wait === undefined ? result : { ...result, retryAfterMs: wait };
+}
+
+/**
+ * A `Retry-After` in its delay-seconds form, in ms, up to `MAX_RETRY_AFTER_MS`. The HTTP-date
+ * form, or none, leaves the backoff as it is.
+ */
+function retryAfterMs(headers: Headers): number | undefined {
+  const value = headers.get("retry-after")?.trim();
+  if (value === undefined || !/^\d+$/.test(value)) return undefined;
+  return Math.min(Number(value) * 1000, MAX_RETRY_AFTER_MS);
 }
 
 /** An error a 2xx carries, as its own code, or 502 when it has none. */
@@ -494,8 +575,9 @@ function errorInBody(error: z.infer<typeof ErrorObject> | undefined): Failure {
   return failure(code, `error_in_body_${code}`, `error ${code} in a 2xx body: ${message}`);
 }
 
+// 408 is OpenRouter's answer when the host timed out (openrouter.ai/docs, "Errors and debugging").
 function failure(status: number, outcome: string, what: string): Failure {
-  const kind = status === 429 || status >= 500 ? "retry" : "fail";
+  const kind = status === 408 || status === 429 || status >= 500 ? "retry" : "fail";
   return { kind, code: "llm_request_failed", outcome, what, status };
 }
 

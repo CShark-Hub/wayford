@@ -18,6 +18,7 @@ Both `.env.example` and `.env` sit at the repository root. The variables io and 
 | `LLM_API_KEY` | The one key for every model role, Jev included. Required for io to boot (any value will do when no model is called, as in the README's quick start). |
 | `LLM_BASE_URL` | An OpenAI-compatible endpoint. Defaults to OpenRouter. |
 | `LLM_<ROLE>_MODEL`, `LLM_<ROLE>_TEMPERATURE`, `LLM_<ROLE>_EFFORT` | Per role: `EXTRACTOR`, `SCOUT`, `ACTOR`, `ANALYST`. Every role defaults to the team's build-time model. |
+| `LLM_<ROLE>_TIMEOUT_MS` | Per role, the limit on one attempt of a chat call, in ms: 60000 for the Actor and Scout, 300000 for the Extractor and Analyst. The Actor and Scout retry one timed-out attempt a round ([ADR 0005](adr/0005-llm-timeout-retry.md)). On `LLM_ACTOR_BACKEND=jev`, Jev's calls keep 30 s and no timeout retry. |
 | `LLM_ACTOR_BACKEND` | `llm` (default) or `jev`. |
 | `LLM_JEV_MODEL` | Jev's pinned model id. A floating alias is refused. |
 | `PORT`, `LOG_LEVEL`, `DATABASE_URL` | io's port (3000), log level, and database (SQLite, `wayford.sqlite` at the repository root by default). |

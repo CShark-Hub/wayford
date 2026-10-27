@@ -43,6 +43,7 @@ describe("LLM_API_KEY", () => {
       model: "openai/gpt-6-luna",
       temperature: 1,
       effort: "high",
+      timeoutMs: 60_000,
     });
   });
 });
@@ -113,6 +114,51 @@ describe("the role variables", () => {
   test.each(["-0.1", "2.1", "warm"])("a temperature of %s is rejected", (temperature) => {
     const error = settingsError({ LLM_API_KEY: KEY, LLM_ANALYST_TEMPERATURE: temperature });
     expect(error.message).toMatch(/LLM_ANALYST_TEMPERATURE/);
+  });
+});
+
+describe("LLM_<ROLE>_TIMEOUT_MS", () => {
+  test("unset, the Actor and Scout get 60 s an attempt and the Extractor and Analyst 300 s", () => {
+    const { roles } = parseLlmSettings({ LLM_API_KEY: KEY });
+    expect([
+      roles.extractor.timeoutMs,
+      roles.scout.timeoutMs,
+      roles.actor.timeoutMs,
+      roles.analyst.timeoutMs,
+    ]).toStrictEqual([300_000, 60_000, 60_000, 300_000]);
+  });
+
+  test("each variable sets its own role's timeout only", () => {
+    const defaults = parseLlmSettings({ LLM_API_KEY: KEY }).roles;
+    const settings = parseLlmSettings({
+      LLM_API_KEY: KEY,
+      LLM_EXTRACTOR_TIMEOUT_MS: "1",
+      LLM_SCOUT_TIMEOUT_MS: "90000",
+      LLM_ACTOR_TIMEOUT_MS: "120000",
+      LLM_ANALYST_TIMEOUT_MS: "600000",
+    });
+    expect(settings.roles).toStrictEqual({
+      extractor: { ...defaults.extractor, timeoutMs: 1 },
+      scout: { ...defaults.scout, timeoutMs: 90_000 },
+      actor: { ...defaults.actor, timeoutMs: 120_000 },
+      analyst: { ...defaults.analyst, timeoutMs: 600_000 },
+    });
+  });
+
+  // Node fires a timer longer than 2147483647 ms, `AbortSignal.timeout`'s included, after 1 ms,
+  // so a value above it would abort every call at once.
+  test.each(["slow", "0", "-5000", "1.5", "2147483648"])(
+    "a timeout of %s is refused at boot, on the line naming its variable",
+    (value) => {
+      const error = settingsError({ LLM_API_KEY: KEY, LLM_SCOUT_TIMEOUT_MS: value });
+      expect(error.message).toMatch(/^ {2}LLM_SCOUT_TIMEOUT_MS: \S/m);
+      expect(error.message.split("\n")).toHaveLength(2);
+    },
+  );
+
+  test("the largest timeout Node's timers hold is accepted", () => {
+    const settings = parseLlmSettings({ LLM_API_KEY: KEY, LLM_ACTOR_TIMEOUT_MS: "2147483647" });
+    expect(settings.roles.actor.timeoutMs).toBe(2_147_483_647);
   });
 });
 

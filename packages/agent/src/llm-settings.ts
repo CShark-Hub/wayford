@@ -1,6 +1,6 @@
 /**
- * The LLM adapter's settings: one endpoint, one key, and a model, temperature and reasoning
- * effort per role (`docs/PLAN.md`, "AI access"). The caller hands in the environment, so the
+ * The LLM adapter's settings: one endpoint, one key, and a model, temperature, reasoning effort
+ * and timeout per role (`docs/PLAN.md`, "AI access"). The caller hands in the environment, so the
  * adapter never reads it itself and a test never picks up a developer's `.env`.
  *
  * The role defaults are the "While we build" column of the team's model ladder ("Wayford —
@@ -23,6 +23,8 @@ export type RoleSettings = {
   temperature: number;
   /** Absent: the request carries no `reasoning` field and the model uses its own. */
   effort?: Effort;
+  /** The bound on one attempt of a chat call, in ms. Jev's `decide` keeps its own 30 s. */
+  timeoutMs: number;
 };
 
 /** Hosts allowed plain `http`, so a local Ollama works. Anything else gets the key only over https. */
@@ -42,15 +44,32 @@ const LADDER_MODEL = "openai/gpt-6-luna";
 const EffortSetting = z.enum([...Effort.options, "default"]);
 
 /**
+ * The Actor's and Scout's bound on one attempt, unset. Calibration measured a median of about 2.6
+ * to 3.4 s of model time per step on Luna at effort `high` (`tasks/s2-11-calibration-run.md`), so
+ * 60 s is about twenty times that; Scout, at `max`, took about a minute for six attempts of two or
+ * three steps (`tasks/s2-04-scout.md`). With the attempts a step can make
+ * (`docs/adr/0005-llm-timeout-retry.md`, "Wall time") and the step cap, it bounds a run's wall
+ * time, now that B3 reads the simulated clock (`docs/RULES.md`, "B3 in detail").
+ */
+const WALK_TIMEOUT_MS = 60_000;
+// The Extractor's and Analyst's, unset: `max` effort on an Analyst-sized prompt can think for
+// minutes, and a shorter limit cuts real calls.
+const REASON_TIMEOUT_MS = 300_000;
+// Node fires a longer timer, `AbortSignal.timeout`'s included, after 1 ms, which would abort
+// every call at once.
+const MAX_TIMER_MS = 2_147_483_647;
+
+/**
  * Temperature 1 on every role: the ladder's model is an OpenAI reasoning model, which can reject
  * any other value. That is config, not a provider branch in code.
  */
-function roleSettings(ladderEffort: Effort) {
+function roleSettings(ladderEffort: Effort, defaultTimeoutMs: number) {
   return z
     .object({
       model: z.string().default(LADDER_MODEL),
       temperature: z.coerce.number().min(0).max(2).default(1),
       effort: EffortSetting.default(ladderEffort),
+      timeoutMs: z.coerce.number().int().positive().max(MAX_TIMER_MS).default(defaultTimeoutMs),
     })
     .transform(
       ({ effort, ...rest }): RoleSettings =>
@@ -88,10 +107,10 @@ const Settings = z.object({
     // and its error quotes the header whole, key included. So it is refused here, unechoed.
     .regex(/^[\x21-\x7E]+$/, "must be one line of printable characters, with no spaces"),
   roles: z.object({
-    extractor: roleSettings("high"),
-    scout: roleSettings("max"),
-    actor: roleSettings("high"),
-    analyst: roleSettings("max"),
+    extractor: roleSettings("high", REASON_TIMEOUT_MS),
+    scout: roleSettings("max", WALK_TIMEOUT_MS),
+    actor: roleSettings("high", WALK_TIMEOUT_MS),
+    analyst: roleSettings("max", REASON_TIMEOUT_MS),
   }),
   /** What picks the Actor's actions. A run set uses one, and nothing falls back to the other. */
   actorBackend: ActorBackendName.default("llm"),
@@ -101,9 +120,13 @@ const Settings = z.object({
 
 export type LlmSettings = z.output<typeof Settings>;
 
-/** `actor`, `effort` → `LLM_ACTOR_EFFORT`. One spelling, to read a variable and to name it. */
+/**
+ * `actor`, `effort` → `LLM_ACTOR_EFFORT`, and `actor`, `timeoutMs` → `LLM_ACTOR_TIMEOUT_MS`. One
+ * spelling, to read a variable and to name it.
+ */
 function roleVariable(...parts: string[]): string {
-  return `LLM_${parts.join("_").toUpperCase()}`;
+  const words = parts.map((part) => part.replace(/(?<=[a-z])(?=[A-Z])/g, "_"));
+  return `LLM_${words.join("_").toUpperCase()}`;
 }
 
 /**
@@ -140,6 +163,7 @@ export function parseLlmSettings(env: Record<string, string | undefined>): LlmSe
           model: read(roleVariable(role, "model")),
           temperature: read(roleVariable(role, "temperature")),
           effort: read(roleVariable(role, "effort")),
+          timeoutMs: read(roleVariable(role, "timeoutMs")),
         },
       ]),
     ),

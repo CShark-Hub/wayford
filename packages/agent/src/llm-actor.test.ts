@@ -14,22 +14,14 @@ import {
   taskFixture,
 } from "@wayford/core/fixtures";
 import pino, { type Logger } from "pino";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import { actorTurn } from "./actor-backend.js";
 import { type FakeLlm, fakeLlm } from "./fake-llm.js";
 import type { HistoryStep } from "./history.js";
-import { createLlm, type Llm } from "./llm.js";
+import type { Llm } from "./llm.js";
 import { actorMessages, llmActor } from "./llm-actor.js";
 import { parseLlmSettings } from "./llm-settings.js";
-
-vi.mock("./llm.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./llm.js")>();
-  return { ...actual, createLlm: vi.fn(actual.createLlm) };
-});
-
-/** Every adapter the default builder asks for, through the mock above. It builds the real one. */
-const createLlmSpy = vi.mocked(createLlm);
 
 // "fake" has no price in models.yaml, so no test here can build the real adapter by mistake.
 const settings = parseLlmSettings({ LLM_API_KEY: "test-key", LLM_ACTOR_MODEL: "fake" });
@@ -379,25 +371,5 @@ describe("llmActor", () => {
 
     expect(thrown).toMatchObject({ code: "llm_unknown_model" });
     expect((thrown as Error).message).toContain('"fake"');
-  });
-
-  test("without an llm option every model call is bounded at 60 s an attempt, Scout's too, not the adapter's 300 s", async () => {
-    // A timeout ends the run, so with B3 on the simulated clock this bound and the step cap are
-    // what bound a run's wall time. The fakes stand in for the adapter: nothing is sent.
-    createLlmSpy.mockClear();
-    const actorLlm = fakeLlm({ actor: [CLICK] });
-    const scoutLlm = fakeLlm({ scout: [CLICK] });
-    createLlmSpy.mockImplementationOnce(() => actorLlm).mockImplementationOnce(() => scoutLlm);
-    const logger = quiet();
-
-    await llmActor({ settings })(run(logger)).answer(turn);
-    await llmActor({ settings, role: "scout" })(run(logger)).answer(turn);
-
-    expect(createLlmSpy.mock.calls).toStrictEqual([
-      [settings, { logger, timeoutMs: 60_000 }],
-      [settings, { logger, timeoutMs: 60_000 }],
-    ]);
-    // Each answer is the built adapter's own.
-    expect([actorLlm.calls.length, scoutLlm.calls.length]).toStrictEqual([1, 1]);
   });
 });
