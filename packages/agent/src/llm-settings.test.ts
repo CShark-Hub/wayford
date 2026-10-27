@@ -145,8 +145,8 @@ describe("LLM_<ROLE>_TIMEOUT_MS", () => {
     });
   });
 
-  // Node fires a longer timer, `AbortSignal.timeout`'s included, after 1 ms, so the largest value
-  // that does not overflow would otherwise abort every call at once.
+  // Node fires a timer longer than 2147483647 ms, `AbortSignal.timeout`'s included, after 1 ms,
+  // so a value above it would abort every call at once.
   test.each(["slow", "0", "-5000", "1.5", "2147483648"])(
     "a timeout of %s is refused at boot, on the line naming its variable",
     (value) => {

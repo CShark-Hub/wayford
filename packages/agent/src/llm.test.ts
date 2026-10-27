@@ -415,6 +415,8 @@ test.each([
   [429, "600", [30_000, 2000]],
   // The date form is not read, so the backoff stands.
   [429, "Wed, 21 Oct 2026 07:28:00 GMT", [1000, 2000]],
+  // Nor is anything but whole seconds: "5s" would read as NaN and send the retries at once.
+  [429, "5s", [1000, 2000]],
   // OpenRouter sends one on a 503 too, when no provider can take the request.
   [503, "7", [7000, 2000]],
 ])(
@@ -452,9 +454,11 @@ test.each(["actor", "scout"] as const)(
       { level: 30, role, attempt: 2, outcome: "ok", ms, tokensIn: 1000, tokensOut: 200 },
     ]);
     // `ms` is the attempt's wall time: the one that timed out waited out its 20 ms, give or take
-    // the millisecond a timer can fire early, and no longer than the whole call took.
+    // the millisecond a timer can fire early, and no longer than the whole call took. Each attempt
+    // is timed from its own start, so the two fit inside the call, give or take their rounding.
     expect(lines[0]?.ms).toBeGreaterThanOrEqual(15);
     expect(lines[0]?.ms).toBeLessThanOrEqual(Math.ceil(elapsed));
+    expect(Number(lines[0]?.ms) + Number(lines[2]?.ms)).toBeLessThanOrEqual(Math.ceil(elapsed) + 1);
     // The provider still billed the request it was not waited for, but reported no usage for it,
     // so the cost holds the answer's usage alone.
     expect(result.cost).toStrictEqual({
@@ -468,6 +472,7 @@ test.each(["actor", "scout"] as const)(
 test.each([
   ["two timeouts in a row", ["hang", "hang"] as Answer[]],
   ["a timeout after a retried 503", ["hang", providerError(503), "hang"] as Answer[]],
+  ["a 503, then two timeouts", [providerError(503), "hang", "hang"] as Answer[]],
 ])("a second timeout in a round is not retried (%s)", async (_, answers) => {
   const attempts = answers.length;
   const { llm, calls, lines } = setup(answers, { settings: timingOut(20) });
