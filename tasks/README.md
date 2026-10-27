@@ -19,7 +19,7 @@ Since the finals, work starts from an issue, and a task file is written only for
 5. Review the diff yourself. Run the acceptance commands from the task file. In Claude Code, `/pr-review` runs a review built for agent-written code: it runs the change, checks it against `AGENTS.md`'s core, and pushes back on anything bigger than the task needs (`.claude/skills/pr-review/SKILL.md`).
 6. Open a PR titled with the task id. Link the issue and the task file. One reviewer for every PR (`docs/CONVENTIONS.md`, "Git"); until week 4 the filter contract (`observation.ts`, `measurement.ts`, `docs/RULES.md`) took two.
 7. Tick every acceptance box **in the task file**, each with the evidence that satisfied it, and commit that with the work. The PR body is read once; the task file is what the next person reads.
-8. Close the issue with the merge: `Fixes #n` in the PR body.
+8. Close the issue with the merge (`Fixes #n` in the PR body), or write `Part of #n` and leave it open with what remains.
 
 ## Naming
 
