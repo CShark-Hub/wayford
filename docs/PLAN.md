@@ -45,7 +45,7 @@ Pitch line: we do not answer "does it work", we answer "who does it work for".
 - Accessibility specialist: validator. Wants thresholds with sources and evidence they can check.
 - Product owner: reads the report, does not run it.
 
-Not for: QA regression, end users, CI pipelines (in this scope).
+Not for: QA regression, end users, or a CI gate. Running Wayford in a CI pipeline is not planned (see "Non-goals").
 
 ## Non-goals
 
@@ -54,8 +54,8 @@ Stated explicitly in the pitch and the README:
 - We do not predict how real people behave. This is a hypothesis generator and a boundary measurement.
 - We do not replace user research.
 - No pass/fail regression, no API testing.
-- Not planned: native mobile apps, more than one project, accounts, export and a profile builder. They were cut for the hackathon, not on principle, so each can come back through an issue that argues for it (decided 2026-10-27).
-- For the hackathon, also no CI and no MCP. Neither has been decided since (2026-10-27). `AGENTS.md`, "Rejected", already keeps MCP as the foundation out, and allows it as a thin layer on top.
+- No CI gate and no MCP as the foundation (decided 2026-10-27). A gate is pass/fail regression by another name, and MCP underneath would hold the context, so the filter would stop working (`AGENTS.md`, "Rejected").
+- Not planned: native mobile apps, more than one project, accounts, export, a profile builder, running Wayford in a CI pipeline, and MCP as a thin layer on top. They were cut for the hackathon, not on principle, so each can come back through an issue that argues for it (decided 2026-10-27).
 
 ## Hackathon scope
 

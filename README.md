@@ -43,7 +43,7 @@ Give Wayford an application URL, a goal in one sentence ("you want to see what y
 | A filter in code between the browser and the model, the same for every run with the same seed | A prompt that asks a model to pretend |
 | A tool for product teams, UX designers and accessibility specialists | A pass/fail regression suite, a CI gate or an API tester |
 
-Out of scope: pass/fail regression and API testing. Not planned: accounts, export, native mobile apps (Milo is a phone viewport in Chromium), more than one project and a profile builder. CI pipelines and MCP were out of scope for the hackathon.
+Out of scope: pass/fail regression, a CI gate, API testing and MCP as the foundation. Not planned: accounts, export, native mobile apps (Milo is a phone viewport in Chromium), more than one project, a profile builder, running in a CI pipeline and a thin MCP layer on top.
 
 ### What makes it different
 

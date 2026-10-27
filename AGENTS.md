@@ -146,7 +146,7 @@ Considered at length and dropped. It read user stories, extracted acceptance cri
 The original version of the idea. Cut as "soft and hard to defend". It only came back once it became the *whole* product — and then it started holding up.
 
 **MCP as the foundation.**
-The host holds the context → the perception filter stops working. On top of that the tool would only run while a human sits in an agent session — no CI, no nightly runs. MCP goes on **as a thin layer on top** (submit a job, get a run ID), last, if there's time.
+The host holds the context → the perception filter stops working. On top of that the tool would only run while a human sits in an agent session — no CI, no nightly runs. MCP **as a thin layer on top** (submit a job, get a run ID) is not rejected, but it is not planned either: it can come back through an issue (decided 2026-10-27).
 
 **Claude Code / Codex CLI as the Actor backend.**
 Black box — no way to inject the filter between steps. Considered as a way to "use your subscription instead of an API key"; attractive, but incompatible with the core.
