@@ -51,7 +51,7 @@ One error class per package boundary, `WayfordError` in `core` (`packages/core/s
 
 ## Git
 
-- Work starts from an issue on `CShark-Hub/wayford`, and the issue is the task: it holds the context, the acceptance boxes and what is out of scope, and its status lives there. Whoever takes it assigns themselves (decided 2026-10-27). No new task files are written: the files in `tasks/` and `tasks/BOARD.md` are the hackathon's record.
+- Work starts from an issue on `CShark-Hub/wayford`, and the issue is the task: it holds the context, the acceptance boxes and what is out of scope, and its status lives there. Whoever takes it assigns themselves, and if it has no acceptance boxes or does not say what is out of scope, adds what is missing to it before the work starts (decided 2026-10-27). No new task files are written: the files in `tasks/` and `tasks/BOARD.md` are the hackathon's record.
 - Branch per change, `<kind>/<slug>`: `fix/goal-check-at-intake`, `docs/after-the-finals`. A task's branch is `feature/<task-id>-<slug>`: `feature/s2-01-llm-adapter`. Week 1 branches predate the prefix.
 - Commit messages: imperative, one line under 72 characters, body if the why is not obvious.
 - One PR per change. Its title starts with `Fix #n:` or `Part of #n:`, or with the task id for a task. Body links the issue, and the task file if there is one.

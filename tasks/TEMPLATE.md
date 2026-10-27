@@ -1,8 +1,9 @@
 # <id> — <title>
 
 Stream: <m0 | s1 | s2 | s3 | s4>
+Milestone: <week 1..4>
 Size: <S = under 1 h agent work | M = 1 to 2 h | L = 2 to 3 h>
-Depends on: <issues (#n), or none>
+Depends on: <task ids, or none>
 
 ## Context
 

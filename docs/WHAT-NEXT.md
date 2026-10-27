@@ -10,7 +10,7 @@ Every idea here keeps the three sentences from `AGENTS.md`: the persona is a fil
 
 ## First after the finals
 
-The two ideas to build first once the finals on 2026-10-14 are over. Neither has a task file yet.
+The two ideas to build first once the finals on 2026-10-14 are over. Neither has an issue yet.
 
 ### A CLI for agents and people
 

@@ -16,7 +16,7 @@ Read [`AGENTS.md`](AGENTS.md), then [`docs/PLAN.md`](docs/PLAN.md), then the iss
 
 ## Making a change
 
-1. Take an open issue that nobody is assigned to, and assign yourself. If you cannot set an assignee, comment on the issue, and a maintainer assigns you.
+1. Take an open issue that nobody is assigned to, and assign yourself. If it has no acceptance boxes or does not say what is out of scope, add what is missing to it before you start. If you cannot set an assignee or edit the issue, comment on it with anything it lacks, and a maintainer assigns you and adds that to the issue.
 2. Branch as `<kind>/<slug>`, such as `fix/goal-check-at-intake`, or as `feature/<task-id>-<slug>` for a task. Do only what the issue or the task file says, and tick its acceptance boxes with evidence.
 3. Run the checks in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#checks): `pnpm lint`, `pnpm typecheck` and `pnpm test`.
 4. Open a pull request titled `Fix #n: …` or `Part of #n: …`, or with the task id for a task, using the [template](.github/pull_request_template.md). It needs those checks green, and one reviewer.
