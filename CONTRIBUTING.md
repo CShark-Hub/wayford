@@ -8,15 +8,15 @@ Read [`AGENTS.md`](AGENTS.md), then [`docs/PLAN.md`](docs/PLAN.md), then the iss
 
 ## How work is organised
 
-- **Issues.** Every change starts from an issue on [`CShark-Hub/wayford`](https://github.com/CShark-Hub/wayford/issues). For a fix or a small change, the issue holds the acceptance boxes. Its assignee and its state show who owns it and where it stands; [`tasks/BOARD.md`](tasks/BOARD.md) is the hackathon's record.
-- **Tasks.** A feature of M or L size also gets a file in [`tasks/`](tasks), linked from its issue and sized for one agent session, with its context, interface, acceptance boxes and what is out of scope.
+- **Issues.** Every change starts from an issue on [`CShark-Hub/wayford`](https://github.com/CShark-Hub/wayford/issues), and the issue is the task: it holds the context, the acceptance boxes and what is out of scope. Its assignee and its state show who owns it and where it stands.
+- **Tasks.** The hackathon's work items are files in [`tasks/`](tasks), and [`tasks/BOARD.md`](tasks/BOARD.md) is its record. No new task files are written.
 - **Specs and plans.** An M or L task writes a spec in [`docs/specs/`](docs/specs) and a plan in [`docs/plans/`](docs/plans) before it is built. An S task's file is its spec.
 - **Decisions.** A decision taken after the plan gets an ADR in [`docs/adr/`](docs/adr): context, rejected options, consequences.
 - **Pull requests.** One per change, one reviewer who did not work on it, squash merged. `main` stays green.
 
 ## Making a change
 
-1. Take an open issue that nobody is assigned to, and assign yourself. A feature of M or L size gets a task file first: [`tasks/README.md`](tasks/README.md) has the steps.
+1. Take an open issue that nobody is assigned to, and assign yourself. If you cannot set an assignee, comment on the issue, and a maintainer assigns you.
 2. Branch as `<kind>/<slug>`, such as `fix/goal-check-at-intake`, or as `feature/<task-id>-<slug>` for a task. Do only what the issue or the task file says, and tick its acceptance boxes with evidence.
 3. Run the checks in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#checks): `pnpm lint`, `pnpm typecheck` and `pnpm test`.
 4. Open a pull request titled `Fix #n: …` or `Part of #n: …`, or with the task id for a task, using the [template](.github/pull_request_template.md). It needs those checks green, and one reviewer.

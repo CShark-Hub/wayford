@@ -11,7 +11,7 @@ What is not a finding here:
 - Anything `pnpm lint` or `pnpm typecheck` catches. Running them is part of the review; restating their output is noise.
 - Style and naming preferences, where the change reads like the code around it.
 - Work an acceptance box demands. If the box itself asks for too much, raise it as a question about the task, not a defect of the PR.
-- Future work nobody asked for yet, unless the task or `docs/ROADMAP.md` says it should exist by now.
+- Future work nobody asked for yet, unless its issue or task file says it should exist by now.
 - "Could be more generic, extensible or configurable." The pushback only ever runs toward less.
 
 Vulnerability or hardening: Wayford is a local tool (io listens on `localhost` only). A vulnerability needs a path from an untrusted input (see the security lens) to harm, and you name that path. Everything else is hardening, at most **should fix**.

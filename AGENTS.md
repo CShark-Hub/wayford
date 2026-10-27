@@ -80,7 +80,7 @@ Persona names are English too: Ada, Kai, Milo, Vera, Zoya. The initial names eac
 
 Why: a locale layer is a week of work that wins no point in the pitch, and half-translated UI is worse than an English one. If the demo needs Polish, it needs a translated target app, not a translated tool.
 
-After the finals the rule stays (decided 2026-10-27). A half-translated UI is still worse than an English one, and no issue has asked for another language. It covers Wayford itself, not the sites and goals it tests. One gap: the goal check in code looks for English words only (`PATH_WORDS` in `packages/core/src/task.ts`).
+After the finals the rule stays (decided 2026-10-27). A half-translated UI is still worse than an English one, and no issue has asked for another language. It covers Wayford itself, not the sites and goals it tests. Some code still reads English words only, such as the goal check (`PATH_WORDS` in `packages/core/src/task.ts`) and the kebab detector (`KEBAB_NAME` in `packages/filter/src/knowledge.ts`, a known miss in `docs/RULES.md`).
 
 ### Provenance on every threshold
 

@@ -52,8 +52,8 @@ Recommended: Opus 5.5 with `/effort ultracode`. Minimum: Opus 5.5 at `xhigh`, sh
 
 Run `git fetch origin` first, and read the board and the task file as `origin/main` has them (`git show origin/main:tasks/BOARD.md`), since the current checkout may be stale.
 
-1. Resolve the task. `$ARGUMENTS` is an id (`s2-01`) or a path to a task file. When it is empty, list the **takeable** tasks: every board row with no Owner, status `todo`, and each entry of its Depends on met by the checks in step 2. Take Owner and Status from the table rows; the prose around them can lag. A dependency in parentheses gates only the acceptance boxes it names, so it leaves the task takeable; note which boxes wait. Rank the takeable tasks the way the board's prose ranks work (critical path first), the current week before later weeks.
-2. Check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`).
+1. Resolve the task. `$ARGUMENTS` is an id (`s2-01`) or a path to a task file. When it is empty, list the **takeable** tasks: every board row with no Owner, status `todo`, an open issue that links its task file, and each entry of its Depends on met by the checks in step 2. Take Owner and Status from the table rows; the prose around them can lag. A dependency in parentheses gates only the acceptance boxes it names, so it leaves the task takeable; note which boxes wait. Rank the takeable tasks the way the board's prose ranks work (critical path first), the current week before later weeks.
+2. Find the task's issue: the open issue whose body holds the task file's path. `gh issue list --state open --search "<task-id> in:body" --json number,body` lists the candidates; one that only names the task id does not link the file. Then check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`).
 3. Ask with one AskUserQuestion call, holding:
    - **Task**, only when `$ARGUMENTS` was empty: the top four takeable tasks, the first marked "(Recommended)". The label is the task id; the description gives the title, the size, what the task unblocks and any boxes that wait. When more are takeable, name the rest in the question text; the user can type any id. When none is, skip the call: say which tasks are `doing` or `review` and what each `todo` task waits on, and stop.
    - **Mode**, always. "Manual": "You approve the spec, when the task has one, and the plan; I ask before claiming the task, pushing or opening the PR." "Auto": "I approve the spec, when the task has one, and the plan once their reviews pass, claim the task on its issue, and finish with a ready PR. I stop only for a blocker."
@@ -74,7 +74,7 @@ The branch is `feature/<task-id>-<slug>`, for example `feature/s2-01-llm-adapter
 
    Every agent you spawn from here on gets this worktree's absolute path, because an agent starts in the session's working directory, which is not always the worktree.
 2. `pnpm install`, then the baseline: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Record the result; red here is a blocker.
-3. Claim the task: assign yourself on its issue (`gh issue edit <n> --add-assignee @me`), as `tasks/README.md` asks. Manual: ask first. Auto: claim without asking.
+3. Claim the task: assign yourself on the issue phase 1 found (`gh issue edit <n> --add-assignee "@me"`, quoted, since PowerShell drops a bare `@me`), as `tasks/README.md` asks. Manual: ask first. Auto: claim without asking.
 
 ## 3. Read
 
@@ -124,7 +124,7 @@ After each step returns: read its diff, run its done-check, commit (`<task-id>: 
 
 1. Run `pnpm lint`, `pnpm typecheck`, `pnpm test` and every acceptance command in the task file, and read the real output.
 2. Boxes that are clicks: do them in the browser tool when you have one; otherwise list them for the user with exact steps.
-3. Tick each box in the task file with its evidence (`tasks/README.md`, step 7). When what shipped differs from the task file, add an "Outcome" section saying how, as the week 1 task files do.
+3. Tick each box in the task file with its evidence (`tasks/README.md`, step 6). When what shipped differs from the task file, add an "Outcome" section saying how, as the week 1 task files do.
 4. Commit.
 
 ## 8. Branch review
