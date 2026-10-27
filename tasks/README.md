@@ -8,7 +8,7 @@ Since the finals, work starts from an issue, and a task file is written only for
 ## How to grab a task
 
 1. Take an open issue that nobody is assigned to and that waits on nothing open, and assign yourself. That is the claim: no board row, and no pull request for it.
-2. Write the task file from `TEMPLATE.md`, with the next free number in its stream (see "Naming"), and link it from the issue.
+2. For a feature of M or L size, write the task file from `TEMPLATE.md`, with the next free number in its stream (see "Naming"), and link it from the issue.
 3. Create a branch `feature/<task-id>-<slug>`, for example `feature/s1-03-knowledge-attention`.
 4. Start your agent with the task file as the first thing it reads. In Claude Code, `/start-task <id>` runs the whole flow for you: worktree, reviewed spec (M and L tasks), plan, build, branch review (`.claude/skills/start-task/SKILL.md`). Without an id it offers the tasks you can take. In auto mode it approves the spec, when there is one, and the plan itself and goes on to an open PR; in manual mode you approve them. Other agents, suggested opening line:
 

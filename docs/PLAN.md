@@ -53,8 +53,9 @@ Stated explicitly in the pitch and the README:
 
 - We do not predict how real people behave. This is a hypothesis generator and a boundary measurement.
 - We do not replace user research.
-- No pass/fail regression, no CI, no API testing, no MCP.
-- Not planned: native mobile apps, more than one project, accounts and export. They were cut for the hackathon, not on principle, so each can come back through an issue that argues for it (decided 2026-10-27).
+- No pass/fail regression, no API testing.
+- Not planned: native mobile apps, more than one project, accounts, export and a profile builder. They were cut for the hackathon, not on principle, so each can come back through an issue that argues for it (decided 2026-10-27).
+- For the hackathon, also no CI and no MCP. Neither has been decided since (2026-10-27). `AGENTS.md`, "Rejected", already keeps MCP as the foundation out, and allows it as a thin layer on top.
 
 ## Hackathon scope
 
