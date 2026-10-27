@@ -208,7 +208,7 @@ describe("POST /tasks", () => {
     expect(fake.calls).toHaveLength(2);
   });
 
-  test("on the target app, a screen name of its routes is refused though the model did not list it", async () => {
+  test("on the target app, a control on the routes to its hard goal is refused though the model did not list it", async () => {
     const kept = {
       goal: "you want to find your old orders in the Fulfilment ledger",
       strippedPaths: [],
