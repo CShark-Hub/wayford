@@ -561,7 +561,7 @@ function httpFailure(response: Response, json: unknown, text: string): Failure {
  */
 function retryAfterMs(headers: Headers): number | undefined {
   const value = headers.get("retry-after")?.trim();
-  if (value === undefined || !/^\d+(\.\d+)?$/.test(value)) return undefined;
+  if (value === undefined || !/^\d+$/.test(value)) return undefined;
   return Math.min(Number(value) * 1000, MAX_RETRY_AFTER_MS);
 }
 

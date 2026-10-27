@@ -45,8 +45,7 @@ export function actorMessages(turn: ActorTurn): ChatMessage[] {
 /**
  * The LLM backend's factory. `runActor` calls it once per run with the run's logger and provider
  * seed, and each call builds one `Llm` for that run, since the adapter fixes its logger per
- * instance (`LlmDeps`). By default that is `createLlm` on `settings`, each attempt bounded by the
- * role's own `timeoutMs` (`LLM_ACTOR_TIMEOUT_MS`, `LLM_SCOUT_TIMEOUT_MS`, 60 s unset).
+ * instance (`LlmDeps`). By default that is `createLlm` on `settings`.
  * `createLlm` checks every role's price, so an unpriced model fails before the run starts; `llm`
  * replaces it in tests. The backend's `modelId` is the configured model of its role and its `sampling` that
  * role's temperature with the run's provider seed, both known before its first call.
