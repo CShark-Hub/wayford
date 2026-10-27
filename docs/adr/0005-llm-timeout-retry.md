@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
-decided-by: pending, on approval of PR #35
+decided-by: Tomasz
 ---
 
 # 0005 — A timed-out Actor call is retried once
