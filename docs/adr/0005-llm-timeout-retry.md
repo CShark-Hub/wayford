@@ -26,7 +26,7 @@ The delay is at the provider, not on our side. A step sends about 700 tokens and
 | D4 | Jev's `decide` keeps its fixed 30 s limit and gets no timeout retry. Jev answers in 70 to 500 ms (ADR 0001), so a 30 s wait is a hang. `LLM_ACTOR_TIMEOUT_MS` is sized for a chat model and does not apply to it. |
 | D5 | A call's cost holds the usage its attempts reported. The attempt that timed out reported none, so it is left out, though the provider billed it. A timed-out attempt that is retried logs a warning line, `llm timed-out attempt billed but not counted`, whether or not a later attempt answers, so the log shows where the run's total falls short of the bill. A timeout that ends the call says in its error that the provider may still bill it. |
 | D6 | A 408, which OpenRouter returns when the host timed out, is retried on every role, like a 429 or a 5xx. |
-| D7 | A `Retry-After`, in its seconds form, replaces the backoff before the next attempt, up to 30 s. OpenRouter sends one on a 429 or a 503 (openrouter.ai/docs, "Errors and debugging"). Its HTTP-date form is not read and the normal backoff applies, because reading it would make the wait depend on the wall clock. |
+| D7 | A `Retry-After`, in its seconds form, sets the wait before the next attempt, up to 30 s, but never below the backoff, so a `0` cannot send the retries at once. OpenRouter sends one on a 429 or a 503 (openrouter.ai/docs, "Errors and debugging"). Its HTTP-date form is not read and the normal backoff applies, because reading it would make the wait depend on the wall clock. |
 | D8 | Every `llm attempt` log line carries `ms`, the attempt's wall time. That separates model time from settle and act, so the next calibration can set the defaults from measured data. |
 
 ## Considered options

@@ -413,7 +413,9 @@ export function createLlm(settings: LlmSettings, deps: LlmDeps): Llm {
         // only, leaves it out, whether or not a later attempt answers. Its own line says so.
         logger.warn({ timedOut: 1 }, "llm timed-out attempt billed but not counted");
       }
-      await sleep(result.retryAfterMs ?? FIRST_BACKOFF_MS * 2 ** (n - 1));
+      // What a `Retry-After` asks, but never sooner than the backoff: a `0` would otherwise send
+      // the retries at once.
+      await sleep(Math.max(result.retryAfterMs ?? 0, FIRST_BACKOFF_MS * 2 ** (n - 1)));
     }
   }
 
@@ -545,8 +547,9 @@ function classifyDecision(status: number, json: unknown, text: string): Attempt<
 
 /**
  * A status outside 2xx, whatever the endpoint: a 408, a 429 or a 5xx is retried, anything else
- * fails. A retry waits what the answer's `Retry-After` asks: OpenRouter sends one on a 429 or a
- * 503 and asks `fetch` clients to honour it (openrouter.ai/docs, "Errors and debugging").
+ * fails. A retry waits what the answer's `Retry-After` asks when that is longer than the backoff:
+ * OpenRouter sends one on a 429 or a 503 and asks `fetch` clients to honour it
+ * (openrouter.ai/docs, "Errors and debugging").
  */
 function httpFailure(response: Response, json: unknown, text: string): Failure {
   const { status } = response;

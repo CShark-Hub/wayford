@@ -409,6 +409,8 @@ function askingToWait(status: number, value: string): Response {
 
 test.each([
   [429, "7", [7000, 2000]],
+  // Never sooner than the backoff, so a 0 cannot send the retries at once.
+  [429, "0", [1000, 2000]],
   // Capped, so a rate-limited key cannot hold a run asleep for minutes.
   [429, "600", [30_000, 2000]],
   // The date form is not read, so the backoff stands.
