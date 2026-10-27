@@ -9,7 +9,7 @@ Fill every section; write "none" where a section has nothing to say. Keep them a
 ```markdown
 # <task-id> — <title>: spec
 
-Task: `tasks/<task file>.md` · Branch: `<branch>` · Date: <YYYY-MM-DD>
+Task: `tasks/<task file>.md`, or issue #<n> with its size and why · Branch: `<branch>` · Date: <YYYY-MM-DD>
 Status: draft (becomes `approved <YYYY-MM-DD>` at gate 1, `approved <YYYY-MM-DD> (auto)` when the agent approved it)
 
 ## Goal
@@ -56,8 +56,10 @@ What the spec review changed, and each finding rejected with its reason.
 ```markdown
 # <task-id> — <title>: plan
 
-Task: `tasks/<task file>.md` · Spec: `docs/specs/<spec file>.md`, or "none" for an S task
+Task: `tasks/<task file>.md`, or issue #<n> with its size and why · Spec: `docs/specs/<spec file>.md`, or "none" for an S task
 Status: draft (becomes `approved <YYYY-MM-DD>` at gate 2, `approved <YYYY-MM-DD> (auto)` when the agent approved it)
+
+An S issue only: its acceptance boxes, numbered as the table cites them, the drawn ones marked.
 
 | # | Step | Files | Serves box | Test first | Done when | Parallel with |
 |---|---|---|---|---|---|---|
