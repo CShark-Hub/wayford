@@ -100,7 +100,7 @@ function intakeTask(refused: readonly string[]) {
 
 /**
  * `targetAppOrigin` is where the target app is served: a goal whose task starts there is also
- * checked for the names of the controls on its routes.
+ * checked for the names of the controls on the three routes to the app's hard goal.
  */
 export async function extractTask(
   llm: Llm,

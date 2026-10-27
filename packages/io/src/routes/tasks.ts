@@ -44,7 +44,7 @@ import type { ScoutJobs } from "../scout-jobs.js";
 /**
  * The Extractor's model, the database the tasks are stored in, the Scout jobs, the folder they
  * write ground truth to, and where the target app is served: for a task that starts there, the
- * Extractor also refuses a goal naming a control on the app's routes.
+ * Extractor also refuses a goal naming a control on the three routes to the app's hard goal.
  */
 type TasksRouteOptions = {
   llm: Llm;
