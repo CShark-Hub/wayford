@@ -263,19 +263,20 @@ describe("POST /tasks", () => {
       { type: "urlMatches", pattern: "https://www.cshark.com/about/**" },
     ],
     [
-      "Find out what the salary is for the Senior Performance Test Engineer role.",
+      "Find out what the salary is for the Lead .NET Developer (Full-Stack) role.",
       "https://www.cshark.com/",
       {
         type: "urlMatches",
-        pattern: "https://www.cshark.com/job-offers/senior-performance-test-engineer/**",
+        pattern:
+          "https://www.cshark.com/{careers/job-offers/**,job-offers/lead-net-developer-full-stack/**}",
       },
     ],
     [
-      "Apply for the Senior Performance Test Engineer role.",
+      "Apply for the Lead .NET Developer (Full-Stack) role.",
       "https://www.cshark.com/",
       {
         type: "urlMatches",
-        pattern: "https://joboffers.cshark.com/**/senior-performance-test-engineer,ja,*",
+        pattern: "https://joboffers.cshark.com/**/lead-net-developer-full-stack,ja,*",
       },
     ],
   ])("an intent passes in one call: %s", async (goal, start, condition) => {
