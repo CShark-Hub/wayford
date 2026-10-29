@@ -110,7 +110,7 @@ This beat is the one the rest exists for: the room watches the agent get lost.
 
 Not part of the 90 seconds. If we reach the finals, on 2026-10-14, Wayford runs on a site someone hands us (`docs/adr/0003-any-target.md`):
 
-- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its goals, the results per persona and the gaps it hit are below, in "Our pick: cshark.com". The finals use G1 and G2.
+- **Our own pick**, run through the API in `s1-07` and rehearsed through the UI in `s4-08`. It must work. The site, its goals, the results per persona and the gaps it hit are below, in "Our pick: cshark.com". The finals were to use G1 and the retired G2.
 - **The judges' app.** It should work more or less. If it does not, we say why in one line (a login, a cookie banner in an iframe, a bot check) and switch to our pick.
 
 The flow, from the Target screen:
@@ -141,8 +141,22 @@ Run through the API in `s1-07` (`docs/specs/2026-10-07-s1-07-our-pick-gaps.md`).
 | # | Story, kept as the goal (the Extractor rewrote none) | Success | What success proves |
 |---|---|---|---|
 | G1 | "Find the names of the company's board members." | `urlMatches` `https://www.cshark.com/about/**` | The run reached `/about/`, whose "Founders" section names the board about 2,300 px down. Not that the persona read the names. |
-| G2 | "Find out what the salary is for the Senior Performance Test Engineer role." | `urlMatches` `https://www.cshark.com/job-offers/senior-performance-test-engineer/**` | The run reached the job offer, which states the rate near its top. |
-| G3 | "Apply for the Senior Performance Test Engineer role." | `urlMatches` `https://joboffers.cshark.com/**/senior-performance-test-engineer,ja,*` | The run reached the application form. Nothing is filled in or sent. |
+| G2 | "Find out what the salary is for the Lead .NET Developer (Full-Stack) role." | `urlMatches` `https://www.cshark.com/{careers/job-offers/**,job-offers/lead-net-developer-full-stack/**}` | The run reached the listing, whose card for the role states the rate, or the offer itself, which states it near its top. Reaching the listing does not prove the persona found the role's card among the others. |
+| G3 | "Apply for the Lead .NET Developer (Full-Stack) role." | `urlMatches` `https://joboffers.cshark.com/**/lead-net-developer-full-stack,ja,*` | The run reached the application form. Nothing is filled in or sent. |
+| G2, retired 2026-10-26 | "Find out what the salary is for the Senior Performance Test Engineer role." | `urlMatches` `https://www.cshark.com/job-offers/senior-performance-test-engineer/**`, widened in `s4-08` to `https://www.cshark.com/{careers/job-offers/**,job-offers/senior-performance-test-engineer/**}` | The run reached the job offer, which states the rate near its top, or, widened, the listing. Retired: the offer is gone. |
+| G3, retired 2026-10-26 | "Apply for the Senior Performance Test Engineer role." | `urlMatches` `https://joboffers.cshark.com/**/senior-performance-test-engineer,ja,*` | The run reached the application form. Nothing is filled in or sent. Retired: the form is gone. |
+
+**G2 and G3 replaced, 2026-10-26.** The Senior Performance Test Engineer offer has closed:
+
+- `https://www.cshark.com/job-offers/senior-performance-test-engineer/` answers 404, and the listing, `/careers/job-offers/`, no longer names the role.
+- Its form, `https://joboffers.cshark.com/en/senior-performance-test-engineer,ja,336?source=1005`, answers 200 with a page saying the offer is no longer available. The form host answers that way for any closed or unknown offer, so a 200 there proves nothing.
+- A hand check for [wayford PR #35](https://github.com/CShark-Hub/wayford/pull/35) ran the old G2, with the offer page alone as success, on all five personas, seeds 1 to 5, on the LLM. None of the 25 runs succeeded: all 25 hit the 20-step cap, and 11 ended on the listing. Task `task_01m5wx2mpn7r6fe9kt48vnbwhv`, set `race_01m5wx2z9k91de46cyh5dv6g7p`, local to that PR's worktree.
+
+The new G2 and G3 name the Lead .NET Developer (Full-Stack) offer, at the same depth: the "Careers" menu, "Job Offers", the role's card, second of six on the listing, then "Read More" and "Apply Now!". "Apply Now!" opens the form in the same tab. G2 keeps the success `s4-08` widened to the listing. Both patterns were checked against a copy of `packages/agent/src/url-glob.ts`: G2 matches the listing and the offer, not another offer, `/careers/` or the home page; G3 matches the form and not another role's.
+
+The new G2 has had one check, three seeds on 2026-10-26: "New G2, first check", below. The new G3 has not been through the Extractor and has not been run. Both passes below ran the retired G2 and G3, and the rehearsal the retired G2.
+
+**Before a run on our pick,** check that the offer still answers: `https://www.cshark.com/job-offers/lead-net-developer-full-stack/`. On `www` a closed offer answers 404. Before a run on G3, also check that its form, `https://joboffers.cshark.com/en/lead-net-developer-full-stack,ja,339?source=1005`, still shows the role's title: a closed offer's form answers 200 too.
 
 #### First pass, 2026-10-07
 
@@ -459,6 +473,44 @@ Leads from the first pass, checked:
   - The site may change.
   - G1 and G2 succeed on reaching a page, not on reading it.
   - The wall times are this machine's, five runs at a time.
+
+#### New G2, first check, 2026-10-26
+
+The new G2 through the API, from a worktree of `main` with the goal change, with io on its own database. Every run is on the LLM, and the Actor is `openai/gpt-6-luna`. No Analyst report.
+
+- **The Extractor** kept the goal word for word: 201, `rewritten: false`, nothing stripped, in 2.7 s. Task `task_01m5x1cfyes3kgfdjvbwehb9e4`.
+- **Scout** reached it 3/3. Its shortest route is 2 steps, "Careers" then "Job Offers", as on the retired G2, so the step cap is 10 again. About 70 s, $0.0013.
+
+| Persona | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Ada | got through, 3 steps, 0:06.2 | got through, 3 steps, 0:06.2 | got through, 3 steps, 0:06.2 |
+| Kai | step cap, 10 steps, 0:15.9 | error, no answer in 30 s, 7 steps, 0:11.3 | step cap, 10 steps, 0:15.9 |
+| Vera | got through, 5 steps, 0:16.8 | got through, 6 steps, 0:20.4 | step cap, 10 steps, 0:33.6 |
+
+- **The set:** `race_01m5x1fb6914fjrcw9cfrkryga`, 9 runs, five at a time, about 5 min 23 s wall, $0.0075. Times in the table are simulated.
+- **Runs:**
+  - Ada: `run_01m5x1fb69amk2r3v1q4nrvqpf`, `run_01m5x1fb69sr899e3gmwkagg10`, `run_01m5x1fb6925qamx19jgag3pq7`.
+  - Kai: `run_01m5x1fb69168nf6gbts2t3cpk`, `run_01m5x1fb69m201zwbpg0nhj9ha`, `run_01m5x1fb69v7qv0f9anc08pb8a`.
+  - Vera: `run_01m5x1fb69qrj3tprswxpztr97`, `run_01m5x1fb699jb0j9ezwadvs2qz`, `run_01m5x1fb694n5djm7wd2pg2t5s`.
+
+Checked against the stored steps:
+
+- **Every success ended on the listing,** on the step that loaded it. No run opened the role's offer, so the role's name decided none of them. That is what the widened success measures: reaching the listing.
+- **Ada** chose "Reject All", "Careers" and "Job Offers" on every seed.
+- **Kai** toggles "Careers" until the cap. At step 1 of seed 1, the open menu's "Job Offers" is cut by A1, as in the rehearsal ("The salience size term (A1), #231").
+- **Vera:**
+  - Her B1 die (0.8) turned each click on "Careers" into a double-click, which opens the menu and shuts it again.
+  - She got through once a die did not fire: on seed 1 at step 3, on seed 2 at step 4.
+  - On seed 3 all ten fired.
+- **Kai's seed 2 error.** After step 6, the home page did not answer within 30,000 ms (`page_not_settled`, `settle`'s bound off the target app, #190). By then the run had toggled "Careers" seven times.
+- **Seed 1 matches the rehearsal's race on the retired G2** in steps and simulated time, to the tenth of a second: Ada 3 steps in 0:06.2, Kai 10 in 0:15.9, Vera 5 in 0:16.8. Vera's miss on seed 3 matches the rehearsal's ten seeds too.
+  - Both goals are decided on the way to the listing, which did not change.
+  - The dice replay from the seed. The model's choices gave the same totals, but they do not replay.
+- **Weaker claims:**
+  - Three seeds, not ten.
+  - Run ids and the data are local to the worktree that ran them.
+  - The Extractor's cost is not recorded.
+  - The new G3 has not been run.
 
 #### Before the finals
 
