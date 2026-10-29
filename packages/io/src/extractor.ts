@@ -1,13 +1,17 @@
 /**
  * The Extractor: a user story in, a `Task` out whose goal says what the person wants and not how
  * to get there (`AGENTS.md`, "A task must not contain the solution"). The model proposes a goal
- * and the screen names it removed; `Task` decides, with core's path-word and stripped-path checks.
+ * and the screen names it removed; `Task` decides, with core's path-word and stripped-path checks,
+ * and so does the intake check here, which no model answers for: the step words, and on the target
+ * app the names of the controls on the three routes to its hard goal (CShark-Hub/wayford#26). Code
+ * knows no other screen name, on the target app or off it, so one the model keeps and does not
+ * list goes through.
  *
  * The model sees the prompt and the story, never `startUrl` or `success`: a success pattern is
  * full of screen names (`deliveries/archive`) the goal must not pick up, and a run is never
  * graded by what a model wrote.
  *
- * A goal `Task` refuses gets one repair round here, carrying its error. That round is separate
+ * A goal the check refuses gets one repair round here, carrying its error. That round is separate
  * from the adapter's, which repairs an answer that misses `ExtractorAnswer`'s shape inside one
  * `complete`.
  */
@@ -22,7 +26,9 @@ import {
   strippedPathsIn,
   Task,
 } from "@wayford/core";
+import { TARGET_APP_ROUTES } from "@wayford/filter/serve-target-app";
 import { z } from "zod";
+import { onTargetApp } from "./runner.js";
 
 /** The body of `POST /tasks`, built from core's schemas. */
 export const TaskRequest = z
@@ -56,8 +62,56 @@ const TRAILING_UI_NOUN = /\s+(?:tab|menu|page|button|link|section|screen)s?$/iu;
 const ExtractorAnswer = z.object({ goal: z.string(), strippedPaths: z.array(z.string()) }).strict();
 type ExtractorAnswer = z.infer<typeof ExtractorAnswer>;
 
-export async function extractTask(llm: Llm, request: TaskRequest): Promise<Extraction> {
+/**
+ * The steps through an interface the prompt names besides core's path words (`docs/PLAN.md` F3
+ * AC1). Checked at intake and not in core's `Goal`, for the reason `matchableUrlPattern` stays out
+ * of `SuccessCondition`: a refinement there would make every stored task or race whose goal carries
+ * one fail to parse, and with it the whole list it is read in. "then" also refuses a goal of two
+ * intents, and "by then" or "since then"; the repair round can reword those. "open" stays out,
+ * since "open an account" is an intent.
+ */
+export const STEP_WORDS = ["go to", "then"] as const;
+
+/**
+ * The names of the controls on the target app's routes to its hard goal, and no others: "Delivery
+ * address", the last link of the easy goal's route, is not one of them. An intent worded with one
+ * of these names, such as "you want to close your account" or "you want to see your past orders",
+ * is refused like a route and goes to the repair round.
+ */
+const TARGET_APP_SCREEN_NAMES = [
+  ...new Set(TARGET_APP_ROUTES.flatMap(({ steps }) => steps.map(({ name }) => name))),
+];
+
+/**
+ * `Task`, and a goal with none of `refused`, each as a whole term (core's `strippedPathsIn`), so
+ * "a year ago to the day", "go tomorrow" and "strengthen" pass.
+ */
+function intakeTask(refused: readonly string[]) {
+  return Task.superRefine((task, ctx) => {
+    const found = strippedPathsIn(task.goal, refused);
+    if (found.length === 0) return;
+    ctx.addIssue({
+      code: "custom",
+      path: ["goal"],
+      message: `a goal states an intent, not a route through the interface; remove ${found.join(", ")}`,
+    });
+  });
+}
+
+/**
+ * `targetAppOrigin` is where the target app is served: a goal whose task starts there is also
+ * checked for the names of the controls on the three routes to the app's hard goal.
+ */
+export async function extractTask(
+  llm: Llm,
+  request: TaskRequest,
+  targetAppOrigin: string,
+): Promise<Extraction> {
   const { story, startUrl, success } = request;
+  const refused = onTargetApp(request, targetAppOrigin)
+    ? [...STEP_WORDS, ...TARGET_APP_SCREEN_NAMES]
+    : STEP_WORDS;
+  const check = intakeTask(refused);
   // Minted once, so a repaired answer keeps the same id.
   const id = newId("task");
   const messages: ChatMessage[] = [
@@ -83,7 +137,7 @@ export async function extractTask(llm: Llm, request: TaskRequest): Promise<Extra
   const accept = (task: Task): Extraction => ({ ok: true, task, rewritten: task.goal !== story });
 
   const first = await ask(messages);
-  const firstCheck = Task.safeParse(assemble(first));
+  const firstCheck = check.safeParse(assemble(first));
   if (firstCheck.success) return accept(firstCheck.data);
 
   const repairText = `Your answer did not pass the task check:\n${z.prettifyError(firstCheck.error)}\nRewrite the goal so it says only what the person wants, and answer again with only the JSON object.`;
@@ -93,7 +147,7 @@ export async function extractTask(llm: Llm, request: TaskRequest): Promise<Extra
     { role: "user", content: repairText },
   ]);
   const secondCandidate = assemble(second);
-  const secondCheck = Task.safeParse(secondCandidate);
+  const secondCheck = check.safeParse(secondCandidate);
   if (secondCheck.success) return accept(secondCheck.data);
 
   const goal = second.goal.trim();
@@ -104,6 +158,7 @@ export async function extractTask(llm: Llm, request: TaskRequest): Promise<Extra
     survived: withoutCaseDuplicates([
       ...pathWordsIn(goal),
       ...strippedPathsIn(goal, secondCandidate.strippedPaths),
+      ...strippedPathsIn(goal, refused),
     ]),
   };
 }

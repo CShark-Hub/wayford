@@ -27,7 +27,10 @@ import { HttpUrl, TaskId } from "./primitives.js";
  * stripping these and the schema refusing them cannot drift apart. Screen names
  * are the other half of F3 AC1 and cannot be enumerated: those the Extractor
  * finds per application and records in `strippedPaths`, and `Task` below checks
- * the goal against them.
+ * the goal against them. The Extractor also refuses step words ("go to", "then")
+ * and, on the target app, the names of the controls on the three routes to its
+ * hard goal, at intake only, so a stored task keeps parsing
+ * (`io`'s `extractor.ts`).
  */
 export const PATH_WORDS = ["button", "click", "menu", "settings", "tab", "->", "→"] as const;
 

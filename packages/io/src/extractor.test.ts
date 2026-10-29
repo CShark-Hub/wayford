@@ -4,7 +4,7 @@ import { type FakeLlm, fakeLlm } from "@wayford/agent/fake";
 import { PATH_WORDS, pathWordsIn, Task, TaskId } from "@wayford/core";
 import { taskFixture } from "@wayford/core/fixtures";
 import { describe, expect, onTestFinished, test } from "vitest";
-import { EXTRACTOR_PROMPT_FILE } from "./extractor.js";
+import { EXTRACTOR_PROMPT_FILE, STEP_WORDS } from "./extractor.js";
 import { crlfCheckout, postJson, testApp } from "./test-app.js";
 
 // The past-order task's own start and success, so they follow the fixture the target app checks.
@@ -165,6 +165,129 @@ describe("POST /tasks", () => {
     expect(body.survived).toEqual(["settings"]);
   });
 
+  test("a goal that keeps its steps through the repair round is a 422 naming them", async () => {
+    // The review's probe (CShark-Hub/wayford#26): the model keeps the route and lists nothing, so
+    // core's seven words and the model's own list both let it through.
+    const story = "go to Deliveries, then open Order archive to see what I ordered";
+    const kept = {
+      goal: "go to Deliveries, then open Order archive to see what you ordered",
+      strippedPaths: [],
+    };
+    const fake = fakeLlm({ extractor: [kept, kept] });
+
+    const { status, body } = await postTask(fake, story);
+
+    expect(status).toBe(422);
+    expect(body.survived).toEqual(["go to", "then", "Deliveries", "Order archive"]);
+    expect(fake.calls).toHaveLength(2);
+    const repair = fake.calls[1]?.messages[3]?.content ?? "";
+    for (const term of body.survived) {
+      expect(repair).toContain(term);
+    }
+  });
+
+  test("the repair round can take the steps out", async () => {
+    const story = "go to Deliveries, then open Order archive to see what I ordered";
+    const fake = fakeLlm({
+      extractor: [
+        {
+          goal: "go to Deliveries, then open Order archive to see what you ordered",
+          strippedPaths: [],
+        },
+        {
+          goal: "you want to see what you ordered",
+          strippedPaths: ["Deliveries", "Order archive"],
+        },
+      ],
+    });
+
+    const { status, body } = await postTask(fake, story);
+
+    expect(status).toBe(201);
+    expect(body.rewritten).toBe(true);
+    expect(fake.calls).toHaveLength(2);
+  });
+
+  test("on the target app, a control on the routes to its hard goal is refused though the model did not list it", async () => {
+    const kept = {
+      goal: "you want to find your old orders in the Fulfilment ledger",
+      strippedPaths: [],
+    };
+    const fake = fakeLlm({ extractor: [kept, kept] });
+
+    const { status, body } = await postTask(
+      fake,
+      "I want to find my old orders in the Fulfilment ledger",
+    );
+
+    expect(status).toBe(422);
+    expect(body.survived).toEqual(["Fulfilment ledger"]);
+  });
+
+  test("off the target app, a screen name the model did not list goes through, and the step words are still refused", async () => {
+    const elsewhere = {
+      startUrl: "https://example.com/",
+      success: { type: "urlMatches", pattern: "https://example.com/**" },
+    };
+    const named = "you want to find your old orders in the Order archive";
+    const accepted = await postBody(fakeLlm({ extractor: [{ goal: named, strippedPaths: [] }] }), {
+      story: named,
+      ...elsewhere,
+    });
+    expect(accepted.status).toBe(201);
+
+    const stepped = { goal: "go to the shop, then find your old orders", strippedPaths: [] };
+    const refused = await postBody(fakeLlm({ extractor: [stepped, stepped] }), {
+      story: stepped.goal,
+      ...elsewhere,
+    });
+    expect(refused.status).toBe(422);
+    expect(refused.body.survived).toEqual(["go to", "then"]);
+  });
+
+  test.each([
+    // On the target app: the fixture goals, a step word's letters across or inside other words, the
+    // easy goal's link, and a word from a route name that is not the name.
+    ["you want to know where your next parcel is going", startUrl, success],
+    ["you want to see what you ordered three months ago", startUrl, success],
+    ["you want to see what you ordered a year ago to the day", startUrl, success],
+    ["you want to know if your parcel can go tomorrow", startUrl, success],
+    ["you want to strengthen your password", startUrl, success],
+    ["you want to know when your parcel is going to arrive", startUrl, success],
+    ["you want to verify your delivery address", startUrl, success],
+    ["you want to find an old order", startUrl, success],
+    // Off it: Our pick's goals G1 to G3 on cshark.com (`docs/DEMO.md`).
+    [
+      "Find the names of the company's board members.",
+      "https://www.cshark.com/",
+      { type: "urlMatches", pattern: "https://www.cshark.com/about/**" },
+    ],
+    [
+      "Find out what the salary is for the Lead .NET Developer (Full-Stack) role.",
+      "https://www.cshark.com/",
+      {
+        type: "urlMatches",
+        pattern:
+          "https://www.cshark.com/{careers/job-offers/**,job-offers/lead-net-developer-full-stack/**}",
+      },
+    ],
+    [
+      "Apply for the Lead .NET Developer (Full-Stack) role.",
+      "https://www.cshark.com/",
+      {
+        type: "urlMatches",
+        pattern: "https://joboffers.cshark.com/**/lead-net-developer-full-stack,ja,*",
+      },
+    ],
+  ])("an intent passes in one call: %s", async (goal, start, condition) => {
+    const fake = fakeLlm({ extractor: [{ goal, strippedPaths: [] }] });
+
+    const { status } = await postBody(fake, { story: goal, startUrl: start, success: condition });
+
+    expect(status).toBe(201);
+    expect(fake.calls).toHaveLength(1);
+  });
+
   test("a body without success is a 400 and asks no model", async () => {
     const fake = fakeLlm({});
     const story = "you want to see what you ordered three months ago";
@@ -206,7 +329,7 @@ describe("POST /tasks", () => {
     const story = "you want to see what you ordered three months ago";
     const fake = fakeLlm({ extractor: [{ goal: story, strippedPaths: [] }] });
 
-    await crlf.extractTask(fake, { story, startUrl, success });
+    await crlf.extractTask(fake, { story, startUrl, success }, new URL(startUrl).origin);
 
     expect(fake.calls[0]?.messages[0]).toEqual({ role: "system", content: PROMPT });
   });
@@ -218,10 +341,10 @@ describe("POST /tasks", () => {
     }
   });
 
-  test("the prompt names every path word the task check refuses", () => {
-    // The prompt spells core's list out by hand, so a word added to PATH_WORDS fails here first.
+  test("the prompt names every path word and step word the task check refuses", () => {
+    // The prompt spells both lists out by hand, so a word added to either fails here first.
     const prompt = readFileSync(EXTRACTOR_PROMPT_FILE, "utf8").toLowerCase();
-    for (const word of PATH_WORDS) {
+    for (const word of [...PATH_WORDS, ...STEP_WORDS]) {
       expect(prompt).toContain(word);
     }
   });
