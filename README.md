@@ -43,7 +43,7 @@ Give Wayford an application URL, a goal in one sentence ("you want to see what y
 | A filter in code between the browser and the model, the same for every run with the same seed | A prompt that asks a model to pretend |
 | A tool for product teams, UX designers and accessibility specialists | A pass/fail regression suite, a CI gate or an API tester |
 
-Out of scope for the hackathon: pass/fail regression, CI pipelines, accounts, export, native mobile apps (Milo is a phone viewport in Chromium), API testing, MCP, and a profile builder.
+Out of scope: pass/fail regression, a CI gate, API testing and MCP as the foundation. Not planned: accounts, export, native mobile apps (Milo is a phone viewport in Chromium), more than one project, a profile builder, running in a CI pipeline and a thin MCP layer on top.
 
 ### What makes it different
 
@@ -187,7 +187,7 @@ None of this is built yet. [What next](docs/WHAT-NEXT.md) holds every idea, with
 |---|---|
 | [How it works](docs/HOW-IT-WORKS.md) | The claim, the loop, the filter pipeline, the personas and their provenance, the screens |
 | [Development](docs/DEVELOPMENT.md) | Configuration, every command, the packages, checks, CI and the determinism rules |
-| [Contributing](CONTRIBUTING.md) | How work is organised, and how a change gets from a task to `main` |
+| [Contributing](CONTRIBUTING.md) | How work is organised, and how a change gets from an issue to `main` |
 | [Security](SECURITY.md) | Where to run Wayford, what a run touches, and how to report a vulnerability |
 | [What next](docs/WHAT-NEXT.md) | Ideas for after the hackathon, each with its source and its limits |
 | [About](docs/ABOUT.md) | Project status, the name, prior art and acknowledgements |
@@ -196,7 +196,7 @@ The plan, the rules, the design system and every decision behind them are indexe
 
 ## Contributing
 
-Wayford is a hackathon project, built in September and October 2026 by a team of four; AI coding agents write most of the code, and humans direct and review it. Every change starts from a task in [`tasks/BOARD.md`](tasks/BOARD.md) and lands as one reviewed pull request. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the steps.
+Wayford is a hackathon project, built in September and October 2026 by a team of four; AI coding agents write most of the code, and humans direct and review it. Every change starts from an [issue](https://github.com/CShark-Hub/wayford/issues) and lands as one reviewed pull request. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the steps.
 
 ## Team
 

@@ -86,11 +86,13 @@ Payoff: we defend "someone with a 3:1 contrast threshold", not "this is how plum
 
 ### English only, no locales
 
-The whole application is English: UI copy, API, schemas, identifiers, comments, fixtures, descriptions, reports. There is no i18n layer, no locale switch and no translated strings, and none are planned for the hackathon.
+The whole application is English: UI copy, API, schemas, identifiers, comments, fixtures, descriptions, reports. There is no i18n layer, no locale switch and no translated strings, and none are planned.
 
 Persona names are English too: Ada, Kai, Milo, Vera, Zoya. The initial names each one's dimension. Ada, the control persona, comes first and Zoya, the boundary, last; the names in between sort alphabetically. Polish belongs in `tasks/KONCEPCJA.md` alone.
 
 Why: a locale layer is a week of work that wins no point in the pitch, and half-translated UI is worse than an English one. If the demo needs Polish, it needs a translated target app, not a translated tool.
+
+After the finals the rule stays (decided 2026-10-27). A half-translated UI is still worse than an English one, and no issue has asked for another language. It covers Wayford itself, not the sites and goals it tests. Some code still reads English words only, such as the goal check (`PATH_WORDS` in `packages/core/src/task.ts`) and the kebab detector (`KEBAB_NAME` in `packages/filter/src/knowledge.ts`, a known miss in `docs/RULES.md`).
 
 ### Provenance on every threshold
 
@@ -156,7 +158,7 @@ Considered at length and dropped. It read user stories, extracted acceptance cri
 The original version of the idea. Cut as "soft and hard to defend". It only came back once it became the *whole* product — and then it started holding up.
 
 **MCP as the foundation.**
-The host holds the context → the perception filter stops working. On top of that the tool would only run while a human sits in an agent session — no CI, no nightly runs. MCP goes on **as a thin layer on top** (submit a job, get a run ID), last, if there's time.
+The host holds the context → the perception filter stops working. On top of that the tool would only run while a human sits in an agent session — no CI, no nightly runs. MCP **as a thin layer on top** (submit a job, get a run ID) is not rejected, but it is not planned either: it can come back through an issue (decided 2026-10-27).
 
 **Claude Code / Codex CLI as the Actor backend.**
 Black box — no way to inject the filter between steps. Considered as a way to "use your subscription instead of an API key"; attractive, but incompatible with the core.
@@ -167,8 +169,8 @@ Present for a long time as the proving ground. **Removed on request** — the to
 **Playwright as "the thing we're avoiding".**
 The original worry ("we don't want a Playwright wrapper") is resolved: Playwright sits underneath and that's correct. A wrapper is something with neither a perception filter nor ground truth.
 
-**API testing, mobile, multi-project, accounts, export.**
-Out of hackathon scope.
+**API testing.**
+An API has no interface to perceive, so a persona has nothing to filter and the question of who it works for does not arise. A different product, like the Confluence oracle above (decided 2026-10-27). Native mobile apps, more than one project, accounts and export left this entry the same day: they were cut for the hackathon, not on principle, and are now not planned (`docs/PLAN.md`, "Non-goals").
 
 ---
 

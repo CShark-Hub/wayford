@@ -17,8 +17,8 @@ Phases: 0 setup · 1 resolve and mode · 2 worktree · 3 read · 4 spec and revi
 
 The user picks one in phase 1, and it holds for the whole run.
 
-- **Manual.** The user approves each gate. You ask before each step that reaches outside this machine: the claim, the push, the PR, the board.
-- **Auto.** You approve each gate yourself, against the criteria written at the gate, and record it in the Status line as `approved <YYYY-MM-DD> (auto)`. You take the steps that reach outside this machine without asking: the claim in phase 2, then the push, a ready PR and the board in phase 9. Picking auto is the user's yes to those steps, for this task only.
+- **Manual.** The user approves each gate. You ask before each step that reaches outside this machine: the claim, the push, the PR.
+- **Auto.** You approve each gate yourself, against the criteria written at the gate, and record it in the Status line as `approved <YYYY-MM-DD> (auto)`. You take the steps that reach outside this machine without asking: the claim in phase 2, then the push and a ready PR in phase 9. Picking auto is the user's yes to those steps, for this task only.
 
 Blockers stop both modes the same way.
 
@@ -27,7 +27,8 @@ Blockers stop both modes the same way.
 Stop, say what blocks and what the options are, and wait for the user when:
 
 - a dependency in the task's "Depends on" is not merged: a task not `done` on `tasks/BOARD.md`, an issue not closed, a PR not merged;
-- the task's board row names an owner or is not `todo`, and phase 1's resume step found no branch or worktree for it: someone else has the task;
+- no open issue links the task file: work starts from an issue (`docs/CONVENTIONS.md`, "Git");
+- the task's issue has another assignee, and phase 1's resume step found no branch or worktree for it: someone else has the task;
 - the task file conflicts with the code you find, or with `AGENTS.md`;
 - the work needs a dependency `docs/STACK.md` does not list, a change to a file another open task owns, or anything the task's Out of scope excludes;
 - an acceptance box cannot be met as written;
@@ -51,11 +52,11 @@ Recommended: Opus 5.5 with `/effort ultracode`. Minimum: Opus 5.5 at `xhigh`, sh
 
 Run `git fetch origin` first, and read the board and the task file as `origin/main` has them (`git show origin/main:tasks/BOARD.md`), since the current checkout may be stale.
 
-1. Resolve the task. `$ARGUMENTS` is an id (`s2-01`) or a path to a task file. When it is empty, list the **takeable** tasks: every board row with no Owner, status `todo`, and each entry of its Depends on met by the checks in step 2. Take Owner and Status from the table rows; the prose around them can lag. A dependency in parentheses gates only the acceptance boxes it names, so it leaves the task takeable; note which boxes wait. Rank the takeable tasks the way the board's prose ranks work (critical path first), the current week before later weeks.
-2. Check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`).
+1. Resolve the task. `$ARGUMENTS` is an id (`s2-01`) or a path to a task file. When it is empty, list the **takeable** tasks: every board row with no Owner, status `todo`, an open issue that links its task file, and each entry of its Depends on met by the checks in step 2. Take Owner and Status from the table rows; the prose around them can lag. A dependency in parentheses gates only the acceptance boxes it names, so it leaves the task takeable; note which boxes wait. Rank the takeable tasks the way the board's prose ranks work (critical path first), the current week before later weeks.
+2. Find the task's issue: the open issue whose body holds the task file's path. `gh issue list --state open --search "<task-id> in:body" --json number,body` lists the candidates; one that only names the task id does not link the file. Then check every entry of the task's "Depends on": a task must be `done` on the board, an issue `#n` closed (`gh issue view <n> --json state`), a `PR #n` merged (`gh pr view <n> --json state`).
 3. Ask with one AskUserQuestion call, holding:
    - **Task**, only when `$ARGUMENTS` was empty: the top four takeable tasks, the first marked "(Recommended)". The label is the task id; the description gives the title, the size, what the task unblocks and any boxes that wait. When more are takeable, name the rest in the question text; the user can type any id. When none is, skip the call: say which tasks are `doing` or `review` and what each `todo` task waits on, and stop.
-   - **Mode**, always. "Manual": "You approve the spec, when the task has one, and the plan; I ask before claiming the task, pushing or opening the PR." "Auto": "I approve the spec, when the task has one, and the plan once their reviews pass, claim the task on main, and finish with a ready PR and the task in review on the board. I stop only for a blocker."
+   - **Mode**, always. "Manual": "You approve the spec, when the task has one, and the plan; I ask before claiming the task, pushing or opening the PR." "Auto": "I approve the spec, when the task has one, and the plan once their reviews pass, claim the task on its issue, and finish with a ready PR. I stop only for a blocker."
 4. **Resume** a task already started. Look for a branch `feature/<task-id>-*` or a worktree `<task-id>-*` (`git branch -a`, `git worktree list`), for `docs/specs/*-<task-id>-*.md` (unless the task's Size is S) and `docs/plans/*-<task-id>-*.md`, and for commits on the branch. Pick up at the first phase whose output is missing or not yet approved (a spec or plan is approved when its Status line says so), and say where you are resuming. An S task has no phase 4 to resume: without a plan it resumes at phase 5. The mode picked in step 3 applies from there on.
 
 ## 2. Worktree and branch
@@ -73,7 +74,7 @@ The branch is `feature/<task-id>-<slug>`, for example `feature/s2-01-llm-adapter
 
    Every agent you spawn from here on gets this worktree's absolute path, because an agent starts in the session's working directory, which is not always the worktree.
 2. `pnpm install`, then the baseline: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Record the result; red here is a blocker.
-3. Claim the task, unless its row already names an owner: owner name (default `git config user.name`) and status `doing` in `tasks/BOARD.md`, in a small pull request as `tasks/README.md` asks (`Board: <task-id> to <name>, doing`), since `main` takes no direct pushes. Commit from a scratch worktree on a new branch `board/<task-id>` cut from `origin/main`, push it, open the pull request, and remove that worktree. Manual: it opens a pull request, so offer it and ask first. Auto: claim without asking.
+3. Claim the task: assign yourself on the issue phase 1 found (`gh issue edit <n> --add-assignee "@me"`, quoted, since PowerShell drops a bare `@me`), as `tasks/README.md` asks. Manual: ask first. Auto: claim without asking.
 
 ## 3. Read
 
@@ -123,7 +124,7 @@ After each step returns: read its diff, run its done-check, commit (`<task-id>: 
 
 1. Run `pnpm lint`, `pnpm typecheck`, `pnpm test` and every acceptance command in the task file, and read the real output.
 2. Boxes that are clicks: do them in the browser tool when you have one; otherwise list them for the user with exact steps.
-3. Tick each box in the task file with its evidence (`tasks/README.md`, step 7). When what shipped differs from the task file, add an "Outcome" section saying how, as the week 1 task files do.
+3. Tick each box in the task file with its evidence (`tasks/README.md`, step 6). When what shipped differs from the task file, add an "Outcome" section saying how, as the week 1 task files do.
 4. Commit.
 
 ## 8. Branch review
@@ -153,6 +154,5 @@ The next step, in order:
 
 1. Merge `origin/main` into the branch. Settle a conflict inside the task's files; a conflict anywhere else is a blocker. When anything came in, rerun the verify commands of phase 7 and commit; red is a blocker.
 2. Push the branch and open a ready PR, not a draft: title `<task-id>: <task title>`, body from `.github/pull_request_template.md` filled from the summary. For an S task, copy the plan's decision log into the body under a "Decisions" heading. In auto, add one line to the body: the plan, and the spec when there is one, were approved by the agent in start-task's auto mode, and no human has read them yet.
-3. Set the task to `review` on the board (`Board: <task-id> review (PR #<n>)`), in a small pull request the way the claim was.
 
 Manual: give the user the summary, then offer the next step; it reaches outside this machine, so ask first. Auto: take the next step without asking, then give the user the summary with the PR link.

@@ -11,7 +11,7 @@ What is not a finding here:
 - Anything `pnpm lint` or `pnpm typecheck` catches. Running them is part of the review; restating their output is noise.
 - Style and naming preferences, where the change reads like the code around it.
 - Work an acceptance box demands. If the box itself asks for too much, raise it as a question about the task, not a defect of the PR.
-- Future work nobody asked for yet, unless the task or `docs/ROADMAP.md` says it should exist by now.
+- Future work nobody asked for yet, unless its issue or task file says it should exist by now.
 - "Could be more generic, extensible or configurable." The pushback only ever runs toward less.
 
 Vulnerability or hardening: Wayford is a local tool (io listens on `localhost` only). A vulnerability needs a path from an untrusted input (see the security lens) to harm, and you name that path. Everything else is hardening, at most **should fix**.
@@ -51,7 +51,7 @@ The lens a normal review skips. Agents write too much, fluently. Put every new f
 - **Defence against impossible states.** Checks the types or an earlier zod parse already rule out. `try`/`catch` that returns a default, or logs and carries on (`docs/CONVENTIONS.md`, "Errors": never swallow). The same validation at every layer instead of once at the boundary.
 - **Test bloat.** Tests of test helpers, tests that restate constants or the implementation, ten near-identical cases where a table of three covers the behaviour, tests of zod, Playwright or the language. The target: one test per acceptance box and one per failure path, each checking behaviour.
 - **Comment and doc bloat.** A comment that restates its code or outgrows it; JSDoc on every private helper; a spec, README or comment that copies `docs/STACK.md` or `docs/RULES.md` instead of naming the section. A comment earns its place by saying why.
-- **Scope creep.** Files outside the task's "Files expected to change" without a reason; fixes on the way in files another open task owns (`tasks/BOARD.md`); refactors of code the task did not need to touch; an `index.ts` barrel rewritten instead of one line added.
+- **Scope creep.** Files outside the task's "Files expected to change" without a reason; fixes on the way in files another open task owns (an open issue or pull request); refactors of code the task did not need to touch; an `index.ts` barrel rewritten instead of one line added.
 - **Dependencies.** A new package without a line in `docs/STACK.md`; a package for what fifteen lines do (STACK's own bar: own `mulberry32`, own contrast); two packages for one job.
 
 Severity follows **precedent**: the more copyable the pattern, the higher. A new layer, pattern or dependency others will build on this week is blocking; one over-long local function is should fix.
