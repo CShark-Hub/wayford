@@ -7,9 +7,19 @@ The product description lives in `tasks/KONCEPCJA.md`. **This file holds what th
 
 ## Current state
 
-Weeks 1 to 3 done, week 4 running from 2026-10-05; merge cutoff Tuesday 2026-10-13, for the demo and the finals on 2026-10-14. Four people, up to 4 h per person per week. Asynchronous team, AI agents write most code, humans direct and review.
+The hackathon is over: the demo and the finals took place on 2026-10-14. Four people built Wayford for it in four weekly milestones, up to 4 h per person per week. The team keeps maintaining it, asynchronously: AI agents write most code, humans direct and review.
 
-What exists: the seven contracts in `packages/core`; the perception filter with knowledge, vocabulary and attention stages (`packages/filter`); the Actor loop on an LLM or Jev, Scout and the calibration run (`packages/agent`); the runs API and database (`packages/io`); the personas, preview, arena, runs and run detail screens (`packages/web`); the target app with three routes to its hard goal (`packages/target-app`).
+What exists:
+
+- `packages/core` — the seven contracts, and the measurement, report, sweep, race, ground-truth, axe and jargon schemas beside them.
+- `packages/filter` — the collector and the perception filter, with its knowledge, vocabulary and attention stages, and the route table.
+- `packages/agent` — the Actor loop on an LLM or Jev, with memory, behaviour dice, a simulated clock and evidence capture; Scout; the calibration run.
+- `packages/io` — the runs API and database, the Extractor, the Analyst and its report, the sweep, axe-core and `seed:demo`.
+- `packages/web` — the Target, Cast, Lens, Race, Report, Boundary, Runs and run detail screens, and Settings.
+- `packages/target-app` — Quillmere, a demo shop with three routes to its hard goal.
+- `site/` — the landing page, on GitHub Pages.
+
+The Lens, the Race and the Report also work on a site entered on the Target screen, and a sweep there starts from the CLI (`docs/adr/0003-any-target.md`). Two hackathon tasks were never built: `pnpm start` (`s4-12`) and following a new tab (`s2-14`). What the hackathon cut on purpose is in `docs/PLAN.md`, "Hackathon scope".
 
 Planning docs:
 
@@ -20,11 +30,13 @@ Planning docs:
 - `docs/ROADMAP.md` — four weekly milestones with exit criteria, working model, cut order.
 - `docs/DESIGN.md` — the look every screen follows; `docs/design/` draws it, screen by screen.
 - `docs/adr/` — decisions taken after the plan, one file each: context, rejected options, consequences. Read the matching one before changing what it covers.
-- `tasks/` — agent-sized task files, `BOARD.md` for ownership and status, `TEMPLATE.md` for new tasks.
+- `tasks/` — agent-sized task files and `TEMPLATE.md`, the hackathon's template for them. `BOARD.md` is the hackathon's record of ownership and status.
 
-Next move: the week 4 table in `tasks/BOARD.md`: the Analyst and report, the sweep, K2, axe, Jev in io and run detail, the design pass, `seed:demo`. Scope was agreed on 2026-10-04 (`docs/PLAN.md`, "Hackathon scope"): what `docs/DEMO.md` shows, in the simplest form that serves its beat.
+Where work stands: `docs/ROADMAP.md` and `tasks/BOARD.md` are the hackathon's record. Work since the finals is in the issues and pull requests on `CShark-Hub/wayford`. Among them are the findings of a whole-repository review of `main` on 2026-10-25.
 
-If you are an agent picking up a task: read `AGENTS.md`, then `docs/PLAN.md`, then the task file. Do only what the task file says.
+Next move: the open issues and pull requests, listed by `gh issue list -R CShark-Hub/wayford` and `gh pr list -R CShark-Hub/wayford`. Ideas for later are in `docs/WHAT-NEXT.md`.
+
+If you are an agent picking up a task: read `AGENTS.md`, then `docs/PLAN.md`, then the issue or the task file. Do only what it says.
 
 ---
 

@@ -1,5 +1,7 @@
 # ROADMAP — four weeks, 64 human hours
 
+**Kept as the hackathon's record, 2026-10-27.** The hackathon ended with the demo and the finals on 2026-10-14. This is the plan it ran on, not a plan for now.
+
 Capacity: 4 people × 4 h per week × 4 weeks. Humans direct and review, AI agents write code.
 One human hour buys roughly one agent task of 1 to 3 hours of agent work plus review.
 Budget: about 8 tasks per week, about 32 tasks total. The backlog must fit in that number.
