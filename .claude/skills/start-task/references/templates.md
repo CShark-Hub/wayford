@@ -59,8 +59,6 @@ What the spec review changed, and each finding rejected with its reason.
 Task: `tasks/<task file>.md`, or issue #<n> with its size and why · Spec: `docs/specs/<spec file>.md`, or "none" for an S task
 Status: draft (becomes `approved <YYYY-MM-DD>` at gate 2, `approved <YYYY-MM-DD> (auto)` when the agent approved it)
 
-An S issue only: its acceptance boxes, numbered as the table cites them, the drawn ones marked.
-
 | # | Step | Files | Serves box | Test first | Done when | Parallel with |
 |---|---|---|---|---|---|---|
 
