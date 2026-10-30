@@ -203,7 +203,7 @@ Team decision: **we build our own**, UXAgent is inspiration, not a base.
 - [x] **Project name** — **Wayford**. See "On the name" below.
 - [x] **Schemas** — seven contracts merged in week 1 (`m0-02` … `m0-05`). The critical review issues (#13 to #16) are fixed before week 2 starts.
 - [x] **Stream assignment** — streams are areas of the code, not people. `tasks/BOARD.md` suggests four slots per week; anyone takes any task whose dependencies are merged (`m0-08`).
-- [ ] **Hackathon rules** — whether existing frameworks / forks are permitted.
+- [x] **Hackathon rules** — whether existing frameworks / forks are permitted. No longer open: the finals were on 2026-10-14.
 - [ ] Profile taxonomy: take PersonaLayer's or write our own.
 
 ---
