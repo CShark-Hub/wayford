@@ -9,7 +9,7 @@ Since the finals, work starts from an issue, and the issue is the task: it holds
 
 1. Find the open issue that links the task file, or open one that does. If nobody is assigned to it and it waits on nothing open, assign yourself. That is the claim: no board row, and no pull request for it.
 2. Create a branch `feature/<task-id>-<slug>`, for example `feature/s1-03-knowledge-attention`.
-3. Start your agent with the task file as the first thing it reads. In Claude Code, `/start-task <id>` runs the whole flow for you: worktree, reviewed spec (M and L tasks), plan, build, branch review (`.claude/skills/start-task/SKILL.md`). Without an id it offers the tasks you can take. In auto mode it approves the spec, when there is one, and the plan itself and goes on to an open PR; in manual mode you approve them. Other agents, suggested opening line:
+3. Start your agent with the task file as the first thing it reads. In Claude Code, `/start-task <id>` runs the whole flow for you: worktree, reviewed spec (M and L tasks), plan, build, branch review (`.claude/skills/start-task/SKILL.md`). Without an id it offers the open issues you can take, and given an issue's number it runs the same flow with the issue as the task. In auto mode it approves the spec, when there is one, and the plan itself and goes on to an open PR; in manual mode you approve them. Other agents, suggested opening line:
 
    ```
    Read AGENTS.md, docs/PLAN.md, docs/STACK.md, docs/CONVENTIONS.md and tasks/<id>.md. Do only what the task file says. Stop and report if the task file conflicts with the code you find.
