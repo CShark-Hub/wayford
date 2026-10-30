@@ -57,7 +57,7 @@ One error class per package boundary, `WayfordError` in `core` (`packages/core/s
 - One PR per change. Its title starts with `Fix #n:` or `Part of #n:`, or with the task id for a task. Body links the issue, and the task file if there is one.
 - Reviewer: one, someone who did not work on the task, for every PR. Until week 4 the filter contract (`packages/core/src/observation.ts`, `measurement.ts`, and `docs/RULES.md`) took two; from week 4 it takes one like everything else (decided 2026-10-04, to keep the last weeks' review load small).
 - Spec: an M or L task writes a spec in `docs/specs/` before it is planned. An S task needs none: its task file is the spec, and its decisions go in the PR body (decided 2026-10-04).
-- Squash merge. Most PRs up to #69 went in as merge commits instead. `main` is always green.
+- Merge: squash by default, or a merge commit when the branch's commits are worth keeping, such as review rounds the PR body cites (decided 2026-10-30). `main` is always green.
 - CI (`.github/workflows/ci.yml`) runs `pnpm lint`, `pnpm typecheck` and `pnpm test` on every PR and every push to `main`.
 
 ## Definition of Done
