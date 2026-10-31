@@ -169,7 +169,7 @@ The summary, compact:
 
 The next step, in order:
 
-1. Merge `origin/main` into the branch. Settle a conflict inside the task's files; a conflict anywhere else is a blocker. When anything came in, rerun the verify commands of phase 7 and commit; red is a blocker.
+1. Run `git fetch origin`, then merge `origin/main` into the branch. Settle a conflict inside the task's files; a conflict anywhere else is a blocker. When anything came in, rerun the verify commands of phase 7 and commit; red is a blocker.
 2. Push the branch and open a ready PR, not a draft: title `<task-id>: <task title>`, or for an issue `Fix #<n>: <what changed>`, or `Part of #<n>: …` when boxes remain, which the body names. Body from `.github/pull_request_template.md` filled from the summary. For an issue or an S task, copy the decision log into the body under a "Decisions" heading: the plan's, or the spec's when there is one. In auto, add one line to the body: the plan, and the spec when there is one, were approved by the agent in start-task's auto mode, and no human has read them yet.
 
 Manual: give the user the summary, then offer the next step; it reaches outside this machine, so ask first. Auto: take the next step without asking, then give the user the summary with the PR link.
