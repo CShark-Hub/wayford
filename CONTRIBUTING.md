@@ -12,7 +12,7 @@ Read [`AGENTS.md`](AGENTS.md), then [`docs/PLAN.md`](docs/PLAN.md), then the iss
 - **Tasks.** The hackathon's work items are files in [`tasks/`](tasks), and [`tasks/BOARD.md`](tasks/BOARD.md) is its record. No new task files are written.
 - **Specs and plans.** An M or L task writes a spec in [`docs/specs/`](docs/specs) and a plan in [`docs/plans/`](docs/plans) before it is built. An S task's file is its spec.
 - **Decisions.** A decision taken after the plan gets an ADR in [`docs/adr/`](docs/adr): context, rejected options, consequences.
-- **Pull requests.** One per change, one reviewer who did not work on it, squash merged. `main` stays green.
+- **Pull requests.** One per change, one reviewer who did not work on it. Squash merged by default, or merged with a merge commit when the branch's commits are worth keeping. `main` stays green.
 
 ## Making a change
 
