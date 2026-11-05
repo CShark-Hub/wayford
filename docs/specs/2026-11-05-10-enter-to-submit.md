@@ -1,7 +1,7 @@
 # #10 — Enter submits a typed field: spec
 
 Task: issue [CShark-Hub/wayford#10](https://github.com/CShark-Hub/wayford/issues/10), "Personas cannot press Enter to submit a search field without a button", Layer 1 (the engine) only, so the PR is `Part of #10`. Size L: it changes a contract in `packages/core` and `docs/RULES.md`, and about twelve files across core, agent, io and web, most by a line or two; both layers together are larger than L · Branch: `fix/10-enter-to-submit` · Date: 2026-11-05
-Status: draft
+Status: approved 2026-11-05 (auto)
 
 ## Goal
 
@@ -52,8 +52,10 @@ A line break in the text is still typed as a space: the only Enter is the one `s
 `operatorsOf` for a `type`: `{ presses: 2, keys: action.submit === true ? 1 : 0, typed: … }`. The Enter is one K at the persona's motor pace, like a scroll's Page Down and a back's Alt+Left, and the typed characters stay at the norm's K. `docs/RULES.md`, "B3 in detail":
 
 - the step table's `type` row: `M + P + 2B + K per character typed, + K when it submits`;
-- the paragraph after it: a `type` that submits then presses Enter, one keystroke;
+- the paragraph after it: a `type` that submits then presses Enter, one keystroke. Its provenance is said beside the existing sentence on a scroll's and a back's: the Enter is a real keystroke, so its K is the KLM's own operator (`klm`), not a `folk` use of one, and scaling it by `motorTime`, as every paced K is, is `folk`;
 - "The pace": `motorTime` scales P, B and the one K of a scroll, a back or a submit, and `keys` is 1 for a scroll, a back or a `type` that submits, and 0 otherwise.
+
+`simulated-time.ts`'s doc comments on the pace and on `Operators.keys`, which name the one K of a scroll or a back, name the submit too.
 
 Worked numbers, from `simulated-time.test.ts`'s "Order 42" row: Ada 4485 becomes 4765 ms, and Vera, at `motorTime` 1.5, 6283 becomes 6703 ms.
 
@@ -96,7 +98,7 @@ The Race screen's pip (`packages/web/src/arena/race.ts`) and the avatar's typing
 - agent `history.test.ts`: the submitting line; `repeats` is false for a plain `type` then a submitting one, and true for the same submitting `type` twice on an unchanged page.
 - agent `simulated-time.test.ts`: a submitting row costs one K times `motorTime` more than the plain one, for Ada and Vera.
 - agent `llm.test.ts`: the existing "strict json_schema, and nothing else" test adds the `submit` rewrite to its independently built schema, by path, so any other rewrite still shows. New: every object in the schema sent for `ActorResponse` lists every property in `required`; an answer with `"submit": null` resolves to an action without `submit`, with no repair call; an answer off the schema for another reason still gets its one repair round.
-- agent `llm-actor.test.ts`: the banned-word test passes with the new line; new, the system template never says "button".
+- agent `llm-actor.test.ts`: the banned-word test greps every kind of line our text writes, with one history step per move in `blankHistory` and a `moves` list it counts. A submitting `type` joins `blankHistory`, and its line is checked to end "and pressed Enter", so the new history words are grepped too. New: the system template never says "button".
 - agent `cli.test.ts`: `actionPhrase` with and without `submit`.
 - web `replay.test.ts`: the fixtures' `type` line, and `describeAction` with and without `submit`.
 - io `analyst-digest.test.ts`: a submitting `type` reads "and press Enter".
@@ -110,7 +112,7 @@ The Race screen's pip (`packages/web/src/arena/race.ts`) and the avatar's typing
 | `packages/core/src/action.test.ts` | the contract's tests |
 | `packages/agent/src/act.ts` | presses Enter; its doc comment |
 | `packages/agent/src/history.ts` | the history line; `oneLine`'s doc comment |
-| `packages/agent/src/simulated-time.ts` | the Enter's K |
+| `packages/agent/src/simulated-time.ts` | the Enter's K; the doc comments on the pace and on `keys` |
 | `packages/agent/prompts/actor-system.md` | the `submit` line |
 | `packages/agent/src/llm.ts` | strict mode: optional sent as nullable, a null read as absent |
 | `packages/agent/src/cli.ts`, `packages/agent/src/run-one.ts` | `phrase` moves to `cli.ts` as `actionPhrase`, with the submit |
@@ -158,10 +160,17 @@ Settled by recommendation. Rows added during the build are marked "(build)".
 
 ## Risks
 
-- The live model. No test calls a model, so none shows that GPT-6 Luna's strict mode takes `anyOf` with `{ "type": "null" }`, the documented way to leave a property optional there. `pnpm --filter @wayford/agent smoke:llm` sends `ActorResponse` to the Actor's model with the real key. The PR asks a reviewer who holds the key to run it.
+- The live model. No test calls a model, so none shows that GPT-6 Luna's strict mode takes `anyOf` with `{ "type": "null" }`, the documented way to leave a property optional there. `pnpm --filter @wayford/agent smoke:llm` sends `ActorResponse` to the Actor's model with the real key, and the PR asks a reviewer who holds the key to run it. That run proves only that the provider takes the schema: its Actor page has two links and no text field, so the model answers with a click and never writes `submit`. Strict decoding holds the answer to the schema, so a `"submit"` of `true` or `null` is the grammar's to enforce.
+- Layer 2. The prompt line names `submit` to every persona, since the template is one for all. A rule that later takes `submit` out of some personas' schema must decide what their model makes of a line about an action it is refused.
 - Browser tests on a loaded Windows machine time out (CShark-Hub/wayford#23). A failed file is rerun alone before it counts as a failure.
 - The s1-07 watch on live runs now races the Enter on a submitting `type` (issue, Out of scope). Nothing in the engine changes for it.
 
 ## Review note
 
-Empty until the spec review.
+One round, by the `spec-reviewer` agent on 2026-11-05: ready after fixes, no blocking finding. It checked the spec's claims against the code and found them holding: B1 and B4 rewrite only a `click`; `sameAction` compares by `JSON.stringify`, which suits `submit`'s one spelling; the test server serves any path in its page table; `**/form-sent*` matches `/form-sent?q=parcel`; the Extractor's and the Analyst's schemas have no optional property; the worked numbers add up. Each finding was fixed:
+
+- should: `llm-actor.test.ts`'s banned-word test greps one history line per move, so a submitting `type` joins its `blankHistory` ("Tests").
+- should: the Enter's provenance in RULES B3: the KLM's own K, scaled by `motorTime` as `folk` ("The clock").
+- nit: `simulated-time.ts`'s doc comments on the pace and on `keys` name the submit ("The clock", "Files").
+- nit: `smoke:llm` proves the provider takes the schema, not that a model writes `submit` ("Risks").
+- nit: a line for Layer 2 on the prompt line every persona reads ("Risks").
