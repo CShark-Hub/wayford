@@ -605,14 +605,29 @@ function responseFormat(price: ModelPrice, schema: z.ZodObject) {
 /**
  * `schema` as strict modes take it. They accept `anyOf` only, where zod writes `oneOf` for a
  * discriminated union. The looser `anyOf` is safe because every answer is re-parsed with zod.
+ * They also take every property as required, so a property zod leaves out of `required` is sent
+ * as required and nullable: a model answers null for an optional property it leaves out, and
+ * `parseAnswer` reads that null as absent.
  */
 function strictJsonSchema(schema: z.ZodObject): unknown {
   const { $schema: _dialect, ...rest } = z.toJSONSchema(schema, {
-    // Called on schema nodes only, so a property that happens to be named `oneOf` stays.
+    // Called on schema nodes only, so a property named `oneOf` keeps its name, and one named
+    // `properties` is never read as the keyword.
     override: ({ jsonSchema }) => {
-      if (jsonSchema.oneOf === undefined) return;
-      jsonSchema.anyOf = jsonSchema.oneOf;
-      delete jsonSchema.oneOf;
+      if (jsonSchema.oneOf !== undefined) {
+        jsonSchema.anyOf = jsonSchema.oneOf;
+        delete jsonSchema.oneOf;
+      }
+      const { properties } = jsonSchema;
+      if (properties === undefined) return;
+      const required = jsonSchema.required ?? [];
+      for (const [key, property] of Object.entries(properties)) {
+        // zod's type admits a boolean schema, which zod never writes for a property.
+        if (required.includes(key) || typeof property === "boolean") continue;
+        properties[key] = { anyOf: [property, { type: "null" }] };
+        required.push(key);
+      }
+      if (required.length > 0) jsonSchema.required = required;
     },
   });
   return rest;
@@ -630,9 +645,30 @@ function parseAnswer<S extends z.ZodObject>(
     if (!(error instanceof SyntaxError)) throw error;
     return { ok: false, errorText: error.message, error };
   }
-  const parsed = schema.safeParse(json);
+  const asWritten = schema.safeParse(json);
+  if (asWritten.success) return { ok: true, value: asWritten.data };
+  // A strict mode answers null for an optional property the model leaves out (`strictJsonSchema`).
+  // A null is never valid for a property that is not nullable, so dropping the nulls can only let
+  // through an answer whose nulls stand for absent properties: an optional one, which a strict
+  // mode had to write, or a key the schema does not have, which a strict mode never writes and
+  // which says nothing. A nullable property, which no schema has today, keeps its null only when
+  // the answer passes as written. This parse's error is the one repaired, so a null the model had
+  // to write is never named a fault.
+  const parsed = schema.safeParse(withoutNulls(json));
   if (parsed.success) return { ok: true, value: parsed.data };
   return { ok: false, errorText: z.prettifyError(parsed.error), error: parsed.error };
+}
+
+/** `json` with every object property whose value is null left out, at any depth. */
+function withoutNulls(json: unknown): unknown {
+  // An array keeps every element, null or not: only an absent property is written as a null.
+  if (Array.isArray(json)) return json.map(withoutNulls);
+  if (typeof json !== "object" || json === null) return json;
+  return Object.fromEntries(
+    Object.entries(json)
+      .filter(([, value]) => value !== null)
+      .map(([key, value]) => [key, withoutNulls(value)]),
+  );
 }
 
 /** The provider's own words: its `error` when the body is JSON that has one, else the text. */
