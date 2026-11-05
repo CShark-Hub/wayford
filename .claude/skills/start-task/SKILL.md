@@ -150,9 +150,9 @@ Two reviews of `git diff origin/main...HEAD`, one round of fixes, then a simplif
 
 1. **Cold review.** Spawn the `branch-reviewer` agent in the background (`subagent_type: "branch-reviewer"`, Opus at xhigh) with the worktree's absolute path, the branch name, the task id, the plan path, the spec path when there is one, the saved issue's path for an issue, and nothing else: its value is that it comes to the branch cold. The path says where the code is without saying anything about it. It runs the `/pr-review` review and returns a verdict, findings by severity and a cut list.
 2. **Security review.** While it runs, run the `security-review` skill from the worktree.
-3. **Fix.** Check each finding from both reviews yourself before acting on it; reviewers are sometimes wrong. Fix confirmed blocking and should-fix findings, and nits when cheap.
-4. **Simplify.** Run the `simplify` skill. Everything is committed by now, so its arguments name the scope: the diff `git diff origin/main...HEAD`, the files it may touch (the branch's changed files), and the cut-list items you confirmed. Its edits are proposals like any subagent's: read the diff it leaves and revert whatever reaches outside the task's scope or its Out of scope.
-5. Rerun the verify commands of phase 7 and commit (`<task-id>: review fixes`).
+3. **Fix.** Check each finding from both reviews yourself before acting on it; reviewers are sometimes wrong. Fix confirmed blocking and should-fix findings, and nits when cheap. Commit the fixes (`<task-id>: review fixes`).
+4. **Simplify.** Run the `simplify` skill. Everything is committed by now, so its arguments name the scope: the diff `git diff origin/main...HEAD`, the files it may touch (the branch's changed files), and the cut-list items you confirmed. Its edits are proposals like any subagent's: read them (`git diff`) and revert whatever reaches outside the task's scope or its Out of scope.
+5. Rerun the verify commands of phase 7 and commit (`<task-id>: simplify`).
 
 A second round of the cold review only when the first found blocking findings; two rounds at most. Whatever remains goes in the summary; in auto, a blocking finding that remains is a blocker.
 
@@ -169,7 +169,7 @@ The summary, compact:
 
 The next step, in order:
 
-1. Merge `origin/main` into the branch. Settle a conflict inside the task's files; a conflict anywhere else is a blocker. When anything came in, rerun the verify commands of phase 7 and commit; red is a blocker.
+1. Run `git fetch origin`, then merge `origin/main` into the branch. Settle a conflict inside the task's files; a conflict anywhere else is a blocker. When anything came in, rerun the verify commands of phase 7 and commit; red is a blocker.
 2. Push the branch and open a ready PR, not a draft: title `<task-id>: <task title>`, or for an issue `Fix #<n>: <what changed>`, or `Part of #<n>: …` when boxes remain, which the body names. Body from `.github/pull_request_template.md` filled from the summary. For an issue or an S task, copy the decision log into the body under a "Decisions" heading: the plan's, or the spec's when there is one. In auto, add one line to the body: the plan, and the spec when there is one, were approved by the agent in start-task's auto mode, and no human has read them yet.
 
 Manual: give the user the summary, then offer the next step; it reaches outside this machine, so ask first. Auto: take the next step without asking, then give the user the summary with the PR link.
