@@ -84,8 +84,12 @@ function move(action: Action, observation: Observation): string {
       return `clicked ${target(action.ref, observation)}`;
     case "doubleClick":
       return `double-clicked ${target(action.ref, observation)}`;
-    case "type":
-      return `typed ${JSON.stringify(oneLine(action.text))} into ${target(action.ref, observation)}`;
+    case "type": {
+      const field = target(action.ref, observation);
+      const typed = `typed ${JSON.stringify(oneLine(action.text))} into ${field}`;
+      // The Enter is in the line, so B2's repeat tells a plain type from one that submits.
+      return action.submit === true ? `${typed} and pressed Enter` : typed;
+    }
     case "scroll":
       return `scrolled ${action.direction}`;
     case "back":
@@ -126,8 +130,8 @@ export function elementName(element: Pick<ActorElement, "role" | "name">): strin
  * own line into the history. Every run of control characters and Unicode line or paragraph
  * separators becomes one space, as in the observation. Typed text goes through it too, so a
  * step stays one line whatever the model typed, and `act.ts` types it so, so the page gets what
- * the history says and a line break is never an Enter. `actorTurn` puts the goal through it, so a
- * goal cannot write a line of the prompt either.
+ * the history says and a line break is never an Enter: only an action's `submit` is. `actorTurn`
+ * puts the goal through it, so a goal cannot write a line of the prompt either.
  */
 export function oneLine(text: string): string {
   return text.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ");

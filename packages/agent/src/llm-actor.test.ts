@@ -132,6 +132,15 @@ describe("actorMessages", () => {
     expect(system).not.toMatch(/\{\{|\}\}/);
   });
 
+  test("the system message offers the submit and never says button, in any case", () => {
+    // It says what a submit does, never when to use one: a page with no button is the page's to
+    // show, not the prompt's to hint at (CShark-Hub/wayford#10).
+    const system = actorMessages(turn)[0]?.content ?? "";
+
+    expect(system).toContain('"submit": true');
+    expect(system.toLowerCase()).not.toContain("button");
+  });
+
   // The goal, every page string, the typed text and the model's own words are not ours, and a
   // real page may well say "Hidden fees". Blanked, what is left is the template, the two
   // renderers' words and the answer schema.
@@ -146,6 +155,7 @@ describe("actorMessages", () => {
     { observation: blank, proposed: { type: "click", ref: "e1" } },
     { observation: blank, proposed: { type: "doubleClick", ref: "e1" } },
     { observation: blank, proposed: { type: "type", ref: "e1", text: "" } },
+    { observation: blank, proposed: { type: "type", ref: "e1", text: "", submit: true } },
     { observation: blank, proposed: { type: "scroll", direction: "down" } },
     { observation: blank, proposed: { type: "scroll", direction: "up" } },
     { observation: blank, proposed: { type: "back" } },
@@ -177,6 +187,7 @@ describe("actorMessages", () => {
       "clicked",
       "double-clicked",
       "typed",
+      "typed",
       "scrolled down",
       "scrolled up",
       "went back",
@@ -187,6 +198,8 @@ describe("actorMessages", () => {
     const lines = blankTurn.history.split("\n");
     expect(lines).toHaveLength(moves.length);
     for (const [index, move] of moves.entries()) expect(lines[index]).toContain(`you ${move}`);
+    // The second type submits, so its words are grepped too.
+    expect(lines[3]).toMatch(/ and pressed Enter\.$/u);
     expect(remembered.history.split("\n")[0]).toBe(
       `- ${moves.length - 1} earlier steps not shown.`,
     );
