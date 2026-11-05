@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { basename, dirname, join } from "node:path";
-import type { Action } from "@wayford/core";
+import { actionFixtures } from "@wayford/core/fixtures";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   actionPhrase,
@@ -84,20 +84,22 @@ describe("readMaxUsd", () => {
 });
 
 describe("actionPhrase", () => {
-  test.each<[Action, string]>([
-    [{ type: "click", ref: "e3" }, "click e3"],
-    [{ type: "doubleClick", ref: "e3" }, "doubleClick e3"],
-    [{ type: "type", ref: "e4", text: "Bern" }, 'type "Bern" into e4'],
-    [
-      { type: "type", ref: "e4", text: "Bern", submit: true },
-      'type "Bern" into e4 and press Enter',
-    ],
-    [{ type: "scroll", direction: "down" }, "scroll down"],
-    [{ type: "wait", ms: 500 }, "wait 500 ms"],
-    [{ type: "back" }, "back"],
-    [{ type: "giveUp" }, "giveUp"],
-  ])("%j reads %j", (action, phrase) => {
-    expect(actionPhrase(action)).toBe(phrase);
+  test("writes every action type as run:one prints it", () => {
+    // The fixtures hold one action per member of ACTION_TYPES, in that order, and the `type` one
+    // submits.
+    expect(actionFixtures.map(actionPhrase)).toStrictEqual([
+      "click e2",
+      "doubleClick e2",
+      'type "archive" into e5 and press Enter',
+      "scroll down",
+      "back",
+      "wait 500 ms",
+      "giveUp",
+    ]);
+  });
+
+  test("a type that does not submit ends at its field", () => {
+    expect(actionPhrase({ type: "type", ref: "e4", text: "Bern" })).toBe('type "Bern" into e4');
   });
 });
 

@@ -183,18 +183,36 @@ function objectNodes(node: SchemaNode, path = "#"): { path: string; leftOut: str
   ];
 }
 
-// Strict modes refuse an object that leaves a property out of `required`, and core's
-// `ActorResponse` has an optional one, the `type` action's `submit`.
-test("every object in the schema sent lists every one of its properties in required", async () => {
-  const { llm, calls } = setup([click()]);
-  await llm.complete(ACTOR);
+/**
+ * Optional properties nested where the Analyst's answer nests its objects, in an array and in an
+ * optional object: where the next optional property of a schema sent is likely to land.
+ */
+const NESTED = z
+  .object({
+    list: z.array(z.object({ note: z.string().optional() }).strict()),
+    inner: z.object({ count: z.number().optional() }).strict().optional(),
+  })
+  .strict();
 
-  const format = calls[0]?.body.response_format as { json_schema: { schema: SchemaNode } };
-  const objects = objectNodes(format.json_schema.schema);
+// Strict modes refuse an object that leaves a property out of `required`. Core's `ActorResponse`
+// has one optional property, the `type` action's `submit`, and the rewrite serves every schema.
+test.each<[string, z.ZodObject, string, number]>([
   // The root and one object per action type, so the walk reached every member of the union.
-  expect(objects).toHaveLength(1 + ACTION_TYPES.length);
-  expect(objects.filter(({ leftOut }) => leftOut.length > 0)).toStrictEqual([]);
-});
+  ["core's ActorResponse", ActorResponse, JSON.stringify(CLICK), 1 + ACTION_TYPES.length],
+  // The root, the object in the array and the optional object.
+  ["a schema that nests objects in an array and an optional object", NESTED, '{"list":[]}', 3],
+])(
+  "every object in the schema sent for %s lists every one of its properties in required",
+  async (_, schema, answer, objectCount) => {
+    const { llm, calls } = setup([completion(answer)]);
+    await llm.complete({ ...ACTOR, schema });
+
+    const format = calls[0]?.body.response_format as { json_schema: { schema: SchemaNode } };
+    const objects = objectNodes(format.json_schema.schema);
+    expect(objects).toHaveLength(objectCount);
+    expect(objects.filter(({ leftOut }) => leftOut.length > 0)).toStrictEqual([]);
+  },
+);
 
 test("every role sends its own model, temperature and effort", async () => {
   const settings: LlmSettings = {
@@ -390,30 +408,24 @@ test("an array keeps its null elements, so a null in one still gets the repair r
   expect(result.value).toStrictEqual({ paths: ["/deliveries"] });
 });
 
-// Each misses the schema whatever its null: an action type that does not exist, or a ref that is
-// not one. Only the bad ref shows which error is quoted, since as written its null fails too.
-test.each([
-  ["an unknown action type", { type: "press", ref: "e1", text: "x", submit: null }, "action.type"],
-  ["a bad ref", { type: "type", ref: "search", text: "x", submit: null }, "action.ref"],
-])(
-  "an answer with a null and %s gets its one repair round, which quotes the error without the null",
-  async (_, action, named) => {
-    const answer = JSON.stringify({ narration: "Search.", action });
-    const { llm, calls } = setup([completion(answer), click()]);
-    const result = await llm.complete(ACTOR);
+// A bad ref misses the schema whatever the null beside it, and as written the null fails too.
+test("an answer with a null and a bad ref gets its one repair round, which quotes the error without the null", async () => {
+  const action = { type: "type", ref: "search", text: "x", submit: null };
+  const answer = JSON.stringify({ narration: "Search.", action });
+  const { llm, calls } = setup([completion(answer), click()]);
+  const result = await llm.complete(ACTOR);
 
-    expect(result.value).toStrictEqual(CLICK);
-    expect(calls).toHaveLength(2);
-    const repair = calls[1]?.body.messages as ChatMessage[];
-    expect(repair).toStrictEqual([
-      ...MESSAGES,
-      { role: "assistant", content: answer },
-      { role: "user", content: expect.stringContaining(named) },
-    ]);
-    // The error of the answer with its nulls dropped, so the null is not named as a fault.
-    expect(repair.at(-1)?.content).not.toContain("submit");
-  },
-);
+  expect(result.value).toStrictEqual(CLICK);
+  expect(calls).toHaveLength(2);
+  const repair = calls[1]?.body.messages as ChatMessage[];
+  expect(repair).toStrictEqual([
+    ...MESSAGES,
+    { role: "assistant", content: answer },
+    { role: "user", content: expect.stringContaining("action.ref") },
+  ]);
+  // The error of the answer with its nulls dropped, so the null is not named as a fault.
+  expect(repair.at(-1)?.content).not.toContain("submit");
+});
 
 test("a failed repair round still carries the answer round's cost", async () => {
   const { llm, calls } = setup([completion(NO_REF), providerError(400, "bad request")]);

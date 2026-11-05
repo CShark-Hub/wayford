@@ -132,8 +132,7 @@ function operatorsOf(action: Action): Operators {
     case "doubleClick":
       return { ...none, presses: 4 };
     case "type":
-      // The one line `act.ts` types, counted in code points, so an emoji is one character. The
-      // Enter after it, when the action submits, is one K at the motor pace.
+      // The one line `act.ts` types, counted in code points, so an emoji is one character.
       return {
         ...none,
         presses: 2,

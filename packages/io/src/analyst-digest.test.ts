@@ -335,11 +335,12 @@ describe("analystCase: the runs", () => {
   });
 
   test("each action reads with the element's name; a name read as is is given once", () => {
-    const steps = Array.from({ length: 6 }, () => ({ observation: observationFixture }));
+    const steps = Array.from({ length: 7 }, () => ({ observation: observationFixture }));
     let run = runOf(ada, 1, "run_ada-actions", steps);
     const actions: Action[] = [
       { type: "click", ref: "e3" },
       { type: "type", ref: "e1", text: "past orders" },
+      { type: "type", ref: "e1", text: "past orders", submit: true },
       { type: "back" },
       { type: "wait", ms: 500 },
       { type: "scroll", direction: "up" },
@@ -349,25 +350,14 @@ describe("analystCase: the runs", () => {
       run = acting(run, index, action);
     });
     const text = caseOf([run]);
-    expect([0, 1, 2, 3, 4, 5].map((i) => stepLine(text, "run_ada-actions", i))).toEqual([
+    expect([0, 1, 2, 3, 4, 5, 6].map((i) => stepLine(text, "run_ada-actions", i))).toEqual([
       'step 0 on /deliveries: click "Deliveries"',
       'step 1 on /deliveries: type "past orders" into "Home"',
-      "step 2 on /deliveries: back",
-      "step 3 on /deliveries: wait 500 ms",
-      "step 4 on /deliveries: scroll up",
-      "step 5 on /deliveries: giveUp",
-    ]);
-  });
-
-  test("a type that submits reads with its Enter; a plain one without", () => {
-    const steps = Array.from({ length: 2 }, () => ({ observation: observationFixture }));
-    const typed: Action = { type: "type", ref: "e1", text: "past orders" };
-    const plain = acting(runOf(ada, 1, "run_ada-submit", steps), 0, typed);
-    const run = acting(plain, 1, { ...typed, submit: true });
-    const text = caseOf([run]);
-    expect([0, 1].map((i) => stepLine(text, "run_ada-submit", i))).toEqual([
-      'step 0 on /deliveries: type "past orders" into "Home"',
-      'step 1 on /deliveries: type "past orders" into "Home" and press Enter',
+      'step 2 on /deliveries: type "past orders" into "Home" and press Enter',
+      "step 3 on /deliveries: back",
+      "step 4 on /deliveries: wait 500 ms",
+      "step 5 on /deliveries: scroll up",
+      "step 6 on /deliveries: giveUp",
     ]);
   });
 

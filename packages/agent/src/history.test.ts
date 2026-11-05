@@ -227,7 +227,6 @@ describe("repeats: B2's repeat, the same line as the last proposal", () => {
     ]);
   const NEXT: Action = { type: "click", ref: "e2" };
 
-  // The same text into the same field, once without Enter and once with it.
   const TYPED: Action = { type: "type", ref: "e3", text: "parcel" };
   const SUBMITTED: Action = { ...TYPED, submit: true };
 
