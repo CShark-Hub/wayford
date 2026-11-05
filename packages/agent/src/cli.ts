@@ -12,7 +12,7 @@
  */
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { type RunEvent, Seed, WayfordError } from "@wayford/core";
+import { type Action, type RunEvent, Seed, WayfordError } from "@wayford/core";
 import { serveTargetApp, type TargetApp } from "@wayford/filter/serve-target-app";
 import { type Browser, chromium } from "playwright";
 import { ActorBackendName } from "./llm-settings.js";
@@ -219,6 +219,30 @@ export function attemptLine(event: RunEvent): string | undefined {
       return `    error: ${event.error}`;
     default:
       return undefined;
+  }
+}
+
+/**
+ * An action as one short phrase, as `run:one` prints it: `click e3`, `scroll down`,
+ * `type "Bern" into e4`, and `type "Bern" into e4 and press Enter` for a `type` that submits. It
+ * is held here, not in run-one.ts, which runs its command when imported, so a test can reach it.
+ */
+export function actionPhrase(action: Action): string {
+  switch (action.type) {
+    case "click":
+    case "doubleClick":
+      return `${action.type} ${action.ref}`;
+    case "type": {
+      const enter = action.submit === true ? " and press Enter" : "";
+      return `type ${JSON.stringify(action.text)} into ${action.ref}${enter}`;
+    }
+    case "scroll":
+      return `scroll ${action.direction}`;
+    case "wait":
+      return `wait ${action.ms} ms`;
+    case "back":
+    case "giveUp":
+      return action.type;
   }
 }
 

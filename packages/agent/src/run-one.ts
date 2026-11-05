@@ -21,7 +21,6 @@
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import {
-  type Action,
   type Cost,
   type DecisionRecord,
   drawOption,
@@ -40,6 +39,7 @@ import pino from "pino";
 import { runActor } from "./actor-loop.js";
 import { backendFactory } from "./backend-factory.js";
 import {
+  actionPhrase,
   BACKEND_USAGE,
   launchChromium,
   loadRootEnv,
@@ -105,24 +105,6 @@ function readArguments(argv: readonly string[]): Arguments | string {
   return { personaId: persona, taskId: task, seed: parsed, backend: flag.backend };
 }
 
-/** An action as one short phrase: `click e3`, `scroll down`, `type "Bern" into e4`. */
-function phrase(action: Action): string {
-  switch (action.type) {
-    case "click":
-    case "doubleClick":
-      return `${action.type} ${action.ref}`;
-    case "type":
-      return `type ${JSON.stringify(action.text)} into ${action.ref}`;
-    case "scroll":
-      return `scroll ${action.direction}`;
-    case "wait":
-      return `wait ${action.ms} ms`;
-    case "back":
-    case "giveUp":
-      return action.type;
-  }
-}
-
 function billed(cost: Cost): string {
   return `${cost.tokensIn} in, ${cost.tokensOut} out, ${cost.usd.toFixed(6)} USD`;
 }
@@ -166,12 +148,12 @@ function eventLine(event: RunEvent, backend: ActorBackendName): string | undefin
       // The proposed action, the one the backend chose, which the bill and a draw are for. B1 may
       // have doubled a click since; the performed action and its dice are in `result.json`.
       const drawn = event.decision === undefined ? "" : `${howDrawn(event.decision)}; `;
-      return `         ${phrase(event.proposedAction)} (${drawn}${billed(event.cost)})`;
+      return `         ${actionPhrase(event.proposedAction)} (${drawn}${billed(event.cost)})`;
     }
     case "actionPerformed":
       return `         landed on ${event.urlAfter}`;
     case "stepWasted": {
-      const refused = event.rejected.map(({ action }) => phrase(action)).join(", then ");
+      const refused = event.rejected.map(({ action }) => actionPhrase(action)).join(", then ");
       return `         wasted: ${refused} named a ref the page lacks (${billed(event.cost)})`;
     }
     case "runFinished":

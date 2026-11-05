@@ -359,6 +359,18 @@ describe("analystCase: the runs", () => {
     ]);
   });
 
+  test("a type that submits reads with its Enter; a plain one without", () => {
+    const steps = Array.from({ length: 2 }, () => ({ observation: observationFixture }));
+    const typed: Action = { type: "type", ref: "e1", text: "past orders" };
+    const plain = acting(runOf(ada, 1, "run_ada-submit", steps), 0, typed);
+    const run = acting(plain, 1, { ...typed, submit: true });
+    const text = caseOf([run]);
+    expect([0, 1].map((i) => stepLine(text, "run_ada-submit", i))).toEqual([
+      'step 0 on /deliveries: type "past orders" into "Home"',
+      'step 1 on /deliveries: type "past orders" into "Home" and press Enter',
+    ]);
+  });
+
   test("the recorded run: a doubleClick the dice made, a wasted step, and the narration", () => {
     const text = caseOf([runResultFixture]);
     const line = (i: number) => stepLine(text, runResultFixture.id, i);
