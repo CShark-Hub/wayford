@@ -1,5 +1,5 @@
 import { inspect } from "node:util";
-import { ActorResponse, LLM_ROLES } from "@wayford/core";
+import { ACTION_TYPES, ActorResponse, LLM_ROLES } from "@wayford/core";
 import pino from "pino";
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import { z } from "zod";
@@ -33,6 +33,15 @@ const NO_REF = JSON.stringify({
 type Answer = Response | Error | "hang";
 
 type Call = { url: string; init: RequestInit; body: Record<string, unknown> };
+
+/** A JSON Schema node, as far as these tests read one. */
+type SchemaNode = {
+  properties?: Record<string, SchemaNode>;
+  required?: string[];
+  anyOf?: SchemaNode[];
+  items?: SchemaNode;
+  const?: unknown;
+};
 
 /** An adapter on a fake provider that answers from `answers` in order and records every call. */
 function setup(answers: Answer[], options: { settings?: LlmSettings } = {}) {
@@ -127,10 +136,16 @@ test("sends the caller's messages, the role's model, temperature and effort, and
   const { llm, calls } = setup([click()]);
   await llm.complete(ACTOR);
 
-  // Built another way than the adapter builds it: zod's schema with only the dialect dropped and
-  // the union keyword renamed, so any other rewrite shows up as a difference.
+  // Built another way than the adapter builds it: zod's schema with only the dialect dropped, the
+  // union keyword renamed and `submit`, the one property zod leaves out of `required`, made
+  // required and nullable by its path, so any other rewrite shows up as a difference.
   const { $schema: _dialect, ...zodSchema } = z.toJSONSchema(ActorResponse);
   const expected = JSON.parse(JSON.stringify(zodSchema).replaceAll('"oneOf":', '"anyOf":'));
+  const typed = expected.properties.action.anyOf.find(
+    (member: SchemaNode) => member.properties?.type?.const === "type",
+  );
+  typed.properties.submit = { anyOf: [typed.properties.submit, { type: "null" }] };
+  typed.required.push("submit");
   expect(calls).toHaveLength(1);
   expect(calls[0]?.body).toStrictEqual({
     model: "openai/gpt-6-luna",
@@ -146,6 +161,58 @@ test("sends the caller's messages, the role's model, temperature and effort, and
   expect(calls[0]?.init.method).toBe("POST");
   expect(new Headers(calls[0]?.init.headers).get("authorization")).toBe(`Bearer ${KEY}`);
 });
+
+/**
+ * Every object node of a JSON Schema, by its path, with the keys of its `properties` that its
+ * `required` leaves out. Walks `properties`, `anyOf` and `items`, where the schemas sent here nest
+ * one node in another.
+ */
+function objectNodes(node: SchemaNode, path = "#"): { path: string; leftOut: string[] }[] {
+  const { properties, required = [], anyOf = [], items } = node;
+  const here =
+    properties === undefined
+      ? []
+      : [{ path, leftOut: Object.keys(properties).filter((key) => !required.includes(key)) }];
+  return [
+    ...here,
+    ...Object.entries(properties ?? {}).flatMap(([key, child]) =>
+      objectNodes(child, `${path}/properties/${key}`),
+    ),
+    ...anyOf.flatMap((child, index) => objectNodes(child, `${path}/anyOf/${index}`)),
+    ...(items === undefined ? [] : objectNodes(items, `${path}/items`)),
+  ];
+}
+
+/**
+ * Optional properties nested where the Analyst's answer nests its objects, in an array and in an
+ * optional object: where the next optional property of a schema sent is likely to land.
+ */
+const NESTED = z
+  .object({
+    list: z.array(z.object({ note: z.string().optional() }).strict()),
+    inner: z.object({ count: z.number().optional() }).strict().optional(),
+  })
+  .strict();
+
+// Strict modes refuse an object that leaves a property out of `required`. Core's `ActorResponse`
+// has one optional property, the `type` action's `submit`, and the rewrite serves every schema.
+test.each<[string, z.ZodObject, string, number]>([
+  // The root and one object per action type, so the walk reached every member of the union.
+  ["core's ActorResponse", ActorResponse, JSON.stringify(CLICK), 1 + ACTION_TYPES.length],
+  // The root, the object in the array and the optional object.
+  ["a schema that nests objects in an array and an optional object", NESTED, '{"list":[]}', 3],
+])(
+  "every object in the schema sent for %s lists every one of its properties in required",
+  async (_, schema, answer, objectCount) => {
+    const { llm, calls } = setup([completion(answer)]);
+    await llm.complete({ ...ACTOR, schema });
+
+    const format = calls[0]?.body.response_format as { json_schema: { schema: SchemaNode } };
+    const objects = objectNodes(format.json_schema.schema);
+    expect(objects).toHaveLength(objectCount);
+    expect(objects.filter(({ leftOut }) => leftOut.length > 0)).toStrictEqual([]);
+  },
+);
 
 test("every role sends its own model, temperature and effort", async () => {
   const settings: LlmSettings = {
@@ -284,6 +351,80 @@ test.each([
     ...echoed,
     { role: "user", content: expect.stringMatching(/not valid JSON|Unexpected end of JSON/) },
   ]);
+});
+
+// A strict mode is sent every optional property as required and nullable, so it answers null for
+// one the model leaves out.
+test("a null for an optional property reads as absent, with no repair round", async () => {
+  const typed = { type: "type", ref: "e1", text: "x" };
+  const { llm, calls } = setup([
+    completion(JSON.stringify({ narration: "Search.", action: { ...typed, submit: null } })),
+  ]);
+  const result = await llm.complete(ACTOR);
+
+  expect(calls).toHaveLength(1);
+  // Strictly equal, so the action has no `submit` at all, not one set to undefined.
+  expect(result.value).toStrictEqual({ narration: "Search.", action: typed });
+});
+
+// The nulls are dropped wherever they stand, so a null on a key the schema does not have goes too.
+// A strict mode never writes one, and it says nothing, so it costs no repair round.
+test.each([
+  ["a click's submit", { ...CLICK, action: { ...CLICK.action, submit: null } }],
+  ["a reason at the root", { ...CLICK, reason: null }],
+])(
+  "a null on a key the schema does not have (%s) is dropped too, with no repair round",
+  async (_, answer) => {
+    const { llm, calls } = setup([completion(JSON.stringify(answer))]);
+    const result = await llm.complete(ACTOR);
+
+    expect(calls).toHaveLength(1);
+    expect(result.value).toStrictEqual(CLICK);
+  },
+);
+
+// Nulls are dropped only after the answer fails as written, so a nullable property, which no
+// schema sent today has, keeps its null.
+test("a nullable property keeps its null when the answer passes as written", async () => {
+  const schema = z.object({ note: z.string().nullable() }).strict();
+  const { llm, calls } = setup([completion(JSON.stringify({ note: null }))]);
+  const result = await llm.complete({ ...ACTOR, schema });
+
+  expect(calls).toHaveLength(1);
+  expect(result.value).toStrictEqual({ note: null });
+});
+
+// Only an absent property is written as a null, never an element of an array, so an array keeps
+// its nulls and an answer off the schema there still gets its repair round.
+test("an array keeps its null elements, so a null in one still gets the repair round", async () => {
+  const schema = z.object({ paths: z.array(z.string()) }).strict();
+  const { llm, calls } = setup([
+    completion(JSON.stringify({ paths: ["/deliveries", null] })),
+    completion(JSON.stringify({ paths: ["/deliveries"] })),
+  ]);
+  const result = await llm.complete({ ...ACTOR, schema });
+
+  expect(calls).toHaveLength(2);
+  expect(result.value).toStrictEqual({ paths: ["/deliveries"] });
+});
+
+// A bad ref misses the schema whatever the null beside it, and as written the null fails too.
+test("an answer with a null and a bad ref gets its one repair round, which quotes the error without the null", async () => {
+  const action = { type: "type", ref: "search", text: "x", submit: null };
+  const answer = JSON.stringify({ narration: "Search.", action });
+  const { llm, calls } = setup([completion(answer), click()]);
+  const result = await llm.complete(ACTOR);
+
+  expect(result.value).toStrictEqual(CLICK);
+  expect(calls).toHaveLength(2);
+  const repair = calls[1]?.body.messages as ChatMessage[];
+  expect(repair).toStrictEqual([
+    ...MESSAGES,
+    { role: "assistant", content: answer },
+    { role: "user", content: expect.stringContaining("action.ref") },
+  ]);
+  // The error of the answer with its nulls dropped, so the null is not named as a fault.
+  expect(repair.at(-1)?.content).not.toContain("submit");
 });
 
 test("a failed repair round still carries the answer round's cost", async () => {

@@ -1,0 +1,22 @@
+# #10 — Enter submits a typed field: plan
+
+Task: issue [CShark-Hub/wayford#10](https://github.com/CShark-Hub/wayford/issues/10), Layer 1 only, size L (a contract in `packages/core` and `docs/RULES.md`, about twelve files) · Spec: `docs/specs/2026-11-05-10-enter-to-submit.md`
+Status: approved 2026-11-05 (auto)
+
+Every command runs from the worktree's root. `pnpm` is reached through `corepack`.
+
+| # | Step | Files | Serves box | Test first | Done when | Parallel with |
+|---|---|---|---|---|---|---|
+| 1 | The contract: `submit` on `type`, the full fixture | `packages/core/src/action.ts`, `packages/core/src/fixtures/actions.json`, `packages/core/src/action.test.ts` | 1 | `action.test.ts`: a `type` with `submit: true` parses, one without parses; `submit: false`, `submit: "yes"` and a `click` with `submit` are refused; the `type` fixture carries `submit` | `corepack pnpm --filter @wayford/core test` and `corepack pnpm -r --workspace-concurrency=1 typecheck` pass | none: every other step reads the new type |
+| 2 | Strict mode: an optional property sent as required and nullable, a null read back as absent | `packages/agent/src/llm.ts`, `packages/agent/src/llm.test.ts` | 7 | `llm.test.ts`: every object in the schema sent for `ActorResponse` lists every property in `required`; `"submit": null` resolves to an action without `submit` and no repair call; an answer off the schema for another reason still gets one repair round; the existing "strict json_schema, and nothing else" test adds the `submit` rewrite to its own schema by path | `corepack pnpm exec vitest run packages/agent/src/llm.test.ts` passes | 3, 4 |
+| 3 | Acting, the history, the clock, the prompt and RULES | `packages/agent/src/act.ts`, `packages/agent/src/history.ts`, `packages/agent/src/simulated-time.ts`, `packages/agent/prompts/actor-system.md`, `docs/RULES.md`, `packages/agent/src/history.test.ts`, `packages/agent/src/simulated-time.test.ts`, `packages/agent/src/llm-actor.test.ts`, `packages/agent/src/actor-loop.browser.test.ts` | 2, 3, 4, 5, 6 | `history.test.ts`: the submitting line, and `repeats` for plain-then-submitting (false) and the same submitting `type` twice (true); `simulated-time.test.ts`: the submitting rows for Ada and Vera; `llm-actor.test.ts`: a submitting `type` joins the banned-word test's `blankHistory`, its line checked to end "and pressed Enter", and the system template never says "button"; `actor-loop.browser.test.ts`: `/form-sent` served, a submitting `type` lands on `/form-sent?q=parcel` with the history line ending "and pressed Enter", and a task on `**/form-sent*` ends `success` | `corepack pnpm exec vitest run packages/agent/src/history.test.ts packages/agent/src/simulated-time.test.ts packages/agent/src/llm-actor.test.ts packages/agent/src/actor-loop.browser.test.ts` passes | 2, 4 |
+| 4 | Printing an action: the run detail, the Analyst's digest, `run:one` | `packages/web/src/runs/replay.ts`, `packages/web/src/runs/replay.test.ts`, `packages/io/src/analyst-digest.ts`, `packages/io/src/analyst-digest.test.ts`, `packages/agent/src/cli.ts`, `packages/agent/src/cli.test.ts`, `packages/agent/src/run-one.ts` | 8 | `replay.test.ts`: the fixtures' `type` line reads `type e5 "archive" + Enter`, and `describeAction` with and without `submit`; `analyst-digest.test.ts`: a submitting `type` reads "and press Enter"; `cli.test.ts`: `actionPhrase` with and without `submit` | `corepack pnpm exec vitest run packages/web/src/runs/replay.test.ts packages/io/src/analyst-digest.test.ts packages/agent/src/cli.test.ts` and `corepack pnpm -r --workspace-concurrency=1 typecheck` pass | 2, 3 |
+| 5 | Verification | none | 9, and every box | none | `corepack pnpm lint`, `corepack pnpm -r --workspace-concurrency=1 typecheck` and `corepack pnpm test` pass; each box's test is named in the PR body with its result | last |
+
+Step 1 changes the `type` fixture, which `packages/web/src/runs/replay.test.ts` and `packages/agent/src/behaviour.test.ts` read. Both still pass after step 1: `describeAction` prints the submit only from step 4, which updates that test's line, and B1 to B4 leave every action but a click as it is.
+
+Steps 2, 3 and 4 touch disjoint files and none changes `pnpm-lock.yaml`. Each runs only its own test files, since a full `pnpm test` beside two others times out on this machine (CShark-Hub/wayford#23); step 5 runs the whole suite alone.
+
+## Decision log
+
+In the spec.

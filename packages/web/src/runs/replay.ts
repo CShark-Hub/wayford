@@ -38,8 +38,9 @@ export function observedFrom(steps: readonly RunStep[], stepIndex: number): RunS
 
 /**
  * One line per action, an exhaustive switch over all seven `ACTION_TYPES`: `click e3`,
- * `doubleClick e2`, `type e4 "text"`, `scroll down`, `back`, `wait 500 ms`, `giveUp`. Typed text is
- * written as a JSON string, so quotes and line breaks in it stay visible.
+ * `doubleClick e2`, `type e4 "text"` (`type e4 "text" + Enter` when it submits), `scroll down`,
+ * `back`, `wait 500 ms`, `giveUp`. Typed text is written as a JSON string, so quotes and line
+ * breaks in it stay visible.
  */
 export function describeAction(action: Action): string {
   switch (action.type) {
@@ -47,8 +48,10 @@ export function describeAction(action: Action): string {
       return `click ${action.ref}`;
     case "doubleClick":
       return `doubleClick ${action.ref}`;
-    case "type":
-      return `type ${action.ref} ${JSON.stringify(action.text)}`;
+    case "type": {
+      const enter = action.submit === true ? " + Enter" : "";
+      return `type ${action.ref} ${JSON.stringify(action.text)}${enter}`;
+    }
     case "scroll":
       return `scroll ${action.direction}`;
     case "back":

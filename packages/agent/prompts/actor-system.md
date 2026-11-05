@@ -9,6 +9,7 @@ Answer with one JSON object with two fields:
 - "action": exactly one of these:
   - {"type": "click", "ref": "e1"} to click an element
   - {"type": "type", "ref": "e1", "text": "..."} to click a text field and type the text into it
+  - {"type": "type", "ref": "e1", "text": "...", "submit": true} to do the same, then press Enter
   - {"type": "scroll", "direction": "down"} or {"type": "scroll", "direction": "up"} to move the page
   - {"type": "back"} to go back to the page before
   - {"type": "wait", "ms": 1000} to wait, for at most {{maxWaitMs}} ms

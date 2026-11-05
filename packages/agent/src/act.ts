@@ -88,10 +88,11 @@ export interface Arrival {
  * observation the action answered: the cursor moves to its `actionPoint` and holds there, then the
  * mouse presses at that point. `type` clicks, then types its text on one line, as the history
  * reports it: a line break in it is typed as a space, never pressed as Enter, and the field is not
- * cleared first. `scroll` moves the page by 0.8 of the viewport's height at once, `back` goes back
- * a page, `wait` waits, and `giveUp` does nothing. The run context keeps the pressed point, and
- * the loop puts the real pointer back on it before the next measurement
- * (`RunContext.restorePointer`).
+ * cleared first. Enter is pressed after the text only when the action says `submit`: the action
+ * promises the key press, and what Enter does there, such as sending a form, is the page's.
+ * `scroll` moves the page by 0.8 of the viewport's height at once, `back` goes back a page, `wait`
+ * waits, and `giveUp` does nothing. The run context keeps the pressed point, and the loop puts the
+ * real pointer back on it before the next measurement (`RunContext.restorePointer`).
  *
  * A ref that `shown` lacks throws a plain `Error`, since only a bug gets one here: the loop checks
  * every answer's ref with `checkActionRef` before it acts.
@@ -158,7 +159,11 @@ async function carryOut(
       await run.moveCursor(point);
       if (action.type === "doubleClick") await page.mouse.dblclick(point.x, point.y);
       else await page.mouse.click(point.x, point.y);
-      if (action.type === "type") await page.keyboard.type(oneLine(action.text));
+      if (action.type === "type") {
+        await page.keyboard.type(oneLine(action.text));
+        // Into the field the click focused: nothing is looked up again.
+        if (action.submit === true) await page.keyboard.press("Enter");
+      }
       return;
     }
     case "scroll":

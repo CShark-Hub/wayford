@@ -169,8 +169,10 @@ function actionText(action: Action, page: Page): string {
     case "click":
     case "doubleClick":
       return `${action.type} ${elementText(action.ref, page)}`;
-    case "type":
-      return `type ${quote(action.text)} into ${elementText(action.ref, page)}`;
+    case "type": {
+      const enter = action.submit === true ? " and press Enter" : "";
+      return `type ${quote(action.text)} into ${elementText(action.ref, page)}${enter}`;
+    }
     case "scroll":
       return `scroll ${action.direction}`;
     case "wait":

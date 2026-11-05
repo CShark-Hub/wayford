@@ -1502,6 +1502,8 @@ describe("on pages served for the purpose", () => {
       '<h1>Marker</h1><form action="/form-sent"><label>Search <input type="text" name="q" oninput="document.title = \'Typed: \' + this.value"></label></form><div class="gap"></div><p><a href="/form-next">Next page</a></p><div class="rest"></div>',
     ),
     "/form-next": HTML("Form next", "", "<p>Somewhere else</p>"),
+    // Where the form is sent: Enter in its field asks for this page, the text as `q`.
+    "/form-sent": HTML("Form sent", "", "<p>Results</p>"),
     // A link into a page whose spinner never stops, so the page after the click never settles.
     "/spin-from": HTML("Spin from", "", '<p><a href="/spin">Spinning page</a></p>'),
     "/spin": HTML("Spin", SPINNER, '<div class="spinner"></div><p>Loading</p>'),
@@ -1662,6 +1664,50 @@ describe("on pages served for the purpose", () => {
     // Went back to the page the link left.
     expect(stepAt(result, 3).urlBefore).toBe(`${origin}/form-next`);
     expect(urlAfter(result.steps[3])).toBe(stepAt(result, 0).urlBefore);
+  });
+
+  /** An answer that types "parcel" into the Search field, then presses Enter. */
+  const searchAndSubmit = (request: Request): ActorResponse => ({
+    narration: "Let me search.",
+    action: {
+      type: "type",
+      ref: pageLine(request, "textbox", "Search").ref,
+      text: "parcel",
+      submit: true,
+    },
+  });
+
+  test("a type that submits presses Enter after its text, so the form with no button is sent", async () => {
+    const { result, calls } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: servedTask("/form"),
+      answers: [searchAndSubmit, GIVE_UP],
+    });
+
+    expect(result.outcome).toBe("gave_up");
+    expect(kinds(result)).toStrictEqual(["complete", "complete"]);
+    // The Enter sent the form, a GET with the field's text.
+    expect(urlAfter(result.steps[0])).toBe(`${origin}/form-sent?q=parcel`);
+    // And the next turn's history says so.
+    const history = between(
+      calls[1]?.messages[1]?.content ?? "",
+      "What you have done so far:",
+      "The page you are on now:",
+    );
+    expect(history.trim().split("\n")).toStrictEqual([
+      `- On ${stepAt(result, 0).urlBefore}: you typed "parcel" into textbox "Search" and pressed Enter.`,
+    ]);
+  });
+
+  test("a goal behind a field with no button is reached by a type that submits", async () => {
+    const { result } = await walk({
+      profile: profileFixture("prof_ada"),
+      task: { ...servedTask("/form"), success: { type: "urlMatches", pattern: "**/form-sent*" } },
+      answers: [searchAndSubmit],
+    });
+
+    expect(result.outcome).toBe("success");
+    expect(kinds(result)).toStrictEqual(["complete"]);
   });
 
   test("a page that never settles after a click still records where it landed, then ends the run", async () => {

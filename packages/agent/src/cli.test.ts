@@ -2,8 +2,10 @@ import { existsSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { basename, dirname, join } from "node:path";
+import { actionFixtures } from "@wayford/core/fixtures";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
+  actionPhrase,
   ENV_FILE,
   parseSeed,
   RUNS_DIR,
@@ -78,6 +80,26 @@ describe("readMaxUsd", () => {
   // `Number` would read the first three; the last two are not positive.
   test.each(["1e3", "0x10", " 1", "0", "-1"])("%j is refused", (text) => {
     expect(readMaxUsd(text, 2)).toBe(`--max-usd is a positive number of USD, got ${text}`);
+  });
+});
+
+describe("actionPhrase", () => {
+  test("writes every action type as run:one prints it", () => {
+    // The fixtures hold one action per member of ACTION_TYPES, in that order, and the `type` one
+    // submits.
+    expect(actionFixtures.map(actionPhrase)).toStrictEqual([
+      "click e2",
+      "doubleClick e2",
+      'type "archive" into e5 and press Enter',
+      "scroll down",
+      "back",
+      "wait 500 ms",
+      "giveUp",
+    ]);
+  });
+
+  test("a type that does not submit ends at its field", () => {
+    expect(actionPhrase({ type: "type", ref: "e4", text: "Bern" })).toBe('type "Bern" into e4');
   });
 });
 

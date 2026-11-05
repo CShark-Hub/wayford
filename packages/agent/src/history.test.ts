@@ -27,10 +27,11 @@ function shownPage(path: string, stepIndex: number, elements: [string, string][]
 }
 
 const home = shownPage("/", 0, [["link", "Your account"]]);
-// The target app has no text field. This one gives the type move something to name.
+// The target app has no text field. This one gives the type moves something to name.
 const account = shownPage("/account", 1, [
   ["link", "Delivery address"],
   ["textbox", "Postcode"],
+  ["textbox", "Search"],
 ]);
 const address = shownPage("/account/address", 2, [["link", "Back to your account"]]);
 
@@ -49,6 +50,11 @@ const MOVES: { label: string; proposed: Action; move: string }[] = [
     label: "type",
     proposed: { type: "type", ref: "e2", text: "MB4 7QT" },
     move: 'typed "MB4 7QT" into textbox "Postcode"',
+  },
+  {
+    label: "type that submits",
+    proposed: { type: "type", ref: "e3", text: "parcel", submit: true },
+    move: 'typed "parcel" into textbox "Search" and pressed Enter',
   },
   { label: "scroll down", proposed: { type: "scroll", direction: "down" }, move: "scrolled down" },
   { label: "scroll up", proposed: { type: "scroll", direction: "up" }, move: "scrolled up" },
@@ -221,6 +227,9 @@ describe("repeats: B2's repeat, the same line as the last proposal", () => {
     ]);
   const NEXT: Action = { type: "click", ref: "e2" };
 
+  const TYPED: Action = { type: "type", ref: "e3", text: "parcel" };
+  const SUBMITTED: Action = { ...TYPED, submit: true };
+
   test.each([
     ["the same click on the same page", [clickedHome], { observation: home, proposed: CLICK_E1 }],
     [
@@ -237,6 +246,11 @@ describe("repeats: B2's repeat, the same line as the last proposal", () => {
       "a second scroll up on one URL",
       [{ observation: account, proposed: { type: "scroll", direction: "up" } }],
       { observation: account, proposed: { type: "scroll", direction: "up" } },
+    ],
+    [
+      "the same type that submits on a page that did not change",
+      [{ observation: account, proposed: SUBMITTED }],
+      { observation: account, proposed: SUBMITTED },
     ],
   ] as const)("%s is a repeat", (_, history, step) => {
     expect(repeats(history, step)).toBe(true);
@@ -267,6 +281,12 @@ describe("repeats: B2's repeat, the same line as the last proposal", () => {
       "another move on the same element",
       [clickedHome],
       { observation: home, proposed: { type: "doubleClick", ref: "e1" } },
+    ],
+    // Typed, then typed and submitted: the Enter makes it another move.
+    [
+      "a type that submits after the same plain type on a page that did not change",
+      [{ observation: account, proposed: TYPED }],
+      { observation: account, proposed: SUBMITTED },
     ],
     [
       "back on another page",

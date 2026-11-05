@@ -3,6 +3,9 @@
  * (behaviour, `docs/RULES.md`) rewrites one action into another — a `click`
  * may become a `doubleClick`, a `scroll` may be performed in place of a `giveUp` —
  * so the union is closed on purpose: a dice rule can only pick from this list.
+ * A `type` may press Enter after its text (`submit`); the Enter belongs to the
+ * `type`, not to an action of its own, so the rules of stage 7 still pick from
+ * the same seven.
  *
  * Payloads are minimal. Anything the Actor wants to say about *why* goes into
  * the narration event, not into the action, so the action stays measurable.
@@ -41,7 +44,15 @@ export const MAX_WAIT_MS = 10_000;
 export const Action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("click"), ref: ElementRef }).strict(),
   z.object({ type: z.literal("doubleClick"), ref: ElementRef }).strict(),
-  z.object({ type: z.literal("type"), ref: ElementRef, text: z.string() }).strict(),
+  z
+    .object({
+      type: z.literal("type"),
+      ref: ElementRef,
+      text: z.string(),
+      /** Press Enter after the text, in the field it typed into. Absent: no Enter. */
+      submit: z.literal(true).optional(),
+    })
+    .strict(),
   z.object({ type: z.literal("scroll"), direction: z.enum(["up", "down"]) }).strict(),
   z.object({ type: z.literal("back") }).strict(),
   z.object({ type: z.literal("wait"), ms: z.number().int().positive().max(MAX_WAIT_MS) }).strict(),
@@ -58,7 +69,9 @@ export type Action = z.infer<typeof Action>;
  * do not survive every provider, so every answer is re-parsed with this schema.
  * `z.toJSONSchema` emits `oneOf` for the `action` union; strict modes that
  * accept only `anyOf` need the adapter to rewrite it, which is safe because
- * the `type` literals are disjoint.
+ * the `type` literals are disjoint. Strict modes also take every property as
+ * required, so the adapter sends an optional property, such as `submit`, as
+ * required and nullable, and reads a null back as absent.
  */
 export const ActorResponse = z.object({ narration: z.string(), action: Action }).strict();
 export type ActorResponse = z.infer<typeof ActorResponse>;

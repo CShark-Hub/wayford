@@ -130,6 +130,13 @@ describe("a step's time", () => {
       4485,
       6283,
     ],
+    // The same type, then the Enter: one K more, at the motor pace, so Vera's is 1.5 × 280 more.
+    [
+      "type that submits: the same + K",
+      { type: "type", ref: refOf(PAGE, SEARCH.name), text: "Order 42", submit: true },
+      4765,
+      6703,
+    ],
   ])("%s", (_operators, action, ada, vera) => {
     expect(asProposed(action, ADA_PACE).ms).toBe(ada);
     expect(asProposed(action, VERA_PACE).ms).toBe(vera);

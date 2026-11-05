@@ -43,7 +43,7 @@ export function movementMs(distancePx: number, widthPx: number): number {
 
 /**
  * The persona's pace (RULES' "The pace"): `thinking` scales M, `motor` scales P, B and the one K
- * of a scroll or a back. Each is a factor of the norm, the KLM's average user.
+ * of a scroll, a back or a submit. Each is a factor of the norm, the KLM's average user.
  */
 export interface Pace {
   thinking: number;
@@ -116,7 +116,7 @@ export function plannedStepMs(step: {
 interface Operators {
   /** B: 2 for a click or a `type`, 4 for a double click. */
   presses: number;
-  /** The one K of a scroll or a back, at the persona's motor pace. */
+  /** The one K of a scroll, a back or a `type` that submits, at the persona's motor pace. */
   keys: number;
   /** The characters a `type` types, each a K at the norm's pace. */
   typed: number;
@@ -133,7 +133,12 @@ function operatorsOf(action: Action): Operators {
       return { ...none, presses: 4 };
     case "type":
       // The one line `act.ts` types, counted in code points, so an emoji is one character.
-      return { ...none, presses: 2, typed: [...oneLine(action.text)].length };
+      return {
+        ...none,
+        presses: 2,
+        keys: action.submit === true ? 1 : 0,
+        typed: [...oneLine(action.text)].length,
+      };
     case "scroll":
     case "back":
       return { ...none, keys: 1 };

@@ -82,7 +82,7 @@ test("describeAction writes every action type on one line", () => {
   expect(actionFixtures.map(describeAction)).toStrictEqual([
     "click e2",
     "doubleClick e2",
-    'type e5 "archive"',
+    'type e5 "archive" + Enter',
     "scroll down",
     "back",
     "wait 500 ms",
@@ -95,4 +95,11 @@ test("typed text keeps its quotes and line breaks visible", () => {
     'type e4 "say \\"hi\\"\\n"',
   );
   expect(describeAction({ type: "type", ref: "e4", text: "" })).toBe('type e4 ""');
+});
+
+test("a type that submits ends in + Enter, and one that does not ends at its text", () => {
+  expect(describeAction({ type: "type", ref: "e4", text: "parcel", submit: true })).toBe(
+    'type e4 "parcel" + Enter',
+  );
+  expect(describeAction({ type: "type", ref: "e4", text: "parcel" })).toBe('type e4 "parcel"');
 });
