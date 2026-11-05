@@ -1,7 +1,7 @@
 [
   { "type": "click", "ref": "e2" },
   { "type": "doubleClick", "ref": "e2" },
-  { "type": "type", "ref": "e5", "text": "archive" },
+  { "type": "type", "ref": "e5", "text": "archive", "submit": true },
   { "type": "scroll", "direction": "down" },
   { "type": "back" },
   { "type": "wait", "ms": 500 },

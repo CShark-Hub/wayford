@@ -31,6 +31,24 @@ describe("Action schema", () => {
     expect(Action.safeParse({ type: "type", ref: "e2", text: "hello" }).success).toBe(true);
   });
 
+  test("submit is true or absent on a type, and nowhere else", () => {
+    const typed = { type: "type", ref: "e2", text: "parcel" };
+    expect(Action.safeParse({ ...typed, submit: true }).success).toBe(true);
+    expect(Action.safeParse(typed).success).toBe(true);
+    expect(Action.safeParse({ ...typed, submit: false }).success).toBe(false);
+    expect(Action.safeParse({ ...typed, submit: "yes" }).success).toBe(false);
+    // A null is refused too: core keeps one way to say "no Enter", and the adapter reads a model's
+    // null as absent (`parseAnswer`, `packages/agent/src/llm.ts`).
+    expect(Action.safeParse({ ...typed, submit: null }).success).toBe(false);
+    for (const action of actionFixtures.filter((fixture) => fixture.type !== "type")) {
+      expect(Action.safeParse({ ...action, submit: true }).success).toBe(false);
+    }
+  });
+
+  test("the type fixture is a full one: it presses Enter", () => {
+    expect(actionFixtures.find((action) => action.type === "type")).toMatchObject({ submit: true });
+  });
+
   test("a ref is a short handle, never a selector or a name", () => {
     expect(ElementRef.safeParse("e1").success).toBe(true);
     expect(ElementRef.safeParse("e42").success).toBe(true);

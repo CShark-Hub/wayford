@@ -28,7 +28,7 @@ z.object({
   type: z.literal("type"),
   ref: ElementRef,
   text: z.string(),
-  /** Press Enter after the text, in the field the click focused. Absent: no Enter. */
+  /** Press Enter after the text, in the field it typed into. Absent: no Enter. */
   submit: z.literal(true).optional(),
 }).strict(),
 ```
