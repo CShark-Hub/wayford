@@ -1,7 +1,7 @@
 # #10 — Enter submits a typed field: plan
 
 Task: issue [CShark-Hub/wayford#10](https://github.com/CShark-Hub/wayford/issues/10), Layer 1 only, size L (a contract in `packages/core` and `docs/RULES.md`, about twelve files) · Spec: `docs/specs/2026-11-05-10-enter-to-submit.md`
-Status: draft
+Status: approved 2026-11-05 (auto)
 
 Every command runs from the worktree's root. `pnpm` is reached through `corepack`.
 
