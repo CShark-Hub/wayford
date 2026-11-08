@@ -15,7 +15,9 @@
  * - `GET /`: every stored run matching the query's `taskId`, `profileId` and `outcome`, newest
  *   first, as `RunResult[]`. A sweep's runs are listed only under `?sweepId=`, never with the
  *   persona's own. Any other key is a 400, so a misspelt filter never lists every run.
- * - `GET /:id`: the stored `RunResult`, or 404. A run in flight is a 404 until it is stored.
+ * - `GET /:id`: the stored `RunResult`, or 404. A run in flight is a 404 until it is stored, and a
+ *   run a stop dropped while it waited for a slot (#6, `routes/races.ts`) is a 404 for good: it
+ *   never started, so nothing is stored.
  * - `GET /:id/events`: the run's `RunEvent`s as server-sent events (below), or 404 for a run this
  *   process has not started.
  * - `GET /:id/video`, `GET /:id/trace`, `GET /:id/steps/:index/screenshot`: the run's files, each
@@ -31,8 +33,10 @@
  *
  * A run's stream sends what the run has published so far, then each event as it is published, and
  * closes after the terminal event, which the runner publishes only once it has tried to store the
- * run. A client that disconnects ends its own stream, never the run. The core fixture run is still replayed under
- * the id `fixture`, at a pace a person can watch, for the web's events screen.
+ * run. A run a stop dropped while it waited for a slot ends at once instead: its stream is its one
+ * `runFinished` `cancelled`, and no save is tried. A client that disconnects ends its own stream,
+ * never the run. The core fixture run is still replayed under the id `fixture`, at a pace a person
+ * can watch, for the web's events screen.
  *
  * A stored file path is data read back from the database, so a file is served only from inside its
  * run's own folder (`runFilePath`), and only when it is a file. Anything else is a 404.
