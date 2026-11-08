@@ -20,6 +20,7 @@ const WORDS: [OutcomeKind, string][] = [
   ["stepCap", "Hit the step cap"],
   ["overBudget", "Over budget"],
   ["error", "Error"],
+  ["stopped", "Stopped"],
   ["waiting", "Waiting"],
   ["moving", "Moving"],
   ["stuck", "Stuck"],
@@ -39,7 +40,8 @@ test.each(WORDS)("%s reads %s", (kind, word) => {
 
 /**
  * Every way a stored run can end: its outcome, the limit that cut a `budget_exceeded` run off (none
- * on a run recorded before the limit was), its kind, and the word it reads as.
+ * on a run recorded before the limit was), its kind, and the word it reads as. `cancelled` is a run
+ * whose race a person stopped (#6): its word is Stopped, not its name.
  */
 const KINDS: [RunOutcome, RunLimit | undefined, OutcomeKind, string][] = [
   ["success", undefined, "through", "Got through"],
@@ -48,6 +50,7 @@ const KINDS: [RunOutcome, RunLimit | undefined, OutcomeKind, string][] = [
   ["budget_exceeded", "steps", "stepCap", "Hit the step cap"],
   ["budget_exceeded", undefined, "overBudget", "Over budget"],
   ["error", undefined, "error", "Error"],
+  ["cancelled", undefined, "stopped", "Stopped"],
 ];
 
 test.each(KINDS)("a run that ended %s, cut off by %s, is %s: %s", (outcome, limit, kind, word) => {
@@ -73,6 +76,7 @@ test("the endings are the stored runs' kinds, and every one but Got through is m
     "stepCap",
     "overBudget",
     "error",
+    "stopped",
   ]);
 });
 
@@ -104,6 +108,27 @@ test("a budget run out is ink-2 whichever limit cut it, word and glyph, as Gave 
       "text-ink-2",
     );
   }
+});
+
+test("Stopped is ink-2, word and glyph, as Gave up is, never fault: a person stopped the race", () => {
+  const html = renderToStaticMarkup(<Outcome kind="stopped" />);
+  const word = classesOf(attributesOf(html.match(/^<span[^>]*>/)?.[0] ?? ""));
+  const glyph = classesOf(attributesOf(html.match(/<svg[^>]*>/)?.[0] ?? ""));
+  expect(word).toContain("text-ink-2");
+  expect(glyph).toContain("text-ink-2");
+  expect([...word, ...glyph]).not.toContain("text-fault");
+});
+
+test("Stopped's glyph is the stop sign: one square, filled, centred, smaller than the circles", () => {
+  const drawing = glyphOf("stopped");
+  expect(drawing).toMatch(/^<rect [^>]*><\/rect>$/);
+  const square = attributesOf(drawing);
+  expect(square.fill).toBe("currentColor");
+  expect(square.width).toBe(square.height);
+  expect(Number(square.x) + Number(square.width) / 2).toBe(12);
+  expect(Number(square.y) + Number(square.height) / 2).toBe(12);
+  // Waiting's circle is 18 across: a square as wide would weigh more than the circles beside it.
+  expect(Number(square.width)).toBeLessThan(18);
 });
 
 test("the glyphs write no colour of their own besides the paper token", () => {
