@@ -217,6 +217,7 @@ describe("/race/$raceId: one race, by the id io gave it", () => {
       startedAt: "2026-10-07T09:00:00.000Z",
       runs: [ada, vera],
       status,
+      waiting: [],
     };
   }
 

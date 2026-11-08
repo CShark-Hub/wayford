@@ -55,9 +55,9 @@ afterAll(async () => {
 /** `demoRace`'s runs: Ada gets through, Kai is under way, Vera gives up. */
 const [ada, kai, vera] = demoRace.runs as [StartedRun, StartedRun, StartedRun];
 
-/** `demoRace` as io keeps it under `id`, with `status`. */
+/** `demoRace` as io keeps it under `id`, with `status`, and no run waiting for a slot. */
 function raceOf(id: string, status: Race["status"], runs: StartedRun[] = demoRace.runs): Race {
-  return { id, task: hardTask, startedAt: "2026-10-07T09:00:00.000Z", runs, status };
+  return { id, task: hardTask, startedAt: "2026-10-07T09:00:00.000Z", runs, status, waiting: [] };
 }
 
 /**

@@ -145,7 +145,7 @@ const DEMO_RACE_ID = "race_demo";
 
 /**
  * `demoRace` as io keeps it: on the hard goal, started at the fixture's first timestamp, with
- * `status`.
+ * `status`, and no run waiting for a slot.
  */
 function demoRaceRecord(status: "running" | "finished") {
   return {
@@ -154,6 +154,7 @@ function demoRaceRecord(status: "running" | "finished") {
     startedAt: "2026-09-22T10:00:00.000Z",
     runs: demoRace.runs,
     status,
+    waiting: [],
   };
 }
 

@@ -13,7 +13,10 @@ import { hardTask } from "./fixture-race.js";
 /** The hard goal as the check hands it back for a race: the same goal, on a task minted for it. */
 const raceTask: Task = { ...hardTask, id: "task_minted-for-race" };
 
-/** A race of Ada, Kai and Vera on the hard goal, seed 1, started at `startedAt`. */
+/**
+ * A race of Ada, Kai and Vera on the hard goal, seed 1, started at `startedAt`, with no run waiting
+ * for a slot.
+ */
 function raceOf(id: string, status: Race["status"], startedAt: string, task = raceTask): Race {
   return {
     id,
@@ -25,6 +28,7 @@ function raceOf(id: string, status: Race["status"], startedAt: string, task = ra
       seed: 1,
     })),
     status,
+    waiting: [],
   };
 }
 
