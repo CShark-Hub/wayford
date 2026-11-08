@@ -68,8 +68,8 @@ type RacesRouteOptions = { db: Db; runner: Runner; logger: Logger };
 /**
  * Writes into `race` the stop that dropped `dequeued`, and logs it. A failed write is logged, then
  * thrown as a 500 that says the runs were stopped all the same, since by then they were: no
- * failure ends in a log line alone (`docs/CONVENTIONS.md`, "Errors"). Once io restarts, such a
- * race draws its dropped runs as lost streams, which is all io kept of them.
+ * failure ends in a log line alone (`docs/CONVENTIONS.md`, "Errors"). Once such a race is drawn
+ * from its records, its dropped runs read as lost streams, which is all io kept of them.
  */
 async function recordStop(
   { db, logger }: Pick<RacesRouteOptions, "db" | "logger">,

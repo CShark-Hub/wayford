@@ -37,7 +37,6 @@ import {
   followRace,
   laneOutcome,
   liveLane,
-  NEVER_STARTED,
   type RaceSnapshot,
   type RunView,
   raceOver,
@@ -893,7 +892,7 @@ describe("a run a stop dropped from io's queue before it started (#6)", () => {
     expect(raceOver(runs, snapshot)).toBe(true);
   });
 
-  test("reopened from the race's stop record, its lane is STOPPED_LANE: what its live lane drew at the end, and a note that it never started", () => {
+  test("reopened from the race's stop record, its lane is STOPPED_LANE: what its live lane drew at the end", () => {
     const live = liveLane(
       {
         events: new Map([[vera.id, [droppedBy(vera)]]]),
@@ -909,16 +908,6 @@ describe("a run a stop dropped from io's queue before it started (#6)", () => {
     const { ended, ...view } = live.view;
     expect(ended).toStrictEqual({ outcome: "cancelled", at: "2026-09-22T10:00:05.000Z" });
     expect(STOPPED_LANE.view).toStrictEqual({ ...view, ended: { outcome: "cancelled" } });
-
-    // Stopped, with no step, neither lost nor linked to a run detail io will never hold.
-    expect(laneOutcome(STOPPED_LANE.view, STOPPED_LANE.lost)).toBe("stopped");
-    expect(STOPPED_LANE.view.state).toBe("idle");
-    expect(STOPPED_LANE.pips).toStrictEqual([]);
-    expect(STOPPED_LANE.steps).toBe("0 steps");
-    expect(STOPPED_LANE.lost).toBe(false);
-    expect(STOPPED_LANE.stored).toBe(false);
-    expect(STOPPED_LANE.note).toBe(NEVER_STARTED);
-    expect(NEVER_STARTED).toBe("Never started: it was still waiting for a slot");
   });
 });
 

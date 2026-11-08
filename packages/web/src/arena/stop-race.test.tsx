@@ -86,8 +86,8 @@ test("a screen with no lanes tells the stop in a line: from the race's record, o
   expect(stopAnswerLine(4)).toBe(
     "Stopped: 4 runs waiting for a slot won't start. The runs under way finish.",
   );
-  // The runs io listed as waiting all took a slot before the stop came.
-  expect(stopAnswerLine(0)).toBe("No run was still waiting for a slot: the runs under way finish.");
+  // Nothing waited when the stop came: each run io had listed took a slot, or the race had finished.
+  expect(stopAnswerLine(0)).toBe("No run was still waiting for a slot, so nothing was stopped.");
 });
 
 test("a stop io did not confirm: its reason, and the way to see where the race stands", () => {

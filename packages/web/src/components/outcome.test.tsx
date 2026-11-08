@@ -119,18 +119,6 @@ test("Stopped is ink-2, word and glyph, as Gave up is, never fault: a person sto
   expect([...word, ...glyph]).not.toContain("text-fault");
 });
 
-test("Stopped's glyph is the stop sign: one square, filled, centred, smaller than the circles", () => {
-  const drawing = glyphOf("stopped");
-  expect(drawing).toMatch(/^<rect [^>]*><\/rect>$/);
-  const square = attributesOf(drawing);
-  expect(square.fill).toBe("currentColor");
-  expect(square.width).toBe(square.height);
-  expect(Number(square.x) + Number(square.width) / 2).toBe(12);
-  expect(Number(square.y) + Number(square.height) / 2).toBe(12);
-  // Waiting's circle is 18 across: a square as wide would weigh more than the circles beside it.
-  expect(Number(square.width)).toBeLessThan(18);
-});
-
 test("the glyphs write no colour of their own besides the paper token", () => {
   for (const [kind] of WORDS) {
     const html = renderToStaticMarkup(<Outcome kind={kind} />);

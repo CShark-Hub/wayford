@@ -5,24 +5,21 @@
  * `api/races.ts`).
  *
  * The confirmation is Radix's `AlertDialog`: the settings dialog's `Dialog` with
- * `role="alertdialog"`, from the same `radix-ui`, drawn in the settings dialog's look. It opens on
- * "Keep running", Esc and "Keep running" close it and send nothing, and a click outside does
- * nothing. The trigger is outlined, as New race is: quiet, never the view's ink primary and never
- * fault, since stopping is a person's choice, not the tool failing. Inside, "Stop race" is the
- * dialog's one ink primary.
+ * `role="alertdialog"`, from the same `radix-ui`, drawn with the settings dialog's own overlay and
+ * box classes (`components/settings-dialog.tsx`), which hold no animation. It opens on "Keep
+ * running", Esc and "Keep running" close it and send nothing, and a click outside does nothing.
+ * The trigger is outlined, as New race is: quiet, never the view's ink primary and never fault,
+ * since stopping is a person's choice, not the tool failing. Inside, "Stop race" is the dialog's
+ * one ink primary.
  *
  * A static render draws no portal, so the confirmation's words are `StopRaceBody`, a view of its
  * props alone, which a test reads; the dialog's focus and keys are the browser test's.
  */
 import { AlertDialog } from "radix-ui";
+import { type RefObject, useRef } from "react";
+import { DIALOG_CONTENT, DIALOG_OVERLAY } from "#components/settings-dialog";
 import { Button } from "#components/ui/button";
 import { count } from "../components/outcome-words.js";
-
-// The settings dialog's overlay and box (`components/settings-dialog.tsx`), with no animation:
-// nothing on the page moves but colour and opacity (`docs/DESIGN.md`, "Motion").
-const OVERLAY = "fixed inset-0 z-(--z-overlay) bg-paper/75";
-const CONTENT =
-  "fixed top-1/2 left-1/2 z-(--z-overlay) flex max-h-[calc(100vh_-_var(--space-8))] w-[min(36rem,calc(100vw_-_var(--space-6)))] -translate-x-1/2 -translate-y-1/2 flex-col gap-(--space-5) overflow-y-auto rounded-md border border-line bg-surface p-(--space-6) shadow-pop";
 
 /** How many runs a stop drops and how many it leaves to finish, when the screen can tell. */
 type Counts = {
@@ -59,13 +56,25 @@ export function StopRaceBody({ waiting, running }: Counts) {
  * "Stop race" and the confirmation it opens, with `waiting` and `running` as its counts if the
  * screen has them. "Stop race" in the dialog calls `onConfirm`; "Keep running" and Esc call
  * nothing. While `pending`, the trigger reads "Stopping…" and cannot be pressed.
+ *
+ * Closed by "Keep running" or Esc, the dialog hands focus back to the trigger, as Radix does.
+ * Closed by "Stop race", it hands focus to `returnFocusTo`'s element, when the screen names one:
+ * the trigger cannot take focus while the stop is pending, and is gone once nothing waits, so
+ * focus would fall to the page's body.
  */
 export function StopRace({
   waiting,
   running,
   pending,
   onConfirm,
-}: Counts & { pending: boolean; onConfirm: () => void }) {
+  returnFocusTo,
+}: Counts & {
+  pending: boolean;
+  onConfirm: () => void;
+  returnFocusTo?: RefObject<HTMLElement | null>;
+}) {
+  // Set by the dialog's "Stop race", and read once the dialog has closed.
+  const confirmed = useRef(false);
   return (
     <AlertDialog.Root>
       <AlertDialog.Trigger asChild>
@@ -74,8 +83,18 @@ export function StopRace({
         </Button>
       </AlertDialog.Trigger>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className={OVERLAY} />
-        <AlertDialog.Content className={CONTENT}>
+        <AlertDialog.Overlay className={DIALOG_OVERLAY} />
+        <AlertDialog.Content
+          className={DIALOG_CONTENT}
+          onCloseAutoFocus={(event) => {
+            const target = confirmed.current ? returnFocusTo?.current : undefined;
+            confirmed.current = false;
+            if (!target) return;
+            // Radix would focus the trigger, which cannot take it now.
+            event.preventDefault();
+            target.focus();
+          }}
+        >
           <AlertDialog.Title className="title text-ink">Stop this race?</AlertDialog.Title>
           <AlertDialog.Description className="body text-pretty text-ink-2">
             <StopRaceBody waiting={waiting} running={running} />
@@ -88,7 +107,13 @@ export function StopRace({
               </Button>
             </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
-              <Button type="button" onClick={() => onConfirm()}>
+              <Button
+                type="button"
+                onClick={() => {
+                  confirmed.current = true;
+                  onConfirm();
+                }}
+              >
                 Stop race
               </Button>
             </AlertDialog.Action>
@@ -109,11 +134,13 @@ export function stopRecordLine(dropped: number): string {
 
 /**
  * What a screen with no lanes says once io answered its stop: `dequeued` runs won't start, or, at
- * 0, that every run io had listed as waiting took a slot before the stop came.
+ * 0, that nothing was stopped. That is true of both answers that drop no run: the 202 once each run
+ * io had listed as waiting took a slot, and the 200 on a race that finished meanwhile, which has no
+ * run under way left to finish.
  */
 export function stopAnswerLine(dequeued: number): string {
   return dequeued === 0
-    ? "No run was still waiting for a slot: the runs under way finish."
+    ? "No run was still waiting for a slot, so nothing was stopped."
     : `Stopped: ${count(dequeued, "run")} waiting for a slot won't start. The runs under way finish.`;
 }
 

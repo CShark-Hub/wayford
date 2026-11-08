@@ -11,18 +11,22 @@
  * - A finished race stays in the History, links to its report, and opens from its runs' records,
  *   with no stream.
  * - A race with a run still waiting for a slot offers Stop race (#6). Its confirmation opens on
- *   "Keep running", and Esc and "Keep running" close it with nothing sent. Confirmed on a race
- *   opened by its URL, it posts one stop for the URL's race, and the trigger reads "Stopping…"
- *   until the dropped run's end comes down its stream.
+ *   "Keep running", and Esc and "Keep running" close it with nothing sent, Esc handing focus back
+ *   to Stop race. Confirmed on a race opened by its URL, it posts one stop for the URL's race, the
+ *   trigger reads "Stopping…" until the dropped run's end comes down its stream, and focus moves to
+ *   New race. A stop io did not confirm says why in an alert, and Stop race can be pressed again.
+ * - A race of more runs than the browser follows live offers Stop race too, and tells io's answer
+ *   in a status line.
  */
 import { fileURLToPath } from "node:url";
 import { type RunEvent, runResultFromEvents, type StartedRun } from "@wayford/core";
 import { runEventFixtures, taskFixture } from "@wayford/core/fixtures";
-import { type Browser, chromium, type Page, type Route } from "playwright";
+import { type Browser, chromium, type Locator, type Page, type Route } from "playwright";
 import { createServer, type ViteDevServer } from "vite";
 import { afterAll, beforeAll, expect, onTestFinished, test, vi } from "vitest";
 import type { Race } from "../api/races.js";
 import { demoRace, eventsOf, waitingRace } from "../arena/demo-race.js";
+import { stopAnswerLine, stopFaultLine } from "../arena/stop-race.js";
 
 // Starting Vite, its first transform of the app and launching Chromium take longer than vitest's
 // 5 s hook default.
@@ -189,6 +193,11 @@ function stopDialog(page: Page) {
   return page.getByRole("alertdialog", { name: "Stop this race?", exact: true });
 }
 
+/** Whether `button`, a button `getByRole` found, holds the page's focus. */
+function focused(button: Locator): Promise<boolean> {
+  return button.evaluate((element) => element === document.activeElement);
+}
+
 test("a race left for the Cast is the same race when the Race tab is clicked again", async () => {
   const { page } = await servedPage({
     // io's list as it stands once the race has started: the History holds it from then on.
@@ -352,11 +361,11 @@ test("the dialog opens on Keep running; Esc and Keep running close it and send n
 
   await trigger.click();
   await dialog.waitFor();
-  await expect
-    .poll(() => keep.evaluate((element) => element === document.activeElement))
-    .toBe(true);
+  await expect.poll(() => focused(keep)).toBe(true);
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
+  // Nothing was stopped, so the trigger still reads Stop race, and focus is back on it.
+  await expect.poll(() => focused(trigger)).toBe(true);
   await settled(page);
   expect(posts()).toStrictEqual([]);
 
@@ -398,11 +407,72 @@ test("a race opened by its URL stops: the dialog's Stop race posts /api/races/<i
   const stopping = page.getByRole("button", { name: "Stopping…", exact: true });
   expect(await stopping.isDisabled()).toBe(true);
   expect(await stopDialog(page).count()).toBe(0);
+  // The trigger cannot be pressed while the stop is pending, so focus went to New race.
+  const newRace = page.getByRole("button", { name: "New race", exact: true });
+  await expect.poll(() => focused(newRace)).toBe(true);
 
   veraStream.release();
   await laneOf(page, "Vera").getByText("Stopped", { exact: true }).waitFor();
   // Nothing waits any more, so nothing is left to stop, though Kai's run is still under way.
   expect(await page.getByRole("button", { name: /^Stop(ping…| race)$/ }).count()).toBe(0);
+  expect(await focused(newRace)).toBe(true);
   expect(await page.locator('[data-source="live"]').count()).toBe(1);
   expect(asked.filter((key) => key.startsWith("POST "))).toStrictEqual([cancel]);
+});
+
+test("a stop io did not confirm: an alert gives io's reason, and the trigger reads Stop race again and can be pressed", async () => {
+  const cancel = "POST /api/races/race_waiting/cancel";
+  const { page, asked } = await servedPage({
+    "GET /api/races/race_waiting": { json: waitingRaceOf("race_waiting") },
+    // io's answer to a failure it did not foresee: nothing was dropped, so Vera still waits.
+    [cancel]: { status: 500, json: { error: "internal error" } },
+    ...WAITING_STREAMS,
+  });
+  await page.goto(`${origin}/race/race_waiting`);
+  await waitingLanesDrawn(page);
+  const trigger = page.getByRole("button", { name: "Stop race", exact: true });
+  await trigger.click();
+  await stopDialog(page).getByRole("button", { name: "Stop race", exact: true }).click();
+
+  const alert = page.getByRole("alert");
+  await alert.waitFor();
+  expect(await alert.textContent()).toBe(stopFaultLine("io answered 500: internal error"));
+  // The request failed, so nothing is pending: the trigger is back, and opens the confirmation.
+  expect(await trigger.isEnabled()).toBe(true);
+  await trigger.click();
+  await stopDialog(page).waitFor();
+  expect(asked.filter((key) => key.startsWith("POST "))).toStrictEqual([cancel]);
+});
+
+test("a race of more runs than the browser follows stops too: io's answer is told in a status line, and Stop race goes", async () => {
+  const cancel = "POST /api/races/race_many/cancel";
+  /** Six runs, each on its own seed, more than the five a browser follows live. */
+  const six: StartedRun[] = ["ada", "kai", "milo", "vera", "zoya", "ada"].map((name, i) => ({
+    id: `run_${name}-${i}`,
+    profileId: `prof_${name}`,
+    seed: i + 1,
+  }));
+  // The last three still wait for a slot.
+  const race: Race = {
+    ...raceOf("race_many", "running", six),
+    waiting: six.slice(3).map(({ id }) => id),
+  };
+  const { page, asked } = await servedPage({
+    "GET /api/races/race_many": { json: race },
+    [cancel]: { status: 202, json: { stopped: 0, dequeued: 3 } },
+  });
+  await page.goto(`${origin}/race/race_many`);
+  await page.getByRole("button", { name: "Stop race", exact: true }).click();
+  await stopDialog(page).getByRole("button", { name: "Stop race", exact: true }).click();
+
+  const told = page.getByRole("status");
+  await told.waitFor();
+  expect(await told.textContent()).toBe(stopAnswerLine(3));
+  // Nothing waits after the stop, so nothing is left to stop.
+  expect(await page.getByRole("button", { name: /^Stop(ping…| race)$/ }).count()).toBe(0);
+  expect(asked.filter((key) => key.startsWith("POST "))).toStrictEqual([cancel]);
+  // The trigger went, so focus went to New race.
+  await expect
+    .poll(() => focused(page.getByRole("button", { name: "New race", exact: true })))
+    .toBe(true);
 });

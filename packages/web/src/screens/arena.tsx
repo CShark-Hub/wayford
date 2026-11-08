@@ -36,6 +36,7 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import { z } from "zod";
@@ -410,10 +411,14 @@ function NoRace({ raceId, children }: { raceId: string; children: ReactNode }) {
  * With no stream, the screen knows only what io said when it asked, and what io answers to a stop
  * (#6). Beside New race: the stop the race's record names, or the one io just answered, in a status
  * line, so a screen reader hears the answer; else, while io listed a run as waiting for a slot,
- * "Stop race", its confirmation without counts. A stop io did not confirm adds a fault line.
+ * "Stop race", its confirmation without counts. Once the stop is confirmed, focus moves to New
+ * race: Stop race cannot take it while it reads "Stopping…", and gives way to the status line once
+ * io confirms. A stop io did not confirm adds a fault line.
  */
 function TooManyToFollow({ race, onNewRace }: { race: Race; onNewRace: () => void }) {
   const stop = useStop(race);
+  // Where focus goes once the stop is confirmed (`StopRace`).
+  const newRace = useRef<HTMLButtonElement>(null);
   const told =
     race.cancelled !== undefined
       ? stopRecordLine(race.cancelled.dequeued.length)
@@ -432,7 +437,7 @@ function TooManyToFollow({ race, onNewRace }: { race: Race; onNewRace: () => voi
         {`This race has ${race.runs.length} runs, more than the ${MAX_PERSONAS} a browser can follow live at once. Open it again once it has finished to see it drawn from its runs' records, and each run is under Runs once it is stored.`}
       </p>
       <div className="flex flex-wrap items-center gap-(--space-3)">
-        <Button type="button" variant="outline" onClick={onNewRace}>
+        <Button ref={newRace} type="button" variant="outline" onClick={onNewRace}>
           New race
         </Button>
         {told !== undefined ? (
@@ -440,7 +445,11 @@ function TooManyToFollow({ race, onNewRace }: { race: Race; onNewRace: () => voi
             {told}
           </p>
         ) : race.waiting.length > 0 ? (
-          <StopRace pending={stop.isPending} onConfirm={() => stop.mutate()} />
+          <StopRace
+            pending={stop.isPending}
+            onConfirm={() => stop.mutate()}
+            returnFocusTo={newRace}
+          />
         ) : null}
       </div>
       {stop.error === null ? null : (

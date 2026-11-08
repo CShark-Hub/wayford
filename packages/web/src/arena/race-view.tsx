@@ -29,7 +29,7 @@
  */
 import { Link } from "@tanstack/react-router";
 import type { Profile, Seed, StartedRun, Task, TaskId } from "@wayford/core";
-import type { ReactElement } from "react";
+import { type ReactElement, useRef } from "react";
 import { OUTCOME_WORDS } from "#components/outcome";
 import { PersonaAvatar } from "#components/persona-avatar";
 import { RaceLane } from "#components/race-lane";
@@ -185,9 +185,11 @@ function LaneOf({
  * "New race" calls `onNewRace` at any time: several races can run at once. While the race is not
  * `over`, a line says that a new race's runs queue behind these. With a `stop` to offer, "Stop race"
  * follows New race while a run still waits for a slot: a stop drops the runs still waiting, which
- * never start, and the runs under way finish, so a new race still queues behind those. When io did
- * not confirm the stop, a line under the buttons says so, in fault, and claims nothing about what
- * still runs, since io may have dropped the runs and failed only to record the stop.
+ * never start, and the runs under way finish, so a new race still queues behind those. Once the
+ * stop is confirmed, focus moves to New race: Stop race cannot take it while it reads "Stopping…",
+ * and goes once nothing waits. When io did not confirm the stop, a line under the buttons says so,
+ * in fault, and claims nothing about what still runs, since io may have dropped the runs and failed
+ * only to record the stop.
  *
  * Once the race is over, a line under the buttons says how many runs got through, in k/n over the
  * runs a stop did not drop, how many were stopped, and how many streams were lost; when every run
@@ -225,6 +227,8 @@ export function RaceView({
   onNewRace: () => void;
   stop?: StopOffer;
 }) {
+  // Where focus goes once a stop is confirmed (`StopRace`).
+  const newRace = useRef<HTMLButtonElement>(null);
   const profileOf = new Map(profiles.map((profile) => [profile.id, profile]));
   const lanes: Lane[] = runs.map((run) => {
     const persona = profileOf.get(run.profileId)?.label ?? run.profileId;
@@ -278,6 +282,7 @@ export function RaceView({
               {seeds.join(", ")}
             </span>
             <Button
+              ref={newRace}
               type="button"
               variant="outline"
               onClick={onNewRace}
@@ -291,6 +296,7 @@ export function RaceView({
                 running={stop.running}
                 pending={stop.pending}
                 onConfirm={stop.onConfirm}
+                returnFocusTo={newRace}
               />
             ) : null}
             {!over ? null : reportTask === undefined ? (
