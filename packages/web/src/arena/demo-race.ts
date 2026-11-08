@@ -1,9 +1,9 @@
 /**
  * Test and check data, Node only: this file imports `@wayford/core/fixtures`, which reads its files
  * with `node:fs`, so no screen may import it. It holds `demoRace`, a race in progress built from
- * Vera's fixture run, and `eventsOf`, which makes fixture events a run's own. The race's tests
- * import `demoRace` from here, and the self-check serves it, and the races it builds with
- * `eventsOf`, to the Race.
+ * Vera's fixture run, `waitingRace`, the same race while one run still waits for a slot, and
+ * `eventsOf`, which makes fixture events a run's own. The race's tests import both races from here,
+ * and the self-check serves them, and the races it builds with `eventsOf`, to the Race.
  *
  * A module of its own so the self-check can load it. `check:self` runs under plain `tsx`, not Vite,
  * and `./fixture-race.js` reaches Vite's `import.meta.glob` through `./panel-state.js`. This file
@@ -82,4 +82,39 @@ export const demoRace: {
     [demoKai.id, eventsOf(demoKai, runEventFixtures.slice(0, 16))],
     [demoVera.id, eventsOf(demoVera, runEventFixtures)],
   ]),
+};
+
+/**
+ * The one event io streams for a run a stop drops from its queue before it started (#6): a
+ * `runFinished` `cancelled` at step 0, after no time and at no cost, with no `runStarted` before
+ * it. Dated after Kai's step 4 was observed, the latest event of `waitingRace`.
+ */
+const droppedEnd = RunEvent.parse({
+  type: "runFinished",
+  runId: FIXTURE_RUN_ID,
+  stepIndex: 0,
+  timestamp: "2026-09-22T10:00:14.000Z",
+  outcome: "cancelled",
+  durationMs: 0,
+  cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
+});
+
+/**
+ * `demoRace` while Vera's run still waits for a slot behind another race's runs (#6). io lists it
+ * in the race's `waiting`, and her stream, open, brings nothing, so her lane waits with no step.
+ * Ada gets through and Kai is under way, as in `demoRace`, so the race is not over and offers Stop
+ * race. `dropped` is what her stream brings once a stop drops her run: its one event, which ends
+ * it.
+ */
+export const waitingRace: {
+  runs: StartedRun[];
+  waiting: RunId[];
+  events: ReadonlyMap<RunId, readonly RunEvent[]>;
+  dropped: readonly RunEvent[];
+} = {
+  runs: demoRace.runs,
+  waiting: [demoVera.id],
+  // A Map keeps a key where it was first set, so Vera's empty stream keeps her lane third.
+  events: new Map([...demoRace.events, [demoVera.id, []]]),
+  dropped: eventsOf(demoVera, [droppedEnd]),
 };

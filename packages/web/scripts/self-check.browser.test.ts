@@ -5,13 +5,14 @@
  * server, as `pnpm test` runs it in CI. The races there show `eventStreamAnswer` and `act` at work:
  * each lane is drawn from its event stream, after the clicks `act` makes. Run detail, as the list
  * opens it, is read for its source badge, and on Jev's step for the row of labels under the draw,
- * which ends inside the 720 px view. The race is read live, as race-live and again with a detail
- * line in every lane, for its badge and its fit in one 1280 × 720 view, and once every run has
- * ended, for no badge at all, its floors and its fit, and the links on to the report and each run,
- * on a goal with a stored report and on one without, and Back from the report finds it again,
- * until New race clears it. Run detail's ← and → are pressed on the page itself, and its
- * screenshot crop is measured against the click point and the flag that names the action. Each
- * listed screen, once measured, is also scanned with axe-core on the same page.
+ * which ends inside the 720 px view. The race is read live, as race-live, again with a detail line
+ * in every lane, and again with a run waiting for a slot and Stop race in its header, for its badge
+ * and its fit in one 1280 × 720 view, and once every run has ended, for no badge at all, its floors
+ * and its fit, and the links on to the report and each run, on a goal with a stored report and on
+ * one without, and Back from the report finds it again, until New race clears it. Run detail's ←
+ * and → are pressed on the page itself, and its screenshot crop is measured against the click
+ * point and the flag that names the action. Each listed screen, once measured, is also scanned
+ * with axe-core on the same page.
  */
 import { AxeBuilder } from "@axe-core/playwright";
 import { AXE_WCAG_TAGS, RunEvent, RunResult, type StartedRun, Sweep } from "@wayford/core";
@@ -548,31 +549,48 @@ describe("on the web app", () => {
       expect(row.y + row.height).toBeLessThanOrEqual(SELF_CHECK_VIEWPORT.height);
     });
 
+    // What the lane pass below reads off a lane, by the kind of lane it is.
+
+    /** No detail line, so its narration is given two lines, and shows whole in them. */
+    const WHOLE = { detail: false, clear: true, cut: false, bubble: true, pointed: true };
+    /**
+     * A detail line, which takes the narration's second line. Each narration of the detail race is
+     * said twice, so it runs past the one line left: were it given two, the lane would be 24 px
+     * taller, and the page 30 px over 720.
+     */
+    const CUT = { detail: true, clear: true, cut: true, bubble: true, pointed: true };
+    /** A run still waiting for a slot: nothing narrated yet, so no bubble to place or point. */
+    const WAITING = { detail: false, clear: true, cut: false, bubble: false, pointed: false };
+
     test.each(
       (
         [
-          // No detail line, so each narration is given two lines, and shows whole in them.
-          [listedScreen("race-live"), { detail: false, cut: false }],
-          // A detail line in every lane, which takes the narration's second line. Each narration
-          // is said twice, so it runs past the one line left: were it given two, the lane would
-          // be 24 px taller, and the page 30 px over 720.
-          [raceDetailScreen(), { detail: true, cut: true }],
+          // No run waits for a slot in race-live or race-detail, so neither header offers a stop.
+          [listedScreen("race-live"), false, [WHOLE, WHOLE, WHOLE]],
+          [raceDetailScreen(), false, [CUT, CUT, CUT]],
+          // Vera's run waits, so Stop race joins New race in the header, and narrows the goal
+          // beside them.
+          [listedScreen("race-waiting"), true, [WHOLE, WHOLE, WAITING]],
         ] as const
-      ).flatMap(([screen, lane]) =>
+      ).flatMap(([screen, stop, expected]) =>
         SELF_CHECK_THEMES.map(
-          (theme) => [screen.name, THEME_NAMES[theme], screen, lane, theme] as const,
+          (theme) => [screen.name, THEME_NAMES[theme], screen, stop, expected, theme] as const,
         ),
       ),
     )(
       "%s in %s: the header says live, and three lanes fit 1280 × 720 with no scroll",
-      async (_name, _theme, screen, lane, theme) => {
-        // Either race can be the taller, so the fit is measured on both: padding a lane with no
-        // detail line would push race-live over 720 and leave race-detail as it was.
+      async (_name, _theme, screen, stop, expected, theme) => {
+        // Any of the races can be the tallest, so the fit is measured on each: padding a lane with
+        // no detail line would push race-live over 720 and leave race-detail as it was, and a
+        // header grown taller around Stop race would push race-waiting over alone.
         const page = await newPage();
         await checkScreen(page, app.origin, screen, theme);
         const header = page.locator("section[aria-labelledby='race-goal'] > header");
         expect(await header.locator('[data-source="live"]').count()).toBe(1);
         expect(await badges(page).count()).toBe(1);
+        expect(await header.getByRole("button", { name: "Stop race", exact: true }).count()).toBe(
+          stop ? 1 : 0,
+        );
         // Whether each lane draws a detail line, and whether its box stays clear of the screenshot
         // and the link beside it, whatever its text; whether its clamp cuts its narration short;
         // and whether its narration's bubble, its ground drawn outside its text, stays inside the
@@ -615,9 +633,7 @@ describe("on the web app", () => {
             };
           }),
         );
-        expect(lanes).toEqual(
-          [1, 2, 3].map(() => ({ ...lane, clear: true, bubble: true, pointed: true })),
-        );
+        expect(lanes).toEqual(expected);
         const height = await page.evaluate(() => document.scrollingElement?.scrollHeight);
         expect(height).toBeLessThanOrEqual(SELF_CHECK_VIEWPORT.height);
       },
