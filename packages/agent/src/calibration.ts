@@ -109,9 +109,14 @@ export type End = "success" | "gave_up" | "step_cap" | "clock" | "error";
  * recorded before it is read from its steps: the step cap is `maxSteps` steps with a last step
  * that is complete or wasted; anything else ran out of time, mid-step or not. Which clock ended a
  * `clock` run is in the record: a run with `simulatedMs` was ended by the simulated clock (B3,
- * s2-09), one without by the wall clock (s2-10's), as every run from before #196 was.
+ * s2-09), one without by the wall clock (s2-10's), as every run from before #196 was. A
+ * `cancelled` run throws: a calibration run is never in a race, so nothing can stop it (#6), and
+ * only a bug gets one here.
  */
 export function endOf(result: RunResult, maxSteps: number): End {
+  if (result.outcome === "cancelled") {
+    throw new Error(`run ${result.id} ended cancelled, but a calibration run is never in a race`);
+  }
   if (result.outcome !== "budget_exceeded") return result.outcome;
   if (result.limit !== undefined) return result.limit === "steps" ? "step_cap" : "clock";
   const last = result.steps.at(-1);

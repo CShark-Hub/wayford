@@ -324,7 +324,14 @@ test("the summary pastes: outcomes, each sweep's boundary, the wall time and the
   const summary: DemoSummary = {
     backend: "jev",
     models: ["typesafe/jev-1.13"],
-    outcomes: { success: 120, gave_up: 70, budget_exceeded: 10, error: 0, missing: 0 },
+    outcomes: {
+      success: 120,
+      gave_up: 70,
+      budget_exceeded: 10,
+      error: 0,
+      cancelled: 0,
+      missing: 0,
+    },
     setRuns: 60,
     runsUsd: 0.1,
     reports: [report],
@@ -350,5 +357,37 @@ test("the summary pastes: outcomes, each sweep's boundary, the wall time and the
   expect(boundaryLine("contrast", vera.values, 10)).toMatch(/^boundary {3}3\.0 /);
   expect(summaryText({ ...summary, outcomes: { ...summary.outcomes, missing: 2 } })).toContain(
     "0 error, 2 never stored",
+  );
+});
+
+test("the summary names cancelled runs only when there are any, as it does runs never stored", () => {
+  const summary: DemoSummary = {
+    backend: "jev",
+    models: ["typesafe/jev-1.13"],
+    outcomes: {
+      success: 2,
+      gave_up: 1,
+      budget_exceeded: 0,
+      error: 0,
+      cancelled: 0,
+      missing: 0,
+    },
+    setRuns: 3,
+    runsUsd: 0,
+    reports: [],
+    sweeps: [],
+    wallMs: 0,
+  };
+  const runsLine = (outcomes: DemoSummary["outcomes"]) =>
+    summaryText({ ...summary, outcomes }).split("\n")[1];
+
+  expect(runsLine(summary.outcomes)).toBe(
+    "runs       3: 2 success, 1 gave up, 0 budget exceeded, 0 error",
+  );
+  expect(runsLine({ ...summary.outcomes, gave_up: 0, cancelled: 1 })).toBe(
+    "runs       3: 2 success, 0 gave up, 0 budget exceeded, 0 error, 1 cancelled",
+  );
+  expect(runsLine({ ...summary.outcomes, success: 0, cancelled: 1, missing: 2 })).toBe(
+    "runs       3: 0 success, 1 gave up, 0 budget exceeded, 0 error, 1 cancelled, 2 never stored",
   );
 });
