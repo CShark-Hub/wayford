@@ -27,6 +27,15 @@
       "id": "run_vera-past-order-1",
       "profileId": "prof_vera",
       "seed": 1
+    },
+    {
+      "id": "run_milo-past-order-1",
+      "profileId": "prof_milo",
+      "seed": 1
     }
-  ]
+  ],
+  "cancelled": {
+    "at": "2026-09-22T10:00:20.000Z",
+    "dequeued": ["run_milo-past-order-1"]
+  }
 }

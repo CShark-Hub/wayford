@@ -4,9 +4,10 @@
  * never bundled: it is the one place in web that imports the filter's main entry (`docs/STACK.md`,
  * "Package import rules").
  *
- * The screens are served core's fixtures, `demoRace` and the Jev run. `check:self` runs this file
- * under plain `tsx`, not Vite, so nothing it imports may reach Vite's `import.meta.glob`: that is
- * why `demoRace` has a module of its own, apart from the arena's other test data.
+ * The screens are served core's fixtures, `demoRace`, `waitingRace` and the Jev run. `check:self`
+ * runs this file under plain `tsx`, not Vite, so nothing it imports may reach Vite's
+ * `import.meta.glob`: that is why the two races have a module of their own, apart from the arena's
+ * other test data.
  */
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
@@ -37,7 +38,7 @@ import {
 import { collect } from "@wayford/filter";
 import type { Page } from "playwright";
 import { createServer } from "vite";
-import { demoRace } from "../src/arena/demo-race.js";
+import { demoRace, waitingRace } from "../src/arena/demo-race.js";
 import { runView } from "../src/arena/race.js";
 import { fixtureSweep } from "../src/boundary/fixture-sweeps.js";
 import { fixtureJevRun, fixtureRuns } from "../src/runs/fixture-runs.js";
@@ -145,7 +146,7 @@ const DEMO_RACE_ID = "race_demo";
 
 /**
  * `demoRace` as io keeps it: on the hard goal, started at the fixture's first timestamp, with
- * `status`.
+ * `status`, and no run waiting for a slot.
  */
 function demoRaceRecord(status: "running" | "finished") {
   return {
@@ -154,6 +155,7 @@ function demoRaceRecord(status: "running" | "finished") {
     startedAt: "2026-09-22T10:00:00.000Z",
     runs: demoRace.runs,
     status,
+    waiting: [],
   };
 }
 
@@ -172,20 +174,23 @@ const DEMO_HISTORY = [
  * goal, picks Ada, Kai and Vera, starts the race and waits for each lane's `waits`. io answers the
  * panel's History empty, its stored goals with `FOREIGN_TASK`, the goal accepted as it stands
  * (201), the three runs started as one race (202), the race running when the screen opens it by
- * its id, the hard goal's stored report, each run's events as its stream, and every screenshot up
- * to the latest of each, read off `runView`. A lane shows only the latest once its stream has
- * delivered, but a stream that arrived in two chunks would draw an earlier one first, and an
- * unlisted request fails the check.
+ * its id, with `waiting` its runs still waiting for a slot, the hard goal's stored report, each
+ * run's events as its stream, and every screenshot up to the latest of each, read off `runView`. A
+ * lane shows only the latest once its stream has delivered, but a stream that arrived in two
+ * chunks would draw an earlier one first, and an unlisted request fails the check.
  */
 export function raceScreen({
   name,
   events,
+  waiting = [],
   waits,
   ready,
 }: {
   name: string;
   /** Each of `demoRace`'s runs' events, by run id. */
   events: ReadonlyMap<RunId, readonly RunEvent[]>;
+  /** The runs io lists as waiting for a slot when the screen opens the race: none unless given. */
+  waiting?: readonly RunId[];
   /**
    * What each lane shows once its stream has delivered, by persona: a string is an element's whole
    * text, a RegExp a pattern its text matches. One `ready` locator cannot prove that three streams
@@ -204,7 +209,7 @@ export function raceScreen({
       "/tasks": [FOREIGN_TASK],
       "POST /tasks": jsonAnswer({ task: taskFixture("task_past-order"), rewritten: false }, 201),
       "/runs": jsonAnswer({ raceId: DEMO_RACE_ID, runs: demoRace.runs }, 202),
-      [`/races/${DEMO_RACE_ID}`]: demoRaceRecord("running"),
+      [`/races/${DEMO_RACE_ID}`]: { ...demoRaceRecord("running"), waiting },
       // The hard goal's stored report, which the race reads as it opens, to lead to once over.
       "/reports/task_past-order": reportFixture("task_past-order"),
       ...Object.fromEntries(
@@ -231,6 +236,39 @@ export function raceScreen({
       for (const [persona, text] of Object.entries(waits)) {
         await laneOf(page, persona).getByText(text, { exact: true }).waitFor();
       }
+    },
+  };
+}
+
+/**
+ * The Race with `waitingRace` started: Vera's run still waits for a slot, so the header offers Stop
+ * race beside New race (#6), and her lane waits with no step. Her stream brings nothing, so `act`
+ * waits on Ada's lane and Kai's alone, and the screen is ready once Stop race shows.
+ */
+function raceWaitingScreen(): SelfCheckScreen {
+  return raceScreen({
+    name: "race-waiting",
+    events: waitingRace.events,
+    waiting: waitingRace.waiting,
+    waits: { Ada: "1st", Kai: "5 steps so far" },
+    ready: 'role=button[name="Stop race"s]',
+  });
+}
+
+/**
+ * The race-waiting screen with Stop race pressed: its confirmation open. Radix hides the page
+ * behind the dialog from assistive technology, which `collect` skips, so the dialog is what is
+ * measured. Its own "Stop race" is never pressed, so io is asked for no stop.
+ */
+function raceStopScreen(): SelfCheckScreen {
+  const waitingScreen = raceWaitingScreen();
+  return {
+    ...waitingScreen,
+    name: "race-stop",
+    ready: 'role=alertdialog[name="Stop this race?"s]',
+    act: async (page) => {
+      await waitingScreen.act?.(page);
+      await page.getByRole("button", { name: "Stop race", exact: true }).click();
     },
   };
 }
@@ -453,6 +491,8 @@ export const SELF_CHECK_SCREENS: readonly SelfCheckScreen[] = [
     waits: { Ada: "1st", Kai: "5 steps so far", Vera: "5 steps" },
     ready: 'role=article[name="Vera"s] >> text="Gave up"',
   }),
+  raceWaitingScreen(),
+  raceStopScreen(),
   raceStoredScreen(),
   {
     name: "report",

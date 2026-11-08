@@ -14,16 +14,19 @@
  * the stored goals; choosing another goal does not write the URL.
  *
  * A race io still runs is followed live, one stream per run (`arena/race.ts`): io streams a run's
- * events from its first, so a race reopened midway shows its lanes as they stand. A finished race
- * is drawn from its runs' stored records, which outlive io's process, as its streams do not. Once
- * over, either leads on to a report (`arena/report-task.ts`).
+ * events from its first, so a race reopened midway shows its lanes as they stand. While a run of it
+ * waits for a slot, it can be stopped (#6, `arena/stop-race.tsx`): io drops the runs still waiting,
+ * and the runs under way finish. A finished race is drawn from its runs' stored records, which
+ * outlive io's process, as its streams do not, and each run its stop dropped, which io never
+ * stores, from the race's record of the stop. Once over, either leads on to a report
+ * (`arena/report-task.ts`).
  *
  * This file holds the state and starts the calls to io; the rest is pure or plain. The start panel's
  * rules live in `arena/panel-state.ts`, its calls to io in `arena/panel-calls.ts` and its view in
  * `arena/start-panel.tsx`; the race's folds and its one stream per run in `arena/race.ts`, its view
  * in `arena/race-view.tsx`.
  */
-import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { createRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { type RaceId, type Task, TaskId } from "@wayford/core";
 import {
@@ -33,6 +36,7 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import { z } from "zod";
@@ -40,7 +44,7 @@ import { Banner } from "#components/banner";
 import { Skeleton } from "#components/skeleton";
 import { Button, buttonVariants } from "#components/ui/button";
 import { useActorBackend } from "../actor-backend.js";
-import { type Race, raceQuery } from "../api/races.js";
+import { cancelRace, type Race, raceQuery } from "../api/races.js";
 import { runQuery, tasksQuery } from "../api/runs.js";
 import { RaceHistory } from "../arena/history.js";
 import { checkGoal, startRace } from "../arena/panel-calls.js";
@@ -62,13 +66,17 @@ import {
   followRace,
   liveLane,
   raceOver,
+  STOPPED_LANE,
+  stillWaiting,
   storedLane,
   UNSTORED_LANE,
+  underWay,
 } from "../arena/race.js";
 import { RaceView } from "../arena/race-view.js";
 import { useReportTask } from "../arena/report-task.js";
 import { forgetRace, showRace } from "../arena/shown-race.js";
 import { StartPanel, type StoredGoals } from "../arena/start-panel.js";
+import { StopRace, stopAnswerLine, stopFaultLine, stopRecordLine } from "../arena/stop-race.js";
 import { bundledProfiles } from "../bundled-fixtures.js";
 import { rootRoute } from "../shell.js";
 
@@ -262,11 +270,27 @@ function headerOf(race: Race) {
   };
 }
 
-/** A race io still runs, followed live: its streams open on mount and close on unmount. */
+/**
+ * `POST /races/:id/cancel` for `race` (#6), held by the screen, since its views hold no call to io.
+ * Nothing is refetched once io answers: a live race's dropped runs end through their streams, and
+ * `TooManyToFollow` says what io answered.
+ */
+function useStop(race: Race) {
+  return useMutation({ mutationFn: () => cancelRace(race.id) });
+}
+
+/**
+ * A race io still runs, followed live: its streams open on mount and close on unmount. It offers a
+ * stop while a run io listed as waiting for a slot has brought nothing since, so is still waiting.
+ * The stop is pending from the request on, and stays so once io has confirmed it, until the
+ * streams bring the dropped runs' ends and nothing waits: the trigger never reads "Stop race" again
+ * before it goes. A request that fails ends it, under the fault line.
+ */
 function LiveRace({ race, onNewRace }: { race: Race; onNewRace: () => void }) {
   const [snapshot, setSnapshot] = useState(EMPTY_SNAPSHOT);
   useEffect(() => followRace(race.runs, setSnapshot), [race.runs]);
   const reportTask = useReportTask(race.task);
+  const stop = useStop(race);
   return (
     <RaceView
       {...headerOf(race)}
@@ -275,17 +299,30 @@ function LiveRace({ race, onNewRace }: { race: Race; onNewRace: () => void }) {
       over={raceOver(race.runs, snapshot)}
       reportTask={reportTask}
       onNewRace={onNewRace}
+      stop={{
+        waiting: stillWaiting(race.waiting, snapshot).length,
+        running: underWay(race.runs, race.waiting, snapshot).length,
+        pending: stop.isPending || stop.isSuccess,
+        error: stop.error?.message,
+        onConfirm: () => stop.mutate(),
+      }}
     />
   );
 }
 
 /**
  * A finished race, drawn from its runs' stored records: a run io holds no record of is drawn as
- * `UNSTORED_LANE`. While a record loads, the lanes wait as skeletons; a record io fails to send is
- * a fault, with "Try again".
+ * `UNSTORED_LANE`. A run the race's stop record names never started, so io never will hold one: it
+ * is drawn as `STOPPED_LANE`, and io is not asked for it, which would only bring a 404. While a
+ * record loads, the lanes wait as skeletons; a record io fails to send is a fault, with "Try
+ * again".
  */
 function StoredRace({ race, onNewRace }: { race: Race; onNewRace: () => void }) {
-  const records = useQueries({ queries: race.runs.map((run) => runQuery(run.id)) });
+  const dropped = new Set(race.cancelled?.dequeued);
+  // The runs io may hold a record of, in the race's order. `records` follows this list, not
+  // `race.runs`.
+  const kept = race.runs.filter((run) => !dropped.has(run.id));
+  const records = useQueries({ queries: kept.map((run) => runQuery(run.id)) });
   const reportTask = useReportTask(race.task);
   const failed = records.find((record) => record.isError && record.data === undefined);
   if (failed !== undefined) {
@@ -301,12 +338,13 @@ function StoredRace({ race, onNewRace }: { race: Race; onNewRace: () => void }) 
   }
   if (records.some((record) => record.data === undefined))
     return <Loading lanes={race.runs.length} />;
-  // In `race.runs`' order; `null` for a run io answered 404 for.
-  const recordOf = new Map(race.runs.map((run, index) => [run.id, records[index]?.data]));
+  // In `kept`'s order; `null` for a run io answered 404 for.
+  const recordOf = new Map(kept.map((run, index) => [run.id, records[index]?.data]));
   return (
     <RaceView
       {...headerOf(race)}
       foldOf={(run) => {
+        if (dropped.has(run.id)) return STOPPED_LANE;
         const record = recordOf.get(run.id);
         return record ? storedLane(record) : UNSTORED_LANE;
       }}
@@ -369,8 +407,24 @@ function NoRace({ raceId, children }: { raceId: string; children: ReactNode }) {
  * A running race of more runs than the browser can follow at once: one stream per run, and a
  * browser opens few connections per origin (`MAX_PERSONAS` in `arena/panel-state.ts`). Only a run
  * set started through io's API can be one; the start panel takes at most `MAX_PERSONAS`.
+ *
+ * With no stream, the screen knows only what io said when it asked, and what io answers to a stop
+ * (#6). Beside New race: the stop the race's record names, or the one io just answered, in a status
+ * line, so a screen reader hears the answer; else, while io listed a run as waiting for a slot,
+ * "Stop race", its confirmation without counts. Once the stop is confirmed, focus moves to New
+ * race: Stop race cannot take it while it reads "Stopping…", and gives way to the status line once
+ * io confirms. A stop io did not confirm adds a fault line.
  */
 function TooManyToFollow({ race, onNewRace }: { race: Race; onNewRace: () => void }) {
+  const stop = useStop(race);
+  // Where focus goes once the stop is confirmed (`StopRace`).
+  const newRace = useRef<HTMLButtonElement>(null);
+  const told =
+    race.cancelled !== undefined
+      ? stopRecordLine(race.cancelled.dequeued.length)
+      : stop.data !== undefined
+        ? stopAnswerLine(stop.data.dequeued)
+        : undefined;
   return (
     <section
       aria-labelledby="race-goal"
@@ -382,9 +436,27 @@ function TooManyToFollow({ race, onNewRace }: { race: Race; onNewRace: () => voi
       <p className="max-w-170 body text-pretty text-ink-2">
         {`This race has ${race.runs.length} runs, more than the ${MAX_PERSONAS} a browser can follow live at once. Open it again once it has finished to see it drawn from its runs' records, and each run is under Runs once it is stored.`}
       </p>
-      <Button type="button" variant="outline" onClick={onNewRace}>
-        New race
-      </Button>
+      <div className="flex flex-wrap items-center gap-(--space-3)">
+        <Button ref={newRace} type="button" variant="outline" onClick={onNewRace}>
+          New race
+        </Button>
+        {told !== undefined ? (
+          <p role="status" className="max-w-170 body text-pretty text-ink-2">
+            {told}
+          </p>
+        ) : race.waiting.length > 0 ? (
+          <StopRace
+            pending={stop.isPending}
+            onConfirm={() => stop.mutate()}
+            returnFocusTo={newRace}
+          />
+        ) : null}
+      </div>
+      {stop.error === null ? null : (
+        <p role="alert" className="max-w-170 whitespace-pre-line body text-fault">
+          {stopFaultLine(stop.error.message)}
+        </p>
+      )}
     </section>
   );
 }

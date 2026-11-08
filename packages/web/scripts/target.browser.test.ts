@@ -208,6 +208,7 @@ test("with a race shown, New goal keeps the target and the race, and the next go
         startedAt: "2026-10-07T09:00:00.000Z",
         runs: demoRace.runs,
         status: "running",
+        waiting: [],
       },
     },
   });

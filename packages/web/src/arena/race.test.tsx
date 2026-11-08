@@ -17,7 +17,7 @@ import { FakeEventSource } from "../api/fake-event-source.js";
 import type { StreamStatus } from "../api/run-events.js";
 import { attributesOf, lineOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
-import { demoRace } from "./demo-race.js";
+import { demoRace, droppedBy } from "./demo-race.js";
 import {
   atStep,
   avatarStateOf,
@@ -42,11 +42,14 @@ import {
   raceOver,
   runStored,
   runView,
+  STOPPED_LANE,
   stepPips,
   stepsText,
+  stillWaiting,
   storedLane,
   throughPlaces,
   UNSTORED_LANE,
+  underWay,
 } from "./race.js";
 import { RaceView } from "./race-view.js";
 
@@ -822,5 +825,130 @@ describe("storedLane: a finished run's lane from its stored record", () => {
     expect(UNSTORED_LANE.note).toBe(
       "No record: the run never started, or io stopped or failed to store it",
     );
+  });
+});
+
+describe("a run a stop dropped from io's queue before it started (#6)", () => {
+  test("its stream is one runFinished cancelled: the avatar stays idle, the lane reads Stopped, the finish order lists it with no place, and the race is over", () => {
+    const snapshots: RaceSnapshot[] = [];
+    followRace(runs, (snapshot) => snapshots.push(snapshot));
+    const latest = () => {
+      const snapshot = snapshots.at(-1);
+      if (snapshot === undefined) throw new Error("followRace handed out no snapshot");
+      return snapshot;
+    };
+    for (const run of runs) sourceOf(run).emit("open");
+    // Ada gets through and Kai crashes while Vera waits for a slot: her stream is open and empty.
+    for (const delivered of delivery.filter(({ run }) => run !== vera)) deliver(delivered);
+    expect(latest().events.get(vera.id)).toBeUndefined();
+    expect(raceOver(runs, latest())).toBe(false);
+
+    // The stop drops her. Her stream brings its one event, numbered 0, and ends there: not lost.
+    deliver({ run: vera, event: droppedBy(vera), index: 0 });
+    const snapshot = latest();
+    expect(snapshot.streams.get(vera.id)).toBe("ended");
+    expect(sourceOf(vera).readyState).toBe(FakeEventSource.CLOSED);
+
+    // She never moved, and stopping was no decision of hers: her avatar stays idle, not gave up.
+    const lane = liveLane(snapshot, vera.id);
+    expect(lane.view.state).toBe("idle");
+    expect(laneOutcome(lane.view, lane.lost)).toBe("stopped");
+    expect(lane.pips).toStrictEqual([]);
+    expect(lane.steps).toBe("0 steps");
+    expect(lane.lost).toBe(false);
+    // io stores no run that never started, so her lane links to no run detail.
+    expect(lane.stored).toBe(false);
+
+    // Listed among the runs that ended, last, with no time; no place among those that got through.
+    const views = viewsOf(snapshot.events);
+    expect(finishOrder(runs, views)).toStrictEqual([
+      { run: kai, place: 1, state: "error", simulatedMs: 4182 },
+      { run: ada, place: 2, state: "done", simulatedMs: 11_076 },
+      { run: vera, place: 3, state: "idle", simulatedMs: undefined },
+    ]);
+    expect([...throughPlaces(runs, views)]).toStrictEqual([[ada.id, 1]]);
+    expect(finishLines(render(snapshot))).toStrictEqual([
+      "1. Ada Got through 0:11.1",
+      "– Kai Error 0:04.2",
+      "– Vera Stopped —",
+    ]);
+    // Nothing more will come from any stream, so the race is over.
+    expect(raceOver(runs, snapshot)).toBe(true);
+  });
+
+  test("reopened from the race's stop record, its lane is STOPPED_LANE: what its live lane drew at the end", () => {
+    const live = liveLane(
+      {
+        events: new Map([[vera.id, [droppedBy(vera)]]]),
+        streams: new Map<RunId, StreamStatus>([[vera.id, "ended"]]),
+      },
+      vera.id,
+    );
+    // The live lane's end has the time its event carries; the stop record keeps none per run. The
+    // two lanes differ in that alone.
+    const { ended, ...view } = live.view;
+    expect(ended).toStrictEqual({ outcome: "cancelled", at: "2026-09-22T10:00:05.000Z" });
+    expect(STOPPED_LANE).toStrictEqual({
+      ...live,
+      view: { ...view, ended: { outcome: "cancelled" } },
+    });
+  });
+});
+
+describe("stillWaiting and underWay: the runs a stop drops, and those it leaves to run on (#6)", () => {
+  const milo: StartedRun = { id: "run_milo-race-1", profileId: "prof_milo", seed: SEED };
+  const zoya: StartedRun = { id: "run_zoya-race-1", profileId: "prof_zoya", seed: SEED };
+  const five = [ada, kai, vera, milo, zoya];
+  /** The runs io listed as waiting for a slot when the screen asked, in its queue's order. */
+  const waiting = [vera.id, milo.id, zoya.id];
+  /**
+   * The race since the screen asked: Ada is at her step 1 and Kai has crashed. Vera took a slot, her
+   * `runStarted` came, and a stop dropped Zoya. Milo has brought nothing: his stream is open and
+   * empty.
+   */
+  const snapshot: RaceSnapshot = {
+    events: new Map([
+      [ada.id, rewritten(runEventFixtures.slice(0, 6), ada, 0)],
+      [kai.id, rewritten(crashes, kai, 0)],
+      [vera.id, rewritten(runEventFixtures.slice(0, 1), vera, 0)],
+      [zoya.id, [droppedBy(zoya)]],
+    ]),
+    streams: new Map<RunId, StreamStatus>([
+      [ada.id, "open"],
+      [kai.id, "ended"],
+      [vera.id, "open"],
+      [milo.id, "open"],
+      [zoya.id, "ended"],
+    ]),
+  };
+
+  /** `snapshot` with `run`'s stream broken for good. */
+  function brokenFor(run: StartedRun): RaceSnapshot {
+    return { ...snapshot, streams: new Map(snapshot.streams).set(run.id, "failed") };
+  }
+
+  test("stillWaiting: the runs io listed as waiting, less each whose stream has brought any event since", () => {
+    expect(stillWaiting(waiting, snapshot)).toStrictEqual([milo.id]);
+    // Before any stream has opened, every run io listed is still waiting, in its order.
+    expect(stillWaiting(waiting, EMPTY_SNAPSHOT)).toStrictEqual(waiting);
+    expect(stillWaiting([], snapshot)).toStrictEqual([]);
+    // A stream that broke before it brought anything keeps its run: nothing says it left the queue.
+    expect(stillWaiting(waiting, brokenFor(milo))).toStrictEqual([milo.id]);
+  });
+
+  test("underWay: the runs neither still waiting, nor ended, nor lost", () => {
+    // Ada runs, and so does Vera, who took a slot after io listed her. Kai crashed and Zoya was
+    // dropped, so both ended, and Milo still waits.
+    expect(underWay(five, waiting, snapshot)).toStrictEqual([ada, vera]);
+    // Ada's stream breaks for good: the arena can no longer tell whether she runs, so she is lost.
+    expect(underWay(five, waiting, brokenFor(ada))).toStrictEqual([vera]);
+    // Before any stream has opened, every run io did not list as waiting counts as under way.
+    expect(underWay(five, waiting, EMPTY_SNAPSHOT)).toStrictEqual([ada, kai]);
+    // Once every run of `RACE` has ended, none is.
+    const ended: RaceSnapshot = {
+      events: new Map(RACE.map(({ run, events }) => [run.id, events])),
+      streams: new Map<RunId, StreamStatus>(RACE.map(({ run }) => [run.id, "ended"])),
+    };
+    expect(underWay(runs, [], ended)).toStrictEqual([]);
   });
 });

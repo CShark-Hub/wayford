@@ -383,6 +383,7 @@ describe("the filters", () => {
       ["Gave up", "gave_up"],
       ["Over budget", "budget_exceeded"],
       ["Error", "error"],
+      ["Stopped", "cancelled"],
     ]);
     // The filter holds only the outcome; the table holds each run's record and names its limit.
     const html = await render("/runs?outcome=budget_exceeded");

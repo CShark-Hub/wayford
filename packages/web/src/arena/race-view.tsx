@@ -6,11 +6,13 @@
  * of a race without a stream.
  *
  * A lane says what its state rests on: the page a stuck persona left as it was, a crash's message,
- * the state a lost stream was last seen in. The narration is the model's, marked as a hypothesis by
- * its dashed outline, labelled as written after the fact for a screen reader only, and never read
- * into. Each avatar state is a static variant (`Avatar`'s `state`), swapped as the events come:
- * nothing moves. A run whose stream broke for good before its end shows no live state: its avatar
- * is plain and dimmed, its track has no step under way, and its lane says what was last seen.
+ * the state a lost stream was last seen in, that a stopped run never started. The narration is the
+ * model's, marked as a hypothesis by its dashed outline, labelled as written after the fact for a
+ * screen reader only, and never read into. Each avatar state is a static variant (`Avatar`'s
+ * `state`), swapped as the events come: nothing moves. A run whose stream broke for good before
+ * its end shows no live state: its avatar is plain and dimmed, its track has no step under way,
+ * and its lane says what was last seen. So does the avatar of a run a stop dropped before it
+ * started (#6): it never moved, and the stop was no decision of the persona's.
  *
  * Every clock on the Race is simulated time (B3's clock): each step's cost from the KLM and
  * Fitts's law at the persona's pace, never the wall clock, which measures the model and the
@@ -19,15 +21,15 @@
  *
  * The finish order stays as a list for screen readers, the page's one live region. It ranks by
  * simulated time and numbers only the runs that got through, with the places their goal posts show
- * to the eye. Every other ended run follows with no number, its outcome word and its clock, and a
- * lost run comes last.
+ * to the eye. Every other ended run follows with no number, its outcome word and its clock, a
+ * stopped run among them, and a lost run comes last.
  *
  * Each lane links to its run detail once io holds the run's record (its fold's `stored`), and once
  * the race is `over` the goal strip leads on to a report, whatever the outcomes.
  */
 import { Link } from "@tanstack/react-router";
 import type { Profile, Seed, StartedRun, Task, TaskId } from "@wayford/core";
-import type { ReactElement } from "react";
+import { type ReactElement, useRef } from "react";
 import { OUTCOME_WORDS } from "#components/outcome";
 import { PersonaAvatar } from "#components/persona-avatar";
 import { RaceLane } from "#components/race-lane";
@@ -48,17 +50,33 @@ import {
   throughPlaces,
 } from "./race.js";
 import { successText } from "./start-panel.js";
+import { StopRace, stopFaultLine } from "./stop-race.js";
 
 const NEW_RACE_LINE_ID = "race-new-race-line";
 
 /**
- * What a lane's state rests on: the state a lost stream was last seen in, `runFailed`'s message, or
- * the page the last `STUCK_STEPS` steps of a stuck run left as it was, its path in mono. Nothing for
- * any other state, whose outcome word says it all.
+ * Whether a stop ended the run `view` is of (#6). io gives `cancelled` only to a run it dropped
+ * from its queue before the run started, so such a run never took a step.
+ */
+function stopped(view: RunView): boolean {
+  return view.ended?.outcome === "cancelled";
+}
+
+/**
+ * The detail line of a run a stop dropped from io's queue before it started (#6), live or reopened
+ * from the race's stop record: what its lane, Stopped with no step, rests on.
+ */
+const NEVER_STARTED = "Never started: it was still waiting for a slot";
+
+/**
+ * What a lane's state rests on: the state a lost stream was last seen in, `runFailed`'s message,
+ * that a stopped run never started, or the page the last `STUCK_STEPS` steps of a stuck run left as
+ * it was, its path in mono. Nothing for any other state, whose outcome word says it all.
  */
 function detailOf(view: RunView, lost: boolean): string | ReactElement | undefined {
   if (lost) return `${OUTCOME_WORDS.lost}: last seen ${STATE_WORDS[view.state].toLowerCase()}`;
   if (view.ended?.error !== undefined) return view.ended.error;
+  if (stopped(view)) return NEVER_STARTED;
   if (view.state !== "stuck") return undefined;
   return (
     <>
@@ -98,8 +116,23 @@ function AnalyseLink({
 type Lane = { run: StartedRun; name: string } & LaneFold;
 
 /**
+ * A stop the screen offers (#6), from the screen that holds the call to io, since this view holds
+ * none: how many runs are still waiting for a slot and how many are under way, as the streams tell;
+ * whether the stop is `pending`, from the request until the runs it dropped have ended; why io did
+ * not confirm it, if it did not; and the call, made once the person confirms.
+ */
+export type StopOffer = {
+  waiting: number;
+  running: number;
+  pending: boolean;
+  error: string | undefined;
+  onConfirm: () => void;
+};
+
+/**
  * `lane`'s `RaceLane`. `place` is its place among the runs that got through. Its avatar shows the
- * live state, or, on a lost lane, no state and dimmed, and a lost lane's track no step under way.
+ * live state, or, on a lost lane and on a stopped one, no state and dimmed, and a lost lane's track
+ * no step under way.
  */
 function LaneOf({
   lane: { run, name, view, pips, steps, lost, note, stored },
@@ -111,7 +144,7 @@ function LaneOf({
   place: number | undefined;
 }) {
   const avatar =
-    profile === undefined ? null : lost ? (
+    profile === undefined ? null : lost || stopped(view) ? (
       <PersonaAvatar profile={profile} className="size-16 shrink-0 opacity-50" />
     ) : (
       <PersonaAvatar profile={profile} state={view.state} className="size-16 shrink-0" />
@@ -154,13 +187,20 @@ function LaneOf({
  * `over`, so a stream can still bring an event, and nothing once it is: the screen holds no record,
  * only what the streams brought. A race drawn from its runs' records reads `stored`.
  *
- * "New race" calls `onNewRace` at any time: several races can run at once. io cannot cancel a run,
- * so while the race is not `over` it says that a new race's runs queue behind these.
+ * "New race" calls `onNewRace` at any time: several races can run at once. While the race is not
+ * `over`, a line says that a new race's runs queue behind these. With a `stop` to offer, "Stop race"
+ * follows New race while a run still waits for a slot: a stop drops the runs still waiting, which
+ * never start, and the runs under way finish, so a new race still queues behind those. Once the
+ * stop is confirmed, focus moves to New race: Stop race cannot take it while it reads "Stopping…",
+ * and goes once nothing waits. When io did not confirm the stop, a line under the buttons says so,
+ * in fault, and claims nothing about what still runs, since io may have dropped the runs and failed
+ * only to record the stop.
  *
- * Once the race is over, a line under the buttons says how many runs got through, in k/n, and how
- * many streams were lost, and the strip leads on to a report. Every race is checked anew, and the
- * check mints a task, so this race's own report does not exist until its runs are analysed, which
- * takes minutes and a model call:
+ * Once the race is over, a line under the buttons says how many runs got through, in k/n over the
+ * runs a stop did not drop, how many were stopped, and how many streams were lost; when every run
+ * was stopped, it says only that. A stopped run is no result, so it counts nowhere. The strip then
+ * leads on to a report. Every race is checked anew, and the check mints a task, so this race's own
+ * report does not exist until its runs are analysed, which takes minutes and a model call:
  * - With `reportTask`, a stored report is on the same goal: the preset's own task's, the one
  *   `seed:demo` writes. "See the report" opens it, and a line says this race is not in it.
  *   "Analyse this race" follows as the quiet action.
@@ -178,6 +218,7 @@ export function RaceView({
   profiles,
   reportTask,
   onNewRace,
+  stop,
 }: {
   task: Task;
   label: string;
@@ -189,7 +230,10 @@ export function RaceView({
   profiles: readonly Profile[];
   reportTask: TaskId | undefined;
   onNewRace: () => void;
+  stop?: StopOffer;
 }) {
+  // Where focus goes once a stop is confirmed (`StopRace`).
+  const newRace = useRef<HTMLButtonElement>(null);
   const profileOf = new Map(profiles.map((profile) => [profile.id, profile]));
   const lanes: Lane[] = runs.map((run) => {
     const persona = profileOf.get(run.profileId)?.label ?? run.profileId;
@@ -211,6 +255,16 @@ export function RaceView({
     ...finishes.filter(({ run }) => !places.has(run.id)),
   ];
   const lost = lanes.filter((lane) => lane.lost);
+  const stoppedCount = lanes.filter((lane) => stopped(lane.view)).length;
+  // The runs that count: a stopped run is no result.
+  const counted = runs.length - stoppedCount;
+  // The result line's clauses after its k/n: "got through", then how many were stopped and how
+  // many streams were lost, each only when there are any.
+  const resultClauses = [
+    "got through",
+    ...(stoppedCount === 0 ? [] : [`${stoppedCount} stopped`]),
+    ...(lost.length === 0 ? [] : [`${count(lost.length, "stream")} lost`]),
+  ];
   return (
     <section aria-labelledby="race-goal" className="flex flex-col pb-(--space-4)">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-(--space-6) pt-(--space-4) pb-(--space-4)">
@@ -240,6 +294,7 @@ export function RaceView({
               {seeds.join(", ")}
             </span>
             <Button
+              ref={newRace}
               type="button"
               variant="outline"
               onClick={onNewRace}
@@ -247,6 +302,15 @@ export function RaceView({
             >
               New race
             </Button>
+            {stop !== undefined && !over && stop.waiting > 0 ? (
+              <StopRace
+                waiting={stop.waiting}
+                running={stop.running}
+                pending={stop.pending}
+                onConfirm={stop.onConfirm}
+                returnFocusTo={newRace}
+              />
+            ) : null}
             {!over ? null : reportTask === undefined ? (
               <AnalyseLink taskId={task.id} variant="default" size="default" />
             ) : (
@@ -259,11 +323,25 @@ export function RaceView({
               </Link>
             )}
           </div>
+          {stop?.error === undefined ? null : (
+            <p role="alert" className="max-w-80 whitespace-pre-line text-right body text-fault">
+              {stopFaultLine(stop.error)}
+            </p>
+          )}
           {over ? (
             <div className="flex items-center gap-(--space-3)">
               <p className="body text-ink-2">
-                <span className="mono text-ink">{`${places.size}/${runs.length}`}</span>
-                {` got through${lost.length === 0 ? "" : `, ${count(lost.length, "stream")} lost`}`}
+                {counted === 0 ? (
+                  <>
+                    <span className="mono text-ink">{stoppedCount}</span>
+                    {" stopped"}
+                  </>
+                ) : (
+                  <>
+                    <span className="mono text-ink">{`${places.size}/${counted}`}</span>
+                    {` ${resultClauses.join(", ")}`}
+                  </>
+                )}
               </p>
               {reportTask === undefined ? null : (
                 <AnalyseLink taskId={task.id} variant="ghost" size="sm" />

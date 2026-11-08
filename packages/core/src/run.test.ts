@@ -16,6 +16,7 @@ import {
   DiceRoll,
   diceFires,
   drawOption,
+  FINISHED_OUTCOMES,
   type FinishedOutcome,
   IncompleteRunStep,
   RUN_EVENT_TYPES,
@@ -88,6 +89,29 @@ describe("RunResult and RunEvent schemas", () => {
     };
     expect(RunEvent.safeParse({ ...base, outcome: "gave_up" }).success).toBe(true);
     expect(RunEvent.safeParse({ ...base, outcome: "error" }).success).toBe(false);
+  });
+
+  test("both outcome lists hold cancelled, appended last, so a printed order keeps its prefix", () => {
+    expect(RUN_OUTCOMES).toEqual(["success", "gave_up", "budget_exceeded", "error", "cancelled"]);
+    expect(FINISHED_OUTCOMES).toEqual(["success", "gave_up", "budget_exceeded", "cancelled"]);
+    // The fold copies a runFinished's outcome onto the record, so a finished outcome is a run's.
+    for (const outcome of FINISHED_OUTCOMES) expect(RUN_OUTCOMES).toContain(outcome);
+  });
+
+  test("runFinished takes cancelled, as io ends a run it dropped before it started (#6)", () => {
+    // Step 0, 0 ms and no cost: the run never started. Its stream is this one event, which io
+    // never folds: the fold refuses a stream that does not open with runStarted.
+    const dropped: RunEvent = {
+      type: "runFinished",
+      runId: "run_x",
+      stepIndex: 0,
+      timestamp: "2026-09-22T10:00:00.000Z",
+      outcome: "cancelled",
+      durationMs: 0,
+      cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
+    };
+    expect(RunEvent.safeParse(dropped).success).toBe(true);
+    expect(() => runResultFromEvents([dropped])).toThrow(/must open with runStarted/);
   });
 
   test("an extra key on an event is rejected", () => {
@@ -796,7 +820,7 @@ describe("a run that stops mid-step", () => {
     ).toThrow(/step 0 is incomplete but is not the last step/);
   });
 
-  test.each(["gave_up", "success"] as const)(
+  test.each(["gave_up", "success", "cancelled"] as const)(
     "an incomplete last step under %s throws",
     (outcome) => {
       expect(() => runResultFromEvents([started, ...observed(0), finishedAt(0, outcome)])).toThrow(
@@ -1044,7 +1068,7 @@ describe("a wasted step (issue #114)", () => {
     },
   );
 
-  test.each(["success", "gave_up"] as const)(
+  test.each(["success", "gave_up", "cancelled"] as const)(
     "a wasted last step under %s throws: that ending needs an action that landed",
     (outcome) => {
       const stream = [started, ...stepEvents(0), observedAt(1), wasted(), endAt(1, outcome)];
@@ -1481,10 +1505,13 @@ describe("the limit and the step cap (issue #196)", () => {
     expect(result).not.toHaveProperty("limit");
   });
 
-  test.each(["success", "gave_up"] as const)("runFinished refuses a limit beside %s", (outcome) => {
-    expect(RunEvent.safeParse({ ...finished, outcome, limit: "clock" }).success).toBe(false);
-    expect(RunEvent.safeParse({ ...finished, outcome }).success).toBe(true);
-  });
+  test.each(["success", "gave_up", "cancelled"] as const)(
+    "runFinished refuses a limit beside %s",
+    (outcome) => {
+      expect(RunEvent.safeParse({ ...finished, outcome, limit: "clock" }).success).toBe(false);
+      expect(RunEvent.safeParse({ ...finished, outcome }).success).toBe(true);
+    },
+  );
 
   test("the record refuses a limit on an outcome no limit gives", () => {
     // The fixture gave up within its cap, so only the limit is wrong; "steps" would also break

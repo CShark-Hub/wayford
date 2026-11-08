@@ -6,6 +6,9 @@
  *
  * 1. The run ended. `runFinished` with `success` is done, with `gave_up` or `budget_exceeded` gave
  *    up. `runFailed` is error, never gave up: the tool falling over is not the persona giving up.
+ *    `runFinished` with `cancelled` is idle: a stop dropped the run from io's queue before it
+ *    started (#6), so the persona never moved, and a person stopping the race is not the persona
+ *    giving up either.
  * 2. Stuck: the last `STUCK_STEPS` judged steps all left the page as it was.
  * 3. Moving: at least one action ran.
  * 4. Idle.
@@ -23,11 +26,24 @@
  * page. Not that the persona is lost, nor that it will stay: the next observation that differs
  * takes it back to moving. The tile's line says what was counted, so the reader can judge.
  */
-import type { FullObservation, RunEvent } from "@wayford/core";
+import type { FullObservation, RunEvent, RunOutcome } from "@wayford/core";
 import type { AvatarState } from "../avatar/state.js";
 
 /** Judged steps in a row that left the page as it was make a persona stuck. */
 export const STUCK_STEPS = 2;
+
+/**
+ * The state a run's end leaves, by its outcome, as the first rule above says: a `runFinished`'s
+ * outcome, or `error` for a `runFailed`. A stored run's record keeps the same outcome, so its lane
+ * reads its avatar's state here too (`storedLane` in `./race.ts`).
+ */
+export const ENDED_STATES: Record<RunOutcome, AvatarState> = {
+  success: "done",
+  gave_up: "gaveUp",
+  budget_exceeded: "gaveUp",
+  error: "error",
+  cancelled: "idle",
+};
 
 /** What the avatar shows: its state, and where a stuck persona stayed. */
 export type AvatarView = {
@@ -41,9 +57,9 @@ export function avatarView(events: readonly RunEvent[]): AvatarView {
   const end = events.findLast(
     (event) => event.type === "runFinished" || event.type === "runFailed",
   );
-  if (end?.type === "runFailed") return { state: "error", stuckOn: undefined };
+  if (end?.type === "runFailed") return { state: ENDED_STATES.error, stuckOn: undefined };
   if (end?.type === "runFinished") {
-    return { state: end.outcome === "success" ? "done" : "gaveUp", stuckOn: undefined };
+    return { state: ENDED_STATES[end.outcome], stuckOn: undefined };
   }
   const stayedOn = stuckUrl(events);
   if (stayedOn !== undefined) return { state: "stuck", stuckOn: placeName(stayedOn) };

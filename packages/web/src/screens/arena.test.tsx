@@ -217,6 +217,7 @@ describe("/race/$raceId: one race, by the id io gave it", () => {
       startedAt: "2026-10-07T09:00:00.000Z",
       runs: [ada, vera],
       status,
+      waiting: [],
     };
   }
 
@@ -240,6 +241,21 @@ describe("/race/$raceId: one race, by the id io gave it", () => {
     expect(buttonTag(html, "New race")).not.toMatch(/ disabled=""/);
     // No start panel on a race's URL.
     expect(buttonTag(html, "Start the race")).toBeUndefined();
+    // No run waits for a slot, so a stop would drop nothing.
+    expect(buttonTag(html, "Stop race")).toBeUndefined();
+  });
+
+  test("a race io still runs with a run waiting for a slot offers Stop race, after New race", async () => {
+    const race: Race = { ...raceOf("running"), waiting: [vera.id] };
+    const html = await renderPath("/race/race_vera-ada", (client) =>
+      client.setQueryData(raceQuery("race_vera-ada").queryKey, race),
+    );
+    const stop = attributesOf(buttonTag(html, "Stop race") ?? "");
+    expect(stop).toMatchObject({ "aria-haspopup": "dialog", "data-variant": "outline" });
+    expect(stop).not.toHaveProperty("disabled");
+    expect(html.indexOf(">New race<")).toBeLessThan(html.indexOf(">Stop race<"));
+    // Both lanes still wait in a static render, which opens no stream.
+    expect(lineOf(tileOf(html, vera))).toContain("Waiting");
   });
 
   test("a finished race: each lane from its run's record, and a run io never stored as such", async () => {
@@ -256,6 +272,36 @@ describe("/race/$raceId: one race, by the id io gave it", () => {
     expect(buttonTag(html, "New race")).not.toMatch(/ disabled=""/);
   });
 
+  test("a race opened again after its stop draws its dropped runs Stopped, and asks io for none of them", async () => {
+    /** A run the stop dropped from io's queue before it started: io holds no record of it. */
+    const zoya = { id: "run_zoya-dropped", profileId: "prof_zoya", seed: 424242 };
+    const race: Race = {
+      ...raceOf("finished"),
+      runs: [vera, zoya],
+      cancelled: { at: "2026-10-07T09:01:00.000Z", dequeued: [zoya.id] },
+    };
+    const client = new QueryClient();
+    const html = await renderPath(
+      "/race/race_vera-ada",
+      (seeded) => {
+        seeded.setQueryData(raceQuery("race_vera-ada").queryKey, race);
+        seeded.setQueryData(runQuery(vera.id).queryKey, runResultFromEvents(runEventFixtures));
+      },
+      client,
+    );
+    // Drawn at once: no record of Zoya is awaited.
+    expect(lineOf(tileOf(html, zoya))).toContain(
+      "Stopped — 0 steps Never started: it was still waiting for a slot",
+    );
+    expect(lineOf(tileOf(html, vera))).toMatch(/Gave up 0:16\.5 5 steps/);
+    expect(lineOf(html)).not.toContain("Stream lost");
+    // A stopped run is no result: the k/n leaves her out.
+    expect(lineOf(html)).toContain("0/1 got through, 1 stopped");
+    // io was asked for Vera's record alone: asking for Zoya's would only bring a 404.
+    expect(client.getQueryCache().find({ queryKey: runQuery(zoya.id).queryKey })).toBeUndefined();
+    expect(client.getQueryCache().find({ queryKey: runQuery(vera.id).queryKey })).toBeDefined();
+  });
+
   test("a finished race whose records are on their way: skeletons, said to be loading", async () => {
     const html = await renderPath("/race/race_vera-ada", (client) =>
       client.setQueryData(raceQuery("race_vera-ada").queryKey, raceOf("finished")),
@@ -264,13 +310,23 @@ describe("/race/$raceId: one race, by the id io gave it", () => {
     expect(html).not.toContain("race-goal");
   });
 
+  /** Six runs, each on its own seed, as only io's API can start: the panel takes at most five. */
+  const six = ["ada", "kai", "milo", "vera", "zoya", "ada"].map((name, i) => ({
+    id: `run_${name}-${i}`,
+    profileId: `prof_${name}`,
+    seed: i + 1,
+  }));
+  /** The last two of `six`, which wait for a slot behind the four under way. */
+  const lastTwo = six.slice(4).map(({ id }) => id);
+
+  /** The text of every status line on the page, in order. */
+  function statusLines(html: string): string[] {
+    return [...html.matchAll(/<p [^>]*role="status"[^>]*>(.*?)<\/p>/gs)].map((m) =>
+      lineOf(m[1] ?? ""),
+    );
+  }
+
   test("a running race of more runs than the browser can follow is not followed live", async () => {
-    // Six runs, each on its own seed, as only io's API can start: the panel takes at most five.
-    const six = ["ada", "kai", "milo", "vera", "zoya", "ada"].map((name, i) => ({
-      id: `run_${name}-${i}`,
-      profileId: `prof_${name}`,
-      seed: i + 1,
-    }));
     const race: Race = { ...raceOf("running"), runs: six };
     const html = await renderPath("/race/race_vera-ada", (client) =>
       client.setQueryData(raceQuery("race_vera-ada").queryKey, race),
@@ -280,6 +336,40 @@ describe("/race/$raceId: one race, by the id io gave it", () => {
     );
     expect(html).not.toContain("<article");
     expect(buttonTag(html, "New race")).not.toMatch(/ disabled=""/);
+    // No run waits for a slot and none was stopped: nothing to offer, nothing to tell.
+    expect(buttonTag(html, "Stop race")).toBeUndefined();
+    expect(lineOf(html)).not.toContain("Stopped");
+  });
+
+  test("TooManyToFollow shows Stop race while a run waits", async () => {
+    const race: Race = { ...raceOf("running"), runs: six, waiting: lastTwo };
+    const html = await renderPath("/race/race_vera-ada", (client) =>
+      client.setQueryData(raceQuery("race_vera-ada").queryKey, race),
+    );
+    const stop = attributesOf(buttonTag(html, "Stop race") ?? "");
+    expect(stop).toMatchObject({ "aria-haspopup": "dialog", "data-variant": "outline" });
+    expect(stop).not.toHaveProperty("disabled");
+    expect(html.indexOf(">New race<")).toBeLessThan(html.indexOf(">Stop race<"));
+    expect(lineOf(html)).not.toContain("Stopped");
+    expect(html).not.toContain('role="alert"');
+  });
+
+  test("TooManyToFollow shows the stop record, and no button", async () => {
+    const race: Race = {
+      ...raceOf("running"),
+      runs: six,
+      cancelled: { at: "2026-10-07T09:01:00.000Z", dequeued: lastTwo },
+    };
+    const html = await renderPath("/race/race_vera-ada", (client) =>
+      client.setQueryData(raceQuery("race_vera-ada").queryKey, race),
+    );
+    expect(statusLines(html)).toStrictEqual([
+      "Stopped: 2 runs never started. The runs under way finish.",
+    ]);
+    // Beside New race, under the paragraph.
+    expect(html.indexOf(">New race<")).toBeLessThan(html.indexOf("Stopped: 2 runs"));
+    // Nothing waits after a stop, so there is nothing more to stop.
+    expect(buttonTag(html, "Stop race")).toBeUndefined();
   });
 
   test("an id io keeps no race under: says so, and leads back to the races", async () => {

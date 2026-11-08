@@ -14,6 +14,8 @@ export const OUTCOME_WORDS: Record<RunOutcome, string> = {
   // The clock or the step cap, unsaid: the loop cut the run off.
   budget_exceeded: "Over budget",
   error: "Error",
+  // A person stopped the run's race (#6). Whether the run had started is its lane's to say.
+  cancelled: "Stopped",
 };
 
 /** A `budget_exceeded` run's word, by the limit that cut it off (issue #196). */

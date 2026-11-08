@@ -1,8 +1,10 @@
 /**
  * The runner on the fake run (`docs/specs/2026-10-02-s4-03-runs-api.md`, "runner.ts"): seed-major
  * starts, each set's step cap from its task's ground truth (issue #196), five slots with one FIFO
- * across `start` calls, live events, and the close-out that stores each run as the fold of what it
- * published before its stream sees the end, and ends the stream when the save fails.
+ * across `start` calls, the drop of runs still waiting for one (#6,
+ * `docs/specs/2026-11-08-6-stop-race.md`), live events, and the close-out that stores each run as
+ * the fold of what it published before its stream sees the end, and ends the stream when the save
+ * fails.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -449,6 +451,188 @@ test("five runs at once; the rest start in queue order across two start calls, a
   expect(outcomes.sort()).toStrictEqual(
     [...ids, late.id].map((id, i) => [id, i === 1 ? "error" : "success"]).sort(),
   );
+});
+
+test("cancel drops waiting runs: they never start, and each stream ends with runFinished cancelled", async () => {
+  const { lines, logger } = capture();
+  const { hold, open } = gates();
+  const run = fakeRun((options) => ({ gate: hold(options.runId) }));
+  const runner = runnerOn(run, { logger });
+  // Six runs take the five slots and the head of the line; the two started after them wait behind,
+  // as a race queued behind another does.
+  const ahead = runner.start(task, [ada, vera, zoya], [1, 2]).map(({ id }) => id);
+  const behind = runner.start(task, [ada, vera], [3]).map(({ id }) => id);
+  const called = () => run.calls.map(({ runId }) => runId);
+  await vi.waitFor(() => expect(called()).toStrictEqual(ahead.slice(0, 5)));
+  // Followed before the drop, as a client streams a run still waiting.
+  const followed = Promise.all(behind.map((id) => drain(runner.live(id))));
+
+  const before = Date.now();
+  // Asked in reverse, answered in queue order.
+  expect(runner.cancel([...behind].reverse())).toStrictEqual(behind);
+  const after = Date.now();
+  // Ended at drop time, not when a slot would have come.
+  for (const id of behind) expect(runner.live(id)?.ended).toBe(true);
+  const streams = await followed;
+  expect(streams).toStrictEqual(
+    behind.map((id) => [
+      {
+        type: "runFinished",
+        runId: id,
+        stepIndex: 0,
+        timestamp: expect.any(String),
+        outcome: "cancelled",
+        durationMs: 0,
+        cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
+      },
+    ]),
+  );
+  for (const { timestamp } of streams.flat()) {
+    expect(Date.parse(timestamp)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(timestamp)).toBeLessThanOrEqual(after);
+  }
+
+  // The slots that free go to the run left waiting, then to no one.
+  for (const id of ahead) {
+    await vi.waitFor(() => expect(called()).toContain(id));
+    open(id);
+  }
+  for (const id of ahead) await drain(runner.live(id));
+  await sleep(30);
+  expect(called()).toStrictEqual(ahead);
+  for (const id of behind) {
+    // Nothing reached the stream after its end, and nothing was stored.
+    expect(runner.live(id)?.events).toHaveLength(1);
+    expect(storedNow(id)).toBe(false);
+  }
+  expect((await listRuns(store.db)).map(({ id }) => id).sort()).toStrictEqual([...ahead].sort());
+  // A drop is no fault: nothing at warn or above.
+  expect(lines).toStrictEqual([]);
+});
+
+test("a dropped run frees no slot: the next waiting run starts when a running one ends", async () => {
+  const { hold, open } = gates();
+  const fake = fakeRun((options) => ({ gate: hold(options.runId) }));
+  // How many runs are inside `run` now, and the most there ever were at once.
+  let running = 0;
+  let most = 0;
+  const run: RunFn = async (options) => {
+    running += 1;
+    most = Math.max(most, running);
+    try {
+      return await fake(options);
+    } finally {
+      running -= 1;
+    }
+  };
+  const runner = runnerOn(run);
+  // Five running and two waiting.
+  const ids = [
+    ...runner.start(task, [ada, vera, zoya], [1, 2]),
+    ...runner.start(task, [ada], [3]),
+  ].map(({ id }) => id);
+  const holders = ids.slice(0, 5);
+  const dropped = ids[5] as string;
+  const next = ids[6] as string;
+  const called = () => fake.calls.map(({ runId }) => runId);
+  await vi.waitFor(() => expect(called()).toStrictEqual(holders));
+
+  // The head of the line goes.
+  expect(runner.cancel([dropped])).toStrictEqual([dropped]);
+  // A run started after the drop queues behind the one still waiting: the drop opened no slot.
+  const [late] = runner.start(task, [vera], [4]);
+  if (late === undefined) throw new Error("start queued no run");
+  await sleep(30);
+  expect(called()).toStrictEqual(holders);
+
+  // A run ends, and its slot goes to the next in line, past the dropped run, and to no one else.
+  open(holders[0] as string);
+  await vi.waitFor(() => expect(called()).toStrictEqual([...holders, next]));
+  await sleep(30);
+  expect(called()).toStrictEqual([...holders, next]);
+
+  open(holders[1] as string);
+  await vi.waitFor(() => expect(called()).toStrictEqual([...holders, next, late.id]));
+  for (const id of [...holders.slice(2), next, late.id]) open(id);
+  for (const id of [...ids, late.id]) await drain(runner.live(id));
+  expect(called()).not.toContain(dropped);
+  expect(most).toBe(MAX_CONCURRENT_RUNS);
+});
+
+test("cancel drops only waiting runs: a run holding a slot, started or not, an ended run and an unknown id are left alone and not returned", async () => {
+  const { hold, open } = gates();
+  // Seed 1 runs straight through; every other run holds until the test opens its gate.
+  const run = fakeRun((options) => (options.seed === 1 ? {} : { gate: hold(options.runId) }));
+  const runner = runnerOn(run);
+  const ended = startOne(runner, ada, 1);
+  const endedEvents = [...(await drain(ended.live))];
+  // Two runs take slots and start.
+  const started = runner.start(task, [ada, vera], [2]).map(({ id }) => id);
+  const called = () => run.calls.map(({ runId }) => runId);
+  await vi.waitFor(() => expect(called()).toStrictEqual([ended.id, ...started]));
+  const startedEvents = started.map((id) => [...(runner.live(id)?.events ?? [])]);
+  // Four more: three take the last slots, and the fourth waits.
+  const later = runner.start(task, [ada, vera], [3, 4]).map(({ id }) => id);
+  const slotted = later.slice(0, 3);
+  const waiting = later[3] as string;
+  // Asked at once, before any of their jobs has gone on: the three hold slots but have not been
+  // called, so their streams are as empty as the waiting run's, and they stay all the same.
+  for (const id of [...slotted, waiting]) expect(runner.live(id)?.events).toStrictEqual([]);
+  const asked = [ended.id, ...started, ...slotted, waiting, "run_unknown"];
+  expect(runner.cancel(asked)).toStrictEqual([waiting]);
+
+  expect(runner.live(ended.id)?.events).toStrictEqual(endedEvents);
+  started.forEach((id, i) => {
+    expect(runner.live(id)?.ended).toBe(false);
+    expect(runner.live(id)?.events).toStrictEqual(startedEvents[i]);
+  });
+  for (const id of slotted) expect(runner.live(id)).toMatchObject({ ended: false, events: [] });
+  expect(runner.live(waiting)?.ended).toBe(true);
+  // An id the runner never minted gets no live run.
+  expect(runner.live("run_unknown")).toBeUndefined();
+
+  for (const id of [...started, ...slotted]) {
+    await vi.waitFor(() => expect(called()).toContain(id));
+    open(id);
+  }
+  for (const id of [...started, ...slotted]) {
+    await drain(runner.live(id));
+    expect(await loadRun(store.db, id)).toMatchObject({ id, outcome: "success" });
+  }
+  expect(called()).toStrictEqual([ended.id, ...started, ...slotted]);
+});
+
+test("waiting is true while a run is queued, and false once it has started or been dropped", async () => {
+  const { hold, open } = gates();
+  const run = fakeRun((options) => ({ gate: hold(options.runId) }));
+  const runner = runnerOn(run);
+  // Five take the slots at once, before any is called, and two wait.
+  const ids = [
+    ...runner.start(task, [ada, vera, zoya], [1, 2]),
+    ...runner.start(task, [ada], [3]),
+  ].map(({ id }) => id);
+  const first = ids[0] as string;
+  // The head of the line, which starts once the first run ends, and the run behind it, dropped.
+  const head = ids[5] as string;
+  const last = ids[6] as string;
+  const waitingNow = () => ids.map((id) => runner.waiting(id));
+  expect(waitingNow()).toStrictEqual([false, false, false, false, false, true, true]);
+  expect(runner.waiting("run_unknown")).toBe(false);
+
+  runner.cancel([last]);
+  expect(waitingNow()).toStrictEqual([false, false, false, false, false, true, false]);
+
+  const called = () => run.calls.map(({ runId }) => runId);
+  await vi.waitFor(() => expect(called()).toStrictEqual(ids.slice(0, 5)));
+  open(first);
+  await vi.waitFor(() => expect(called()).toContain(head));
+  // Ended, started, and dropped: none of them waits.
+  await drain(runner.live(first));
+  expect(waitingNow()).toStrictEqual(ids.map(() => false));
+
+  for (const id of ids.slice(1, 6)) open(id);
+  for (const id of ids) await drain(runner.live(id));
+  expect(waitingNow()).toStrictEqual(ids.map(() => false));
 });
 
 test("a finished run is stored as the fold of its published events before its stream sees the end", async () => {

@@ -324,7 +324,14 @@ test("the summary pastes: outcomes, each sweep's boundary, the wall time and the
   const summary: DemoSummary = {
     backend: "jev",
     models: ["typesafe/jev-1.13"],
-    outcomes: { success: 120, gave_up: 70, budget_exceeded: 10, error: 0, missing: 0 },
+    outcomes: {
+      success: 120,
+      gave_up: 70,
+      budget_exceeded: 10,
+      error: 0,
+      cancelled: 0,
+      missing: 0,
+    },
     setRuns: 60,
     runsUsd: 0.1,
     reports: [report],
