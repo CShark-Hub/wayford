@@ -30,7 +30,7 @@ import { type OutcomeKind, outcomeKind } from "#components/outcome";
 import type { Pip } from "#components/race-lane";
 import { type StreamStatus, subscribeToRunEvents } from "../api/run-events.js";
 import type { AvatarState } from "../avatar/state.js";
-import { avatarView } from "./avatar-state.js";
+import { avatarView, ENDED_STATES } from "./avatar-state.js";
 
 /** What a tile shows, folded from one run's events so far. */
 export type RunView = {
@@ -181,19 +181,27 @@ export type RaceSnapshot = {
 export const EMPTY_SNAPSHOT: RaceSnapshot = { events: new Map(), streams: new Map() };
 
 /**
+ * Whether `snapshot` has followed run `id` to its end, as far as the arena can: its events hold its
+ * terminal event, `runFinished` or `runFailed`, or its stream broke for good (`failed`), so nothing
+ * more will come of it. Its lane then draws it ended or lost. Pure.
+ */
+function runFollowedOut(snapshot: RaceSnapshot, id: RunId): boolean {
+  return (
+    snapshot.streams.get(id) === "failed" ||
+    (snapshot.events.get(id) ?? []).some(
+      (event) => event.type === "runFinished" || event.type === "runFailed",
+    )
+  );
+}
+
+/**
  * Whether the arena has nothing more to follow: every run has ended, or its stream broke for good
- * (`failed`) before its end. A stop (#6) ends each run still waiting for a slot at once, its stream
- * one `runFinished` `cancelled`, and leaves the runs under way to run on to their ends, so until
- * those end a new race would queue its runs behind them.
+ * (`failed`) before its end (`runFollowedOut`). A stop (#6) ends each run still waiting for a slot
+ * at once, its stream one `runFinished` `cancelled`, and leaves the runs under way to run on to
+ * their ends, so until those end a new race would queue its runs behind them.
  */
 export function raceOver(runs: readonly StartedRun[], snapshot: RaceSnapshot): boolean {
-  return runs.every(
-    (run) =>
-      snapshot.streams.get(run.id) === "failed" ||
-      (snapshot.events.get(run.id) ?? []).some(
-        (event) => event.type === "runFinished" || event.type === "runFailed",
-      ),
-  );
+  return runs.every((run) => runFollowedOut(snapshot, run.id));
 }
 
 /**
@@ -210,10 +218,11 @@ export function stillWaiting(waiting: readonly RunId[], snapshot: RaceSnapshot):
 
 /**
  * The runs of `runs` under way, as far as `snapshot` tells: neither still waiting for a slot
- * (`stillWaiting` over io's `waiting`), nor ended, nor lost, as their lanes draw them. These are
- * the runs a stop leaves to run on to their ends (#6). A run io did not list as waiting counts as
- * under way until its stream brings its end: one that ended before the screen asked, too, until its
- * stream replays that end. Pure.
+ * (`stillWaiting` over io's `waiting`), nor followed to their end (`runFollowedOut`), so neither
+ * ended nor lost, as their lanes draw them. It reads the events and the streams as they stand, and
+ * folds no view. These are the runs a stop leaves to run on to their ends (#6). A run io did not
+ * list as waiting counts as under way until its stream brings its end: one that ended before the
+ * screen asked, too, until its stream replays that end. Pure.
  */
 export function underWay(
   runs: readonly StartedRun[],
@@ -221,11 +230,7 @@ export function underWay(
   snapshot: RaceSnapshot,
 ): StartedRun[] {
   const queued = new Set(stillWaiting(waiting, snapshot));
-  return runs.filter((run) => {
-    if (queued.has(run.id)) return false;
-    const view = runView(snapshot.events.get(run.id) ?? []);
-    return view.ended === undefined && !streamLost(view, snapshot.streams.get(run.id));
-  });
+  return runs.filter((run) => !queued.has(run.id) && !runFollowedOut(snapshot, run.id));
 }
 
 /**
@@ -436,15 +441,6 @@ export function liveLane(snapshot: RaceSnapshot, id: RunId): LaneFold {
   };
 }
 
-/** The avatar's state for a stored outcome, as `avatarView` gives it at the terminal event. */
-const ENDED_STATES: Record<RunOutcome, AvatarState> = {
-  success: "done",
-  gave_up: "gaveUp",
-  budget_exceeded: "gaveUp",
-  error: "error",
-  cancelled: "idle",
-};
-
 /**
  * Whether a stored step's action landed: it reached `urlAfter`, which only `actionPerformed` sets.
  * A complete step always has; a cut-short run's last step has only if its action landed before the
@@ -507,30 +503,16 @@ export const UNSTORED_LANE: LaneFold = {
 };
 
 /**
- * The detail line of a run a stop dropped from io's queue before it started (#6), live or reopened
- * from the race's stop record: what its lane, Stopped with no step, rests on.
- */
-export const NEVER_STARTED = "Never started: it was still waiting for a slot";
-
-/**
  * The lane of a run the race's stop record names (`Race.cancelled.dequeued`, #6): a stop dropped it
  * from io's queue before it started, so io holds no record of it and never will. It is drawn as its
  * live lane was at its end, from its stream's one `runFinished` `cancelled`: Stopped, with no step,
  * neither lost nor linked to a run detail, its avatar idle as it waited. `ended` has no `at`, as on
- * a stored run's lane: the record keeps no time per run. Its note says it never started.
+ * a stored run's lane: the record keeps no time per run.
  */
 export const STOPPED_LANE: LaneFold = {
-  view: {
-    state: ENDED_STATES.cancelled,
-    stuckOn: undefined,
-    simulatedMs: undefined,
-    narration: undefined,
-    screenshotStep: undefined,
-    ended: { outcome: "cancelled" },
-  },
+  view: { ...runView([]), ended: { outcome: "cancelled" } },
   pips: [],
   steps: stepsLine(0, true),
   lost: false,
   stored: false,
-  note: NEVER_STARTED,
 };

@@ -36,13 +36,14 @@ type Counts = {
  * none is. Without, as on a screen that follows no stream, each says it of runs in general.
  */
 export function StopRaceBody({ waiting, running }: Counts) {
-  const one = running === 1;
   const left =
     running === undefined
       ? "Runs already under way finish, and their results count."
       : running === 0
         ? undefined
-        : `${count(running, "run")} already under way ${one ? "finishes" : "finish"}, and ${one ? "its result counts" : "their results count"}.`;
+        : running === 1
+          ? "1 run already under way finishes, and its result counts."
+          : `${count(running, "run")} already under way finish, and their results count.`;
   return [
     `${waiting === undefined ? "Runs" : count(waiting, "run")} still waiting for a slot won't start.`,
     left,

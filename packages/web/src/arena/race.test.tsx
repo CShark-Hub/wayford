@@ -17,7 +17,7 @@ import { FakeEventSource } from "../api/fake-event-source.js";
 import type { StreamStatus } from "../api/run-events.js";
 import { attributesOf, lineOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
-import { demoRace } from "./demo-race.js";
+import { demoRace, droppedBy } from "./demo-race.js";
 import {
   atStep,
   avatarStateOf,
@@ -119,22 +119,6 @@ const crashes = [
 const ada: StartedRun = { id: "run_ada-race-1", profileId: "prof_ada", seed: SEED };
 const kai: StartedRun = { id: "run_kai-race-1", profileId: "prof_kai", seed: SEED };
 const vera: StartedRun = { id: "run_vera-race-1", profileId: "prof_vera", seed: SEED };
-
-/**
- * The one event io streams for `run` when a stop drops it from the queue before it started (#6):
- * `runFinished` `cancelled` at step 0, after no time and at no cost, with no `runStarted` before it.
- */
-function droppedBy(run: StartedRun): RunEvent {
-  return RunEvent.parse({
-    type: "runFinished",
-    runId: run.id,
-    stepIndex: 0,
-    timestamp: "2026-09-22T10:00:05.000Z",
-    outcome: "cancelled",
-    durationMs: 0,
-    cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
-  });
-}
 
 /**
  * Three runs of one race, started in the order Ada, Kai, Vera, 100 ms apart. On the wall clock Ada
@@ -900,14 +884,14 @@ describe("a run a stop dropped from io's queue before it started (#6)", () => {
       },
       vera.id,
     );
-    expect(STOPPED_LANE.pips).toStrictEqual(live.pips);
-    expect(STOPPED_LANE.steps).toBe(live.steps);
-    expect(STOPPED_LANE.lost).toBe(live.lost);
-    expect(STOPPED_LANE.stored).toBe(live.stored);
-    // The live lane's end has the time its event carries; the stop record keeps none per run.
+    // The live lane's end has the time its event carries; the stop record keeps none per run. The
+    // two lanes differ in that alone.
     const { ended, ...view } = live.view;
     expect(ended).toStrictEqual({ outcome: "cancelled", at: "2026-09-22T10:00:05.000Z" });
-    expect(STOPPED_LANE.view).toStrictEqual({ ...view, ended: { outcome: "cancelled" } });
+    expect(STOPPED_LANE).toStrictEqual({
+      ...live,
+      view: { ...view, ended: { outcome: "cancelled" } },
+    });
   });
 });
 

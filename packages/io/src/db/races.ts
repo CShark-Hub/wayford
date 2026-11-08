@@ -3,9 +3,6 @@
  * view after leaving the screen or reloading, and list past races (issue #194). A race holds no
  * status. Whether it is still running is the runner's to say, at read time (`raceStatus` in
  * `routes/races.ts`), so no restart can leave a race "running" for good.
- *
- * A race is written twice at most: stored once when its runs start, and updated once by the stop
- * that drops its runs still waiting for a slot (#6), which records them in its `cancelled`.
  */
 import { Race, WayfordError } from "@wayford/core";
 import { desc, eq } from "drizzle-orm";
@@ -18,9 +15,8 @@ const fromRow = (row: { id: string; document: unknown }) =>
   parseRow("races", row.id, Race, row.document);
 
 /**
- * Store a race, once, when `POST /runs` has started its runs; a stop is the one later write
- * (`updateRace`). `started_at` is stored at millisecond width, so it sorts as text in time order;
- * the document keeps it as given.
+ * Store a race, once, when `POST /runs` has started its runs. `started_at` is stored at
+ * millisecond width, so it sorts as text in time order; the document keeps it as given.
  */
 export async function saveRace(db: Db, race: Race): Promise<void> {
   const document = parseRow("races", race.id, Race, race);

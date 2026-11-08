@@ -19,10 +19,12 @@
  *   - 500 `{ error }`: the runs were dropped, but the stop could not be recorded. The message says
  *     how many.
  *
- * The stop is the one write: it records in the race the runs it dropped, since such a run leaves
- * no record of its own. `status` and `waiting` are never stored: each request reads them off this
- * process's runner (`raceStatus`, `waitingOf`). The list takes no query and checks none, as
- * `GET /tasks` does not: with no filter, there is none to misspell.
+ * The stop is the one write, and only a stop that dropped runs makes it: it records in the race
+ * the runs it dropped, since such a run leaves no record of its own. A stop drops every run of the
+ * race still waiting, and no run joins the queue again, so a later stop has nothing to record and
+ * the record is never merged. `status` and `waiting` are never stored: each request reads them
+ * off this process's runner (`raceStatus`, `waitingOf`). The list takes no query and checks none,
+ * as `GET /tasks` does not: with no filter, there is none to misspell.
  */
 import { zValidator } from "@hono/zod-validator";
 import type { Race, RaceStatus, RunId } from "@wayford/core";
@@ -30,6 +32,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { Logger } from "pino";
 import { z } from "zod";
+import { plural } from "../analyst-text.js";
 import type { Db } from "../db/database.js";
 import { listRaces, loadRace, updateRace } from "../db/races.js";
 import type { Runner } from "../runner.js";
@@ -82,23 +85,17 @@ async function recordStop(
     await updateRace(db, { ...race, cancelled: { at: new Date().toISOString(), dequeued } });
   } catch (error) {
     logger.error({ ...about, err: error }, "the stop dropped runs but could not be recorded");
-    const runs =
-      dequeued.length === 1
-        ? "1 run waiting for a slot was"
-        : `${dequeued.length} runs waiting for a slot were`;
+    const runs = plural(dequeued.length, "run");
+    const were = dequeued.length === 1 ? "was" : "were";
     throw new HTTPException(500, {
-      message: `${runs} stopped, but the stop could not be recorded`,
+      message: `${runs} waiting for a slot ${were} stopped, but the stop could not be recorded`,
       cause: error,
     });
   }
   logger.info(about, "race stopped");
 }
 
-/**
- * The routes above. The stop is the one write, and only a stop that dropped runs makes it: it drops
- * every run of the race still waiting, and no run joins the queue again, so a later stop has
- * nothing to record and the record is never merged.
- */
+/** The routes above. */
 export function racesRoute({ db, runner, logger }: RacesRouteOptions) {
   const answer = (race: Race) => ({
     ...race,

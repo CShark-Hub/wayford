@@ -15,7 +15,7 @@ import { screenshotUrl } from "../api/runs.js";
 import { attributesOf, classesOf, lineOf, styleOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import { STUCK_STEPS } from "./avatar-state.js";
-import { demoRace, eventsOf } from "./demo-race.js";
+import { demoRace, droppedBy, eventsOf } from "./demo-race.js";
 import {
   avatarStateOf,
   beforeEnd,
@@ -42,22 +42,6 @@ import { RaceView, type StopOffer } from "./race-view.js";
 
 /** Vera's fixture run, as io's `POST /runs` would have handed it back. */
 const vera: StartedRun = { id: "run_vera-hard-1", profileId: "prof_vera", seed: 424242 };
-
-/**
- * The one event io streams for `run` when a stop drops it from the queue before it started (#6):
- * `runFinished` `cancelled` at step 0, after no time and at no cost, with no `runStarted` before it.
- */
-function droppedBy(run: StartedRun): RunEvent {
-  return RunEvent.parse({
-    type: "runFinished",
-    runId: run.id,
-    stepIndex: 0,
-    timestamp: "2026-09-22T10:00:05.000Z",
-    outcome: "cancelled",
-    durationMs: 0,
-    cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
-  });
-}
 
 /** The race's `<header>`: the goal, its meta line and the source badge. */
 function headerOf(html: string): string {

@@ -46,7 +46,6 @@ import {
   finishOrder,
   type LaneFold,
   laneOutcome,
-  NEVER_STARTED,
   type RunView,
   throughPlaces,
 } from "./race.js";
@@ -62,6 +61,12 @@ const NEW_RACE_LINE_ID = "race-new-race-line";
 function stopped(view: RunView): boolean {
   return view.ended?.outcome === "cancelled";
 }
+
+/**
+ * The detail line of a run a stop dropped from io's queue before it started (#6), live or reopened
+ * from the race's stop record: what its lane, Stopped with no step, rests on.
+ */
+const NEVER_STARTED = "Never started: it was still waiting for a slot";
 
 /**
  * What a lane's state rests on: the state a lost stream was last seen in, `runFailed`'s message,
@@ -250,9 +255,16 @@ export function RaceView({
     ...finishes.filter(({ run }) => !places.has(run.id)),
   ];
   const lost = lanes.filter((lane) => lane.lost);
-  const stoppedLanes = lanes.filter((lane) => stopped(lane.view));
+  const stoppedCount = lanes.filter((lane) => stopped(lane.view)).length;
   // The runs that count: a stopped run is no result.
-  const counted = runs.length - stoppedLanes.length;
+  const counted = runs.length - stoppedCount;
+  // The result line's clauses after its k/n: "got through", then how many were stopped and how
+  // many streams were lost, each only when there are any.
+  const resultClauses = [
+    "got through",
+    ...(stoppedCount === 0 ? [] : [`${stoppedCount} stopped`]),
+    ...(lost.length === 0 ? [] : [`${count(lost.length, "stream")} lost`]),
+  ];
   return (
     <section aria-labelledby="race-goal" className="flex flex-col pb-(--space-4)">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-(--space-6) pt-(--space-4) pb-(--space-4)">
@@ -321,13 +333,13 @@ export function RaceView({
               <p className="body text-ink-2">
                 {counted === 0 ? (
                   <>
-                    <span className="mono text-ink">{stoppedLanes.length}</span>
+                    <span className="mono text-ink">{stoppedCount}</span>
                     {" stopped"}
                   </>
                 ) : (
                   <>
                     <span className="mono text-ink">{`${places.size}/${counted}`}</span>
-                    {` got through${stoppedLanes.length === 0 ? "" : `, ${stoppedLanes.length} stopped`}${lost.length === 0 ? "" : `, ${count(lost.length, "stream")} lost`}`}
+                    {` ${resultClauses.join(", ")}`}
                   </>
                 )}
               </p>

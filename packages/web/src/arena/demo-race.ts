@@ -1,9 +1,10 @@
 /**
  * Test and check data, Node only: this file imports `@wayford/core/fixtures`, which reads its files
  * with `node:fs`, so no screen may import it. It holds `demoRace`, a race in progress built from
- * Vera's fixture run, `waitingRace`, the same race while one run still waits for a slot, and
- * `eventsOf`, which makes fixture events a run's own. The race's tests import both races from here,
- * and the self-check serves them, and the races it builds with `eventsOf`, to the Race.
+ * Vera's fixture run, `waitingRace`, the same race while one run still waits for a slot,
+ * `eventsOf`, which makes fixture events a run's own, and `droppedBy`, the one event io streams for
+ * a run a stop dropped. The race's tests import both races and `droppedBy` from here, and the
+ * self-check serves the races, and the races it builds with `eventsOf`, to the Race.
  *
  * A module of its own so the self-check can load it. `check:self` runs under plain `tsx`, not Vite,
  * and `./fixture-race.js` reaches Vite's `import.meta.glob` through `./panel-state.js`. This file
@@ -85,19 +86,21 @@ export const demoRace: {
 };
 
 /**
- * The one event io streams for a run a stop drops from its queue before it started (#6): a
+ * The one event io streams for `run` when a stop drops it from its queue before it started (#6): a
  * `runFinished` `cancelled` at step 0, after no time and at no cost, with no `runStarted` before
- * it. Dated after Kai's step 4 was observed, the latest event of `waitingRace`.
+ * it, dated `timestamp`.
  */
-const droppedEnd = RunEvent.parse({
-  type: "runFinished",
-  runId: FIXTURE_RUN_ID,
-  stepIndex: 0,
-  timestamp: "2026-09-22T10:00:14.000Z",
-  outcome: "cancelled",
-  durationMs: 0,
-  cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
-});
+export function droppedBy(run: StartedRun, timestamp = "2026-09-22T10:00:05.000Z"): RunEvent {
+  return RunEvent.parse({
+    type: "runFinished",
+    runId: run.id,
+    stepIndex: 0,
+    timestamp,
+    outcome: "cancelled",
+    durationMs: 0,
+    cost: { tokensIn: 0, tokensOut: 0, usd: 0 },
+  });
+}
 
 /**
  * `demoRace` while Vera's run still waits for a slot behind another race's runs (#6). io lists it
@@ -116,5 +119,6 @@ export const waitingRace: {
   waiting: [demoVera.id],
   // A Map keeps a key where it was first set, so Vera's empty stream keeps her lane third.
   events: new Map([...demoRace.events, [demoVera.id, []]]),
-  dropped: eventsOf(demoVera, [droppedEnd]),
+  // Dated after Kai's step 4 was observed, the latest event of the race.
+  dropped: [droppedBy(demoVera, "2026-09-22T10:00:14.000Z")],
 };
