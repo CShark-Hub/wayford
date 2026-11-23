@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { type TempStore, tempStore } from "../test-app.js";
 import type { Db } from "./database.js";
-import { listRaces, loadRace, saveRace } from "./races.js";
+import { listRaces, loadRace, saveRace, updateRace } from "./races.js";
 import { races } from "./schema.js";
 
 let store: TempStore;
@@ -15,8 +15,19 @@ beforeEach(async () => {
 });
 afterEach(() => store.close());
 
-/** The hard goal's race fixture: Ada, Kai and Vera on seed 1, as `POST /runs` stores a race. */
+/**
+ * The hard goal's race fixture: Ada, Kai, Vera and Milo on seed 1, and the stop that dropped Milo's
+ * run before it started (#6).
+ */
 const race: Race = raceFixture;
+
+/** The fixture's race as `POST /runs` stored it, before its stop. */
+const unstopped: Race = {
+  id: race.id,
+  task: race.task,
+  startedAt: race.startedAt,
+  runs: race.runs,
+};
 
 /** Zoya alone on the easy goal, an hour later. */
 const later: Race = {
@@ -65,6 +76,38 @@ test("a race core's schema refuses is not stored", async () => {
   // A race is a run set, so it has at least one run; core's `race.test.ts` holds the other cases.
   await expect(saveRace(db, { ...race, runs: [] })).rejects.toMatchObject({ code: "invalid_row" });
   expect(await listRaces(db)).toStrictEqual([]);
+});
+
+test("an updated race reads back whole, its start time as stored", async () => {
+  await saveRace(db, unstopped);
+  await updateRace(db, race);
+  expect(await loadRace(db, race.id)).toStrictEqual(race);
+  expect(await listRaces(db)).toStrictEqual([race]);
+  // Still the one row, its start time as `saveRace` stored it.
+  expect(db.select().from(races).all()).toStrictEqual([
+    { id: race.id, startedAt: "2026-09-22T09:59:58.000Z", document: race },
+  ]);
+});
+
+test("an update core's schema refuses changes nothing", async () => {
+  await saveRace(db, unstopped);
+  // A stop naming a run the race does not have; core's `race.test.ts` holds the other cases.
+  const refused = {
+    ...race,
+    cancelled: { at: "2026-09-22T10:00:20.000Z", dequeued: ["run_zoya-past-order-1"] },
+  };
+  await expect(updateRace(db, refused)).rejects.toMatchObject({ code: "invalid_row" });
+  expect(await loadRace(db, race.id)).toStrictEqual(unstopped);
+});
+
+test("an update of a race no row holds throws race_not_found and changes nothing", async () => {
+  // Another race stored, so an update that ignored the id would change it.
+  await saveRace(db, later);
+  await expect(updateRace(db, race)).rejects.toMatchObject({
+    code: "race_not_found",
+    message: expect.stringContaining("race_past-order"),
+  });
+  expect(await listRaces(db)).toStrictEqual([later]);
 });
 
 test("a tampered document fails loadRace and listRaces, naming the table and the id", async () => {

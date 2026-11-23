@@ -167,7 +167,7 @@ test("the fake path on the reduced plan: 12 runs with a decision on every step, 
   expect(text).toContain("12 in the run sets, 8 in 2 sweeps");
   // The tally the pitch quotes is the stored runs' own, outcome by outcome.
   const sweepRuns = await Promise.all(sweeps.map(({ id }) => listRuns(store.db, { sweepId: id })));
-  const tally = { success: 0, gave_up: 0, budget_exceeded: 0, error: 0, missing: 0 };
+  const tally = { success: 0, gave_up: 0, budget_exceeded: 0, error: 0, cancelled: 0, missing: 0 };
   for (const run of [...setRuns, ...sweepRuns.flat()]) tally[run.outcome] += 1;
   expect(summary.outcomes).toStrictEqual(tally);
   expect(tally.error).toBe(0);

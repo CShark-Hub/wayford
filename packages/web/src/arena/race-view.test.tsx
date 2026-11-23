@@ -15,7 +15,7 @@ import { screenshotUrl } from "../api/runs.js";
 import { attributesOf, classesOf, lineOf, styleOf } from "../preview/rendered-markup.js";
 import { createAppRouter } from "../router.js";
 import { STUCK_STEPS } from "./avatar-state.js";
-import { demoRace, eventsOf } from "./demo-race.js";
+import { demoRace, droppedBy, eventsOf } from "./demo-race.js";
 import {
   avatarStateOf,
   beforeEnd,
@@ -34,10 +34,11 @@ import {
   type RaceSnapshot,
   raceOver,
   runView,
+  STOPPED_LANE,
   storedLane,
   UNSTORED_LANE,
 } from "./race.js";
-import { RaceView } from "./race-view.js";
+import { RaceView, type StopOffer } from "./race-view.js";
 
 /** Vera's fixture run, as io's `POST /runs` would have handed it back. */
 const vera: StartedRun = { id: "run_vera-hard-1", profileId: "prof_vera", seed: 424242 };
@@ -73,12 +74,13 @@ const raceTask: Task = { ...hardTask, id: "task_minted-for-race" };
 /**
  * The race of `runs` after `snapshot`, on the hard goal, inside the app's router, so its links
  * build their hrefs. A static render runs no effect. A stored report is on the goal, the hard
- * goal's, unless `unreported`: the goal was edited, or no report is stored on it.
+ * goal's, unless `unreported`: the goal was edited, or no report is stored on it. `stop` is the
+ * stop the screen offers, none unless given.
  */
 function renderRace(
   runs: readonly StartedRun[],
   snapshot: RaceSnapshot,
-  { unreported = false }: { unreported?: boolean } = {},
+  { unreported = false, stop }: { unreported?: boolean; stop?: StopOffer } = {},
 ): string {
   const reportTask: TaskId | undefined = unreported ? undefined : hardTask.id;
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: ["/race"] }) });
@@ -95,9 +97,17 @@ function renderRace(
         profiles={profileFixtures}
         reportTask={reportTask}
         onNewRace={() => {}}
+        {...(stop === undefined ? {} : { stop })}
       />
     </RouterContextProvider>,
   );
+}
+
+/** The opening tag of the `<button>` whose text is `text`; undefined when there is none. */
+function buttonTag(html: string, text: string): string | undefined {
+  return [...html.matchAll(/(<button[^>]*>)(.*?)<\/button>/gs)].find(
+    (m) => lineOf(m[2] ?? "") === text,
+  )?.[1];
 }
 
 /** Vera's race of one, after `events`, her stream at `stream`. */
@@ -193,10 +203,13 @@ function stripText(html: string): string {
   return lineOf(html.slice(0, html.indexOf("<ol")));
 }
 
-/** The goal strip's result line, on one line, with its k/n's classes; undefined while it has none. */
+/**
+ * The goal strip's result line, on one line, with the classes of the count it leads with, its k/n
+ * or, when every run was stopped, that count alone; undefined while it has none.
+ */
 function resultLineOf(html: string) {
   const strip = html.slice(0, html.indexOf("<ol"));
-  const found = strip.match(/<p[^>]*>(<span ([^>]*)>\d+\/\d+<\/span>.*?)<\/p>/s);
+  const found = strip.match(/<p[^>]*>(<span ([^>]*)>\d+(?:\/\d+)?<\/span>.*?)<\/p>/s);
   if (found === null) return undefined;
   return { text: lineOf(found[1] ?? ""), countClasses: classesOf(attributesOf(found[2] ?? "")) };
 }
@@ -453,6 +466,28 @@ describe("the state in words, with what grounds it", () => {
       expect(finishLines(html), stream).toStrictEqual(["– Vera Gave up 0:16.5"]);
     }
   });
+
+  test("a run a stop dropped before it started: Stopped in ink-2, never started, its avatar plain and dimmed, listed with no place", () => {
+    const html = render([droppedBy(vera)], "ended");
+    expect(standingOf(html)).toBe("Stopped | — | 0 steps");
+    // Neutral, never fault: a person stopped the race, and nothing failed.
+    expect(detailOf(html)).toStrictEqual({
+      text: "Never started: it was still waiting for a slot",
+      classes: expect.arrayContaining(["text-ink-2"]),
+    });
+    expect(tileOf(html, vera)).not.toContain("text-fault");
+    // She never moved, and the stop was no decision of hers: no state, as on a lost lane.
+    expect(avatarOf(html)).not.toHaveProperty("data-state");
+    expect(avatarTileOf(html).class).toContain("opacity-50");
+    expect(tileOf(html, vera)).not.toContain('data-part="state"');
+    expect(tileText(html)).not.toContain("Run state");
+    // An ending: the track closes on the stop sign, and its label says so.
+    expect(tileOf(html, vera)).toContain('data-end="stopped"');
+    expect(trackLabelOf(html)).toBe("0 steps: stopped");
+    // io stores no run that never started, so the lane links to no run detail.
+    expect(runLinkOf(html)).toBeUndefined();
+    expect(finishLines(html)).toStrictEqual(["– Vera Stopped —"]);
+  });
 });
 
 describe("the lane", () => {
@@ -658,6 +693,67 @@ describe("around the lanes", () => {
     }
   });
 
+  test("the k/n line leaves stopped runs out: n counts the rest, N stopped comes before any streams lost, and stands alone when every run was stopped", () => {
+    const ada: StartedRun = { id: "run_ada-hard-1", profileId: "prof_ada", seed: vera.seed };
+    const kai: StartedRun = { id: "run_kai-hard-1", profileId: "prof_kai", seed: vera.seed };
+    const milo: StartedRun = { id: "run_milo-hard-1", profileId: "prof_milo", seed: vera.seed };
+    const adaThrough = eventsOf(ada, endedBy("success"));
+    const cases: [string, readonly StartedRun[], RaceSnapshot, string][] = [
+      [
+        "one through, one gave up, two stopped",
+        [ada, vera, kai, milo],
+        {
+          events: new Map([
+            [ada.id, adaThrough],
+            [vera.id, runEventFixtures],
+            [kai.id, [droppedBy(kai)]],
+            [milo.id, [droppedBy(milo)]],
+          ]),
+          streams: new Map(),
+        },
+        "1/2 got through, 2 stopped",
+      ],
+      [
+        "one through, one stopped, one stream lost",
+        [ada, kai, vera],
+        {
+          events: new Map([
+            [ada.id, adaThrough],
+            [kai.id, [droppedBy(kai)]],
+            [vera.id, upTo(8)],
+          ]),
+          streams: new Map([[vera.id, "failed"]]),
+        },
+        "1/2 got through, 1 stopped, 1 stream lost",
+      ],
+      [
+        "every run stopped",
+        [kai, vera],
+        {
+          events: new Map([
+            [kai.id, [droppedBy(kai)]],
+            [vera.id, [droppedBy(vera)]],
+          ]),
+          streams: new Map(),
+        },
+        "2 stopped",
+      ],
+      [
+        "the one run stopped",
+        [vera],
+        { events: new Map([[vera.id, [droppedBy(vera)]]]), streams: new Map() },
+        "1 stopped",
+      ],
+    ];
+    for (const [what, runs, snapshot, line] of cases) {
+      const html = renderRace(runs, snapshot);
+      expect(resultLineOf(html), what).toStrictEqual({
+        text: line,
+        countClasses: expect.arrayContaining(["mono"]),
+      });
+    }
+  });
+
   test("the goal strip: the preset's tag and the task id, the goal in quotes, its success in mono, and the seed", () => {
     const html = render([]);
     expect(hardTask.goal).toBe(GOAL);
@@ -814,11 +910,113 @@ describe("a race drawn from its runs' records", () => {
     expect(runLinkOf(html)).toBeUndefined();
   });
 
+  test("a run the race's stop record names: Stopped and never started, as its live lane read at its end, never a lost stream", () => {
+    const stored = renderStored([vera], () => STOPPED_LANE);
+    const live = render([droppedBy(vera)], "ended");
+    expect(standingOf(stored)).toBe("Stopped | — | 0 steps");
+    expect(standingOf(stored)).toBe(standingOf(live));
+    expect(detailOf(stored)).toStrictEqual(detailOf(live));
+    expect(trackLabelOf(stored)).toBe(trackLabelOf(live));
+    expect(avatarOf(stored)).not.toHaveProperty("data-state");
+    expect(avatarTileOf(stored).class).toContain("opacity-50");
+    expect(finishLines(stored)).toStrictEqual(finishLines(live));
+    expect(lineOf(stored)).not.toContain("Stream lost");
+    expect(runLinkOf(stored)).toBeUndefined();
+  });
+
   test("on several seeds, the strip names every seed and each lane its persona's seed", () => {
     const second: StartedRun = { ...vera, id: "run_vera-hard-2", seed: 7 };
     const html = renderStored([vera, second], () => UNSTORED_LANE, [vera.seed, second.seed]);
     expect(html).toMatch(/<span class="text-ink-3">seeds<\/span>424242, 7<\/span>/);
     expect(html).toMatch(/<h3 id="race-run_vera-hard-1"[^>]*>Vera, seed 424242<\/h3>/);
     expect(html).toMatch(/<h3 id="race-run_vera-hard-2"[^>]*>Vera, seed 7<\/h3>/);
+  });
+});
+
+describe("Stop race (#6)", () => {
+  const ada: StartedRun = { id: "run_ada-hard-1", profileId: "prof_ada", seed: vera.seed };
+  const runs = [ada, vera];
+  /** Ada is under way at her step 1, and Vera still waits for a slot: her stream brought nothing. */
+  const waiting: RaceSnapshot = {
+    events: new Map([[ada.id, eventsOf(ada, upTo(8))]]),
+    streams: new Map(),
+  };
+  /** The race over: Ada got through, and Vera's stream brought the end of her drop. */
+  const over: RaceSnapshot = {
+    events: new Map([
+      [ada.id, eventsOf(ada, endedBy("success"))],
+      [vera.id, [droppedBy(vera)]],
+    ]),
+    streams: new Map(),
+  };
+
+  /** A stop to offer: one run waiting, one under way, none asked for yet, `changes` laid over. */
+  function offer(changes: Partial<StopOffer> = {}): StopOffer {
+    return {
+      waiting: 1,
+      running: 1,
+      pending: false,
+      error: undefined,
+      onConfirm: () => {},
+      ...changes,
+    };
+  }
+
+  test("sits after New race while the race runs and a run waits for a slot: outlined, opening a dialog", () => {
+    const html = renderRace(runs, waiting, { stop: offer() });
+    const stop = attributesOf(buttonTag(html, "Stop race") ?? "");
+    expect(stop).toMatchObject({
+      type: "button",
+      "aria-haspopup": "dialog",
+      "data-variant": "outline",
+    });
+    expect(stop).not.toHaveProperty("disabled");
+    const header = headerOf(html);
+    expect(header.indexOf(">New race<")).toBeGreaterThan(-1);
+    expect(header.indexOf(">New race<")).toBeLessThan(header.indexOf(">Stop race<"));
+    // New race keeps its look and its note: the runs under way finish, so a new race still queues.
+    expect(attributesOf(buttonTag(html, "New race") ?? "")["data-variant"]).toBe("outline");
+    expect(lineOf(html)).toContain("A new race queues its runs behind these.");
+    // Nothing failed, so nothing is alerted.
+    expect(html).not.toContain('role="alert"');
+  });
+
+  test("shows only with a stop to offer, a run still waiting, and the race not over", () => {
+    expect(buttonTag(renderRace(runs, waiting), "Stop race")).toBeUndefined();
+    expect(
+      buttonTag(renderRace(runs, waiting, { stop: offer({ waiting: 0 }) }), "Stop race"),
+    ).toBeUndefined();
+    expect(raceOver(runs, over)).toBe(true);
+    expect(buttonTag(renderRace(runs, over, { stop: offer() }), "Stop race")).toBeUndefined();
+  });
+
+  test("once confirmed it reads Stopping… and cannot be pressed again", () => {
+    const html = renderRace(runs, waiting, { stop: offer({ pending: true }) });
+    expect(buttonTag(html, "Stop race")).toBeUndefined();
+    const stopping = attributesOf(buttonTag(html, "Stopping…") ?? "");
+    expect(stopping).toHaveProperty("disabled");
+    expect(stopping["data-variant"]).toBe("outline");
+  });
+
+  test("a stop io did not confirm: an alert in fault under the buttons, which says how to see where the race stands", () => {
+    const error = "io answered 500: 1 run stopped, but the stop could not be recorded";
+    for (const [what, snapshot] of [
+      ["running", waiting],
+      // The runs may have been dropped all the same: the line stays once the race is over.
+      ["over", over],
+    ] as const) {
+      const html = renderRace(runs, snapshot, { stop: offer({ error }) });
+      const header = headerOf(html);
+      const alerts = [...header.matchAll(/<p([^>]*\srole="alert"[^>]*)>(.*?)<\/p>/gs)];
+      expect(alerts, what).toHaveLength(1);
+      const [, tag, text] = alerts[0] ?? [];
+      expect(lineOf(text ?? ""), what).toBe(
+        `io did not confirm the stop: ${error}. Open the race again to see where it stands.`,
+      );
+      expect(classesOf(attributesOf(tag ?? "")), what).toContain("text-fault");
+      expect(header.indexOf('role="alert"'), what).toBeGreaterThan(header.indexOf(">New race<"));
+      // An alert speaks on its own: the finish order stays the one aria-live region.
+      expect(html.match(/aria-live=/g), what).toHaveLength(1);
+    }
   });
 });

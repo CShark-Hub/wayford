@@ -2,7 +2,8 @@
  * The in-process job runner (s4-03): a run set's persona × seed runs, at most five at once, each
  * run's events published live as they arrive, and each run stored when it ends
  * (`docs/specs/2026-10-02-s4-03-runs-api.md`, "runner.ts"). One Node process, no queue service and
- * no workers (`docs/PLAN.md`, "Architecture"): the runs waiting for a slot are an array in memory.
+ * no workers (`docs/PLAN.md`, "Architecture"): the runs waiting for a slot are a list in memory,
+ * keyed by run id.
  *
  * It builds on what `runActor` guarantees: every event stamped with the run's id and handed over
  * synchronously in order, and one terminal event after `runStarted`, with nothing after it. A run
@@ -11,6 +12,11 @@
  * fold of what was streamed" holds by construction, for a fake too. A run's terminal event is held
  * back until the save has been tried, so a client that sees a stream end finds the run in
  * `GET /runs`, unless the save failed, which is logged.
+ *
+ * A run still waiting for a slot can be dropped (`cancel`, #6,
+ * `docs/specs/2026-11-08-6-stop-race.md`): it never starts, its stream ends at once with one
+ * `runFinished` `cancelled`, and nothing is stored, so it is never in `GET /runs`. A run that holds
+ * a slot runs to its end.
  *
  * Every run of a set runs on one step cap, read from its task's ground truth when the set starts
  * (core's `stepCapOf`, issue #196), and every set of a sweep on the cap its first set read. The
@@ -96,7 +102,10 @@ export interface RunnerOptions {
 
 /** A run's live side: what the events route streams. */
 export interface LiveRun {
-  /** Published so far, in order. The terminal event comes last, once the save has been tried. */
+  /**
+   * Published so far, in order. The terminal event comes last: once the save has been tried, or at
+   * once for a run dropped before it started (`Runner.cancel`).
+   */
   readonly events: readonly RunEvent[];
   /** Set with the terminal event: nothing is published after it. */
   readonly ended: boolean;
@@ -130,6 +139,15 @@ export interface Runner {
   ): StartedRun[];
   /** The run with this id, started by this runner, or `undefined`. */
   live(id: string): LiveRun | undefined;
+  /** Whether `id` is a run of this process still waiting for a slot. */
+  waiting(id: string): boolean;
+  /**
+   * Drops each of `ids` still waiting for a slot (#6): it never starts, its stream ends with one
+   * `runFinished` `cancelled`, and nothing is stored. Returns the ids dropped, in queue order. A
+   * run that holds a slot, has ended or is unknown is left as it is. Synchronous, so no run can
+   * take a slot between the check and the drop.
+   */
+  cancel(ids: readonly string[]): RunId[];
 }
 
 /**
@@ -176,7 +194,9 @@ export function createRunner(options: RunnerOptions): Runner {
     options;
   // Parsed now, so a bad origin fails when the runner is built.
   const targetApp = new URL(options.targetAppOrigin).origin;
-  const lives = new Map<string, LiveRun>();
+  // The writers, so `cancel` can end a dropped run's stream; `live` hands each out as a `LiveRun`,
+  // so a reader gets no way to publish.
+  const lives = new Map<string, LiveWriter>();
   const slots = slotQueue(MAX_CONCURRENT_RUNS);
   // The sets' step-cap reads, one after another in start order, so runs call `run` in the order
   // they took their slots however long each read takes. A read that rejects fails its own set
@@ -189,7 +209,8 @@ export function createRunner(options: RunnerOptions): Runner {
 
   /**
    * One run, from its slot to its stored record and the end of its stream. Never rejects: what
-   * cannot go anywhere else goes to the log.
+   * cannot go anywhere else goes to the log. A run dropped while it waits returns as soon as its
+   * slot is refused: `cancel` has ended its stream.
    */
   async function job(
     runId: RunId,
@@ -203,7 +224,7 @@ export function createRunner(options: RunnerOptions): Runner {
       jargon?: readonly string[];
     },
     stepCap: Promise<number | undefined>,
-    slot: Promise<void>,
+    slot: Promise<boolean>,
     live: LiveWriter,
   ): Promise<void> {
     const log = logger.child({ runId });
@@ -214,7 +235,9 @@ export function createRunner(options: RunnerOptions): Runner {
     };
 
     try {
-      await slot;
+      // `false` for a run dropped while it waited. It never held a slot, so it reads no cap, calls
+      // no `run` and frees nothing: freeing would start a sixth run.
+      if (!(await slot)) return;
       let settled: Settled;
       try {
         // The set's one read, which rejects only on an error no file explains, failing the run
@@ -261,22 +284,46 @@ export function createRunner(options: RunnerOptions): Runner {
       reads = stepCap.catch(() => undefined);
       if (sweep !== undefined && swept === undefined) sweepCaps.set(sweep.sweepId, stepCap);
       const started: StartedRun[] = [];
-      // Seed-major: a set cut short still has whole seeds, comparable across personas (A20).
+      // Seed-major: a set io cuts short still has whole seeds, comparable across personas (A20). A
+      // set a person stops does not (`cancel`, #6): the stop drops the tail of the queue, which can
+      // end mid-seed.
       for (const seed of seeds) {
         for (const profile of profiles) {
           const id = newId("run");
           const live = liveRun();
-          // Stored as a `LiveRun`, so a reader gets no way to publish.
           lives.set(id, live);
           // The slot is asked for now, in call order, so the queue is FIFO across `start` calls.
           const inputs = { task, profile, seed, backend, ...inSweep, ...site };
-          void job(id, inputs, stepCap, slots.take(), live);
+          void job(id, inputs, stepCap, slots.take(id), live);
           started.push({ id, profileId: profile.id, seed });
         }
       }
       return started;
     },
     live: (id) => lives.get(id),
+    waiting: (id) => slots.has(id),
+    cancel(ids) {
+      const dropped = slots.drop(ids);
+      // One moment for the whole drop: a timestamp, never a decision.
+      const timestamp = new Date().toISOString();
+      for (const runId of dropped) {
+        // Ended here, so the run reads as ended once `cancel` returns, and not through `closeOut`,
+        // which would log an error and end it `runFailed`: a stop is no fault. `ownFailure`'s
+        // values for a run that never started: step 0, no duration, no cost.
+        lives.get(runId)?.end(
+          RunEvent.parse({
+            type: "runFinished",
+            runId,
+            stepIndex: 0,
+            timestamp,
+            outcome: "cancelled",
+            durationMs: 0,
+            cost: NO_COST,
+          }),
+        );
+      }
+      return dropped;
+    },
   };
 }
 
@@ -328,27 +375,49 @@ export async function stepCapFor(
 // ---------------------------------------------------------------------------
 
 /**
- * `size` slots and a FIFO of the runs waiting for one. `take` decides a run's place at once, in
- * call order, and `free` hands the slot straight to the next in line, so no later `take` can jump
- * the queue.
+ * `size` slots and a FIFO of the runs waiting for one, keyed by run id. `take` decides a run's
+ * place at once, in call order, and `free` hands the slot straight to the next in line, so no
+ * later `take` can jump the queue. `drop` takes runs out of the line (#6) and leaves the count of
+ * open slots as it is, since a waiting run never held one.
  */
 function slotQueue(size: number) {
   let open = size;
-  const waiting: (() => void)[] = [];
+  // What settles each waiting run's `take`, in line order: a `Map` keeps insertion order.
+  const waiting = new Map<string, (slotted: boolean) => void>();
+  const leave = (id: string, slotted: boolean): void => {
+    waiting.get(id)?.(slotted);
+    waiting.delete(id);
+  };
   return {
-    take(): Promise<void> {
+    /**
+     * Resolves `true` once the run holds a slot, at once when one is open, or `false` if the run is
+     * dropped first.
+     */
+    take(id: string): Promise<boolean> {
       if (open > 0) {
         open--;
-        return Promise.resolve();
+        return Promise.resolve(true);
       }
       return new Promise((resolve) => {
-        waiting.push(resolve);
+        waiting.set(id, resolve);
       });
     },
     free(): void {
-      const next = waiting.shift();
-      if (next === undefined) open++;
-      else next();
+      const next = waiting.keys().next();
+      if (next.done === true) open++;
+      else leave(next.value, true);
+    },
+    /** Whether the run is in line for a slot. */
+    has: (id: string): boolean => waiting.has(id),
+    /**
+     * Takes each of `ids` still in line out of it and answers its `take` `false`. Returns those
+     * ids, in line order.
+     */
+    drop(ids: readonly string[]): string[] {
+      const asked = new Set(ids);
+      const dropped = [...waiting.keys()].filter((id) => asked.has(id));
+      for (const id of dropped) leave(id, false);
+      return dropped;
     },
   };
 }

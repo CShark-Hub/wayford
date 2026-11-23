@@ -307,9 +307,10 @@ export const decisionRecordFixture: DecisionRecord = readJson(
 export const sweepFixtures: Sweep[] = readJson("sweeps.json", Sweep.array());
 
 /**
- * The run set one `POST /runs` started on the hard goal (issue #194): Ada, Kai and Vera on seed 1,
- * seed-major, the runs the hard goal's report fixture cites for that seed. Its task is
- * `tasks.json`'s, whole.
+ * The run set one `POST /runs` started on the hard goal (issue #194): Ada, Kai, Vera and Milo on
+ * seed 1, seed-major. A stop dropped Milo's run from io's queue before it started (#6), so its stop
+ * record names it, and the other three are the runs the hard goal's report fixture cites for that
+ * seed. Its task is `tasks.json`'s, whole.
  */
 export const raceFixture: Race = readJson("race.json", Race);
 

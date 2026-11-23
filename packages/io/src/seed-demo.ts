@@ -144,7 +144,8 @@ export interface DemoSummary {
   backend: ActorBackendName;
   /** The Actor models the stored runs name, each once. */
   models: string[];
-  /** Every run the call started, by outcome; `missing` for a run never stored. */
+  /** Every run the call started, by outcome; `missing` for a run never stored. `cancelled` stays
+   *  0: seed:demo stops no race (#6). */
   outcomes: Record<RunOutcome | "missing", number>;
   /** Runs outside any sweep; a sweep's runs are its values' `runIds`. */
   setRuns: number;
@@ -220,6 +221,7 @@ export async function seedDemo(deps: SeedDemoDeps, plan: DemoPlan): Promise<Demo
     gave_up: 0,
     budget_exceeded: 0,
     error: 0,
+    cancelled: 0,
     missing: 0,
   };
   const models = new Set<string>();
@@ -256,6 +258,7 @@ const OUTCOME_WORDS: Record<RunOutcome | "missing", string> = {
   gave_up: "gave up",
   budget_exceeded: "budget exceeded",
   error: "error",
+  cancelled: "cancelled",
   missing: "never stored",
 };
 
@@ -272,8 +275,10 @@ export function summaryText(summary: DemoSummary): string {
   );
   const analystUsd = summary.reports.reduce((sum, report) => sum + report.cost.analyst.usd, 0);
   const made = setRuns + sweepRuns;
-  // Every outcome, a 0 included, so "0 error" is said; "never stored" only when a run was not.
-  const byOutcome = [...RUN_OUTCOMES, ...(outcomes.missing > 0 ? (["missing"] as const) : [])]
+  // Every outcome, a 0 included, so "0 error" is said; "cancelled" and "never stored" only when
+  // there are any, as neither should happen: seed:demo stops no race (#6).
+  const byOutcome = [...RUN_OUTCOMES, "missing" as const]
+    .filter((key) => outcomes[key] > 0 || (key !== "cancelled" && key !== "missing"))
     .map((key) => `${outcomes[key]} ${OUTCOME_WORDS[key]}`)
     .join(", ");
   const lines = [

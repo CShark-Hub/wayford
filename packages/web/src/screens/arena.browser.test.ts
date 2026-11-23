@@ -10,15 +10,23 @@
  * - Two races running at once are both in the History, and each opens.
  * - A finished race stays in the History, links to its report, and opens from its runs' records,
  *   with no stream.
+ * - A race with a run still waiting for a slot offers Stop race (#6). Its confirmation opens on
+ *   "Keep running", and Esc and "Keep running" close it with nothing sent, Esc handing focus back
+ *   to Stop race. Confirmed on a race opened by its URL, it posts one stop for the URL's race, the
+ *   trigger reads "Stopping…" until the dropped run's end comes down its stream, and focus moves to
+ *   New race. A stop io did not confirm says why in an alert, and Stop race can be pressed again.
+ * - A race of more runs than the browser follows live offers Stop race too, and tells io's answer
+ *   in a status line.
  */
 import { fileURLToPath } from "node:url";
-import { type RunEvent, runResultFromEvents, type StartedRun } from "@wayford/core";
+import { type RunEvent, type RunId, runResultFromEvents, type StartedRun } from "@wayford/core";
 import { runEventFixtures, taskFixture } from "@wayford/core/fixtures";
-import { type Browser, chromium, type Page, type Route } from "playwright";
+import { type Browser, chromium, type Locator, type Page, type Route } from "playwright";
 import { createServer, type ViteDevServer } from "vite";
 import { afterAll, beforeAll, expect, onTestFinished, test, vi } from "vitest";
 import type { Race } from "../api/races.js";
-import { demoRace, eventsOf } from "../arena/demo-race.js";
+import { demoRace, eventsOf, waitingRace } from "../arena/demo-race.js";
+import { stopAnswerLine, stopFaultLine } from "../arena/stop-race.js";
 
 // Starting Vite, its first transform of the app and launching Chromium take longer than vitest's
 // 5 s hook default.
@@ -55,9 +63,9 @@ afterAll(async () => {
 /** `demoRace`'s runs: Ada gets through, Kai is under way, Vera gives up. */
 const [ada, kai, vera] = demoRace.runs as [StartedRun, StartedRun, StartedRun];
 
-/** `demoRace` as io keeps it under `id`, with `status`. */
+/** `demoRace` as io keeps it under `id`, with `status`, and no run waiting for a slot. */
 function raceOf(id: string, status: Race["status"], runs: StartedRun[] = demoRace.runs): Race {
-  return { id, task: hardTask, startedAt: "2026-10-07T09:00:00.000Z", runs, status };
+  return { id, task: hardTask, startedAt: "2026-10-07T09:00:00.000Z", runs, status, waiting: [] };
 }
 
 /**
@@ -72,8 +80,14 @@ function eventStream(events: readonly RunEvent[]): string {
   return `retry: 3600000\n\n${messages.join("")}`;
 }
 
-/** io's answer to one request: JSON under a status, 200 unless given, or an event stream. */
-type Answer = { status?: number; json: unknown } | { stream: readonly RunEvent[] };
+/**
+ * io's answer to one request: JSON under a status, 200 unless given, or an event stream, at once
+ * or once `held` brings its events, as io holds a waiting run's stream open with nothing on it.
+ */
+type Answer =
+  | { status?: number; json: unknown }
+  | { stream: readonly RunEvent[] }
+  | { held: Promise<readonly RunEvent[]> };
 
 /**
  * A 1280 × 720 page whose `/api` calls `answers` answers, by method and path, such as
@@ -99,35 +113,83 @@ async function servedPage(answers: Record<string, Answer>) {
           body: eventStream(answer.stream),
         });
       }
+      if ("held" in answer) {
+        return answer.held.then((events) =>
+          route.fulfill({ contentType: "text/event-stream", body: eventStream(events) }),
+        );
+      }
       return route.fulfill({ status: answer.status ?? 200, json: answer.json });
     },
   );
   return { page, asked };
 }
 
-/** Each run of `demoRace` streaming its events. */
-const DEMO_STREAMS: Record<string, Answer> = Object.fromEntries(
-  demoRace.runs.map((run) => [
-    `GET /api/runs/${run.id}/events`,
-    { stream: demoRace.events.get(run.id) ?? [] },
-  ]),
-);
+/**
+ * A stream io holds open with nothing on it, as it holds a run's while the run waits for a slot,
+ * and `release`, after which it brings `events`.
+ */
+function heldStream(events: readonly RunEvent[]): { answer: Answer; release: () => void } {
+  let release: () => void = () => {};
+  const held = new Promise<readonly RunEvent[]>((resolve) => {
+    release = () => resolve(events);
+  });
+  return { answer: { held }, release };
+}
+
+/** Two frames: whatever a commit just drawn, or an answer just landed, set off has run. */
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+  );
+}
+
+/** Each run of `race`, `demoRace` or `waitingRace`, streaming its events. */
+function streamsOf(race: {
+  runs: readonly StartedRun[];
+  events: ReadonlyMap<RunId, readonly RunEvent[]>;
+}): Record<string, Answer> {
+  return Object.fromEntries(
+    race.runs.map((run) => [
+      `GET /api/runs/${run.id}/events`,
+      { stream: race.events.get(run.id) ?? [] },
+    ]),
+  );
+}
 
 /** The race lane of the persona called `name`. */
 function laneOf(page: Page, name: string) {
   return page.getByRole("article", { name, exact: true });
 }
 
-/** `demoRace` as its streams leave it: Ada 1st, Kai under way, Vera gave up. */
-async function demoLanesDrawn(page: Page) {
+/**
+ * A race of `demoRace`'s runs as its streams leave it: Ada 1st, Kai under way, and Vera's lane
+ * reading `veraReads`: Gave up in `demoRace`, Waiting in `waitingRace`, where her run still waits
+ * for a slot.
+ */
+async function lanesDrawn(page: Page, veraReads: "Gave up" | "Waiting") {
   await laneOf(page, "Ada").getByText("1st", { exact: true }).waitFor();
   await laneOf(page, "Kai").getByText("5 steps so far", { exact: true }).waitFor();
-  await laneOf(page, "Vera").getByText("Gave up", { exact: true }).waitFor();
+  await laneOf(page, "Vera").getByText(veraReads, { exact: true }).waitFor();
 }
 
 /** The story nav's link to `name`. */
 function navLink(page: Page, name: string) {
   return page.getByRole("navigation", { name: "Story" }).getByRole("link", { name, exact: true });
+}
+
+/** `waitingRace` as io keeps it under `id`: running, with Vera's run still waiting for a slot. */
+function waitingRaceOf(id: string): Race {
+  return { ...raceOf(id, "running", waitingRace.runs), waiting: waitingRace.waiting };
+}
+
+/** Stop race's confirmation, open. */
+function stopDialog(page: Page) {
+  return page.getByRole("alertdialog", { name: "Stop this race?", exact: true });
+}
+
+/** Whether `button`, a button `getByRole` found, holds the page's focus. */
+function focused(button: Locator): Promise<boolean> {
+  return button.evaluate((element) => element === document.activeElement);
 }
 
 test("a race left for the Cast is the same race when the Race tab is clicked again", async () => {
@@ -137,7 +199,7 @@ test("a race left for the Cast is the same race when the Race tab is clicked aga
     "POST /api/tasks": { status: 201, json: { task: hardTask, rewritten: false } },
     "POST /api/runs": { status: 202, json: { raceId: "race_demo", runs: demoRace.runs } },
     "GET /api/races/race_demo": { json: raceOf("race_demo", "running") },
-    ...DEMO_STREAMS,
+    ...streamsOf(demoRace),
   });
   await page.goto(`${origin}/race`);
   await page.getByRole("button", { name: "Check the goal", exact: true }).click();
@@ -146,7 +208,7 @@ test("a race left for the Cast is the same race when the Race tab is clicked aga
   }
   await page.getByRole("button", { name: "Start the race", exact: true }).click();
   await page.waitForURL(`${origin}/race/race_demo`);
-  await demoLanesDrawn(page);
+  await lanesDrawn(page, "Gave up");
 
   // New race opens the panel with the last race's choices, and the History, while the race runs.
   await page.getByRole("button", { name: "New race", exact: true }).click();
@@ -157,7 +219,7 @@ test("a race left for the Cast is the same race when the Race tab is clicked aga
   expect(await navLink(page, "Race").getAttribute("href")).toBe("/race");
   await page.getByRole("region", { name: "running · 1" }).getByRole("link").click();
   await page.waitForURL(`${origin}/race/race_demo`);
-  await demoLanesDrawn(page);
+  await lanesDrawn(page, "Gave up");
 
   await navLink(page, "Cast").click();
   await page.waitForURL(`${origin}/cast`);
@@ -166,7 +228,7 @@ test("a race left for the Cast is the same race when the Race tab is clicked aga
   expect(await navLink(page, "Race").getAttribute("href")).toBe("/race/race_demo");
   await navLink(page, "Race").click();
   await page.waitForURL(`${origin}/race/race_demo`);
-  await demoLanesDrawn(page);
+  await lanesDrawn(page, "Gave up");
   expect(await navLink(page, "Race").getAttribute("aria-current")).toBe("page");
 });
 
@@ -174,11 +236,11 @@ test("a race that finished while the screen was left opens from its records on t
   const ended = new Map([...demoRace.events, [kai.id, eventsOf(kai, runEventFixtures)]]);
   const answers: Record<string, Answer> = {
     "GET /api/races/race_demo": { json: raceOf("race_demo", "running") },
-    ...DEMO_STREAMS,
+    ...streamsOf(demoRace),
   };
   const { page } = await servedPage(answers);
   await page.goto(`${origin}/race/race_demo`);
-  await demoLanesDrawn(page);
+  await lanesDrawn(page, "Gave up");
   await navLink(page, "Cast").click();
   await page.waitForURL(`${origin}/cast`);
 
@@ -201,12 +263,12 @@ test("a race that finished while the screen was left opens from its records on t
 test("a reload on a race's URL brings the race back", async () => {
   const { page } = await servedPage({
     "GET /api/races/race_demo": { json: raceOf("race_demo", "running") },
-    ...DEMO_STREAMS,
+    ...streamsOf(demoRace),
   });
   await page.goto(`${origin}/race/race_demo`);
-  await demoLanesDrawn(page);
+  await lanesDrawn(page, "Gave up");
   await page.reload();
-  await demoLanesDrawn(page);
+  await lanesDrawn(page, "Gave up");
 });
 
 test("two races running at once are both in the History, and each opens", async () => {
@@ -221,7 +283,7 @@ test("two races running at once are both in the History, and each opens", async 
     "GET /api/races": { json: [second, first] },
     "GET /api/races/race_first": { json: first },
     "GET /api/races/race_second": { json: second },
-    ...DEMO_STREAMS,
+    ...streamsOf(demoRace),
     [`GET /api/runs/${veraAgain.id}/events`]: {
       stream: eventsOf(veraAgain, runEventFixtures.slice(0, 8)),
     },
@@ -234,7 +296,7 @@ test("two races running at once are both in the History, and each opens", async 
 
   await links.nth(1).click();
   await page.waitForURL(`${origin}/race/race_first`);
-  await demoLanesDrawn(page);
+  await lanesDrawn(page, "Gave up");
 
   await page.getByRole("button", { name: "New race", exact: true }).click();
   await page.waitForURL(`${origin}/race`);
@@ -274,4 +336,137 @@ test("a finished race stays in the History, links to its report, and opens from 
   expect(await page.locator('[data-source="stored"]').count()).toBe(1);
   expect(asked.filter((key) => key.endsWith("/events"))).toStrictEqual([]);
   expect(asked).toContain(`GET /api/runs/${ada.id}`);
+});
+
+test("the dialog opens on Keep running; Esc and Keep running close it and send nothing", async () => {
+  const { page, asked } = await servedPage({
+    "GET /api/races/race_waiting": { json: waitingRaceOf("race_waiting") },
+    ...streamsOf(waitingRace),
+  });
+  await page.goto(`${origin}/race/race_waiting`);
+  await lanesDrawn(page, "Waiting");
+  // Found only while the dialog is closed: while it is open, the page behind it is hidden, and the
+  // dialog's own "Stop race" is the one a role finds.
+  const trigger = page.getByRole("button", { name: "Stop race", exact: true });
+  const dialog = stopDialog(page);
+  const keep = dialog.getByRole("button", { name: "Keep running", exact: true });
+  /** Every POST the page has sent, a stop among them were one sent. */
+  const posts = () => asked.filter((key) => key.startsWith("POST "));
+
+  await trigger.click();
+  await dialog.waitFor();
+  await expect.poll(() => focused(keep)).toBe(true);
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden" });
+  // Nothing was stopped, so the trigger still reads Stop race, and focus is back on it.
+  await expect.poll(() => focused(trigger)).toBe(true);
+  await settled(page);
+  expect(posts()).toStrictEqual([]);
+
+  await trigger.click();
+  await keep.click();
+  await dialog.waitFor({ state: "hidden" });
+  await settled(page);
+  expect(posts()).toStrictEqual([]);
+});
+
+test("a race opened by its URL stops: the dialog's Stop race posts /api/races/<id>/cancel once, and the trigger reads Stopping… until the waiting lane ends", async () => {
+  const cancel = "POST /api/races/race_waiting/cancel";
+  const veraStream = heldStream(waitingRace.dropped);
+  const { page, asked } = await servedPage({
+    "GET /api/races/race_waiting": { json: waitingRaceOf("race_waiting") },
+    [cancel]: { status: 202, json: { stopped: 0, dequeued: 1 } },
+    ...streamsOf(waitingRace),
+    // Vera's, open and empty until io drops her waiting run.
+    [`GET /api/runs/${vera.id}/events`]: veraStream.answer,
+  });
+  // A page of its own, opened on the race's URL: nothing is held from before, as after a reload,
+  // so the stop can only be keyed on the race id the URL names.
+  await page.goto(`${origin}/race/race_waiting`);
+  await lanesDrawn(page, "Waiting");
+  await page.getByRole("button", { name: "Stop race", exact: true }).click();
+  const answered = page.waitForResponse((response) => {
+    const request = response.request();
+    return `${request.method()} ${new URL(request.url()).pathname}` === cancel;
+  });
+  await stopDialog(page).getByRole("button", { name: "Stop race", exact: true }).click();
+  const posted = (await answered).request();
+  expect({
+    contentType: await posted.headerValue("content-type"),
+    body: posted.postDataJSON(),
+  }).toStrictEqual({ contentType: "application/json", body: {} });
+
+  // io has answered, and Vera's stream has brought nothing yet: the stop stays pending.
+  await settled(page);
+  const stopping = page.getByRole("button", { name: "Stopping…", exact: true });
+  expect(await stopping.isDisabled()).toBe(true);
+  expect(await stopDialog(page).count()).toBe(0);
+  // The trigger cannot be pressed while the stop is pending, so focus went to New race.
+  const newRace = page.getByRole("button", { name: "New race", exact: true });
+  await expect.poll(() => focused(newRace)).toBe(true);
+
+  veraStream.release();
+  await laneOf(page, "Vera").getByText("Stopped", { exact: true }).waitFor();
+  // Nothing waits any more, so nothing is left to stop, though Kai's run is still under way.
+  expect(await page.getByRole("button", { name: /^Stop(ping…| race)$/ }).count()).toBe(0);
+  expect(await focused(newRace)).toBe(true);
+  expect(await page.locator('[data-source="live"]').count()).toBe(1);
+  expect(asked.filter((key) => key.startsWith("POST "))).toStrictEqual([cancel]);
+});
+
+test("a stop io did not confirm: an alert gives io's reason, and the trigger reads Stop race again and can be pressed", async () => {
+  const cancel = "POST /api/races/race_waiting/cancel";
+  const { page, asked } = await servedPage({
+    "GET /api/races/race_waiting": { json: waitingRaceOf("race_waiting") },
+    // io's answer to a failure it did not foresee: nothing was dropped, so Vera still waits.
+    [cancel]: { status: 500, json: { error: "internal error" } },
+    ...streamsOf(waitingRace),
+  });
+  await page.goto(`${origin}/race/race_waiting`);
+  await lanesDrawn(page, "Waiting");
+  const trigger = page.getByRole("button", { name: "Stop race", exact: true });
+  await trigger.click();
+  await stopDialog(page).getByRole("button", { name: "Stop race", exact: true }).click();
+
+  const alert = page.getByRole("alert");
+  await alert.waitFor();
+  expect(await alert.textContent()).toBe(stopFaultLine("io answered 500: internal error"));
+  // The request failed, so nothing is pending: the trigger is back, and opens the confirmation.
+  expect(await trigger.isEnabled()).toBe(true);
+  await trigger.click();
+  await stopDialog(page).waitFor();
+  expect(asked.filter((key) => key.startsWith("POST "))).toStrictEqual([cancel]);
+});
+
+test("a race of more runs than the browser follows stops too: io's answer is told in a status line, and Stop race goes", async () => {
+  const cancel = "POST /api/races/race_many/cancel";
+  /** Six runs, each on its own seed, more than the five a browser follows live. */
+  const six: StartedRun[] = ["ada", "kai", "milo", "vera", "zoya", "ada"].map((name, i) => ({
+    id: `run_${name}-${i}`,
+    profileId: `prof_${name}`,
+    seed: i + 1,
+  }));
+  // The last three still wait for a slot.
+  const race: Race = {
+    ...raceOf("race_many", "running", six),
+    waiting: six.slice(3).map(({ id }) => id),
+  };
+  const { page, asked } = await servedPage({
+    "GET /api/races/race_many": { json: race },
+    [cancel]: { status: 202, json: { stopped: 0, dequeued: 3 } },
+  });
+  await page.goto(`${origin}/race/race_many`);
+  await page.getByRole("button", { name: "Stop race", exact: true }).click();
+  await stopDialog(page).getByRole("button", { name: "Stop race", exact: true }).click();
+
+  const told = page.getByRole("status");
+  await told.waitFor();
+  expect(await told.textContent()).toBe(stopAnswerLine(3));
+  // Nothing waits after the stop, so nothing is left to stop.
+  expect(await page.getByRole("button", { name: /^Stop(ping…| race)$/ }).count()).toBe(0);
+  expect(asked.filter((key) => key.startsWith("POST "))).toStrictEqual([cancel]);
+  // The trigger went, so focus went to New race.
+  await expect
+    .poll(() => focused(page.getByRole("button", { name: "New race", exact: true })))
+    .toBe(true);
 });

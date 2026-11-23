@@ -132,14 +132,27 @@ export type Sampling = z.infer<typeof Sampling>;
  * `budget_exceeded` is the loop cutting it off (`docs/PLAN.md` F5 AC5);
  * `error` is a crash. They are kept apart (`m0-05`, "Constraints") because
  * "the person gave up" and "the tool fell over" are different findings.
+ *
+ * `cancelled`: a person stopped the run's race (#6). It is not a result, so it
+ * never counts in k/n, the Analyst or a sweep. Today io gives it only to a run
+ * it dropped from the queue before it started. That run's stream is the one
+ * `runFinished`, which never folds into a record, because a stream must open
+ * with `runStarted`. It comes last, so a list printed in this order starts as
+ * it did before #6.
  */
-export const RUN_OUTCOMES = ["success", "gave_up", "budget_exceeded", "error"] as const;
+export const RUN_OUTCOMES = [
+  "success",
+  "gave_up",
+  "budget_exceeded",
+  "error",
+  "cancelled",
+] as const;
 
 export const RunOutcome = z.enum(RUN_OUTCOMES);
 export type RunOutcome = z.infer<typeof RunOutcome>;
 
-/** The three ways a run finishes without crashing; `error` belongs to `runFailed`. */
-export const FINISHED_OUTCOMES = ["success", "gave_up", "budget_exceeded"] as const;
+/** The ways a run finishes without crashing; `error` belongs to `runFailed`. */
+export const FINISHED_OUTCOMES = ["success", "gave_up", "budget_exceeded", "cancelled"] as const;
 
 export const FinishedOutcome = z.enum(FINISHED_OUTCOMES);
 export type FinishedOutcome = z.infer<typeof FinishedOutcome>;
@@ -834,6 +847,10 @@ type StepDraft = {
  * throws instead of folding: several runs stream at once (`docs/PLAN.md` F6),
  * and a misrouted event must fail here, not land quietly in another run's
  * record.
+ *
+ * A run io dropped from its queue before it started streams one `runFinished`
+ * `cancelled` and nothing else (#6); io never folds that stream, which opens
+ * with no `runStarted`.
  *
  * A wasted step is stored as `WastedRunStep`. Any other step missing its
  * action or `urlAfter` is stored as incomplete; `RunResult` then rejects it

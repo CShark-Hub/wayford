@@ -9,9 +9,9 @@
  * bodies with schemas built from core's here, since web may not import io. A body that fails its
  * schema rejects with zod's account of why, so a screen says io sent something that is not a run
  * instead of drawing half of one. Screenshots, the video and the trace are files the browser
- * fetches itself, so for those this file only builds the URL. `api/reports.ts` and `api/scout.ts`
- * read their answers through this file's `parseResponse`, `postJson` and `refusal`, and Scout's
- * 502 through `ioReason`, so a refusal reads the same there.
+ * fetches itself, so for those this file only builds the URL. `api/reports.ts`, `api/scout.ts` and
+ * `api/races.ts` read their answers through this file's `parseResponse`, `postJson` and `refusal`,
+ * and Scout's 502 through `ioReason`, so a refusal reads the same there.
  */
 import { queryOptions } from "@tanstack/react-query";
 import {

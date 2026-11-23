@@ -104,7 +104,7 @@ function FilterRow({
 /**
  * The three filters. Task: the tasks the runs carry, by goal in io's order, then any other the
  * runs carry by id: a stored task with no run would open an empty table. Persona: the bundled
- * personas, then any other id the runs carry. Outcome: the four stored outcomes.
+ * personas, then any other id the runs carry. Outcome: core's outcomes, in its order.
  */
 function Filters({
   runs,

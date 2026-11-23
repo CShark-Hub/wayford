@@ -23,6 +23,13 @@ const ROLE_NAMES: Record<LlmRole, string> = {
 
 const BACKENDS = (["llm", "jev"] as const).map((value) => ({ value, label: BACKEND_NAMES[value] }));
 
+/** The overlay behind a dialog: Settings and Stop race's confirmation share it. */
+export const DIALOG_OVERLAY = "fixed inset-0 z-(--z-overlay) bg-paper/75";
+
+/** A dialog's box: Settings and Stop race's confirmation share it. */
+export const DIALOG_CONTENT =
+  "fixed top-1/2 left-1/2 z-(--z-overlay) flex max-h-[calc(100vh_-_var(--space-8))] w-[min(36rem,calc(100vw_-_var(--space-6)))] -translate-x-1/2 -translate-y-1/2 flex-col gap-(--space-5) overflow-y-auto rounded-md border border-line bg-surface p-(--space-6) shadow-pop";
+
 // The Race's seed field's look, drawn disabled: sunken, hairline, ink-3.
 const FIELD =
   "h-(--control-h) w-full rounded-sm border border-line-strong bg-surface px-3 mono text-ink placeholder:text-ink-3 disabled:cursor-not-allowed disabled:border-line disabled:bg-paper-sunken disabled:text-ink-3";
@@ -136,11 +143,8 @@ export function SettingsDialog() {
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-paper/75" />
-        <Dialog.Content
-          aria-describedby={undefined}
-          className="fixed top-1/2 left-1/2 z-(--z-overlay) flex max-h-[calc(100vh_-_var(--space-8))] w-[min(36rem,calc(100vw_-_var(--space-6)))] -translate-x-1/2 -translate-y-1/2 flex-col gap-(--space-5) overflow-y-auto rounded-md border border-line bg-surface p-(--space-6) shadow-pop"
-        >
+        <Dialog.Overlay className={DIALOG_OVERLAY} />
+        <Dialog.Content aria-describedby={undefined} className={DIALOG_CONTENT}>
           <Dialog.Title className="title text-ink">Settings</Dialog.Title>
           <SettingsBody backend={backend} onBackendChange={pickBackend} />
           {/* Last in the markup, so the dialog opens with focus on the switch, the one control
